@@ -177,11 +177,11 @@ class ValidatorService {
       };
 
       // Store in a dedicated audit collection (you'll need to create this)
-      await databases.createDocument(
+      await db.createRow(
         databaseId: 'app',
-        collectionId:
+        tableId:
             'validation_audit', // You'll need to create this collection
-        documentId: ID.unique(),
+        rowId: ID.unique(),
         data: auditEntry,
       );
     } catch (e) {

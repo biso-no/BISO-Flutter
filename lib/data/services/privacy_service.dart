@@ -12,10 +12,10 @@ class PrivacyService {
   /// Returns null if not set, true if public, false if private
   Future<bool?> getUserPrivacySetting(String userId) async {
     try {
-      final document = await databases.getDocument(
+      final document = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: userId,
+        tableId: 'user',
+        rowId: userId,
       );
 
       return document.data['is_public'] as bool?;
@@ -42,10 +42,10 @@ class PrivacyService {
       }
 
       // Update the user's privacy setting
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: userId,
+        tableId: 'user',
+        rowId: userId,
         data: {'is_public': isPublic},
       );
 
@@ -134,10 +134,10 @@ class PrivacyService {
     if (userData != null) {
       user = userData;
     } else {
-      final userDoc = await databases.getDocument(
+      final userDoc = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: userId,
+        tableId: 'user',
+        rowId: userId,
       );
       user = UserModel.fromMap(userDoc.data);
     }

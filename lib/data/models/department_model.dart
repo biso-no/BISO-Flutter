@@ -36,4 +36,25 @@ class DepartmentModel {
           : null,
     );
   }
+
+  factory DepartmentModel.fromTranslationMap(Map<String, dynamic> map) {
+    final dept = map['department_ref'] as Map<String, dynamic>? ?? {};
+    return DepartmentModel(
+      id: (dept['\$id'] ?? dept['Id'] ?? '').toString(),
+      name: (map['title'] ?? '').toString(), // Use translated title as name
+      campusId: (dept['campus_id'] ?? '').toString(),
+      active: (dept['active'] is bool)
+          ? dept['active'] as bool
+          : (dept['active']?.toString() == 'true'),
+      logo: (dept['logo']?.toString().isNotEmpty ?? false)
+          ? dept['logo'].toString()
+          : null,
+      type: (dept['type']?.toString().isNotEmpty ?? false)
+          ? dept['type'].toString()
+          : null,
+      description: (map['description']?.toString().isNotEmpty ?? false)
+          ? map['description'].toString()
+          : null,
+    );
+  }
 }

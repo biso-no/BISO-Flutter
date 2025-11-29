@@ -5,14 +5,16 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/department_model.dart';
 import '../../../data/services/department_service.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
 final _departmentProvider = FutureProvider.family<DepartmentModel?, String>((
   ref,
   id,
 ) async {
+  final locale = ref.watch(localeProvider);
   final service = DepartmentService();
-  return await service.getDepartmentById(id);
+  return await service.getDepartmentById(id, locale: locale.languageCode);
 });
 
 final _socialsProvider =

@@ -243,13 +243,20 @@ class ChatMessage extends Equatable {
 }
 
 /// Request DTO for the chat API
+/// Uses simplified format for Vercel AI SDK: {role, content}
 class ChatRequest extends Equatable {
   final List<ChatMessage> messages;
 
   const ChatRequest({required this.messages});
 
   Map<String, dynamic> toJson() {
-    return {'messages': messages.map((msg) => msg.toJson()).toList()};
+    // Convert to simplified format expected by Vercel AI SDK
+    return {
+      'messages': messages.map((msg) => <String, String>{
+        'role': msg.role,
+        'content': msg.textContent, // Extract text content only
+      }).toList(),
+    };
   }
 
   @override
@@ -405,6 +412,72 @@ class SharePointSearchResponse extends Equatable {
     languageInfo,
     message,
   ];
+}
+
+/// Site content result (events, jobs, etc.)
+class SiteContentResult extends Equatable {
+  final String text;
+  final String source;
+  final String title;
+  final String type; // 'event', 'job', etc.
+  final String? url;
+  final double score;
+
+  const SiteContentResult({
+    required this.text,
+    required this.source,
+    required this.title,
+    required this.type,
+    this.url,
+    required this.score,
+  });
+
+  factory SiteContentResult.fromJson(Map<String, dynamic> json) {
+    return SiteContentResult(
+      text: json['text'] as String? ?? '',
+      source: json['source'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      type: json['type'] as String? ?? 'content',
+      url: json['url'] as String?,
+      score: (json['score'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  @override
+  List<Object?> get props => [text, source, title, type, url, score];
+}
+
+/// Site content search response
+class SiteContentSearchResponse extends Equatable {
+  final List<SiteContentResult> results;
+  final int totalResults;
+  final String query;
+  final String message;
+
+  const SiteContentSearchResponse({
+    required this.results,
+    required this.totalResults,
+    required this.query,
+    required this.message,
+  });
+
+  factory SiteContentSearchResponse.fromJson(Map<String, dynamic> json) {
+    final resultsList = json['results'] as List<dynamic>? ?? [];
+    return SiteContentSearchResponse(
+      results: resultsList
+          .map(
+            (result) =>
+                SiteContentResult.fromJson(result as Map<String, dynamic>),
+          )
+          .toList(),
+      totalResults: json['totalResults'] as int? ?? resultsList.length,
+      query: json['query'] as String? ?? '',
+      message: json['message'] as String? ?? '',
+    );
+  }
+
+  @override
+  List<Object?> get props => [results, totalResults, query, message];
 }
 
 /// Document stats response

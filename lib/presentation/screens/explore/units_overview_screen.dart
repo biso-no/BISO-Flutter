@@ -4,14 +4,19 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../../data/services/department_service.dart';
 import '../../../data/models/department_model.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
 final _departmentsProvider =
     FutureProvider.family<List<DepartmentModel>, String>((ref, campusId) async {
+      final locale = ref.watch(localeProvider);
       final service = DepartmentService();
-      return await service.getActiveDepartmentsForCampus(campusId);
+      return await service.getActiveDepartmentsForCampus(
+        campusId,
+        locale: locale.languageCode,
+      );
     });
 
 class UnitsOverviewScreen extends ConsumerWidget {

@@ -99,10 +99,10 @@ class StudentService {
       );
 
       // Update user profile to link student ID
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: currentUser.id,
+        tableId: 'user',
+        rowId: currentUser.id,
         data: {'student_id': studentNumber, 'student': studentRecord.id},
       );
 
@@ -174,10 +174,10 @@ class StudentService {
         'verified_at': isVerified ? DateTime.now().toIso8601String() : null,
       };
 
-      final createdData = await databases.createDocument(
+      final createdData = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'student_id',
-        documentId: studentNumber,
+        tableId: 'student_id',
+        rowId: studentNumber,
         data: studentData,
       );
 
@@ -225,20 +225,20 @@ class StudentService {
   /// Gets student ID record for a user
   Future<StudentIdModel?> getStudentIdRecord(String userId) async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'student_id',
+        tableId: 'student_id',
         queries: [
           Query.equal('user_id', userId).toString(),
           Query.limit(1).toString(),
         ],
       );
 
-      if (documents.documents.isEmpty) {
+      if (documents.rows.isEmpty) {
         return null;
       }
 
-      return StudentIdModel.fromMap(documents.documents.first.data);
+      return StudentIdModel.fromMap(documents.rows.first.data);
     } catch (e) {
       throw StudentException('Failed to get student ID record: $e');
     }
@@ -254,17 +254,17 @@ class StudentService {
       }
 
       // Remove from student_id collection
-      await databases.deleteDocument(
+      await db.deleteRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'student_id',
-        documentId: studentRecord.id,
+        tableId: 'student_id',
+        rowId: studentRecord.id,
       );
 
       // Update user profile to remove relationship
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: userId,
+        tableId: 'user',
+        rowId: userId,
         data: {'student_id': null, 'student': null},
       );
 

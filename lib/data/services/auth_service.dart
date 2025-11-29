@@ -14,7 +14,7 @@ import '../../core/logging/print_migration.dart';
 class AuthService {
   // Using simplified global Appwrite instances
   Account get _account => account;
-  Databases get _databases => databases;
+  TablesDB get _databases => db;
   Storage get _storage => storage;
 
   // Student service for managing student verification
@@ -127,10 +127,10 @@ class AuthService {
       // Check if user profile exists in database
       UserModel? userProfile;
       try {
-        final doc = await _databases.getDocument(
+        final doc = await _databases.getRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'user',
-          documentId: accountUser.$id,
+          tableId: 'user',
+          rowId: accountUser.$id,
         );
         userProfile = UserModel.fromMap(doc.data);
       } catch (e) {
@@ -190,10 +190,10 @@ class AuthService {
       // Check if user profile exists in database
       UserModel? userProfile;
       try {
-        final doc = await _databases.getDocument(
+        final doc = await _databases.getRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'user',
-          documentId: accountUser.$id,
+          tableId: 'user',
+          rowId: accountUser.$id,
         );
         userProfile = UserModel.fromMap(doc.data);
       } catch (e) {
@@ -224,10 +224,10 @@ class AuthService {
       final accountUser = await _account.get();
 
       try {
-        final doc = await _databases.getDocument(
+        final doc = await _databases.getRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'user',
-          documentId: accountUser.$id,
+          tableId: 'user',
+          rowId: accountUser.$id,
           queries: [
             Query.select([
               'name',
@@ -314,10 +314,10 @@ class AuthService {
         'bank_account': bankAccount,
       };
 
-      final doc = await _databases.createDocument(
+      final doc = await _databases.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: accountUser.$id,
+        tableId: 'user',
+        rowId: accountUser.$id,
         data: userData,
       );
 
@@ -371,10 +371,10 @@ class AuthService {
         'bank_account': bankAccount ?? currentUser.bankAccount,
       };
 
-      final doc = await _databases.updateDocument(
+      final doc = await _databases.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: currentUser.id,
+        tableId: 'user',
+        rowId: currentUser.id,
         data: updatedData,
       );
 
@@ -558,10 +558,10 @@ class AuthService {
       updateData['swift'] = swift?.isNotEmpty == true ? swift : null;
 
       // Update user document in Appwrite
-      final response = await _databases.updateDocument(
+      final response = await _databases.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: currentUser.id,
+        tableId: 'user',
+        rowId: currentUser.id,
         data: updateData,
       );
 

@@ -29,9 +29,9 @@ class CampusService {
     logInfo('CampusService.getAllCampuses: start');
     try {
       final apiTimer = Stopwatch()..start();
-      final results = await databases.listDocuments(
+      final results = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: campusCollectionId,
+        tableId: campusCollectionId,
         queries: [
           Query.orderAsc('name'),
           Query.select(['\$id', 'name']),
@@ -45,7 +45,7 @@ class CampusService {
 
       // Build all campus models in parallel
       final buildStart = Stopwatch()..start();
-      final futures = results.documents.map((doc) async {
+      final futures = results.rows.map((doc) async {
         final perBuildTimer = Stopwatch()..start();
         final campus = await _buildCampusModel(doc.data);
         perBuildTimer.stop();
@@ -117,9 +117,9 @@ class CampusService {
     });
     try {
       final apiTimer = Stopwatch()..start();
-      final results = await databases.listDocuments(
+      final results = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: campusCollectionId,
+        tableId: campusCollectionId,
         queries: [
           Query.orderAsc('name'),
           Query.select(['\$id', 'name']),
@@ -131,7 +131,7 @@ class CampusService {
         'total_documents': results.total,
       });
 
-      final futures = results.documents.map((doc) async {
+      final futures = results.rows.map((doc) async {
         final campusDoc = doc.data;
         final String id = campusDoc['\$id']?.toString() ?? '';
         final String name = campusDoc['name']?.toString() ?? '';
@@ -202,10 +202,10 @@ class CampusService {
     });
     try {
       final apiTimer = Stopwatch()..start();
-      final document = await databases.getDocument(
+      final document = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: campusCollectionId,
-        documentId: campusId,
+        tableId: campusCollectionId,
+        rowId: campusId,
         queries: [
           Query.select(['\$id', 'name']),
         ],
@@ -266,10 +266,10 @@ class CampusService {
   // Minimal fetch of campus_data.location only
   Future<String> _getCampusDataLocation(String campusDataId) async {
     try {
-      final document = await databases.getDocument(
+      final document = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: campusDataCollectionId,
-        documentId: campusDataId,
+        tableId: campusDataCollectionId,
+        rowId: campusDataId,
       );
       final data = document.data;
       final locationData = data['location']?.toString() ?? '';
@@ -298,10 +298,10 @@ class CampusService {
     });
     try {
       final apiTimer = Stopwatch()..start();
-      final document = await databases.getDocument(
+      final document = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: campusCollectionId,
-        documentId: campusId,
+        tableId: campusCollectionId,
+        rowId: campusId,
         queries: [
           Query.select(['\$id', 'name']),
         ],
@@ -450,10 +450,10 @@ class CampusService {
     });
     try {
       final apiTimer = Stopwatch()..start();
-      final document = await databases.getDocument(
+      final document = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: campusDataCollectionId,
-        documentId: campusDataId,
+        tableId: campusDataCollectionId,
+        rowId: campusDataId,
       );
       apiTimer.stop();
       logInfo('CampusService._getCampusData: document fetched', context: {
@@ -507,10 +507,10 @@ class CampusService {
       for (final boardId in boardIds) {
         try {
           final apiTimer = Stopwatch()..start();
-          final document = await databases.getDocument(
+          final document = await db.getRow(
             databaseId: AppConstants.databaseId,
-            collectionId: departmentBoardCollectionId,
-            documentId: boardId,
+            tableId: departmentBoardCollectionId,
+            rowId: boardId,
           );
           apiTimer.stop();
           logInfo('CampusService._getDepartmentBoard: member fetched', context: {
@@ -588,9 +588,9 @@ class CampusService {
       Future<int> fetchMarketplaceItems() async {
         try {
           final marketTimer = Stopwatch()..start();
-          final productsResult = await databases.listDocuments(
+          final productsResult = await db.listRows(
             databaseId: AppConstants.databaseId,
-            collectionId: 'products',
+            tableId: 'products',
             queries: [
               Query.equal('campus_id', campusId),
               Query.equal('status', 'available'),
@@ -613,9 +613,9 @@ class CampusService {
       Future<int> fetchDepartments() async {
         try {
           final deptsTimer = Stopwatch()..start();
-          final departmentsResult = await databases.listDocuments(
+          final departmentsResult = await db.listRows(
             databaseId: AppConstants.databaseId,
-            collectionId: AppConstants.departmentsCollectionId,
+            tableId: AppConstants.departmentsCollectionId,
             queries: [
               Query.equal('campus_id', campusId),
               Query.equal('active', true),

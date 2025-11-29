@@ -521,7 +521,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
           // Campus selector (from database)
           DropdownButtonFormField<String>(
-            value: _selectedCampusId,
+            initialValue: _selectedCampusId,
             decoration: const InputDecoration(
               labelText: 'Campus',
               prefixIcon: Icon(Icons.location_city),

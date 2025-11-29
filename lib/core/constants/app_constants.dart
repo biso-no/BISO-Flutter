@@ -15,15 +15,17 @@ class AppConstants {
   static const String expenseAttachmentsCollectionId = 'expense_attachments';
   static const String campusesCollectionId = 'campus';
   static const String departmentsCollectionId = 'departments';
+  static const String contentTranslationsCollectionId = 'content_translations';
   static const String usersCollectionId = 'user';
   static const String featureFlagsCollectionId = 'feature_flags';
   static const String chatMessagesCollectionId = 'chat_messages';
   static const String chatParticipantsCollectionId = 'chat_participants';
   static const String chatRoomsCollectionId = 'chat_rooms';
 
-  // AI Service
-  static const String aiApiUrl = 'https://ai.biso.no';
-  static const String aiChatEndpoint = '/api/chat';
+  // API Service
+  static const String apiBaseUrl = 'https://api.biso.no';
+  static const String apiUrl = 'https://api.biso.no/api'; // For backward compatibility
+  static const String publicAssistantEndpoint = '/api/public-assistant';
   // Appwrite Functions (IDs)
   static const String fnParseReceiptId = 'fn_parse_receipt';
   static const String fnSummarizeExpenseId = 'fn_summarize_expense';

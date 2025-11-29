@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import 'package:biso/core/logging/migration_helper.dart';
+import 'package:http/http.dart' as http;
+
 import '../../core/constants/app_constants.dart';
 import '../models/webshop_product_model.dart';
 import 'appwrite_service.dart';
@@ -19,16 +22,17 @@ class WebshopService {
       'page': page,
     };
 
-    final execution = await functions.createExecution(
-      functionId: AppConstants.fnSyncWebshopProductsId,
+    final execution = await http.post(
+      Uri.parse('${AppConstants.apiUrl}/wc-products'),
+      headers: {'Content-Type': 'application/json'},
       body: json.encode(body),
     );
 
-    if (execution.responseStatusCode != 200) {
-      throw Exception('Failed to load webshop products: HTTP ${execution.responseStatusCode}');
+    if (execution.statusCode != 200) {
+      throw Exception('Failed to load webshop products: HTTP ${execution.statusCode}');
     }
 
-    final Map<String, dynamic> payload = json.decode(execution.responseBody);
+    final Map<String, dynamic> payload = json.decode(execution.body);
     final List<dynamic> products = payload['products'] as List<dynamic>? ?? const <dynamic>[];
     return products
         .map((e) => WebshopProduct.fromFunctionMap(e as Map<String, dynamic>))

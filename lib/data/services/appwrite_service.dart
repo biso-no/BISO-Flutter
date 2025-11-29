@@ -7,7 +7,7 @@ final Client client = Client()
     .setProject(AppConstants.appwriteProjectId);
 
 final Account account = Account(client);
-final Databases databases = Databases(client);
+final TablesDB db = TablesDB(client);
 final Storage storage = Storage(client);
 final Realtime realtime = Realtime(client);
 final Functions functions = Functions(client);

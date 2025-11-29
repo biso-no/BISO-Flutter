@@ -124,10 +124,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       logPrint('🔐 AuthProvider: Loading complete profile for userId: $userId');
 
       // Use RobustDocumentService to handle SDK issues
-      final documentData = await databases.getDocument(
+      final documentData = await db.getRow(
         databaseId: 'app',
-        collectionId: 'user',
-        documentId: userId,
+        tableId: 'user',
+        rowId: userId,
       );
 
       final profile = UserModel.fromMap(documentData.data);

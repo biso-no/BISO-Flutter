@@ -1,4 +1,5 @@
 import 'package:appwrite/appwrite.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import '../../core/constants/app_constants.dart';
@@ -6,7 +7,7 @@ import '../models/event_model.dart';
 import 'appwrite_service.dart';
 
 class EventService {
-  Databases get _databases => databases;
+  TablesDB get _databases => db;
 
   // Get events from WordPress API via Appwrite Function
   Future<List<EventModel>> getWordPressEvents({
@@ -49,13 +50,14 @@ class EventService {
         requestBody['search'] = trimmedSearch;
       }
 
-      final execution = await functions.createExecution(
-        functionId: AppConstants.fnFetchEventsId,
+      final execution = await http.post(
+        Uri.parse('${AppConstants.apiUrl}/events'),
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(requestBody),
       );
 
-      if (execution.responseStatusCode == 200) {
-        final dynamic decoded = json.decode(execution.responseBody);
+      if (execution.statusCode == 200) {
+        final dynamic decoded = json.decode(execution.body);
 
         if (decoded is Map<String, dynamic>) {
           final List<dynamic> events = (decoded['events'] as List<dynamic>? ?? <dynamic>[]);
@@ -84,7 +86,7 @@ class EventService {
         throw EventException('Unexpected function response');
       } else {
         throw EventException(
-          'Failed to fetch events (function): HTTP ${execution.responseStatusCode}',
+          'Failed to fetch events (function): HTTP ${execution.statusCode}',
         );
       }
     } catch (e) {
@@ -165,13 +167,13 @@ class EventService {
         queries.add(Query.equal('status', status));
       }
 
-      final response = await _databases.listDocuments(
+      final response = await _databases.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'events',
+        tableId: 'events',
         queries: queries,
       );
 
-      return response.documents
+      return response.rows
           .map((doc) => EventModel.fromMap(doc.data))
           .toList();
     } on AppwriteException catch (e) {
@@ -200,10 +202,10 @@ class EventService {
   // Get single event by ID
   Future<EventModel?> getEventById(String eventId) async {
     try {
-      final doc = await _databases.getDocument(
+      final doc = await _databases.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'events',
-        documentId: eventId,
+        tableId: 'events',
+        rowId: eventId,
       );
 
       return EventModel.fromMap(doc.data);
@@ -218,10 +220,10 @@ class EventService {
   // Create new event (admin/organizer function)
   Future<EventModel> createEvent(EventModel event) async {
     try {
-      final doc = await _databases.createDocument(
+      final doc = await _databases.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'events',
-        documentId: ID.unique(),
+        tableId: 'events',
+        rowId: ID.unique(),
         data: event.toMap(),
       );
 
@@ -236,10 +238,10 @@ class EventService {
   // Update event
   Future<EventModel> updateEvent(EventModel event) async {
     try {
-      final doc = await _databases.updateDocument(
+      final doc = await _databases.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'events',
-        documentId: event.id,
+        tableId: 'events',
+        rowId: event.id,
         data: event.toMap(),
       );
 
@@ -254,10 +256,10 @@ class EventService {
   // Register for event (if registration is required)
   Future<void> registerForEvent(String eventId, String userId) async {
     try {
-      await _databases.createDocument(
+      await _databases.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'event_registrations',
-        documentId: ID.unique(),
+        tableId: 'event_registrations',
+        rowId: ID.unique(),
         data: {
           'event_id': eventId,
           'user_id': userId,
@@ -283,20 +285,20 @@ class EventService {
   // Cancel event registration
   Future<void> cancelEventRegistration(String eventId, String userId) async {
     try {
-      final response = await _databases.listDocuments(
+      final response = await _databases.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'event_registrations',
+        tableId: 'event_registrations',
         queries: [
           Query.equal('event_id', eventId),
           Query.equal('user_id', userId),
         ],
       );
 
-      if (response.documents.isNotEmpty) {
-        await _databases.deleteDocument(
+      if (response.rows.isNotEmpty) {
+        await _databases.deleteRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'event_registrations',
-          documentId: response.documents.first.$id,
+          tableId: 'event_registrations',
+          rowId: response.rows.first.$id,
         );
 
         // Update event attendee count
@@ -321,16 +323,16 @@ class EventService {
   // Check if user is registered for event
   Future<bool> isUserRegistered(String eventId, String userId) async {
     try {
-      final response = await _databases.listDocuments(
+      final response = await _databases.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'event_registrations',
+        tableId: 'event_registrations',
         queries: [
           Query.equal('event_id', eventId),
           Query.equal('user_id', userId),
         ],
       );
 
-      return response.documents.isNotEmpty;
+      return response.rows.isNotEmpty;
     } on AppwriteException catch (e) {
       throw EventException('Failed to check registration: ${e.message}');
     } catch (e) {
@@ -360,13 +362,13 @@ class EventService {
         queries.add(Query.contains('categories', category));
       }
 
-      final response = await _databases.listDocuments(
+      final response = await _databases.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'events',
+        tableId: 'events',
         queries: queries,
       );
 
-      return response.documents
+      return response.rows
           .map((doc) => EventModel.fromMap(doc.data))
           .toList();
     } on AppwriteException catch (e) {

@@ -12,9 +12,9 @@ class LargeEventItemService {
     required String campusId,
   }) async {
     try {
-      final docs = await databases.listDocuments(
+      final docs = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
+        tableId: collectionId,
         queries: [
           Query.equal('eventId', eventId),
           Query.equal('campusId', campusId),
@@ -23,7 +23,7 @@ class LargeEventItemService {
           Query.limit(200),
         ],
       );
-      return docs.documents
+      return docs.rows
           .map((doc) => LargeEventScheduleItem.fromMap(doc.data))
           .toList(growable: false);
     } catch (e, st) {

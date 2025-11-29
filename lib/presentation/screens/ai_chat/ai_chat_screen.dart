@@ -383,7 +383,9 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
   String _getToolDisplayName(String toolName) {
     switch (toolName) {
       case 'searchSharePoint':
-        return 'SharePoint Search';
+        return 'Document Search';
+      case 'searchSiteContent':
+        return 'Site Content';
       case 'getDocumentStats':
         return 'Document Stats';
       case 'listSharePointSites':

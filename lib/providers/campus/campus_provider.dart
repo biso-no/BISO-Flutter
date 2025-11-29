@@ -158,8 +158,9 @@ class FilterCampusNotifier extends StateNotifier<CampusState> {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.low,
+          timeLimit: Duration(seconds: 5),
         ),
-      );
+      ).timeout(const Duration(seconds: 5));
 
       final placemarks = await geocoding.placemarkFromCoordinates(
         position.latitude,

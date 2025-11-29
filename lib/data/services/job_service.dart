@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:appwrite/appwrite.dart';
+import 'package:http/http.dart' as http;
 
 import '../../core/constants/app_constants.dart';
 import '../models/job_model.dart';
@@ -27,14 +28,13 @@ class JobService {
         if (verv != null) 'verv': verv,
       };
 
-      final execution = await functions.createExecution(
-        functionId: AppConstants.fnFetchJobsId,
-        xasync: false,
+      final execution = await http.post(
+        Uri.parse('${AppConstants.apiUrl}/jobs'),
         body: json.encode(requestBody),
       );
 
-      if (execution.responseStatusCode == 200) {
-        final dynamic decoded = json.decode(execution.responseBody);
+      if (execution.statusCode == 200) {
+        final dynamic decoded = json.decode(execution.body);
 
         if (decoded is Map<String, dynamic>) {
           final List<dynamic> jobs = (decoded['jobs'] as List<dynamic>? ?? <dynamic>[]);
@@ -68,13 +68,13 @@ class JobService {
     if (campusId != null) queries.add(Query.equal('campus_id', campusId));
     if (!includeExpired) queries.add(Query.equal('status', 'open'));
 
-    final results = await databases.listDocuments(
+    final results = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
+      tableId: collectionId,
       queries: queries,
     );
 
-    return results.documents
+    return results.rows
         .map((doc) => JobModel.fromMap(doc.data))
         .toList(growable: false);
   }
@@ -118,9 +118,9 @@ class JobService {
     } catch (_) {
       // Fallback: estimate from DB (not accurate for WP source)
       try {
-        final res = await databases.listDocuments(
+        final res = await db.listRows(
           databaseId: AppConstants.databaseId,
-          collectionId: collectionId,
+          tableId: collectionId,
           queries: [
             Query.equal('campus_id', campusId),
             if (!includeExpired) Query.equal('status', 'open'),

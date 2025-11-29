@@ -72,9 +72,9 @@ class MembershipService {
   /// Gets available membership options from database
   Future<List<MembershipPurchaseOption>> getAvailableMemberships() async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: 'app',
-        collectionId: 'memberships',
+        tableId: 'memberships',
         queries: [
           Query.equal('status', true).toString(), // Only active memberships
           Query.orderAsc('price').toString(), // Order by price
@@ -82,7 +82,7 @@ class MembershipService {
         ],
       );
 
-      return documents.documents.map((docData) {
+      return documents.rows.map((docData) {
         final membership = MembershipModel.fromMap(docData.data);
         return MembershipPurchaseOption.fromMembership(membership);
       }).toList();
@@ -155,9 +155,9 @@ class MembershipService {
   /// Gets user's membership from the database
   Future<MembershipModel?> getUserMembership(String userId) async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: 'app',
-        collectionId: 'biso_membership',
+        tableId: 'biso_membership',
         queries: [
           Query.equal('user_id', userId).toString(),
           Query.orderDesc('\$createdAt').toString(),
@@ -165,8 +165,8 @@ class MembershipService {
         ],
       );
 
-      if (documents.documents.isNotEmpty) {
-        return MembershipModel.fromMap(documents.documents.first.data);
+      if (documents.rows.isNotEmpty) {
+        return MembershipModel.fromMap(documents.rows.first.data);
       }
 
       return null;

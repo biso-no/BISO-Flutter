@@ -15,8 +15,6 @@ class ChatService {
   final StreamController<List<ChatMessageModel>> _messagesController =
       StreamController<List<ChatMessageModel>>.broadcast();
 
-  // Using simplified global Appwrite instances
-  Databases get _databases => databases;
   Realtime get _realtime => realtime;
   Storage get _storage => storage;
 
@@ -27,9 +25,9 @@ class ChatService {
   // Get user's chats
   Future<List<ChatModel>> getUserChats(String userId) async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
+        tableId: 'chats',
         queries: [
           'contains("participants", "$userId")',
           'equal("is_active", true)',
@@ -37,7 +35,7 @@ class ChatService {
         ],
       );
 
-      final chats = documents.documents.map((doc) => ChatModel.fromMap(doc.data)).toList();
+      final chats = documents.rows.map((doc) => ChatModel.fromMap(doc.data)).toList();
 
       _chatsController.add(chats);
       return chats;
@@ -65,13 +63,13 @@ class ChatService {
         queries.add('cursorAfter("$offset")');
       }
 
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
+        tableId: 'chat_messages',
         queries: queries,
       );
 
-      return documents.documents
+      return documents.rows
           .map((doc) => ChatMessageModel.fromMap(doc.data))
           .toList()
           .reversed // Reverse to show oldest first
@@ -110,10 +108,10 @@ class ChatService {
         'metadata': metadata ?? {},
       };
 
-      final doc = await databases.createDocument(
+      final doc = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: ID.unique(),
+        tableId: 'chat_messages',
+        rowId: ID.unique(),
         data: messageData,
       );
 
@@ -168,10 +166,10 @@ class ChatService {
         'last_activity_at': DateTime.now().toIso8601String(),
       };
 
-      final doc = await databases.createDocument(
+      final doc = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: ID.unique(),
+        tableId: 'chats',
+        rowId: ID.unique(),
         data: chatData,
       );
 
@@ -217,10 +215,10 @@ class ChatService {
   // Add user to chat (adds to both chat and team)
   Future<void> addUserToChat(String chatId, String userId) async {
     try {
-      final chat = await databases.getDocument(
+      final chat = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
       );
 
       final participants = List<String>.from(chat.data['participants']);
@@ -230,10 +228,10 @@ class ChatService {
         participants.add(userId);
 
         // Update chat participants
-        await databases.updateDocument(
+        await db.updateRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'chats',
-          documentId: chatId,
+          tableId: 'chats',
+          rowId: chatId,
           data: {'participants': participants},
         );
 
@@ -252,20 +250,20 @@ class ChatService {
   // Add user to team
   Future<void> _addUserToTeam(String teamId, String userId) async {
     try {
-      final team = await databases.getDocument(
+      final team = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'teams',
-        documentId: teamId,
+        tableId: 'teams',
+        rowId: teamId,
       );
 
       final members = List<String>.from(team.data['members']);
       if (!members.contains(userId)) {
         members.add(userId);
 
-        await databases.updateDocument(
+        await db.updateRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'teams',
-          documentId: teamId,
+          tableId: 'teams',
+          rowId: teamId,
           data: {'members': members, 'total': members.length},
         );
       }
@@ -277,10 +275,10 @@ class ChatService {
   // Remove user from chat (removes from both chat and team)
   Future<void> removeUserFromChat(String chatId, String userId) async {
     try {
-      final chat = await databases.getDocument(
+      final chat = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
       );
 
       final participants = List<String>.from(chat.data['participants']);
@@ -289,10 +287,10 @@ class ChatService {
       participants.remove(userId);
 
       // Update chat participants
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
         data: {'participants': participants},
       );
 
@@ -310,19 +308,19 @@ class ChatService {
   // Remove user from team
   Future<void> _removeUserFromTeam(String teamId, String userId) async {
     try {
-      final team = await databases.getDocument(
+      final team = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'teams',
-        documentId: teamId,
+        tableId: 'teams',
+        rowId: teamId,
       );
 
       final members = List<String>.from(team.data['members']);
       members.remove(userId);
 
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'teams',
-        documentId: teamId,
+        tableId: 'teams',
+        rowId: teamId,
         data: {'members': members, 'total': members.length},
       );
     } catch (e) {
@@ -333,10 +331,10 @@ class ChatService {
   // Mark messages as read
   Future<void> markAsRead(String chatId, String userId) async {
     try {
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
         data: {
           'unread_count': 0,
           'metadata': {
@@ -357,10 +355,10 @@ class ChatService {
     required String newContent,
   }) async {
     try {
-      final doc = await _databases.updateDocument(
+      final doc = await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: messageId,
+        tableId: 'chat_messages',
+        rowId: messageId,
         data: {
           'content': newContent,
           'is_edited': true,
@@ -379,10 +377,10 @@ class ChatService {
   // Delete message
   Future<void> deleteMessage(String messageId) async {
     try {
-      await _databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: messageId,
+        tableId: 'chat_messages',
+        rowId: messageId,
         data: {'is_deleted': true, 'content': 'This message has been deleted'},
       );
     } on AppwriteException catch (e) {
@@ -400,10 +398,10 @@ class ChatService {
     required String userName,
   }) async {
     try {
-      final message = await _databases.getDocument(
+      final message = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: messageId,
+        tableId: 'chat_messages',
+        rowId: messageId,
       );
 
       final reactions = List<Map<String, dynamic>>.from(
@@ -423,10 +421,10 @@ class ChatService {
         'timestamp': DateTime.now().toIso8601String(),
       });
 
-      await _databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: messageId,
+        tableId: 'chat_messages',
+        rowId: messageId,
         data: {'reactions': reactions},
       );
     } on AppwriteException catch (e) {
@@ -443,9 +441,9 @@ class ChatService {
     int limit = 20,
   }) async {
     try {
-      final response = await _databases.listDocuments(
+      final response = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
+        tableId: 'chat_messages',
         queries: [
           Query.equal('chat_id', chatId),
           Query.search('content', query),
@@ -454,7 +452,7 @@ class ChatService {
         ],
       );
 
-      return response.documents
+      return response.rows
           .map((doc) => ChatMessageModel.fromMap(doc.data))
           .toList();
     } on AppwriteException catch (e) {
@@ -470,10 +468,10 @@ class ChatService {
     ChatMessageModel message,
   ) async {
     try {
-      await _databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
         data: {
           'last_message': message.toMap(),
           'last_activity_at': DateTime.now().toIso8601String(),
@@ -554,9 +552,9 @@ class ChatService {
       final participants = [buyerId, sellerId];
 
       // Check if direct chat already exists between these participants
-      final existingChats = await _databases.listDocuments(
+      final existingChats = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
+        tableId: 'chats',
         queries: [
           Query.equal('type', 'direct'),
           Query.contains('participants', buyerId),
@@ -565,8 +563,8 @@ class ChatService {
       );
 
       ChatModel chat;
-      if (existingChats.documents.isNotEmpty) {
-        chat = ChatModel.fromMap(existingChats.documents.first.data);
+      if (existingChats.rows.isNotEmpty) {
+        chat = ChatModel.fromMap(existingChats.rows.first.data);
       } else {
         // Create new marketplace chat with team
         chat = await createDirectChat(
@@ -575,10 +573,10 @@ class ChatService {
         );
 
         // Update metadata for marketplace context
-        await _databases.updateDocument(
+        await db.updateRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'chats',
-          documentId: chat.id,
+          tableId: 'chats',
+          rowId: chat.id,
           data: {
             'name': 'Marketplace Chat',
             'metadata': {
@@ -590,10 +588,10 @@ class ChatService {
         );
 
         // Refresh chat data
-        final updatedChat = await _databases.getDocument(
+        final updatedChat = await db.getRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'chats',
-          documentId: chat.id,
+          tableId: 'chats',
+          rowId: chat.id,
         );
         chat = ChatModel.fromMap(updatedChat.data);
       }
@@ -623,9 +621,9 @@ class ChatService {
   }) async {
     try {
       // Check if direct chat already exists between these participants
-      final existingChats = await _databases.listDocuments(
+      final existingChats = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
+        tableId: 'chats',
         queries: [
           Query.equal('type', 'direct'),
           Query.contains('participants', participants[0]),
@@ -633,8 +631,8 @@ class ChatService {
         ],
       );
 
-      if (existingChats.documents.isNotEmpty) {
-        return ChatModel.fromMap(existingChats.documents.first.data);
+      if (existingChats.rows.isNotEmpty) {
+        return ChatModel.fromMap(existingChats.rows.first.data);
       }
 
       // Create team for this direct chat (enables easy expansion to group chat)
@@ -660,10 +658,10 @@ class ChatService {
         'last_activity_at': DateTime.now().toIso8601String(),
       };
 
-      final response = await _databases.createDocument(
+      final response = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: ID.unique(),
+        tableId: 'chats',
+        rowId: ID.unique(),
         data: chatData,
       );
 
@@ -683,10 +681,10 @@ class ChatService {
     try {
       if (isTyping) {
         // Create or update typing indicator
-        await _databases.createDocument(
+        await db.createRow(
           databaseId: AppConstants.databaseId,
-          collectionId: 'typing_indicators',
-          documentId: '${chatId}_$userId',
+          tableId: 'typing_indicators',
+          rowId: '${chatId}_$userId',
           data: {
             'chat_id': chatId,
             'user_id': userId,
@@ -700,10 +698,10 @@ class ChatService {
       } else {
         // Remove typing indicator
         try {
-          await _databases.deleteDocument(
+          await db.deleteRow(
             databaseId: AppConstants.databaseId,
-            collectionId: 'typing_indicators',
-            documentId: '${chatId}_$userId',
+            tableId: 'typing_indicators',
+            rowId: '${chatId}_$userId',
           );
         } catch (e) {
           // Document might not exist, which is fine
@@ -722,10 +720,10 @@ class ChatService {
     required String reaction,
   }) async {
     try {
-      final message = await _databases.getDocument(
+      final message = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: messageId,
+        tableId: 'chat_messages',
+        rowId: messageId,
       );
 
       final reactions = List<Map<String, dynamic>>.from(
@@ -750,10 +748,10 @@ class ChatService {
         });
       }
 
-      await _databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chat_messages',
-        documentId: messageId,
+        tableId: 'chat_messages',
+        rowId: messageId,
         data: {'reactions': reactions},
       );
     } catch (e) {
@@ -764,10 +762,10 @@ class ChatService {
   // Mark chat as read
   Future<void> markChatAsRead(String chatId, String userId) async {
     try {
-      await _databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
         data: {
           'unread_count': 0,
           'metadata': {
@@ -783,9 +781,9 @@ class ChatService {
   // Get typing indicators for a chat
   Future<List<Map<String, dynamic>>> getTypingIndicators(String chatId) async {
     try {
-      final response = await _databases.listDocuments(
+      final response = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'typing_indicators',
+        tableId: 'typing_indicators',
         queries: [
           Query.equal('chat_id', chatId),
           Query.equal('is_typing', true),
@@ -793,7 +791,7 @@ class ChatService {
         ],
       );
 
-      return response.documents.map((doc) => doc.data).toList();
+      return response.rows.map((doc) => doc.data).toList();
     } catch (e) {
       return [];
     }
@@ -862,10 +860,10 @@ class ChatService {
         },
       };
 
-      final response = await databases.createDocument(
+      final response = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'teams',
-        documentId: ID.unique(),
+        tableId: 'teams',
+        rowId: ID.unique(),
         data: teamData,
       );
 
@@ -896,10 +894,10 @@ class ChatService {
         'metadata': {'team_permissions_enabled': true},
       };
 
-      final response = await _databases.createDocument(
+      final response = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: ID.unique(),
+        tableId: 'chats',
+        rowId: ID.unique(),
         data: chatData,
       );
 
@@ -930,10 +928,10 @@ class ChatService {
         'metadata': {'department_permissions_enabled': true},
       };
 
-      final response = await _databases.createDocument(
+      final response = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: ID.unique(),
+        tableId: 'chats',
+        rowId: ID.unique(),
         data: chatData,
       );
 
@@ -969,10 +967,10 @@ class ChatService {
   }) async {
     try {
       // Get chat details for permission calculation
-      final chat = await databases.getDocument(
+      final chat = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
       );
       final chatModel = ChatModel.fromMap(chat.data);
 
@@ -1038,10 +1036,10 @@ class ChatService {
       },
     };
 
-    final doc = await _databases.createDocument(
+    final doc = await db.createRow(
       databaseId: AppConstants.databaseId,
-      collectionId: 'chat_messages',
-      documentId: ID.unique(),
+      tableId: 'chat_messages',
+      rowId: ID.unique(),
       data: messageData,
     );
 
@@ -1053,10 +1051,10 @@ class ChatService {
   // Get user name by ID
   Future<String> getUserName(String userId) async {
     try {
-      final user = await databases.getDocument(
+      final user = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'user',
-        documentId: userId,
+        tableId: 'user',
+        rowId: userId,
       );
       return user.data['name'] ?? 'Unknown User';
     } catch (e) {
@@ -1084,28 +1082,28 @@ class ChatService {
   Future<void> deleteChat(String chatId) async {
     try {
       // Get chat details first
-      final chat = await databases.getDocument(
+      final chat = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
       );
 
       final teamId = chat.data['team_id'];
 
       // Delete the chat
-      await databases.deleteDocument(
+      await db.deleteRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
       );
 
       // Delete associated team if it was auto-created for this chat
       if (teamId != null && chat.data['metadata']?['auto_team_created'] == true) {
         try {
-          await databases.deleteDocument(
+          await db.deleteRow(
             databaseId: AppConstants.databaseId,
-            collectionId: 'teams',
-            documentId: teamId,
+            tableId: 'teams',
+            rowId: teamId,
           );
         } catch (e) {
           // Team deletion failed, but chat is deleted - log but don't throw
@@ -1119,10 +1117,10 @@ class ChatService {
   // Mute/unmute chat
   Future<void> muteChat(String chatId, bool muted) async {
     try {
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
-        documentId: chatId,
+        tableId: 'chats',
+        rowId: chatId,
         data: {'is_muted': muted},
       );
     } catch (e) {
@@ -1154,9 +1152,9 @@ class ChatService {
     String currentUserId,
   ) async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'chats',
+        tableId: 'chats',
         queries: [
           'contains("participants", "$currentUserId")',
           'equal("is_active", true)',
@@ -1166,7 +1164,7 @@ class ChatService {
       );
 
       final contacts = <String>{};
-      for (final chat in documents.documents) {
+      for (final chat in documents.rows) {
         final participants = List<String>.from(chat.data['participants'] ?? []);
         for (final participant in participants) {
           if (participant != currentUserId) {
@@ -1189,13 +1187,13 @@ class ChatService {
   // Get departments list
   Future<List<Map<String, dynamic>>> getDepartments() async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'departments',
+        tableId: 'departments',
         queries: ['equal("active", true)', 'orderAsc("name")'],
       );
 
-      return documents.documents.map((doc) => doc.data).toList();
+      return documents.rows.map((doc) => doc.data).toList();
     } catch (e) {
       return [];
     }
@@ -1204,16 +1202,16 @@ class ChatService {
   // Get teams list
   Future<List<Map<String, dynamic>>> getTeams() async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'teams',
+        tableId: 'teams',
         queries: [
           'equal("prefs.is_chat_team", false)', // Exclude auto-created chat teams
           'orderAsc("name")',
         ],
       );
 
-      return documents.documents.map((doc) => doc.data).toList();
+      return documents.rows.map((doc) => doc.data).toList();
     } catch (e) {
       return [];
     }

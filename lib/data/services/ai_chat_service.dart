@@ -5,67 +5,25 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_client_sse/constants/sse_request_type_enum.dart';
 import 'package:flutter_client_sse/flutter_client_sse.dart';
 import '../models/ai_chat_models.dart';
-import 'auth_service.dart';
-import 'appwrite_service.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/constants/app_constants.dart';
 
 import '../../core/logging/print_migration.dart';
 
 class AiChatService {
-  static const String _baseUrl =
-      'https://ai.biso.no'; // Updated from requirements
-  static const String _chatEndpoint = '/api/chat';
+  // Public assistant API endpoint
+  static const String _baseUrl = AppConstants.apiBaseUrl;
+  static const String _chatEndpoint = AppConstants.publicAssistantEndpoint;
 
-  final AuthService _authService = AuthService();
   final http.Client _httpClient = http.Client();
 
   /// Get the current Appwrite session token for Bearer authentication
+  /// Note: Public assistant doesn't require auth, so this returns null
+  /// to avoid CORS issues with Appwrite JWT creation
   Future<String?> _getAuthToken() async {
-    try {
-      // Try to get current user (this will validate the session)
-      final user = await _authService.getCurrentUser();
-      if (user == null) {
-        return null;
-      }
-
-      // Get the current session from Appwrite
-      try {
-        final session = await account.createJWT();
-
-        // Use the session secret as the Bearer token
-        // The server will validate this with node-appwrite
-        return session.jwt;
-      } catch (e) {
-        AppLogger.warning(
-          'Failed to get session for AI chat',
-          error: e,
-          extra: {'service': 'ai_chat', 'action': 'get_session'},
-        );
-
-        // Alternative: try to create a JWT token for API access
-        // This depends on your Appwrite configuration
-        try {
-          // If you have JWT support configured, you could use:
-          // final jwt = await account.createJWT();
-          // return jwt.jwt;
-          return null;
-        } catch (jwtError) {
-          AppLogger.error(
-            'Failed to create JWT for AI chat',
-            error: jwtError,
-            extra: {'service': 'ai_chat', 'action': 'create_jwt'},
-          );
-          return null;
-        }
-      }
-    } catch (e) {
-      AppLogger.error(
-        'Failed to get auth token for AI chat',
-        error: e,
-        extra: {'service': 'ai_chat', 'action': 'get_auth_token'},
-      );
-      return null;
-    }
+    // Public assistant API doesn't require authentication
+    // Skip JWT creation to avoid CORS issues
+    return null;
   }
 
   /// Stream chat messages to the AI API
@@ -380,6 +338,8 @@ class AiChatService {
     switch (toolName) {
       case 'searchSharePoint':
         return SharePointSearchResponse.fromJson(result);
+      case 'searchSiteContent':
+        return SiteContentSearchResponse.fromJson(result);
       case 'getDocumentStats':
         return DocumentStatsResponse.fromJson(result);
       case 'listSharePointSites':
@@ -392,9 +352,12 @@ class AiChatService {
   }
 
   /// Check if user is authenticated for AI chat
+  /// Note: Public assistant doesn't require auth, but we still check
+  /// to optionally include user context in requests
   Future<bool> isAuthenticated() async {
-    final token = await _getAuthToken();
-    return token != null;
+    // Public assistant is available to all users
+    // Auth token is optional - used for personalization if available
+    return true;
   }
 
   /// Main streaming method that delegates to the preferred implementation

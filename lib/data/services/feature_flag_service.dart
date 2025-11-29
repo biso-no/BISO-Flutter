@@ -4,10 +4,10 @@ import 'appwrite_service.dart';
 class FeatureFlagService {
   Future<bool> isEnabled(String key) async {
     try {
-      final doc = await databases.getDocument(
+      final doc = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: AppConstants.featureFlagsCollectionId,
-        documentId: key,
+        tableId: AppConstants.featureFlagsCollectionId,
+        rowId: key,
       );
       final data = doc.data;
       final value = data['enabled'];

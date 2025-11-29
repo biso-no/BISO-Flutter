@@ -195,10 +195,10 @@ class OAuthService {
       // Using global databases instance
 
       // Create student ID document
-      await databases.createDocument(
+      await db.createRow(
         databaseId: 'app',
-        collectionId: 'student_id',
-        documentId: studentId, // Use student ID as document ID
+        tableId: 'student_id',
+        rowId: studentId, // Use student ID as document ID
         data: {'student_id': studentId, 'user_id': userId},
       );
     } catch (e) {

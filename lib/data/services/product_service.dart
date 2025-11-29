@@ -25,12 +25,12 @@ class ProductService {
       queries.add(Query.equal('status', status));
     }
 
-    final response = await databases.listDocuments(
+    final response = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
+      tableId: collectionId,
       queries: queries,
     );
-    return response.documents
+    return response.rows
         .map((doc) {
           final map = Map<String, dynamic>.from(doc.data);
           map['\$id'] = doc.$id;
@@ -60,12 +60,12 @@ class ProductService {
       queries.add(Query.search('name', search.trim()));
     }
 
-    final response = await databases.listDocuments(
+    final response = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
+      tableId: collectionId,
       queries: queries,
     );
-    return response.documents
+    return response.rows
         .map((doc) {
           final map = Map<String, dynamic>.from(doc.data);
           map['\$id'] = doc.$id;
@@ -75,10 +75,10 @@ class ProductService {
   }
 
   Future<ProductModel?> getProductById(String id) async {
-    final doc = await databases.getDocument(
+    final doc = await db.getRow(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
-      documentId: id,
+      tableId: collectionId,
+      rowId: id,
     );
     final map = Map<String, dynamic>.from(doc.data);
     map['\$id'] = doc.$id;
@@ -103,10 +103,10 @@ class ProductService {
         .toMap();
     final docId = ID.unique();
 
-    final doc = await databases.createDocument(
+    final doc = await db.createRow(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
-      documentId: docId,
+      tableId: collectionId,
+      rowId: docId,
       data: data,
     );
     final map = Map<String, dynamic>.from(doc.data);
@@ -115,10 +115,10 @@ class ProductService {
   }
 
   Future<ProductModel> updateProduct(ProductModel product) async {
-    final doc = await databases.updateDocument(
+    final doc = await db.updateRow(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
-      documentId: product.id,
+      tableId: collectionId,
+      rowId: product.id,
       data: product.toMap(),
     );
     final map = Map<String, dynamic>.from(doc.data);
@@ -130,26 +130,26 @@ class ProductService {
     required String productId,
     required String status, // 'available' | 'sold' | 'reserved' | 'inactive'
   }) async {
-    await databases.updateDocument(
+    await db.updateRow(
       databaseId: AppConstants.databaseId,
-      collectionId: collectionId,
-      documentId: productId,
+      tableId: collectionId,
+      rowId: productId,
       data: {'status': status},
     );
   }
 
   Future<void> incrementViewCount(String productId) async {
     try {
-      final current = await databases.getDocument(
+      final current = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
-        documentId: productId,
+        tableId: collectionId,
+        rowId: productId,
       );
       final count = (current.data['view_count'] ?? 0) as int;
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
-        documentId: productId,
+        tableId: collectionId,
+        rowId: productId,
         data: {'view_count': count + 1},
       );
     } catch (_) {
@@ -161,45 +161,45 @@ class ProductService {
     required String userId,
     required String productId,
   }) async {
-    final res = await databases.listDocuments(
+    final res = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: favoritesCollectionId,
+      tableId: favoritesCollectionId,
       queries: [
         Query.equal('user_id', userId),
         Query.equal('product', productId),
         Query.limit(1),
       ],
     );
-    return res.documents.isNotEmpty;
+    return res.rows.isNotEmpty;
   }
 
   Future<bool> toggleFavorite({
     required String userId,
     required String productId,
   }) async {
-    final res = await databases.listDocuments(
+    final res = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: favoritesCollectionId,
+      tableId: favoritesCollectionId,
       queries: [
         Query.equal('user_id', userId),
         Query.equal('product', productId),
         Query.limit(1),
       ],
     );
-    if (res.documents.isEmpty) {
-      await databases.createDocument(
+    if (res.rows.isEmpty) {
+      await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: favoritesCollectionId,
-        documentId: ID.unique(),
+        tableId: favoritesCollectionId,
+        rowId: ID.unique(),
         data: {'user_id': userId, 'product': productId},
       );
       await _bumpFavoriteCount(productId, 1);
       return true;
     } else {
-      await databases.deleteDocument(
+      await db.deleteRow(
         databaseId: AppConstants.databaseId,
-        collectionId: favoritesCollectionId,
-        documentId: res.documents.first.$id,
+        tableId: favoritesCollectionId,
+        rowId: res.rows.first.$id,
       );
       await _bumpFavoriteCount(productId, -1);
       return false;
@@ -220,15 +220,15 @@ class ProductService {
       Query.equal('user_id', userId),
     ];
 
-    final results = await databases.listDocuments(
+    final results = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: favoritesCollectionId,
+      tableId: favoritesCollectionId,
       queries: queries,
     );
 
     // Extract products from the relationship field and filter them
     final List<ProductModel> products = [];
-    for (final favorite in results.documents) {
+    for (final favorite in results.rows) {
       final favoriteMap = Map<String, dynamic>.from(favorite.data);
       favoriteMap['\$id'] = favorite.$id;
       final productData = favoriteMap['product'];
@@ -262,18 +262,18 @@ class ProductService {
 
   Future<void> _bumpFavoriteCount(String productId, int delta) async {
     try {
-      final current = await databases.getDocument(
+      final current = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
-        documentId: productId,
+        tableId: collectionId,
+        rowId: productId,
       );
       final count = (current.data['favorite_count'] ?? 0) as int;
       final int newCount = count + delta;
       final int safeCount = newCount < 0 ? 0 : newCount;
-      await databases.updateDocument(
+      await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
-        documentId: productId,
+        tableId: collectionId,
+        rowId: productId,
         data: {'favorite_count': safeCount},
       );
     } catch (_) {}

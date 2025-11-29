@@ -262,7 +262,7 @@ class _GeneralSettingsTab extends ConsumerWidget {
                   onChanged: (value) {
                     ref.read(appSettingsProvider.notifier).setDarkMode(value);
                   },
-                  activeColor: _getCampusColor(selectedCampus.id),
+                  activeThumbColor: _getCampusColor(selectedCampus.id),
                 ),
               ],
             ),
@@ -719,7 +719,7 @@ class _NotificationSettingsTab extends ConsumerWidget {
                         ),
                       );
                     },
-                    activeColor: _getCampusColor(selectedCampus.id),
+                    activeThumbColor: _getCampusColor(selectedCampus.id),
                   ),
                 ),
                 const Divider(height: 1),
@@ -739,7 +739,7 @@ class _NotificationSettingsTab extends ConsumerWidget {
                         ),
                       );
                     },
-                    activeColor: _getCampusColor(selectedCampus.id),
+                    activeThumbColor: _getCampusColor(selectedCampus.id),
                   ),
                 ),
               ],
@@ -850,7 +850,7 @@ class _PrivacySettingsTab extends ConsumerWidget {
                         }
                       }
                     },
-                    activeColor: _getCampusColor(selectedCampus.id),
+                    activeThumbColor: _getCampusColor(selectedCampus.id),
                   ),
                   loading: () => const ListTile(
                     leading: CircularProgressIndicator(),

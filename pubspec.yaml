@@ -7,10 +7,6 @@ environment:
   sdk: ^3.8.1
 
 dependencies:
-  appwrite: 
-    git: 
-      url: https://github.com/MHEien/sdk-for-flutter.git
-      ref: main
   cached_network_image: ^3.4.1
   file_picker: ^10.2.2
   firebase_core: ^4.0.0
@@ -52,6 +48,7 @@ dependencies:
   flutter_appauth: ^9.0.1
   app_links: ^6.4.1
   intl_utils: ^2.8.11
+  appwrite: ^20.3.2
 
 dev_dependencies:
   flutter_test:

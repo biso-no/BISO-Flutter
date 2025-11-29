@@ -314,13 +314,22 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
               ...runningTools.map((tool) => _buildToolChip(theme, tool, false)),
             ],
           ),
-          // Show SharePoint search summary if available
+          // Show search summaries if available
           if (completedTools.any((t) => t.toolName == 'searchSharePoint'))
-            _buildSharePointSummary(
+            _buildSearchSummary(
               theme,
               completedTools.firstWhere(
                 (t) => t.toolName == 'searchSharePoint',
               ),
+              'document',
+            ),
+          if (completedTools.any((t) => t.toolName == 'searchSiteContent'))
+            _buildSearchSummary(
+              theme,
+              completedTools.firstWhere(
+                (t) => t.toolName == 'searchSiteContent',
+              ),
+              'result',
             ),
         ],
       ),
@@ -358,13 +367,14 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     );
   }
 
-  Widget _buildSharePointSummary(ThemeData theme, ToolPart sharePointTool) {
-    final result = sharePointTool.result;
+  Widget _buildSearchSummary(ThemeData theme, ToolPart searchTool, String itemType) {
+    final result = searchTool.result;
     if (result == null) return const SizedBox.shrink();
 
     try {
-      final response = SharePointSearchResponse.fromJson(result);
-      if (response.results.isEmpty) return const SizedBox.shrink();
+      final results = result['results'] as List<dynamic>? ?? [];
+      final query = result['query'] as String? ?? '';
+      if (results.isEmpty) return const SizedBox.shrink();
 
       return Padding(
         padding: const EdgeInsets.only(top: 8),
@@ -373,22 +383,26 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
             Icon(Icons.search_rounded, size: 14, color: AppColors.emeraldGreen),
             const SizedBox(width: 6),
             Text(
-              'Found ${response.results.length} document${response.results.length == 1 ? '' : 's'}',
+              'Found ${results.length} $itemType${results.length == 1 ? '' : 's'}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: AppColors.emeraldGreen,
                 fontWeight: FontWeight.w500,
                 fontSize: 11,
               ),
             ),
-            const SizedBox(width: 4),
-            Text(
-              '• "${response.query}"',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceVariant,
-                fontSize: 11,
+            if (query.isNotEmpty) ...[
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  '• "$query"',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              overflow: TextOverflow.ellipsis,
-            ),
+            ],
           ],
         ),
       );
@@ -400,7 +414,9 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
   String _getToolDisplayName(String toolName) {
     switch (toolName) {
       case 'searchSharePoint':
-        return 'SharePoint Search';
+        return 'Document Search';
+      case 'searchSiteContent':
+        return 'Site Content';
       case 'getDocumentStats':
         return 'Document Stats';
       case 'listSharePointSites':
@@ -445,47 +461,50 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
   }
 
   bool _hasSharePointSources() {
-    final hasSharePoint = widget.message.toolParts.any(
+    final hasSources = widget.message.toolParts.any(
       (tool) =>
-          tool.toolName == 'searchSharePoint' &&
+          (tool.toolName == 'searchSharePoint' ||
+              tool.toolName == 'searchSiteContent') &&
           tool.state == ToolPartState.outputAvailable &&
           tool.result != null,
     );
 
-    if (hasSharePoint) {
+    if (hasSources) {
       logPrint(
-        '📚 [AI_BUBBLE] Has SharePoint sources for message ${widget.message.id}',
+        '📚 [AI_BUBBLE] Has search sources for message ${widget.message.id}',
       );
     }
 
-    return hasSharePoint;
+    return hasSources;
   }
 
   Widget _buildSourcesSection(ThemeData theme, bool isDark) {
-    final sharePointTools = widget.message.toolParts
+    final searchTools = widget.message.toolParts
         .where(
           (tool) =>
-              tool.toolName == 'searchSharePoint' &&
+              (tool.toolName == 'searchSharePoint' ||
+                  tool.toolName == 'searchSiteContent') &&
               tool.state == ToolPartState.outputAvailable &&
               tool.result != null,
         )
         .toList();
 
-    if (sharePointTools.isEmpty) return const SizedBox.shrink();
+    if (searchTools.isEmpty) return const SizedBox.shrink();
 
     final sources = <Map<String, String>>[];
 
-    for (final tool in sharePointTools) {
+    for (final tool in searchTools) {
       final result = tool.result;
       final results = result?['results'] as List<dynamic>? ?? [];
 
       logPrint(
-        '📚 [AI_BUBBLE] Processing SharePoint tool with ${results.length} results',
+        '📚 [AI_BUBBLE] Processing ${tool.toolName} with ${results.length} results',
       );
 
       for (final item in results) {
         final title = item['title'] as String?;
-        final url = item['documentViewerUrl'] as String?;
+        // Handle both documentViewerUrl (SharePoint) and url (SiteContent)
+        final url = item['documentViewerUrl'] as String? ?? item['url'] as String?;
         logPrint('📚 [AI_BUBBLE] Source item: title="$title", url="$url"');
         if (title != null && url != null) {
           sources.add({'title': title, 'url': url});

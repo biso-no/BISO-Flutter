@@ -242,7 +242,7 @@ class _PaymentInformationScreenState
                       }
                     });
                   },
-                  activeColor: _getCampusColor(selectedCampus.id),
+                  activeThumbColor: _getCampusColor(selectedCampus.id),
                 ),
               ),
 

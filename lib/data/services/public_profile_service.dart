@@ -35,10 +35,10 @@ class PublicProfileService {
         'phone_visible': phoneVisible,
       };
 
-      final document = await databases.createDocument(
+      final document = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
-        documentId: ID.unique(),
+        tableId: 'public_profiles',
+        rowId: ID.unique(),
         data: profileData,
       );
 
@@ -55,17 +55,17 @@ class PublicProfileService {
   /// Get a user's public profile by user ID
   Future<PublicProfileModel?> getPublicProfileByUserId(String userId) async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
+        tableId: 'public_profiles',
         queries: [Query.equal('user_id', userId), Query.limit(1)],
       );
 
-      if (documents.documents.isEmpty) {
+      if (documents.rows.isEmpty) {
         return null;
       }
 
-      return PublicProfileModel.fromMap(documents.documents.first.data);
+      return PublicProfileModel.fromMap(documents.rows.first.data);
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to get public profile: ${e.message}',
@@ -102,10 +102,10 @@ class PublicProfileService {
       if (emailVisible != null) updateData['email_visible'] = emailVisible;
       if (phoneVisible != null) updateData['phone_visible'] = phoneVisible;
 
-      final document = await databases.updateDocument(
+      final document = await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
-        documentId: currentProfile.id,
+        tableId: 'public_profiles',
+        rowId: currentProfile.id,
         data: updateData,
       );
 
@@ -127,10 +127,10 @@ class PublicProfileService {
         return; // Profile doesn't exist, nothing to delete
       }
 
-      await databases.deleteDocument(
+      await db.deleteRow(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
-        documentId: currentProfile.id,
+        tableId: 'public_profiles',
+        rowId: currentProfile.id,
       );
     } on AppwriteException catch (e) {
       throw PublicProfileException(
@@ -161,13 +161,13 @@ class PublicProfileService {
         queries.add(Query.equal('campus_id', campusId));
       }
 
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
+        tableId: 'public_profiles',
         queries: queries,
       );
 
-      return documents.documents.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
+      return documents.rows.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to search public profiles: ${e.message}',
@@ -184,16 +184,16 @@ class PublicProfileService {
     try {
       if (userIds.isEmpty) return [];
 
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
+        tableId: 'public_profiles',
         queries: [
           Query.contains('user_id', userIds),
           Query.limit(userIds.length),
         ],
       );
 
-      return documents.documents.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
+      return documents.rows.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to get multiple public profiles: ${e.message}',
@@ -251,9 +251,9 @@ class PublicProfileService {
     int limit = 50,
   }) async {
     try {
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: 'public_profiles',
+        tableId: 'public_profiles',
         queries: [
           Query.equal('campus_id', campusId),
           Query.orderAsc('name'),
@@ -261,7 +261,7 @@ class PublicProfileService {
         ],
       );
 
-      return documents.documents.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
+      return documents.rows.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to get campus public profiles: ${e.message}',

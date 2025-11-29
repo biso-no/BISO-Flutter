@@ -10,13 +10,13 @@ class LargeEventService {
 
   Future<List<LargeEventModel>> fetchActiveEvents() async {
     try {
-      final results = await databases.listDocuments(
+      final results = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
+        tableId: collectionId,
         queries: [Query.equal('isActive', true), Query.orderDesc('priority')],
       );
 
-      return results.documents.map((doc) => LargeEventModel.fromMap(doc.data)).toList(growable: false);
+      return results.rows.map((doc) => LargeEventModel.fromMap(doc.data)).toList(growable: false);
     } catch (e, st) {
       debugPrint('LargeEventService.fetchActiveEvents error: $e\n$st');
       rethrow;
@@ -25,13 +25,13 @@ class LargeEventService {
 
   Future<LargeEventModel?> fetchEventBySlug(String slug) async {
     try {
-      final results = await databases.listDocuments(
+      final results = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: collectionId,
+        tableId: collectionId,
         queries: [Query.equal('slug', slug), Query.limit(1)],
       );
-      if (results.documents.isEmpty) return null;
-      return LargeEventModel.fromMap(results.documents.first.data);
+      if (results.rows.isEmpty) return null;
+      return LargeEventModel.fromMap(results.rows.first.data);
     } catch (e, st) {
       debugPrint('LargeEventService.fetchEventBySlug error: $e\n$st');
       rethrow;

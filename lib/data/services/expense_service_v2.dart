@@ -45,16 +45,16 @@ class ExpenseServiceV2 {
       mergedQueries.addAll(queries);
       mergedQueries.add(Query.orderDesc('\$createdAt'));
 
-      final documents = await databases.listDocuments(
+      final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
-        collectionId: expensesCollectionId,
+        tableId: expensesCollectionId,
         queries: mergedQueries,
       );
 
       logPrint('💰 ExpenseServiceV2: Found ${documents.total} expenses');
 
       final expenses = <ExpenseModel>[];
-      for (final doc in documents.documents) {
+      for (final doc in documents.rows) {
         try {
           // Appwrite should automatically include relationship data
           // If expenseAttachments relationship is properly configured
@@ -81,10 +81,10 @@ class ExpenseServiceV2 {
     try {
       logPrint('💰 ExpenseServiceV2: Fetching expense $expenseId');
 
-      final doc = await databases.getDocument(
+      final doc = await db.getRow(
         databaseId: AppConstants.databaseId,
-        collectionId: expensesCollectionId,
-        documentId: expenseId,
+        tableId: expensesCollectionId,
+        rowId: expenseId,
       );
 
       // Appwrite should automatically include relationship data
@@ -120,10 +120,10 @@ class ExpenseServiceV2 {
           final attachmentData = attachment.toMap();
 
           final attachmentDoc =
-              await databases.createDocument(
+              await db.createRow(
                 databaseId: AppConstants.databaseId,
-                collectionId: attachmentsCollectionId,
-                documentId: ID.unique(),
+                tableId: attachmentsCollectionId,
+                rowId: ID.unique(),
                 data: attachmentData,
               );
 
@@ -151,10 +151,10 @@ class ExpenseServiceV2 {
           'expenseAttachments': createdAttachmentIds,
       };
 
-      final doc = await databases.createDocument(
+      final doc = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: expensesCollectionId,
-        documentId: ID.unique(),
+        tableId: expensesCollectionId,
+        rowId: ID.unique(),
         data: expenseData,
       );
 
@@ -195,10 +195,10 @@ class ExpenseServiceV2 {
       if (status != null) updateData['status'] = status;
       if (eventName != null) updateData['eventName'] = eventName;
 
-      final doc = await databases.updateDocument(
+      final doc = await db.updateRow(
         databaseId: AppConstants.databaseId,
-        collectionId: expensesCollectionId,
-        documentId: expenseId,
+        tableId: expensesCollectionId,
+        rowId: expenseId,
         data: updateData,
       );
 
@@ -221,10 +221,10 @@ class ExpenseServiceV2 {
         for (final attachment in expense.expenseAttachments) {
           if (attachment.id != null) {
             try {
-              await databases.deleteDocument(
+              await db.deleteRow(
                 databaseId: AppConstants.databaseId,
-                collectionId: attachmentsCollectionId,
-                documentId: attachment.id!,
+                tableId: attachmentsCollectionId,
+                rowId: attachment.id!,
               );
             } catch (e) {
               logPrint(
@@ -237,10 +237,10 @@ class ExpenseServiceV2 {
       }
 
       // Delete the expense document
-      await databases.deleteDocument(
+      await db.deleteRow(
         databaseId: AppConstants.databaseId,
-        collectionId: expensesCollectionId,
-        documentId: expenseId,
+        tableId: expensesCollectionId,
+        rowId: expenseId,
       );
 
       logPrint('💰 ExpenseServiceV2: Successfully deleted expense $expenseId');
@@ -271,10 +271,10 @@ class ExpenseServiceV2 {
         if (description != null) 'description': description,
       };
 
-      final attachmentDoc = await databases.createDocument(
+      final attachmentDoc = await db.createRow(
         databaseId: AppConstants.databaseId,
-        collectionId: attachmentsCollectionId,
-        documentId: ID.unique(),
+        tableId: attachmentsCollectionId,
+        rowId: ID.unique(),
         data: attachmentData,
       );
 
@@ -292,10 +292,10 @@ class ExpenseServiceV2 {
         currentAttachmentIds.add(attachmentId);
 
         // Update the expense with the new attachment relationship
-        await databases.updateDocument(
+        await db.updateRow(
           databaseId: AppConstants.databaseId,
-          collectionId: expensesCollectionId,
-          documentId: expenseId,
+          tableId: expensesCollectionId,
+          rowId: expenseId,
           data: {'expenseAttachments': currentAttachmentIds},
         );
       }
@@ -406,10 +406,10 @@ class ExpenseServiceV2 {
   Future<Map<String, dynamic>> createExpenseDocument({
     required Map<String, dynamic> data,
   }) async {
-    final map = await databases.createDocument(
+    final map = await db.createRow(
       databaseId: AppConstants.databaseId,
-      collectionId: expensesCollectionId,
-      documentId: ID.unique(),
+      tableId: expensesCollectionId,
+      rowId: ID.unique(),
       data: data,
     );
     return map.data;
@@ -431,10 +431,10 @@ class ExpenseServiceV2 {
     required String description,
     required String type,
   }) async {
-    final map = await databases.createDocument(
+    final map = await db.createRow(
       databaseId: AppConstants.databaseId,
-      collectionId: attachmentsCollectionId,
-      documentId: ID.unique(),
+      tableId: attachmentsCollectionId,
+      rowId: ID.unique(),
       data: {
         'date': date.toIso8601String(),
         'url': url,
@@ -449,25 +449,25 @@ class ExpenseServiceV2 {
   Future<List<Map<String, dynamic>>> listDepartmentsForCampus(
     String campusId,
   ) async {
-    final results = await databases.listDocuments(
+    final results = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: AppConstants.departmentsCollectionId,
+      tableId: AppConstants.departmentsCollectionId,
       queries: [
         'equal("campus_id", "$campusId")',
         'orderAsc("Name")',
         'limit(100)',
       ],
     );
-    return results.documents.map((doc) => doc.data).toList();
+    return results.rows.map((doc) => doc.data).toList();
   }
 
   Future<List<Map<String, dynamic>>> listCampuses() async {
-    final results = await databases.listDocuments(
+    final results = await db.listRows(
       databaseId: AppConstants.databaseId,
-      collectionId: AppConstants.campusesCollectionId,
+      tableId: AppConstants.campusesCollectionId,
       queries: ['select(["\$id", "name"])', 'orderAsc("name")', 'limit(100)'],
     );
-    return results.documents.map((doc) => doc.data).toList();
+    return results.rows.map((doc) => doc.data).toList();
   }
 
   Future<Map<String, dynamic>> analyzeReceiptText(String ocrText) async {

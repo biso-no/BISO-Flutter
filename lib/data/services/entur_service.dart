@@ -6,7 +6,7 @@ import '../models/entur_models.dart';
 import 'appwrite_service.dart';
 
 class EnturService {
-  Databases get _databases => databases;
+  TablesDB get _databases => db;
   Realtime get _realtime => realtime;
 
   static const String enturDatabaseId = 'entur';
@@ -20,16 +20,16 @@ class EnturService {
   Stream<EnturDepartureBoard?> get boardStream => _boardController.stream;
 
   Future<List<StopPlaceModel>> getStopPlacesForCampus(String campusId) async {
-    final response = await _databases.listDocuments(
+    final response = await _databases.listRows(
       databaseId: enturDatabaseId,
-      collectionId: stopPlacesCollectionId,
+      tableId: stopPlacesCollectionId,
       queries: [
         Query.equal('campus_id', campusId),
         Query.equal('enabled', true),
         Query.orderAsc('name'),
       ],
     );
-    return response.documents
+    return response.rows
         .map((doc) => StopPlaceModel.fromMap(doc.data))
         .toList();
   }
@@ -38,10 +38,10 @@ class EnturService {
     String stopPlaceId,
   ) async {
     try {
-      final doc = await _databases.getDocument(
+      final doc = await _databases.getRow(
         databaseId: enturDatabaseId,
-        collectionId: departuresCollectionId,
-        documentId: sanitizeDocumentId(stopPlaceId),
+        tableId: departuresCollectionId,
+        rowId: sanitizeDocumentId(stopPlaceId),
       );
       return EnturDepartureBoard.fromDocument(doc.data);
     } on AppwriteException catch (e) {
