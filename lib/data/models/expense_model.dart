@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../core/utils/norwegian_bank_account.dart';
 import 'expense_attachment_model.dart';
 
 /// ExpenseModel that matches the database schema exactly
@@ -280,27 +281,12 @@ class ExpenseModel extends Equatable {
 
   // Validate Norwegian bank account number (11 digits with MOD11 checksum)
   bool get isValidBankAccount {
-    if (bankAccount.length != 11) return false;
-    if (!RegExp(r'^\d+$').hasMatch(bankAccount)) return false;
-
-    // MOD11 validation for Norwegian bank accounts
-    final digits = bankAccount.split('').map(int.parse).toList();
-    final weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2, 1];
-    int sum = 0;
-
-    for (int i = 0; i < digits.length; i++) {
-      sum += digits[i] * weights[i];
-    }
-
-    return sum % 11 == 0;
+    return isValidNorwegianBankAccount(bankAccount);
   }
 
   // Format bank account for display (XXXX XX XXXXX)
   String get formattedBankAccount {
-    if (bankAccount.length == 11) {
-      return '${bankAccount.substring(0, 4)} ${bankAccount.substring(4, 6)} ${bankAccount.substring(6)}';
-    }
-    return bankAccount;
+    return formatNorwegianBankAccount(bankAccount);
   }
 
   @override

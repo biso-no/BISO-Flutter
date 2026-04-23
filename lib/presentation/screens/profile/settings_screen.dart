@@ -134,6 +134,24 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+WidgetStateProperty<Color?> campusSwitchThumbColor(Color activeColor) {
+  return WidgetStateProperty.resolveWith<Color?>((states) {
+    if (states.contains(WidgetState.selected)) {
+      return activeColor;
+    }
+    return null;
+  });
+}
+
+WidgetStateProperty<Color?> campusSwitchTrackColor(Color activeColor) {
+  return WidgetStateProperty.resolveWith<Color?>((states) {
+    if (states.contains(WidgetState.selected)) {
+      return activeColor.withValues(alpha: 0.45);
+    }
+    return null;
+  });
+}
+
 class _SettingsScreenState extends ConsumerState<SettingsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
@@ -262,7 +280,12 @@ class _GeneralSettingsTab extends ConsumerWidget {
                   onChanged: (value) {
                     ref.read(appSettingsProvider.notifier).setDarkMode(value);
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: campusSwitchThumbColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
+                  trackColor: campusSwitchTrackColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
                 ),
               ],
             ),
@@ -719,7 +742,12 @@ class _NotificationSettingsTab extends ConsumerWidget {
                         ),
                       );
                     },
-                    activeThumbColor: _getCampusColor(selectedCampus.id),
+                    thumbColor: campusSwitchThumbColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
+                    trackColor: campusSwitchTrackColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
                   ),
                 ),
                 const Divider(height: 1),
@@ -739,7 +767,12 @@ class _NotificationSettingsTab extends ConsumerWidget {
                         ),
                       );
                     },
-                    activeThumbColor: _getCampusColor(selectedCampus.id),
+                    thumbColor: campusSwitchThumbColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
+                    trackColor: campusSwitchTrackColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
                   ),
                 ),
               ],
@@ -850,7 +883,12 @@ class _PrivacySettingsTab extends ConsumerWidget {
                         }
                       }
                     },
-                    activeThumbColor: _getCampusColor(selectedCampus.id),
+                    thumbColor: campusSwitchThumbColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
+                    trackColor: campusSwitchTrackColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
                   ),
                   loading: () => const ListTile(
                     leading: CircularProgressIndicator(),

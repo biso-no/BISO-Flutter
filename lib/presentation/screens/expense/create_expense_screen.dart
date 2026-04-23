@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 import 'dart:ui' as ui;
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../data/services/expense_service_v2.dart';
 import '../../../core/utils/favorites_storage.dart';
@@ -76,6 +77,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           await FavoritesStorage.getFavoriteDepartmentIds();
       if (user != null) {
         _accountHolderController.text = user.name;
+        _bankAccountController.text = formatNorwegianBankAccount(
+          user.bankAccount ?? '',
+        );
         _selectedCampusId = user.campusId;
         _selectedCampusName = _campuses.firstWhere(
           (c) => c['id'] == _selectedCampusId,
@@ -288,7 +292,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description = _descriptionController.text.trim();
       }
 
-      final sanitizedBank = _bankAccountController.text.replaceAll(' ', '');
+      final sanitizedBank = normalizeNorwegianBankAccount(
+        _bankAccountController.text,
+      );
 
       final data = <String, dynamic>{
         'campus': _selectedCampusId ?? '',
@@ -340,7 +346,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       }
 
       // No uploads for draft; attachments can be added later in edit flow
-      final sanitizedBank = _bankAccountController.text.replaceAll(' ', '');
+      final sanitizedBank = normalizeNorwegianBankAccount(
+        _bankAccountController.text,
+      );
       final description = (_useAi
               ? _overallDescriptionController.text
               : _descriptionController.text)
@@ -521,7 +529,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
           // Campus selector (from database)
           DropdownButtonFormField<String>(
-            initialValue: _selectedCampusId,
+            value: _selectedCampusId,
             decoration: const InputDecoration(
               labelText: 'Campus',
               prefixIcon: Icon(Icons.location_city),
@@ -1008,7 +1016,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   Future<void> _pickDocument() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
       allowMultiple: false,
@@ -1109,7 +1117,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final city = user.city;
     final zip = user.zipCode;
     final campusId = _selectedCampusId ?? user.campusId;
-    final bank = _bankAccountController.text.replaceAll(' ', '');
+    final bank = normalizeNorwegianBankAccount(_bankAccountController.text);
+    final effectiveBank = bank.isEmpty
+        ? normalizeNorwegianBankAccount(user.bankAccount ?? '')
+        : bank;
     try {
       if (hasProfile) {
         await ref
@@ -1121,7 +1132,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
               city: city,
               zipCode: zip,
               campusId: campusId,
-              bankAccount: bank,
+              bankAccount: effectiveBank,
             );
       } else {
         await ref
@@ -1134,7 +1145,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
               zipCode: zip,
               campusId: campusId,
               departments: const [],
-              bankAccount: bank,
+              bankAccount: effectiveBank,
             );
       }
       await ref.read(authStateProvider.notifier).refreshProfile();

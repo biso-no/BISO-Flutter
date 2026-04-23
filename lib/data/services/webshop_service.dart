@@ -1,11 +1,9 @@
 import 'dart:convert';
 
-import 'package:biso/core/logging/migration_helper.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/constants/app_constants.dart';
 import '../models/webshop_product_model.dart';
-import 'appwrite_service.dart';
 
 class WebshopService {
   Future<List<WebshopProduct>> listWebshopProducts({

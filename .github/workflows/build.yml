@@ -36,18 +36,16 @@ jobs:
       run: flutter pub get
     
     - name: Generate launcher icons
-      run: flutter pub run flutter_launcher_icons
-    
+      run: dart run flutter_launcher_icons
+
     - name: Generate localization files
-      run: flutter pub run intl_utils:generate
-    
+      run: flutter gen-l10n
+
     - name: Run build_runner
-      run: flutter pub run build_runner build --delete-conflicting-outputs
-      continue-on-error: true
-    
+      run: dart run build_runner build --delete-conflicting-outputs
+
     - name: Run tests
       run: flutter test
-      continue-on-error: true
     
     # Decode and setup Android signing
     - name: Setup Android signing
@@ -105,14 +103,13 @@ jobs:
       run: flutter pub get
     
     - name: Generate launcher icons
-      run: flutter pub run flutter_launcher_icons
-    
+      run: dart run flutter_launcher_icons
+
     - name: Generate localization files
-      run: flutter pub run intl_utils:generate
-    
+      run: flutter gen-l10n
+
     - name: Run build_runner
-      run: flutter pub run build_runner build --delete-conflicting-outputs
-      continue-on-error: true
+      run: dart run build_runner build --delete-conflicting-outputs
     
     - name: Run tests
       run: flutter test

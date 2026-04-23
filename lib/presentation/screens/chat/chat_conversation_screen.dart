@@ -635,7 +635,7 @@ class _ChatConversationScreenState
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles();
+      final result = await FilePicker.pickFiles();
 
       if (result != null && result.files.single.path != null) {
         setState(() {

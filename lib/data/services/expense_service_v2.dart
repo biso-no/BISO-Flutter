@@ -325,7 +325,7 @@ class ExpenseServiceV2 {
   }) async {
     return getUserExpenses(
       userId: userId,
-      queries: ['equal("campus", "$campus")'],
+      queries: [Query.equal('campus', campus)],
     );
   }
 
@@ -336,7 +336,7 @@ class ExpenseServiceV2 {
   }) async {
     return getUserExpenses(
       userId: userId,
-      queries: ['equal("department", "$department")'],
+      queries: [Query.equal('department', department)],
     );
   }
 
@@ -453,9 +453,9 @@ class ExpenseServiceV2 {
       databaseId: AppConstants.databaseId,
       tableId: AppConstants.departmentsCollectionId,
       queries: [
-        'equal("campus_id", "$campusId")',
-        'orderAsc("Name")',
-        'limit(100)',
+        Query.equal('campus_id', campusId),
+        Query.orderAsc('Name'),
+        Query.limit(100),
       ],
     );
     return results.rows.map((doc) => doc.data).toList();
@@ -465,7 +465,11 @@ class ExpenseServiceV2 {
     final results = await db.listRows(
       databaseId: AppConstants.databaseId,
       tableId: AppConstants.campusesCollectionId,
-      queries: ['select(["\$id", "name"])', 'orderAsc("name")', 'limit(100)'],
+      queries: [
+        Query.select(['\$id', 'name']),
+        Query.orderAsc('name'),
+        Query.limit(100),
+      ],
     );
     return results.rows.map((doc) => doc.data).toList();
   }

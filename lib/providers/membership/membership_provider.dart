@@ -139,17 +139,11 @@ class MembershipNotifier extends StateNotifier<MembershipState> {
     _studentIdSubscription = _membershipService.subscribeToStudentIdUpdates(
       userId,
       (message) {
-        // Handle student ID creation/update
-        if (message.events.contains(
-          'databases.app.collections.student_id.documents.*.create',
-        )) {
-          // Student ID was registered, we can now verify membership
-          final payload = message.payload;
-          final studentNumber = payload['student_number'] as String?;
+        final payload = message.payload;
+        final studentNumber = payload['student_number'] as String?;
 
-          if (studentNumber != null) {
-            verifyMembership(studentNumber);
-          }
+        if (studentNumber != null) {
+          verifyMembership(studentNumber);
         }
       },
     );
@@ -160,17 +154,8 @@ class MembershipNotifier extends StateNotifier<MembershipState> {
     _membershipSubscription?.close();
     _membershipSubscription = _membershipService.subscribeToMembershipUpdates(
       userId,
-      (message) {
-        // Handle membership updates (e.g., successful purchase)
-        if (message.events.contains(
-              'databases.app.collections.biso_membership.documents.*.create',
-            ) ||
-            message.events.contains(
-              'databases.app.collections.biso_membership.documents.*.update',
-            )) {
-          // Reload membership data
-          loadUserMembership(userId);
-        }
+      (_) {
+        loadUserMembership(userId);
       },
     );
   }

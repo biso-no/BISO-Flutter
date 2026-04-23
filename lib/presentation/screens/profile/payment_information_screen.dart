@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
@@ -47,46 +48,6 @@ class _PaymentInformationScreenState
     super.dispose();
   }
 
-  String? _validateNorwegianBankAccount(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Bank account number is required';
-    }
-
-    // Remove spaces and keep only digits
-    final cleanValue = value.replaceAll(RegExp(r'[^\d]'), '');
-
-    if (cleanValue.length != 11) {
-      return 'Norwegian bank account must be 11 digits';
-    }
-
-    // MOD11 validation for Norwegian bank accounts
-    if (!_isValidNorwegianBankAccount(cleanValue)) {
-      return 'Invalid Norwegian bank account number';
-    }
-
-    return null;
-  }
-
-  bool _isValidNorwegianBankAccount(String accountNumber) {
-    if (accountNumber.length != 11) return false;
-
-    // MOD11 weights for Norwegian bank account validation
-    const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-
-    int sum = 0;
-    for (int i = 0; i < 10; i++) {
-      sum += int.parse(accountNumber[i]) * weights[i];
-    }
-
-    int remainder = sum % 11;
-    int checkDigit = remainder == 0 ? 0 : 11 - remainder;
-
-    // Check digit cannot be 10
-    if (checkDigit == 10) return false;
-
-    return checkDigit == int.parse(accountNumber[10]);
-  }
-
   String? _validateSwift(String? value) {
     if (_isInternational && (value == null || value.isEmpty)) {
       return 'SWIFT code is required for international accounts';
@@ -113,7 +74,9 @@ class _PaymentInformationScreenState
     setState(() => _isLoading = true);
 
     try {
-      final bankAccount = _bankAccountController.text.trim();
+      final bankAccount = _isInternational
+          ? _bankAccountController.text.trim()
+          : normalizeNorwegianBankAccount(_bankAccountController.text);
       final swift = _isInternational ? _swiftController.text.trim() : null;
 
       await ref
@@ -242,7 +205,20 @@ class _PaymentInformationScreenState
                       }
                     });
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return _getCampusColor(selectedCampus.id);
+                    }
+                    return null;
+                  }),
+                  trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return _getCampusColor(
+                        selectedCampus.id,
+                      ).withValues(alpha: 0.45);
+                    }
+                    return null;
+                  }),
                 ),
               ),
 
@@ -282,15 +258,15 @@ class _PaymentInformationScreenState
                         FilteringTextInputFormatter.digitsOnly,
                         TextInputFormatter.withFunction((oldValue, newValue) {
                           // Auto-format Norwegian bank account (XXXX XX XXXXX)
-                          String text = newValue.text.replaceAll(
-                            RegExp(r'[^\d]'),
-                            '',
+                          String text = normalizeNorwegianBankAccount(
+                            newValue.text,
                           );
                           if (text.length > 11) text = text.substring(0, 11);
-
-                          String formatted = '';
+                          var formatted = '';
                           for (int i = 0; i < text.length; i++) {
-                            if (i == 4 || i == 6) formatted += ' ';
+                            if (i == 4 || i == 6) {
+                              formatted += ' ';
+                            }
                             formatted += text[i];
                           }
 
@@ -309,7 +285,7 @@ class _PaymentInformationScreenState
                         }
                         return null;
                       }
-                    : _validateNorwegianBankAccount,
+                    : validateNorwegianBankAccount,
               ),
 
               // SWIFT Code Field (conditional)

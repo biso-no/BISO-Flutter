@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/enums.dart' as aw_enums;
 import 'package:biso/core/logging/migration_helper.dart';
 
 import '../models/validation_result_model.dart';
@@ -25,7 +26,7 @@ class ValidatorService {
         xasync: false,
       );
 
-      if (response.status == 'completed') {
+      if (response.status == aw_enums.ExecutionStatus.completed) {
         final responseData = json.decode(response.responseBody);
 
         // Log the audit entry
@@ -36,7 +37,7 @@ class ValidatorService {
         );
 
         return ValidationResultModel.fromJson(responseData);
-      } else if (response.status == 'failed') {
+      } else if (response.status == aw_enums.ExecutionStatus.failed) {
         throw ValidationException(
           'Function execution failed: ${response.responseBody}',
           code: 'FUNCTION_FAILED',
@@ -98,7 +99,7 @@ class ValidatorService {
         xasync: false,
       );
 
-      if (response.status == 'completed') {
+      if (response.status == aw_enums.ExecutionStatus.completed) {
         final responseData = json.decode(response.responseBody);
 
         if (responseData['ok'] == true) {
@@ -114,7 +115,7 @@ class ValidatorService {
             code: responseData['code'] as String? ?? 'TOKEN_ISSUE_FAILED',
           );
         }
-      } else if (response.status == 'failed') {
+      } else if (response.status == aw_enums.ExecutionStatus.failed) {
         final errorData = json.decode(response.responseBody);
         throw ValidationException(
           errorData['error'] as String? ?? 'Function execution failed',

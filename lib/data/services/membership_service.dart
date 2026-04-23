@@ -76,9 +76,9 @@ class MembershipService {
         databaseId: 'app',
         tableId: 'memberships',
         queries: [
-          Query.equal('status', true).toString(), // Only active memberships
-          Query.orderAsc('price').toString(), // Order by price
-          Query.equal('canPurchase', true).toString(),
+          Query.equal('status', true),
+          Query.orderAsc('price'),
+          Query.equal('canPurchase', true),
         ],
       );
 
@@ -159,9 +159,9 @@ class MembershipService {
         databaseId: 'app',
         tableId: 'biso_membership',
         queries: [
-          Query.equal('user_id', userId).toString(),
-          Query.orderDesc('\$createdAt').toString(),
-          Query.limit(1).toString(),
+          Query.equal('user_id', userId),
+          Query.orderDesc('\$createdAt'),
+          Query.limit(1),
         ],
       );
 
@@ -181,7 +181,7 @@ class MembershipService {
     Function(RealtimeMessage) callback,
   ) {
     return realtime.subscribe([
-        'databases.app.collections.student_id.documents',
+        Channel.tablesdb('app').table('student_id').row().toString(),
       ])
       ..stream.listen((response) {
         // Filter for this user's student ID updates
@@ -198,7 +198,7 @@ class MembershipService {
     Function(RealtimeMessage) callback,
   ) {
     return realtime.subscribe([
-        'databases.app.collections.biso_membership.documents',
+        Channel.tablesdb('app').table('biso_membership').row().toString(),
       ])
       ..stream.listen((response) {
         // Filter for this user's membership updates
