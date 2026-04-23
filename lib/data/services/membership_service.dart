@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:appwrite/appwrite.dart';
+import '../../core/constants/app_constants.dart';
 import '../models/membership_model.dart';
 import 'appwrite_service.dart';
 
@@ -73,7 +74,7 @@ class MembershipService {
   Future<List<MembershipPurchaseOption>> getAvailableMemberships() async {
     try {
       final documents = await db.listRows(
-        databaseId: 'app',
+        databaseId: AppConstants.databaseId,
         tableId: 'memberships',
         queries: [
           Query.equal('status', true),
@@ -156,7 +157,7 @@ class MembershipService {
   Future<MembershipModel?> getUserMembership(String userId) async {
     try {
       final documents = await db.listRows(
-        databaseId: 'app',
+        databaseId: AppConstants.databaseId,
         tableId: 'biso_membership',
         queries: [
           Query.equal('user_id', userId),
@@ -180,16 +181,13 @@ class MembershipService {
     String userId,
     Function(RealtimeMessage) callback,
   ) {
-    return realtime.subscribe([
-        Channel.tablesdb('app').table('student_id').row().toString(),
-      ])
-      ..stream.listen((response) {
-        // Filter for this user's student ID updates
-        final payload = response.payload;
-        if (payload['user_id'] == userId) {
-          callback(response);
-        }
-      });
+    final sub = realtime.subscribe([
+      Channel.tablesdb(AppConstants.databaseId).table('student_id').row(),
+    ], queries: [
+      Query.equal('user_id', userId),
+    ]);
+    sub.stream.listen(callback);
+    return sub;
   }
 
   /// Subscribes to membership updates for realtime notifications
@@ -197,15 +195,12 @@ class MembershipService {
     String userId,
     Function(RealtimeMessage) callback,
   ) {
-    return realtime.subscribe([
-        Channel.tablesdb('app').table('biso_membership').row().toString(),
-      ])
-      ..stream.listen((response) {
-        // Filter for this user's membership updates
-        final payload = response.payload;
-        if (payload['user_id'] == userId) {
-          callback(response);
-        }
-      });
+    final sub = realtime.subscribe([
+      Channel.tablesdb(AppConstants.databaseId).table('biso_membership').row(),
+    ], queries: [
+      Query.equal('user_id', userId),
+    ]);
+    sub.stream.listen(callback);
+    return sub;
   }
 }

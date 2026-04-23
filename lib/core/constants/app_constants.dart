@@ -3,7 +3,7 @@ class AppConstants {
 
   // Appwrite Configuration
   static const String appwriteEndpoint = 'https://appwrite.biso.no/v1';
-  static const String appwriteProjectId = 'biso';
+  static const String appwriteProjectId = 'dev';
   static const String databaseId = 'app';
   static const String appwriteWebsocket = 'wss://appwrite.biso.no/v1/realtime';
   // Storage Buckets

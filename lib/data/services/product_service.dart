@@ -1,6 +1,8 @@
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../types/product_favorites.dart';
 import '../models/product_model.dart';
 import 'appwrite_service.dart';
 
@@ -31,11 +33,7 @@ class ProductService {
       queries: queries,
     );
     return response.rows
-        .map((doc) {
-          final map = Map<String, dynamic>.from(doc.data);
-          map['\$id'] = doc.$id;
-          return ProductModel.fromMap(map);
-        })
+        .map((doc) => ProductModel.fromMap(_rowData(doc)))
         .toList(growable: false);
   }
 
@@ -53,7 +51,7 @@ class ProductService {
       Query.orderDesc('\$createdAt'),
     ];
     if (campusId != null) queries.add(Query.equal('campus_id', campusId));
-    if (category != null && category != 'all') queries.add(Query.equal('category', category));      
+    if (category != null && category != 'all') queries.add(Query.equal('category', category));
     if (status != null) queries.add(Query.equal('status', status));
     if (search != null && search.trim().isNotEmpty) {
       queries.add(Query.search('description', search.trim()));
@@ -66,11 +64,7 @@ class ProductService {
       queries: queries,
     );
     return response.rows
-        .map((doc) {
-          final map = Map<String, dynamic>.from(doc.data);
-          map['\$id'] = doc.$id;
-          return ProductModel.fromMap(map);
-        })
+        .map((doc) => ProductModel.fromMap(_rowData(doc)))
         .toList(growable: false);
   }
 
@@ -80,9 +74,7 @@ class ProductService {
       tableId: collectionId,
       rowId: id,
     );
-    final map = Map<String, dynamic>.from(doc.data);
-    map['\$id'] = doc.$id;
-    return ProductModel.fromMap(map);
+    return ProductModel.fromMap(_rowData(doc));
   }
 
   Future<ProductModel> createProduct({
@@ -109,9 +101,7 @@ class ProductService {
       rowId: docId,
       data: data,
     );
-    final map = Map<String, dynamic>.from(doc.data);
-    map['\$id'] = doc.$id;
-    return ProductModel.fromMap(map);
+    return ProductModel.fromMap(_rowData(doc));
   }
 
   Future<ProductModel> updateProduct(ProductModel product) async {
@@ -121,9 +111,7 @@ class ProductService {
       rowId: product.id,
       data: product.toMap(),
     );
-    final map = Map<String, dynamic>.from(doc.data);
-    map['\$id'] = doc.$id;
-    return ProductModel.fromMap(map);
+    return ProductModel.fromMap(_rowData(doc));
   }
 
   Future<void> markStatus({
@@ -140,17 +128,11 @@ class ProductService {
 
   Future<void> incrementViewCount(String productId) async {
     try {
-      final current = await db.getRow(
-        databaseId: AppConstants.databaseId,
-        tableId: collectionId,
-        rowId: productId,
-      );
-      final count = (current.data['view_count'] ?? 0) as int;
       await db.updateRow(
         databaseId: AppConstants.databaseId,
         tableId: collectionId,
         rowId: productId,
-        data: {'view_count': count + 1},
+        data: {'view_count': Operator.increment(1)},
       );
     } catch (_) {
       // best effort
@@ -226,34 +208,24 @@ class ProductService {
       queries: queries,
     );
 
-    // Extract products from the relationship field and filter them
     final List<ProductModel> products = [];
-    for (final favorite in results.rows) {
-      final favoriteMap = Map<String, dynamic>.from(favorite.data);
-      favoriteMap['\$id'] = favorite.$id;
-      final productData = favoriteMap['product'];
-      if (productData != null && productData is Map<String, dynamic>) {
-        try {
-          final product = ProductModel.fromMap(productData);
+    for (final favoriteRow in results.rows) {
+      final favorite = ProductFavorites.fromMap(_rowData(favoriteRow));
+      if (favorite.product == null) continue;
 
-          // Apply campus filter
-          if (campusId != null && product.campusId != campusId) continue;
+      final productData = favoriteRow.data['product'];
+      if (productData is! Map<String, dynamic>) continue;
 
-          // Apply category filter
-          if (category != null &&
-              category != 'all' &&
-              product.category != category) {
-            continue;
-          }
+      try {
+        final product = ProductModel.fromMap(productData);
 
-          // Only include available products
-          if (product.status != 'available') continue;
+        if (campusId != null && product.campusId != campusId) continue;
+        if (category != null && category != 'all' && product.category != category) continue;
+        if (product.status != 'available') continue;
 
-          products.add(product);
-        } catch (e) {
-          // Skip malformed product data
-          continue;
-        }
+        products.add(product);
+      } catch (e) {
+        continue;
       }
     }
 
@@ -262,19 +234,15 @@ class ProductService {
 
   Future<void> _bumpFavoriteCount(String productId, int delta) async {
     try {
-      final current = await db.getRow(
-        databaseId: AppConstants.databaseId,
-        tableId: collectionId,
-        rowId: productId,
-      );
-      final count = (current.data['favorite_count'] ?? 0) as int;
-      final int newCount = count + delta;
-      final int safeCount = newCount < 0 ? 0 : newCount;
       await db.updateRow(
         databaseId: AppConstants.databaseId,
         tableId: collectionId,
         rowId: productId,
-        data: {'favorite_count': safeCount},
+        data: {
+          'favorite_count': delta > 0
+              ? Operator.increment(delta)
+              : Operator.decrement(-delta, 0),
+        },
       );
     } catch (_) {}
   }
@@ -293,4 +261,11 @@ class ProductService {
     final projectId = client.config['project'];
     return '$endpoint/storage/buckets/$bucketId/files/$fileId/view?project=$projectId';
   }
+
+  Map<String, dynamic> _rowData(Row row) => {
+    ...row.data,
+    '\$id': row.$id,
+    '\$createdAt': row.$createdAt,
+    '\$updatedAt': row.$updatedAt,
+  };
 }

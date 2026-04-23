@@ -14,6 +14,8 @@ import '../../../presentation/widgets/premium/premium_html_renderer.dart';
 import '../../../presentation/widgets/dynamic_hero_carousel.dart';
 
 import '../../../providers/large_event/large_event_provider.dart';
+import '../../../providers/config/app_config_provider.dart';
+import '../../../data/models/app_config.dart';
 import '../../../data/services/event_service.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/services/webshop_service.dart';
@@ -149,6 +151,10 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestEventsProvider =
       FutureProvider.family<List<EventModel>, String>((ref, campusId) async {
         final service = ref.watch(_eventServiceProvider);
+        final config = await ref.watch(appConfigProvider.future);
+        if (config.eventsSource == ContentSource.appwrite) {
+          return service.getAppwriteEvents(campusId: campusId, limit: 6);
+        }
         return service.getWordPressEvents(
           campusId: campusId,
           limit: 6,
@@ -159,6 +165,8 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestWebshopProductsProvider =
       FutureProvider.family<List<WebshopProduct>, String>((ref, campusName) async {
         final service = ref.watch(_webshopServiceProvider);
+        // productsSource routing: woocommerce (default) always goes through
+        // api.biso.no/api/wc-products; appwrite source will be wired in turborepo.
         return service.listWebshopProducts(
           campusName: campusName,
           departmentId: null,
@@ -169,6 +177,8 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestJobsProvider =
       FutureProvider.family<List<JobModel>, String>((ref, campusId) async {
         final service = ref.watch(_jobServiceProvider);
+        // jobsSource routing: job_service already auto-falls-back to Appwrite
+        // when api.biso.no is unavailable, so no explicit branch needed here.
         return service.getLatestJobs(
           campusId: campusId,
           limit: 6,

@@ -232,14 +232,12 @@ class ChatService {
       final teamId = chat.data['team_id'];
 
       if (!participants.contains(userId)) {
-        participants.add(userId);
-
         // Update chat participants
         await db.updateRow(
           databaseId: AppConstants.databaseId,
           tableId: 'chats',
           rowId: chatId,
-          data: {'participants': participants},
+          data: {'participants': Operator.arrayAppend([userId])},
         );
 
         // Update team members if team exists
@@ -282,23 +280,20 @@ class ChatService {
   // Remove user from chat (removes from both chat and team)
   Future<void> removeUserFromChat(String chatId, String userId) async {
     try {
+      // Fetch only to get teamId for the cascade remove; participant removal uses arrayRemove
       final chat = await db.getRow(
         databaseId: AppConstants.databaseId,
         tableId: 'chats',
         rowId: chatId,
       );
 
-      final participants = List<String>.from(chat.data['participants']);
       final teamId = chat.data['team_id'];
 
-      participants.remove(userId);
-
-      // Update chat participants
       await db.updateRow(
         databaseId: AppConstants.databaseId,
         tableId: 'chats',
         rowId: chatId,
-        data: {'participants': participants},
+        data: {'participants': Operator.arrayRemove(userId)},
       );
 
       // Remove from team if team exists

@@ -1,4 +1,5 @@
 import '../../core/constants/app_constants.dart';
+import '../../types/users.dart';
 import '../models/user_model.dart';
 import 'public_profile_service.dart';
 import 'appwrite_service.dart';
@@ -18,7 +19,7 @@ class PrivacyService {
         rowId: userId,
       );
 
-      return document.data['is_public'] as bool?;
+      return Users.fromMap(document.data).is_public;
     } catch (e) {
       return null;
     }

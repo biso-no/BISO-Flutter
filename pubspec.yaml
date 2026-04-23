@@ -45,7 +45,7 @@ dependencies:
   qr_flutter: ^4.1.0
   flutter_appauth: ^9.0.1
   app_links: ^6.4.1
-  appwrite: ^23.1.0
+  appwrite: ^22.0.0
 
 dev_dependencies:
   flutter_test:
