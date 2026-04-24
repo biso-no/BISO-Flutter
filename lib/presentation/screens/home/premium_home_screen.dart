@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../core/theme/premium_theme.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
@@ -152,53 +153,188 @@ class PremiumHomePage extends ConsumerWidget {
       FutureProvider.family<List<EventModel>, String>((ref, campusId) async {
         final service = ref.watch(_eventServiceProvider);
         final config = await ref.watch(appConfigProvider.future);
-        if (config.eventsSource == ContentSource.appwrite) {
-          return service.getAppwriteEvents(campusId: campusId, limit: 6);
-        }
-        return service.getWordPressEvents(
-          campusId: campusId,
-          limit: 6,
-          includePast: false,
+        final stopwatch = Stopwatch()..start();
+        AppLogger.info(
+          '[HOME] Loading latest events',
+          extra: {
+            'section': 'events',
+            'campus_id': campusId,
+            'source': config.eventsSource.name,
+            'limit': 6,
+          },
         );
+
+        try {
+          final events = config.eventsSource == ContentSource.appwrite
+              ? await service.getAppwriteEvents(campusId: campusId, limit: 6)
+              : await service.getWordPressEvents(
+                  campusId: campusId,
+                  limit: 6,
+                  includePast: false,
+                );
+
+          stopwatch.stop();
+          AppLogger.info(
+            '[HOME] Latest events loaded',
+            extra: {
+              'section': 'events',
+              'campus_id': campusId,
+              'source': config.eventsSource.name,
+              'count': events.length,
+              'duration_ms': stopwatch.elapsedMilliseconds,
+              'sample_ids': events.take(3).map((event) => event.id).toList(),
+            },
+          );
+          return events;
+        } catch (error, stackTrace) {
+          stopwatch.stop();
+          AppLogger.error(
+            '[HOME] Latest events failed',
+            error: error,
+            stackTrace: stackTrace,
+            extra: {
+              'section': 'events',
+              'campus_id': campusId,
+              'source': config.eventsSource.name,
+              'duration_ms': stopwatch.elapsedMilliseconds,
+            },
+          );
+          rethrow;
+        }
       });
 
   static final _latestWebshopProductsProvider =
-      FutureProvider.family<List<WebshopProduct>, String>((ref, campusName) async {
+      FutureProvider.family<List<WebshopProduct>, String>((
+        ref,
+        campusId,
+      ) async {
         final service = ref.watch(_webshopServiceProvider);
+        final stopwatch = Stopwatch()..start();
+        AppLogger.info(
+          '[HOME] Loading latest webshop products',
+          extra: {'section': 'webshop', 'campus_id': campusId, 'limit': 6},
+        );
         // productsSource routing: woocommerce (default) always goes through
         // api.biso.no/api/wc-products; appwrite source will be wired in turborepo.
-        return service.listWebshopProducts(
-          campusName: campusName,
-          departmentId: null,
-          limit: 6,
-        );
+        try {
+          final products = await service.listWebshopProducts(
+            campusId: campusId,
+            departmentId: null,
+            limit: 6,
+          );
+          stopwatch.stop();
+          AppLogger.info(
+            '[HOME] Latest webshop products loaded',
+            extra: {
+              'section': 'webshop',
+              'campus_id': campusId,
+              'count': products.length,
+              'duration_ms': stopwatch.elapsedMilliseconds,
+              'sample_ids': products
+                  .take(3)
+                  .map((product) => product.id.toString())
+                  .toList(),
+            },
+          );
+          return products;
+        } catch (error, stackTrace) {
+          stopwatch.stop();
+          AppLogger.error(
+            '[HOME] Latest webshop products failed',
+            error: error,
+            stackTrace: stackTrace,
+            extra: {
+              'section': 'webshop',
+              'campus_id': campusId,
+              'duration_ms': stopwatch.elapsedMilliseconds,
+            },
+          );
+          rethrow;
+        }
       });
 
   static final _latestJobsProvider =
       FutureProvider.family<List<JobModel>, String>((ref, campusId) async {
         final service = ref.watch(_jobServiceProvider);
+        final stopwatch = Stopwatch()..start();
+        AppLogger.info(
+          '[HOME] Loading latest jobs',
+          extra: {
+            'section': 'jobs',
+            'campus_id': campusId,
+            'limit': 6,
+            'page': 1,
+            'include_expired': false,
+          },
+        );
         // jobsSource routing: job_service already auto-falls-back to Appwrite
         // when api.biso.no is unavailable, so no explicit branch needed here.
-        return service.getLatestJobs(
-          campusId: campusId,
-          limit: 6,
-          page: 1,
-          includeExpired: false,
-        );
+        try {
+          final jobs = await service.getLatestJobs(
+            campusId: campusId,
+            limit: 6,
+            page: 1,
+            includeExpired: false,
+          );
+          stopwatch.stop();
+          AppLogger.info(
+            '[HOME] Latest jobs loaded',
+            extra: {
+              'section': 'jobs',
+              'campus_id': campusId,
+              'count': jobs.length,
+              'duration_ms': stopwatch.elapsedMilliseconds,
+              'sample_ids': jobs.take(3).map((job) => job.id).toList(),
+            },
+          );
+          return jobs;
+        } catch (error, stackTrace) {
+          stopwatch.stop();
+          AppLogger.error(
+            '[HOME] Latest jobs failed',
+            error: error,
+            stackTrace: stackTrace,
+            extra: {
+              'section': 'jobs',
+              'campus_id': campusId,
+              'duration_ms': stopwatch.elapsedMilliseconds,
+            },
+          );
+          rethrow;
+        }
       });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final campus = ref.watch(filterCampusProvider);
+    final isCampusReady =
+        ref.watch(campusInitializedProvider) && campus.id.isNotEmpty;
     ref.watch(authStateProvider);
     final l10n = AppLocalizations.of(context)!;
 
     final showcaseItems = ref.watch(heroShowcaseItemsProvider);
     final campusId = campus.id;
 
-    final eventsAsync = ref.watch(_latestEventsProvider(campusId));
-    final webshopProductsAsync = ref.watch(_latestWebshopProductsProvider(campus.name));
-    final jobsAsync = ref.watch(_latestJobsProvider(campusId));
+    if (!isCampusReady) {
+      AppLogger.debug(
+        '[HOME] Waiting for campus before loading content sections',
+        extra: {
+          'campus_id': campus.id,
+          'campus_name': campus.name,
+          'is_initialized': ref.watch(campusInitializedProvider),
+        },
+      );
+    }
+
+    final eventsAsync = isCampusReady
+        ? ref.watch(_latestEventsProvider(campusId))
+        : const AsyncLoading<List<EventModel>>();
+    final webshopProductsAsync = isCampusReady
+        ? ref.watch(_latestWebshopProductsProvider(campus.id))
+        : const AsyncLoading<List<WebshopProduct>>();
+    final jobsAsync = isCampusReady
+        ? ref.watch(_latestJobsProvider(campusId))
+        : const AsyncLoading<List<JobModel>>();
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -229,6 +365,7 @@ class PremiumHomePage extends ConsumerWidget {
           icon: Icons.event_rounded,
           onViewAll: () => context.go('/explore/events'),
           asyncData: eventsAsync,
+          sectionName: 'events',
           campusId: campusId,
           contentBuilder: (items) =>
               _PremiumEventCarousel(events: items.cast<EventModel>()),
@@ -244,6 +381,7 @@ class PremiumHomePage extends ConsumerWidget {
           icon: Icons.storefront_rounded,
           onViewAll: () => context.go('/explore/products'),
           asyncData: webshopProductsAsync,
+          sectionName: 'webshop',
           campusId: campus.name,
           contentBuilder: (items) =>
               _PremiumWebshopCarousel(products: items.cast<WebshopProduct>()),
@@ -259,6 +397,7 @@ class PremiumHomePage extends ConsumerWidget {
           icon: Icons.volunteer_activism_rounded,
           onViewAll: () => context.go('/explore/volunteer'),
           asyncData: jobsAsync,
+          sectionName: 'jobs',
           campusId: campusId,
           contentBuilder: (items) =>
               _PremiumJobList(jobs: items.cast<JobModel>()),
@@ -279,6 +418,7 @@ class PremiumHomePage extends ConsumerWidget {
     required IconData icon,
     required VoidCallback onViewAll,
     required AsyncValue<List<T>> asyncData,
+    required String sectionName,
     required String campusId,
     required Widget Function(List<T>) contentBuilder,
     required WidgetRef ref,
@@ -297,15 +437,38 @@ class PremiumHomePage extends ConsumerWidget {
         child: SizedBox(
           height: 320,
           child: asyncData.when(
-            data: (items) => items.isEmpty
-                ? _PremiumEmptyState(
-                    message: l10n.nothingHereYetCheckBackSoonMessage,
-                  )
-                : contentBuilder(items),
+            data: (items) {
+              if (items.isEmpty) {
+                AppLogger.warning(
+                  '[HOME] Content section rendered empty',
+                  extra: {'section': sectionName, 'campus_key': campusId},
+                );
+                return _PremiumEmptyState(
+                  message: l10n.nothingHereYetCheckBackSoonMessage,
+                );
+              }
+              AppLogger.debug(
+                '[HOME] Content section rendered items',
+                extra: {
+                  'section': sectionName,
+                  'campus_key': campusId,
+                  'count': items.length,
+                },
+              );
+              return contentBuilder(items);
+            },
             loading: () => _PremiumLoadingCarousel(),
-            error: (error, stackTrace) => _PremiumErrorState(
-              onRetry: () => ref.invalidate(providerFamily(campusId)),
-            ),
+            error: (error, stackTrace) {
+              AppLogger.error(
+                '[HOME] Content section rendered error',
+                error: error,
+                stackTrace: stackTrace,
+                extra: {'section': sectionName, 'campus_key': campusId},
+              );
+              return _PremiumErrorState(
+                onRetry: () => ref.invalidate(providerFamily(campusId)),
+              );
+            },
           ),
         ),
       ),
@@ -323,7 +486,11 @@ class PremiumHomePage extends ConsumerWidget {
           final allCampusesAsync = ref.watch(switcherCampusesProvider);
           return allCampusesAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-                            error: (e, _) => Center(child: Text(AppLocalizations.of(context)!.failedToLoadCampusesMessage)),
+            error: (e, _) => Center(
+              child: Text(
+                AppLocalizations.of(context)!.failedToLoadCampusesMessage,
+              ),
+            ),
             data: (allCampuses) => _CampusSwitcherModal(
               selectedCampus: selectedCampus,
               allCampuses: allCampuses,
@@ -361,7 +528,7 @@ class _CampusSwitcherModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.75,
       decoration: BoxDecoration(
@@ -390,7 +557,9 @@ class _CampusSwitcherModal extends StatelessWidget {
                   'Select Campus',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                    color: isDark
+                        ? AppColors.onSurfaceDark
+                        : AppColors.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -398,11 +567,17 @@ class _CampusSwitcherModal extends StatelessWidget {
                   onPressed: () => Navigator.pop(context),
                   icon: Icon(
                     Icons.close,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                    color: isDark
+                        ? AppColors.onSurfaceDark
+                        : AppColors.onSurface,
                   ),
                   style: IconButton.styleFrom(
-                    backgroundColor: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
-                    foregroundColor: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                    backgroundColor: isDark
+                        ? AppColors.surfaceVariantDark
+                        : AppColors.surfaceVariant,
+                    foregroundColor: isDark
+                        ? AppColors.onSurfaceVariantDark
+                        : AppColors.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -458,7 +633,9 @@ class _CampusModalCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? Theme.of(context).colorScheme.surfaceBright : Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: isSelected
+              ? Theme.of(context).colorScheme.surfaceBright
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? AppColors.defaultBlue : Colors.transparent,
@@ -470,7 +647,7 @@ class _CampusModalCard extends StatelessWidget {
             Container(
               width: 48,
               height: 48,
-              
+
               decoration: BoxDecoration(
                 color: _getCampusColor(campus.id),
                 shape: BoxShape.circle,
@@ -697,7 +874,7 @@ class _PremiumQuickActions extends StatelessWidget {
                 : null,
             onTap: () {
               if (!authState.isAuthenticated) {
-                                    _showAuthPrompt(context, l10n.expensesMessage);
+                _showAuthPrompt(context, l10n.expensesMessage);
               } else {
                 context.go('/explore/expenses');
               }
@@ -1011,7 +1188,9 @@ class _PremiumEventCard extends StatelessWidget {
                 if (event.organizerName.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    AppLocalizations.of(context)!.byOrganizerNameMessage(event.organizerName),
+                    AppLocalizations.of(
+                      context,
+                    )!.byOrganizerNameMessage(event.organizerName),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.biLightBlue,
                       fontWeight: FontWeight.w500,
@@ -1042,7 +1221,10 @@ class _PremiumWebshopCarousel extends StatelessWidget {
       separatorBuilder: (_, _) => const SizedBox(width: 16),
       itemBuilder: (context, index) {
         final product = products[index];
-        return SizedBox(width: 280, child: _PremiumWebshopProductCard(product: product));
+        return SizedBox(
+          width: 280,
+          child: _PremiumWebshopProductCard(product: product),
+        );
       },
     );
   }
@@ -1095,10 +1277,12 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                                 borderRadius: const BorderRadius.vertical(
                                   top: Radius.circular(20),
                                 ),
-                                gradient: LinearGradient(colors: [
-                                  AppColors.biLightBlue,
-                                  AppColors.defaultBlue,
-                                ]),
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.biLightBlue,
+                                    AppColors.defaultBlue,
+                                  ],
+                                ),
                               ),
                               child: const Center(
                                 child: Icon(
@@ -1114,10 +1298,12 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                               borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(20),
                               ),
-                              gradient: LinearGradient(colors: [
-                                AppColors.biLightBlue,
-                                AppColors.defaultBlue,
-                              ]),
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.biLightBlue,
+                                  AppColors.defaultBlue,
+                                ],
+                              ),
                             ),
                             child: const Center(
                               child: Icon(
@@ -1129,7 +1315,7 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                           ),
                   ),
                 ),
-                
+
                 // Price overlay
                 Positioned(
                   top: 12,
@@ -1168,7 +1354,7 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 // Sale badge
                 if (hasSale)
                   Positioned(
@@ -1405,7 +1591,11 @@ class _PremiumErrorState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          PremiumButton(text: l10n.retryMessage, isSecondary: true, onPressed: onRetry),
+          PremiumButton(
+            text: l10n.retryMessage,
+            isSecondary: true,
+            onPressed: onRetry,
+          ),
         ],
       ),
     );
@@ -1527,7 +1717,8 @@ class _PremiumAuthDialog extends StatelessWidget {
             const SizedBox(height: 8),
 
             Text(
-              l10n.pleaseSignInToAccessAndOtherPersonalizedFeaturesMessage.replaceAll('\$feature', feature),
+              l10n.pleaseSignInToAccessAndOtherPersonalizedFeaturesMessage
+                  .replaceAll('\$feature', feature),
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: AppColors.stoneGray,
               ),

@@ -87,6 +87,18 @@ class EventModel extends Equatable {
 
   // Factory for WordPress API response
   factory EventModel.fromWordPress(Map<String, dynamic> map) {
+    final metadata = _metadataMap(map['meta_data']);
+    final acf = _mapValue(map['acf']);
+    final meta = _mapValue(map['meta']);
+    final campusId = _stringValue(
+      map['campus_id'] ??
+          meta['campus_id'] ??
+          acf['campus'] ??
+          acf['campus_id'] ??
+          metadata['campus'] ??
+          metadata['campus_id'],
+    );
+
     return EventModel(
       id: (map['id'] ?? map['ID'] ?? '').toString(),
       title: map['title'] is String
@@ -116,35 +128,36 @@ class EventModel extends Equatable {
         if (organizer is Map<String, dynamic>) {
           return organizer['id']?.toString() ?? '';
         }
-        return (map['organizer_id'] ?? map['meta']?['organizer_id'] ?? '').toString();
+        return (map['organizer_id'] ?? map['meta']?['organizer_id'] ?? '')
+            .toString();
       })(),
       organizerName: (() {
         final organizer = map['organizer'];
         if (organizer is Map<String, dynamic>) {
           return organizer['name']?.toString() ?? '';
         }
-        return map['organizer_name'] ?? 
-               map['organizer'] ?? 
-               map['meta']?['organizer_name'] ?? 
-               '';
+        return map['organizer_name'] ??
+            map['organizer'] ??
+            map['meta']?['organizer_name'] ??
+            '';
       })(),
       organizerLogo: map['organizer_logo'] ?? map['meta']?['organizer_logo'],
       campusId: (() {
         // First try explicit campus_id fields
-        if (map['campus_id'] != null || map['meta']?['campus_id'] != null) {
-          return (map['campus_id'] ?? map['meta']?['campus_id'] ?? '').toString();
+        if (campusId != null) {
+          return campusId;
         }
-        
+
         // Try to derive campus from organizer slug (for WordPress API)
         final organizer = map['organizer'];
         if (organizer is Map<String, dynamic>) {
           final slug = organizer['slug']?.toString() ?? '';
-          if (slug.contains('oslo')) return 'oslo';
-          if (slug.contains('bergen')) return 'bergen'; 
-          if (slug.contains('trondheim')) return 'trondheim';
-          if (slug.contains('stavanger')) return 'stavanger';
+          if (slug.contains('oslo')) return '1';
+          if (slug.contains('bergen')) return '2';
+          if (slug.contains('trondheim')) return '3';
+          if (slug.contains('stavanger')) return '4';
         }
-        
+
         return '';
       })(),
       categories: (() {
@@ -217,10 +230,15 @@ class EventModel extends Equatable {
   }
 
   // Factory for the Appwrite Function events payload
-  factory EventModel.fromFunctionEvent(Map<String, dynamic> map, {String? campusId}) {
+  factory EventModel.fromFunctionEvent(
+    Map<String, dynamic> map, {
+    String? campusId,
+  }) {
     final event = EventModel.fromWordPress(map);
-    // Override campus ID with the one passed from the function call
-    return event.copyWith(campusId: campusId ?? event.campusId);
+    // Only use the request campus as a fallback. If the API returns global
+    // events, ACF campus metadata must remain authoritative for filtering.
+    if (event.campusId.isNotEmpty) return event;
+    return event.copyWith(campusId: campusId ?? '');
   }
 
   Map<String, dynamic> toMap() {
@@ -336,4 +354,22 @@ class EventModel extends Equatable {
     createdAt,
     updatedAt,
   ];
+
+  static Map<String, dynamic> _metadataMap(dynamic value) {
+    if (value is! List) return const <String, dynamic>{};
+    return {
+      for (final item in value)
+        if (item is Map<String, dynamic> && item['key'] != null)
+          item['key'].toString(): item['value'],
+    };
+  }
+
+  static Map<String, dynamic> _mapValue(dynamic value) {
+    return value is Map<String, dynamic> ? value : const <String, dynamic>{};
+  }
+
+  static String? _stringValue(dynamic value) {
+    final stringValue = value?.toString().trim();
+    return stringValue == null || stringValue.isEmpty ? null : stringValue;
+  }
 }

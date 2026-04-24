@@ -8,8 +8,7 @@ class JobModel extends Equatable {
   final String departmentId;
   final String? departmentLogo;
   final String campusId;
-  final String
-  type; // 'volunteer', 'paid', 'part_time', 'full_time'
+  final String type; // 'volunteer', 'paid', 'part_time', 'full_time'
   final String
   category; // 'event_help', 'marketing', 'tech', 'administration', etc.
   final List<String> requirements;
@@ -78,10 +77,36 @@ class JobModel extends Equatable {
     Map<String, dynamic> map, {
     required String campusId,
   }) {
-    // Transformed function returns: id, title, description (cleaned), campus (array), type (array), interests (array), expiry_date, url
-    final typeList = map['type'] as List<dynamic>? ?? [];
-    final interestsList = map['interests'] as List<dynamic>? ?? [];
-    final campusList = map['campus'] as List<dynamic>? ?? [];
+    // The jobs endpoint can return either the transformed function payload or
+    // raw WordPress REST objects. Keep this parser tolerant of both shapes.
+    final classList = _stringList(map['class_list']);
+    final isRawWordPressJob =
+        map['title'] is Map<String, dynamic> ||
+        map['content'] is Map<String, dynamic> ||
+        classList.isNotEmpty;
+    final typeList = isRawWordPressJob
+        ? _taxonomyLabels(classList, 'verv-')
+        : _stringList(map['type']);
+    final interestsList = isRawWordPressJob
+        ? _taxonomyLabels(classList, 'interesser-')
+        : _stringList(map['interests']);
+    final campusList = isRawWordPressJob
+        ? _taxonomyLabels(classList, 'campus-')
+        : _stringList(map['campus']);
+    final campusSlugs = _taxonomySlugs(classList, 'campus-');
+    final title = _decodeHtmlEntities(_renderedString(map['title']));
+    final description = _renderedString(map['description']).isNotEmpty
+        ? _decodeHtmlEntities(_renderedString(map['description']))
+        : _decodeHtmlEntities(_renderedString(map['content']));
+    final url = (map['url'] ?? map['link'] ?? '').toString();
+    final startDate =
+        DateTime.tryParse((map['date'] ?? map['date_gmt'] ?? '').toString()) ??
+        DateTime.now();
+    final applicationDeadline =
+        DateTime.tryParse((map['expiry_date'] ?? '').toString()) ??
+        _extractNorwegianDeadline(description) ??
+        DateTime.now().add(const Duration(days: 14));
+    final resolvedCampusId = _campusIdFromValues(campusList) ?? campusId;
 
     // Extract department from type array or use first item
     final department = typeList.isNotEmpty
@@ -90,12 +115,12 @@ class JobModel extends Equatable {
 
     return JobModel(
       id: (map['id'] ?? '').toString(),
-      title: _decodeHtmlEntities((map['title'] ?? '').toString()),
-      description: _decodeHtmlEntities((map['description'] ?? '').toString()),
+      title: title,
+      description: description,
       department: department,
       departmentId: '',
       departmentLogo: null,
-      campusId: campusId,
+      campusId: resolvedCampusId,
       type: 'volunteer',
       category: typeList.isNotEmpty
           ? _decodeHtmlEntities(typeList.first.toString())
@@ -109,14 +134,12 @@ class JobModel extends Equatable {
       ),
       salary: null,
       timeCommitment: null,
-      startDate: DateTime.now(),
+      startDate: startDate,
       endDate: null,
-      url: map['url']?.toString() ?? '',
-      applicationDeadline:
-          DateTime.tryParse((map['expiry_date'] ?? '').toString()) ??
-          DateTime.now().add(const Duration(days: 14)),
+      url: url,
+      applicationDeadline: applicationDeadline,
       applicationMethod: 'external',
-      applicationUrl: map['url']?.toString(),
+      applicationUrl: url.isEmpty ? null : url,
       applicationEmail: null,
       contactPersonName: department,
       contactPersonEmail: null,
@@ -129,8 +152,10 @@ class JobModel extends Equatable {
       benefits: const <String>[],
       metadata: <String, dynamic>{
         'campusNames': campusList,
+        'campusSlugs': campusSlugs,
         'type': typeList,
         'interests': interestsList,
+        'sourceShape': isRawWordPressJob ? 'wordpress_rest' : 'function',
       },
       createdAt: null,
       updatedAt: null,
@@ -295,9 +320,7 @@ class JobModel extends Equatable {
       (maxApplicants == 0 || currentApplicants < maxApplicants) &&
       applicationDeadline.isAfter(DateTime.now());
   bool get isPaid =>
-      type == 'paid' ||
-      type == 'part_time' ||
-      type == 'full_time';
+      type == 'paid' || type == 'part_time' || type == 'full_time';
   String get displayType {
     switch (type) {
       case 'volunteer':
@@ -366,11 +389,87 @@ class JobModel extends Equatable {
         .replaceAll('&ndash;', '–')
         .replaceAll('&ldquo;', '"')
         .replaceAll('&rdquo;', '"')
-        .replaceAll('&lsquo;', ''')
-        .replaceAll('&rsquo;', ''')
+        .replaceAll('&lsquo;', "'")
+        .replaceAll('&rsquo;', "'")
+        .replaceAll('&#8211;', '–')
+        .replaceAll('&#8217;', "'")
+        .replaceAll('&#038;', '&')
         .replaceAll('&hellip;', '…')
         .replaceAll('&copy;', '©')
         .replaceAll('&reg;', '®')
         .replaceAll('&trade;', '™');
+  }
+
+  static String _renderedString(dynamic value) {
+    if (value == null) return '';
+    if (value is Map<String, dynamic>) {
+      return (value['rendered'] ?? '').toString();
+    }
+    return value.toString();
+  }
+
+  static List<String> _stringList(dynamic value) {
+    if (value == null) return const <String>[];
+    if (value is List) {
+      return value
+          .map((item) => _decodeHtmlEntities(item.toString()).trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+    final stringValue = _decodeHtmlEntities(value.toString()).trim();
+    return stringValue.isEmpty ? const <String>[] : <String>[stringValue];
+  }
+
+  static List<String> _taxonomySlugs(List<String> classList, String prefix) {
+    return classList
+        .where((item) => item.startsWith(prefix))
+        .map((item) => item.substring(prefix.length))
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  static List<String> _taxonomyLabels(List<String> classList, String prefix) {
+    return _taxonomySlugs(classList, prefix)
+        .map(
+          (slug) => slug
+              .split('-')
+              .where((part) => part.isNotEmpty)
+              .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+              .join(' '),
+        )
+        .toList(growable: false);
+  }
+
+  static String? _campusIdFromValues(List<String> values) {
+    final normalized = values.map((value) => value.toLowerCase()).join(' ');
+    if (normalized.contains('oslo')) return '1';
+    if (normalized.contains('bergen')) return '2';
+    if (normalized.contains('trondheim')) return '3';
+    if (normalized.contains('stavanger')) return '4';
+    return null;
+  }
+
+  static DateTime? _extractNorwegianDeadline(String html) {
+    final plainText = _stripHtml(_decodeHtmlEntities(html));
+    final match = RegExp(
+      r'Søknadsfrist:\s*(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s*kl\.?\s*(\d{1,2}):(\d{2}))?',
+      caseSensitive: false,
+    ).firstMatch(plainText);
+    if (match == null) return null;
+
+    final day = int.tryParse(match.group(1) ?? '');
+    final month = int.tryParse(match.group(2) ?? '');
+    final year = int.tryParse(match.group(3) ?? '');
+    final hour = int.tryParse(match.group(4) ?? '23') ?? 23;
+    final minute = int.tryParse(match.group(5) ?? '59') ?? 59;
+    if (day == null || month == null || year == null) return null;
+    return DateTime(year, month, day, hour, minute);
+  }
+
+  static String _stripHtml(String html) {
+    return html
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 }

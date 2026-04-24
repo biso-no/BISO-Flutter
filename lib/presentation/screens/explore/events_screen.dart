@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/services/event_service.dart';
@@ -16,19 +17,29 @@ final eventServiceProvider = Provider<EventService>((ref) => EventService());
 final eventsSearchTermProvider = StateProvider<String?>((ref) => null);
 
 // Provider for events list
-final eventsProvider = FutureProvider.family<List<EventModel>, String?>(
-  (ref, campusId) {
-    final service = ref.watch(eventServiceProvider);
-    final searchTerm = ref.watch(eventsSearchTermProvider);
-    // Use function-backed fetch with pagination params; initial page 1
-    return service.getWordPressEvents(
-      campusId: campusId,
-      limit: 50,
-      includePast: false,
-      search: searchTerm,
-    );
-  },
-);
+final eventsProvider = FutureProvider.family<List<EventModel>, String?>((
+  ref,
+  campusId,
+) {
+  final service = ref.watch(eventServiceProvider);
+  final searchTerm = ref.watch(eventsSearchTermProvider);
+  AppLogger.info(
+    '[EVENTS_SCREEN] Provider load requested',
+    extra: {
+      'campus_id': campusId,
+      'limit': 50,
+      'include_past': false,
+      'search': searchTerm,
+    },
+  );
+  // Use function-backed fetch with pagination params; initial page 1
+  return service.getWordPressEvents(
+    campusId: campusId,
+    limit: 50,
+    includePast: false,
+    search: searchTerm,
+  );
+});
 
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
@@ -49,6 +60,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
+  String? _lastVisibleEventsLogKey;
 
   @override
   void initState() {
@@ -75,6 +87,14 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   Future<void> _ensureInitialLoad(String? campusId) async {
     if (_loadedForCampusId == campusId && _events.isNotEmpty) return;
+    AppLogger.info(
+      '[EVENTS_SCREEN] Initial load requested',
+      extra: {
+        'campus_id': campusId,
+        'previous_campus_id': _loadedForCampusId,
+        'existing_count': _events.length,
+      },
+    );
     _loadedForCampusId = campusId;
     _isLoading = true;
     _events.clear();
@@ -88,7 +108,19 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     final campusId = ref.read(filterCampusProvider).id;
     final service = ref.read(eventServiceProvider);
     final searchTerm = ref.read(eventsSearchTermProvider);
+    final stopwatch = Stopwatch()..start();
     try {
+      AppLogger.info(
+        '[EVENTS_SCREEN] Fetching events page',
+        extra: {
+          'campus_id': campusId,
+          'page': page,
+          'page_size': _pageSize,
+          'replace': replace,
+          'search': searchTerm,
+          'include_past': false,
+        },
+      );
       final items = await service.getFunctionEvents(
         campusId: campusId,
         limit: _pageSize,
@@ -96,6 +128,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         includePast: false,
         search: searchTerm,
       );
+      stopwatch.stop();
       if (mounted) {
         setState(() {
           if (replace) {
@@ -110,7 +143,36 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           _hasMore = items.length >= _pageSize;
         });
       }
-    } catch (_) {
+      AppLogger.info(
+        '[EVENTS_SCREEN] Events page loaded',
+        extra: {
+          'campus_id': campusId,
+          'page': page,
+          'page_size': _pageSize,
+          'replace': replace,
+          'search': searchTerm,
+          'returned_count': items.length,
+          'accumulated_count': _events.length,
+          'has_more': _hasMore,
+          'duration_ms': stopwatch.elapsedMilliseconds,
+          'sample_ids': items.take(3).map((event) => event.id).toList(),
+        },
+      );
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      AppLogger.error(
+        '[EVENTS_SCREEN] Events page failed',
+        error: error,
+        stackTrace: stackTrace,
+        extra: {
+          'campus_id': campusId,
+          'page': page,
+          'page_size': _pageSize,
+          'replace': replace,
+          'search': searchTerm,
+          'duration_ms': stopwatch.elapsedMilliseconds,
+        },
+      );
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -122,12 +184,27 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   }
 
   Future<void> _reload() async {
+    AppLogger.info(
+      '[EVENTS_SCREEN] Reload requested',
+      extra: {
+        'loaded_for_campus_id': _loadedForCampusId,
+        'search': ref.read(eventsSearchTermProvider),
+      },
+    );
     await _fetchPage(page: 1, replace: true);
     _currentPage = 1;
   }
 
   Future<void> _loadMore() async {
     if (!_hasMore || _isLoadingMore) return;
+    AppLogger.info(
+      '[EVENTS_SCREEN] Loading more events',
+      extra: {
+        'current_page': _currentPage,
+        'next_page': _currentPage + 1,
+        'current_count': _events.length,
+      },
+    );
     setState(() => _isLoadingMore = true);
     _currentPage += 1;
     await _fetchPage(page: _currentPage);
@@ -137,7 +214,19 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final campusId = ref.watch(filterCampusProvider).id;
-    _ensureInitialLoad(campusId);
+    final isCampusReady =
+        ref.watch(campusInitializedProvider) && campusId.isNotEmpty;
+    if (isCampusReady) {
+      _ensureInitialLoad(campusId);
+    } else {
+      AppLogger.debug(
+        '[EVENTS_SCREEN] Waiting for campus before loading events',
+        extra: {
+          'campus_id': campusId,
+          'is_initialized': ref.watch(campusInitializedProvider),
+        },
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -160,42 +249,53 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : Builder(builder: (context) {
-                    final filteredEvents = _applyClientSearch(_events);
-
-                    if (filteredEvents.isEmpty) {
-                      return _EmptyState(
-                        icon: Icons.event_busy,
-                        title: 'No Events Found',
-                        subtitle: 'There are no events matching your criteria.',
+                : Builder(
+                    builder: (context) {
+                      final filteredEvents = _applyClientSearch(_events);
+                      _logVisibleEventsState(
+                        campusId: campusId,
+                        visibleCount: filteredEvents.length,
                       );
-                    }
 
-                    return RefreshIndicator(
-                      onRefresh: _reload,
-                      child: ListView.separated(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filteredEvents.length + (_isLoadingMore ? 1 : 0),
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          if (index >= filteredEvents.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(child: CircularProgressIndicator()),
+                      if (filteredEvents.isEmpty) {
+                        return _EmptyState(
+                          icon: Icons.event_busy,
+                          title: 'No Events Found',
+                          subtitle:
+                              'There are no events matching your criteria.',
+                        );
+                      }
+
+                      return RefreshIndicator(
+                        onRefresh: _reload,
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount:
+                              filteredEvents.length + (_isLoadingMore ? 1 : 0),
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            if (index >= filteredEvents.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            final event = filteredEvents[index];
+                            return _EventCard(
+                              event: event,
+                              onTap: () {
+                                _showEventDetails(context, event);
+                              },
                             );
-                          }
-                          final event = filteredEvents[index];
-                          return _EventCard(
-                            event: event,
-                            onTap: () {
-                              _showEventDetails(context, event);
-                            },
-                          );
-                        },
-                      ),
-                    );
-                  }),
+                          },
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -232,7 +332,9 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   Future<void> _promptSearch(BuildContext context) async {
     final current = ref.read(eventsSearchTermProvider);
-    final controller = TextEditingController(text: current ?? _searchController.text);
+    final controller = TextEditingController(
+      text: current ?? _searchController.text,
+    );
     final result = await showDialog<String?>(
       context: context,
       builder: (context) {
@@ -271,9 +373,14 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     final trimmed = result.trim();
     if (trimmed.isEmpty) {
       // clear search
+      AppLogger.info('[EVENTS_SCREEN] Search cleared');
       ref.read(eventsSearchTermProvider.notifier).state = null;
       _searchController.text = '';
     } else if (trimmed.length >= 2) {
+      AppLogger.info(
+        '[EVENTS_SCREEN] Search applied',
+        extra: {'search': trimmed},
+      );
       ref.read(eventsSearchTermProvider.notifier).state = trimmed;
       _searchController.text = trimmed; // keep local for client-side refine
     } else {
@@ -287,6 +394,41 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
     // reload with new search param
     await _reload();
+  }
+
+  void _logVisibleEventsState({
+    required String? campusId,
+    required int visibleCount,
+  }) {
+    final search = ref.read(eventsSearchTermProvider);
+    final key = [
+      campusId,
+      search,
+      _events.length,
+      visibleCount,
+      _hasMore,
+      _isLoadingMore,
+    ].join('|');
+    if (_lastVisibleEventsLogKey == key) return;
+    _lastVisibleEventsLogKey = key;
+
+    final extra = {
+      'campus_id': campusId,
+      'search': search,
+      'loaded_count': _events.length,
+      'visible_count': visibleCount,
+      'has_more': _hasMore,
+      'is_loading_more': _isLoadingMore,
+    };
+
+    if (visibleCount == 0) {
+      AppLogger.warning(
+        '[EVENTS_SCREEN] No visible events after filters',
+        extra: extra,
+      );
+    } else {
+      AppLogger.info('[EVENTS_SCREEN] Rendering visible events', extra: extra);
+    }
   }
 }
 
@@ -512,7 +654,10 @@ class _EventDetailSheet extends StatelessWidget {
   String _formatEventDate(DateTime startDate, DateTime? endDate) {
     final formatter = DateFormat('EEEE, MMM dd, yyyy • HH:mm');
     final formattedStartDate = formatter.format(startDate);
-    if (endDate != null && startDate.day == endDate.day && startDate.month == endDate.month && startDate.year == endDate.year) {
+    if (endDate != null &&
+        startDate.day == endDate.day &&
+        startDate.month == endDate.month &&
+        startDate.year == endDate.year) {
       return '$formattedStartDate - ${DateFormat('HH:mm').format(endDate)}';
     }
     return formattedStartDate;
@@ -580,7 +725,9 @@ class _EventDetailSheet extends StatelessWidget {
                   event.title,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                    color: isDark
+                        ? AppColors.onSurfaceDark
+                        : AppColors.onSurface,
                   ),
                 ),
 
@@ -592,13 +739,17 @@ class _EventDetailSheet extends StatelessWidget {
                     Icon(
                       Icons.calendar_today,
                       size: 20,
-                      color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                      color: isDark
+                          ? AppColors.onSurfaceVariantDark
+                          : AppColors.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       _formatEventDate(event.startDate, event.endDate),
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                        color: isDark
+                            ? AppColors.onSurfaceVariantDark
+                            : AppColors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -611,14 +762,18 @@ class _EventDetailSheet extends StatelessWidget {
                     Icon(
                       Icons.location_on,
                       size: 20,
-                      color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                      color: isDark
+                          ? AppColors.onSurfaceVariantDark
+                          : AppColors.onSurfaceVariant,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         event.venue,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                          color: isDark
+                              ? AppColors.onSurfaceVariantDark
+                              : AppColors.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -629,7 +784,10 @@ class _EventDetailSheet extends StatelessWidget {
 
                 // Status Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: _getStatusColor(event.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -655,7 +813,9 @@ class _EventDetailSheet extends StatelessWidget {
                     'Description',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                      color: isDark
+                          ? AppColors.onSurfaceDark
+                          : AppColors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -663,7 +823,9 @@ class _EventDetailSheet extends StatelessWidget {
                     event.description,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.5,
-                      color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                      color: isDark
+                          ? AppColors.onSurfaceVariantDark
+                          : AppColors.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -673,7 +835,9 @@ class _EventDetailSheet extends StatelessWidget {
                 Text(
                   'Organized by ${event.organizerName}',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                    color: isDark
+                        ? AppColors.onSurfaceVariantDark
+                        : AppColors.onSurfaceVariant,
                   ),
                 ),
               ],

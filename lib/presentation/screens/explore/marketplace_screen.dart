@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../data/models/product_model.dart';
 import '../../../data/services/product_service.dart';
@@ -25,49 +26,118 @@ final _featureFlagServiceProvider = Provider<FeatureFlagService>(
   (ref) => FeatureFlagService(),
 );
 
-final featureFlagProvider = FutureProvider.autoDispose
-    .family<bool, String>((ref, key) async {
+final marketplaceFeatureEnabledProvider = FutureProvider<bool>((ref) async {
   final service = ref.watch(_featureFlagServiceProvider);
-  return service.isEnabled(key);
+  return service.isEnabled('marketplace');
 });
 
 final productsProvider = FutureProvider.autoDispose
     .family<List<ProductModel>, _ProductQuery>((ref, query) async {
       final service = ref.watch(_productServiceProvider);
+      final stopwatch = Stopwatch()..start();
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Loading marketplace products',
+        extra: query.toLogMap(),
+      );
 
-      if (query.showFavorites && query.userId != null) {
-        return service.getUserFavoriteProducts(
-          userId: query.userId!,
-          campusId: query.campusId,
-          category: query.category,
-          limit: 50,
+      try {
+        final products = query.showFavorites && query.userId != null
+            ? await service.getUserFavoriteProducts(
+                userId: query.userId!,
+                campusId: query.campusId,
+                category: query.category,
+                limit: 50,
+              )
+            : await service.listProducts(
+                campusId: query.campusId,
+                category: query.category,
+                status: query.status,
+                search: query.search,
+                limit: 50,
+              );
+        stopwatch.stop();
+        AppLogger.info(
+          '[MARKETPLACE_SCREEN] Marketplace products loaded',
+          extra: {
+            ...query.toLogMap(),
+            'count': products.length,
+            'duration_ms': stopwatch.elapsedMilliseconds,
+            'sample_ids': products
+                .take(3)
+                .map((product) => product.id)
+                .toList(),
+          },
         );
-      } else {
-        return service.listProducts(
-          campusId: query.campusId,
-          category: query.category,
-          status: query.status,
-          search: query.search,
-          limit: 50,
+        return products;
+      } catch (error, stackTrace) {
+        stopwatch.stop();
+        AppLogger.error(
+          '[MARKETPLACE_SCREEN] Marketplace products failed',
+          error: error,
+          stackTrace: stackTrace,
+          extra: {
+            ...query.toLogMap(),
+            'duration_ms': stopwatch.elapsedMilliseconds,
+          },
         );
+        rethrow;
       }
     });
 
 final webshopProductsProvider = FutureProvider.autoDispose
     .family<List<WebshopProduct>, _WebshopQuery>((ref, query) async {
-  final service = ref.watch(_webshopServiceProvider);
-  final products = await service.listWebshopProducts(
-    campusName: query.campusName,
-    departmentId: query.departmentId,
-    limit: 20,
-    page: 1,
-  );
-  if (query.search == null || query.search!.isEmpty) return products;
-  final q = query.search!.toLowerCase();
-  return products
-      .where((p) => p.name.toLowerCase().contains(q))
-      .toList(growable: false);
-});
+      final service = ref.watch(_webshopServiceProvider);
+      final stopwatch = Stopwatch()..start();
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Loading webshop products',
+        extra: query.toLogMap(),
+      );
+      try {
+        final products = await service.listWebshopProducts(
+          campusId: query.campusId,
+          campusName: query.campusName,
+          departmentId: query.departmentId,
+          limit: 20,
+          page: 1,
+        );
+        final filtered = query.search == null || query.search!.isEmpty
+            ? products
+            : products
+                  .where(
+                    (p) => p.name.toLowerCase().contains(
+                      query.search!.toLowerCase(),
+                    ),
+                  )
+                  .toList(growable: false);
+        stopwatch.stop();
+        AppLogger.info(
+          '[MARKETPLACE_SCREEN] Webshop products loaded',
+          extra: {
+            ...query.toLogMap(),
+            'raw_count': products.length,
+            'filtered_count': filtered.length,
+            'duration_ms': stopwatch.elapsedMilliseconds,
+            'sample_ids': filtered
+                .take(3)
+                .map((product) => product.id.toString())
+                .toList(),
+          },
+        );
+        return filtered;
+      } catch (error, stackTrace) {
+        stopwatch.stop();
+        AppLogger.error(
+          '[MARKETPLACE_SCREEN] Webshop products failed',
+          error: error,
+          stackTrace: stackTrace,
+          extra: {
+            ...query.toLogMap(),
+            'duration_ms': stopwatch.elapsedMilliseconds,
+          },
+        );
+        rethrow;
+      }
+    });
 
 class MarketplaceScreen extends ConsumerStatefulWidget {
   const MarketplaceScreen({super.key});
@@ -77,7 +147,7 @@ class MarketplaceScreen extends ConsumerStatefulWidget {
 }
 
 class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
-  _ShopMode _mode = _ShopMode.marketplace;
+  _ShopMode _mode = _ShopMode.webshop;
   String _selectedCategory = 'all';
   String? _search;
   bool _showFavorites = false;
@@ -91,6 +161,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   final List<WebshopProduct> _webshopAccumulated = [];
+  String? _lastProductsUiLogKey;
 
   final List<String> _categories = [
     'all',
@@ -113,8 +184,17 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      final nextSearch = value.trim().isEmpty ? null : value.trim();
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Search changed',
+        extra: {
+          'previous_search': _search,
+          'next_search': nextSearch,
+          'mode': _mode.name,
+        },
+      );
       setState(() {
-        _search = value.trim().isEmpty ? null : value.trim();
+        _search = nextSearch;
         // Reset webshop paging when search changes
         _resetWebshopPaging();
       });
@@ -122,6 +202,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   }
 
   void _resetWebshopPaging() {
+    AppLogger.debug(
+      '[MARKETPLACE_SCREEN] Resetting webshop paging',
+      extra: {
+        'current_page': _currentPage,
+        'accumulated_count': _webshopAccumulated.length,
+      },
+    );
     _currentPage = 1;
     _hasMore = true;
     _webshopAccumulated.clear();
@@ -140,21 +227,55 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   Future<void> _loadMoreWebshop() async {
     setState(() => _isLoadingMore = true);
     _currentPage += 1;
+    final stopwatch = Stopwatch()..start();
     try {
       final service = ref.read(_webshopServiceProvider);
       final campus = ref.read(filterCampusProvider);
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Loading more webshop products',
+        extra: {
+          'campus_name': campus.name,
+          'page': _currentPage,
+          'page_size': _pageSize,
+          'current_count': _webshopAccumulated.length,
+        },
+      );
       final next = await service.listWebshopProducts(
+        campusId: campus.id,
         campusName: campus.name,
         departmentId: null,
         limit: _pageSize,
         page: _currentPage,
       );
+      stopwatch.stop();
       setState(() {
         _webshopAccumulated.addAll(next);
         _isLoadingMore = false;
         _hasMore = next.length >= _pageSize;
       });
-    } catch (_) {
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] More webshop products loaded',
+        extra: {
+          'campus_name': campus.name,
+          'page': _currentPage,
+          'returned_count': next.length,
+          'accumulated_count': _webshopAccumulated.length,
+          'has_more': _hasMore,
+          'duration_ms': stopwatch.elapsedMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      AppLogger.error(
+        '[MARKETPLACE_SCREEN] Loading more webshop products failed',
+        error: error,
+        stackTrace: stackTrace,
+        extra: {
+          'page': _currentPage,
+          'page_size': _pageSize,
+          'duration_ms': stopwatch.elapsedMilliseconds,
+        },
+      );
       setState(() {
         _isLoadingMore = false;
         _hasMore = false;
@@ -175,16 +296,21 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final campus = ref.watch(filterCampusProvider);
+    final isCampusReady =
+        ref.watch(campusInitializedProvider) && campus.id.isNotEmpty;
     final auth = ref.watch(authStateProvider);
 
-    final flagAsync = ref.watch(featureFlagProvider('marketplace'));
+    final flagAsync = ref.watch(marketplaceFeatureEnabledProvider);
 
     // Show loading state before deciding mode
     if (flagAsync.isLoading) {
+      AppLogger.debug(
+        '[MARKETPLACE_SCREEN] Waiting for marketplace feature flag',
+      );
       return Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          title: Text(l10n.marketplaceMessage),
+          title: Text(l10n.webshopMessage),
           centerTitle: true,
           elevation: 0,
           backgroundColor: theme.appBarTheme.backgroundColor,
@@ -201,7 +327,44 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     final bool marketplaceEnabled = flagAsync.hasError
         ? false
         : (flagAsync.value ?? false);
+    if (flagAsync.hasError) {
+      AppLogger.warning(
+        '[MARKETPLACE_SCREEN] Marketplace feature flag failed; defaulting to webshop',
+        error: flagAsync.error,
+        stackTrace: flagAsync.stackTrace,
+      );
+    }
     final effectiveMode = marketplaceEnabled ? _mode : _ShopMode.webshop;
+
+    if (!isCampusReady) {
+      AppLogger.debug(
+        '[MARKETPLACE_SCREEN] Waiting for campus before loading products',
+        extra: {
+          'campus_id': campus.id,
+          'campus_name': campus.name,
+          'is_initialized': ref.watch(campusInitializedProvider),
+        },
+      );
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: AppBar(
+          title: Text(
+            effectiveMode == _ShopMode.marketplace
+                ? l10n.marketplaceMessage
+                : l10n.webshopMessage,
+          ),
+          centerTitle: true,
+          elevation: 0,
+          backgroundColor: theme.appBarTheme.backgroundColor,
+          leading: IconButton(
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/home'),
+            icon: const Icon(Icons.arrow_back, color: AppColors.charcoalBlack),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     final query = _ProductQuery(
       campusId: campus.id,
@@ -211,13 +374,18 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       showFavorites: _showFavorites,
       userId: auth.isAuthenticated ? auth.user?.id : null,
     );
-    final productsAsync = ref.watch(productsProvider(query));
+    final productsAsync = effectiveMode == _ShopMode.marketplace
+        ? ref.watch(productsProvider(query))
+        : const AsyncData<List<ProductModel>>([]);
     final webshopQuery = _WebshopQuery(
+      campusId: campus.id,
       campusName: campus.name,
       departmentId: null,
       search: _search,
     );
-    final webshopAsync = ref.watch(webshopProductsProvider(webshopQuery));
+    final webshopAsync = effectiveMode == _ShopMode.webshop
+        ? ref.watch(webshopProductsProvider(webshopQuery))
+        : const AsyncData<List<WebshopProduct>>([]);
 
     // attach scroll listener for webshop infinite scroll
     _scrollController.removeListener(_onScroll);
@@ -226,7 +394,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(effectiveMode == _ShopMode.marketplace ? l10n.marketplaceMessage : l10n.webshopMessage),
+        title: Text(
+          effectiveMode == _ShopMode.marketplace
+              ? l10n.marketplaceMessage
+              : l10n.webshopMessage,
+        ),
         centerTitle: true,
         elevation: 0,
         backgroundColor: theme.appBarTheme.backgroundColor,
@@ -279,6 +451,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                       label: 'Marketplace',
                       selected: effectiveMode == _ShopMode.marketplace,
                       onTap: () => setState(() {
+                        AppLogger.info(
+                          '[MARKETPLACE_SCREEN] Mode changed',
+                          extra: {
+                            'previous_mode': effectiveMode.name,
+                            'next_mode': _ShopMode.marketplace.name,
+                          },
+                        );
                         _mode = _ShopMode.marketplace;
                         _searchController.clear();
                         _search = null;
@@ -288,6 +467,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                       label: 'Webshop',
                       selected: effectiveMode == _ShopMode.webshop,
                       onTap: () => setState(() {
+                        AppLogger.info(
+                          '[MARKETPLACE_SCREEN] Mode changed',
+                          extra: {
+                            'previous_mode': effectiveMode.name,
+                            'next_mode': _ShopMode.webshop.name,
+                          },
+                        );
                         _mode = _ShopMode.webshop;
                         _showFavorites = false;
                         _selectedCategory = 'all';
@@ -303,15 +489,17 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: TextField(
               controller: _searchController,
-              onChanged: effectiveMode == _ShopMode.marketplace && _showFavorites
+              onChanged:
+                  effectiveMode == _ShopMode.marketplace && _showFavorites
                   ? null
                   : _onSearchChanged,
-              enabled: !(effectiveMode == _ShopMode.marketplace && _showFavorites),
+              enabled:
+                  !(effectiveMode == _ShopMode.marketplace && _showFavorites),
               decoration: InputDecoration(
                 hintText: effectiveMode == _ShopMode.marketplace
                     ? (_showFavorites
-                        ? 'Search disabled in favorites'
-                        : 'Search marketplace')
+                          ? 'Search disabled in favorites'
+                          : 'Search marketplace')
                     : 'Search webshop',
                 prefixIcon: const Icon(
                   Icons.search,
@@ -320,6 +508,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                 suffixIcon: _search != null
                     ? IconButton(
                         onPressed: () {
+                          AppLogger.info(
+                            '[MARKETPLACE_SCREEN] Search cleared',
+                            extra: {
+                              'previous_search': _search,
+                              'mode': effectiveMode.name,
+                            },
+                          );
                           _searchController.clear();
                           setState(() => _search = null);
                         },
@@ -357,8 +552,10 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
               height: 48,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 itemBuilder: (_, i) {
                   final cat = _categories[i];
                   final selected = cat == _selectedCategory;
@@ -371,7 +568,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: selected ? AppColors.subtleBlue : theme.colorScheme.surface,
+                        color: selected
+                            ? AppColors.subtleBlue
+                            : theme.colorScheme.surface,
                         border: Border.all(
                           color: selected
                               ? AppColors.defaultBlue
@@ -403,113 +602,148 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
           // Products Grid
           Expanded(
-            child: (effectiveMode == _ShopMode.marketplace
-                    ? productsAsync
-                    : webshopAsync)
+            child: (effectiveMode == _ShopMode.marketplace ? productsAsync : webshopAsync)
                 .when(
-              data: (products) => (effectiveMode == _ShopMode.webshop
-                      ? _computeWebshopList(products as List<WebshopProduct>)
-                      : products)
-                  .isEmpty
-                  ? Center(
+                  data: (products) {
+                    final visibleProducts = effectiveMode == _ShopMode.webshop
+                        ? _computeWebshopList(products as List<WebshopProduct>)
+                        : products;
+                    _logProductsUiState(
+                      mode: effectiveMode,
+                      campusId: campus.id,
+                      campusName: campus.name,
+                      visibleCount: visibleProducts.length,
+                    );
+
+                    return visibleProducts.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _showFavorites
+                                      ? Icons.favorite_border
+                                      : Icons.shopping_bag_outlined,
+                                  size: 64,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _showFavorites
+                                      ? 'No favorites yet'
+                                      : 'No items found',
+                                  style: theme.textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _showFavorites
+                                      ? 'Heart items you like to see them here!'
+                                      : 'Try changing your filter or check back later',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 14,
+                                  mainAxisSpacing: 14,
+                                  childAspectRatio: 0.72,
+                                ),
+                            controller: _scrollController,
+                            itemCount: (effectiveMode == _ShopMode.webshop)
+                                ? _computeWebshopList(
+                                        products as List<WebshopProduct>,
+                                      ).length +
+                                      (_isLoadingMore ? 1 : 0)
+                                : products.length,
+                            itemBuilder: (context, index) {
+                              if (effectiveMode == _ShopMode.marketplace) {
+                                return _PremiumProductCard(
+                                  product: products[index] as ProductModel,
+                                );
+                              } else {
+                                final list = _computeWebshopList(
+                                  products as List<WebshopProduct>,
+                                );
+                                if (index >= list.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                return _WebshopProductCard(
+                                  product: list[index],
+                                );
+                              }
+                            },
+                          );
+                  },
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, st) {
+                    AppLogger.error(
+                      '[MARKETPLACE_SCREEN] Products section rendered error',
+                      error: e,
+                      stackTrace: st,
+                      extra: {
+                        'mode': effectiveMode.name,
+                        'campus_id': campus.id,
+                        'campus_name': campus.name,
+                        'search': _search,
+                        'selected_category': _selectedCategory,
+                        'show_favorites': _showFavorites,
+                      },
+                    );
+                    return Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            _showFavorites
-                                ? Icons.favorite_border
-                                : Icons.shopping_bag_outlined,
-                            size: 64,
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _showFavorites
-                                ? 'No favorites yet'
-                                : 'No items found',
-                            style: theme.textTheme.titleLarge,
+                          const Icon(
+                            Icons.error_outline,
+                            color: AppColors.error,
+                            size: 48,
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            _showFavorites
-                                ? 'Heart items you like to see them here!'
-                                : 'Try changing your filter or check back later',
-                            style: theme.textTheme.bodyMedium?.copyWith(
+                            'Failed to load',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            e.toString(),
+                            style: theme.textTheme.bodySmall?.copyWith(
                               color: AppColors.onSurfaceVariant,
                             ),
                             textAlign: TextAlign.center,
                           ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () {
+                              if (effectiveMode == _ShopMode.marketplace) {
+                                ref.invalidate(productsProvider(query));
+                              } else {
+                                ref.invalidate(
+                                  webshopProductsProvider(webshopQuery),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try again'),
+                          ),
                         ],
                       ),
-                    )
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(16),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 14,
-                            mainAxisSpacing: 14,
-                            childAspectRatio: 0.72,
-                          ),
-                      controller: _scrollController,
-                      itemCount: (effectiveMode == _ShopMode.webshop)
-                          ? _computeWebshopList(products as List<WebshopProduct>).length + (_isLoadingMore ? 1 : 0)
-                          : products.length,
-                      itemBuilder: (context, index) {
-                        if (effectiveMode == _ShopMode.marketplace) {
-                          return _PremiumProductCard(
-                            product: products[index] as ProductModel,
-                          );
-                        } else {
-                          final list = _computeWebshopList(products as List<WebshopProduct>);
-                          if (index >= list.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
-                          }
-                          return _WebshopProductCard(
-                            product: list[index],
-                          );
-                        }
-                      },
-                    ),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, st) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: AppColors.error,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Failed to load', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Text(
-                      e.toString(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        if (effectiveMode == _ShopMode.marketplace) {
-                          ref.invalidate(productsProvider(query));
-                        } else {
-                          ref.invalidate(webshopProductsProvider(webshopQuery));
-                        }
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Try again'),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
-            ),
           ),
         ],
       ),
@@ -522,6 +756,51 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
             )
           : null,
     );
+  }
+
+  void _logProductsUiState({
+    required _ShopMode mode,
+    required String campusId,
+    required String campusName,
+    required int visibleCount,
+  }) {
+    final key = [
+      mode.name,
+      campusId,
+      campusName,
+      _selectedCategory,
+      _search,
+      _showFavorites,
+      visibleCount,
+      _hasMore,
+      _isLoadingMore,
+    ].join('|');
+    if (_lastProductsUiLogKey == key) return;
+    _lastProductsUiLogKey = key;
+
+    final extra = {
+      'mode': mode.name,
+      'campus_id': campusId,
+      'campus_name': campusName,
+      'selected_category': _selectedCategory,
+      'search': _search,
+      'show_favorites': _showFavorites,
+      'visible_count': visibleCount,
+      'has_more': _hasMore,
+      'is_loading_more': _isLoadingMore,
+    };
+
+    if (visibleCount == 0) {
+      AppLogger.warning(
+        '[MARKETPLACE_SCREEN] No visible products after filters',
+        extra: extra,
+      );
+    } else {
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Rendering visible products',
+        extra: extra,
+      );
+    }
   }
 
   String _getCategoryDisplayName(String category) {
@@ -568,7 +847,9 @@ class _ModeChip extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: selected ? Theme.of(context).colorScheme.surface : Colors.transparent,
+            color: selected
+                ? Theme.of(context).colorScheme.surface
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             boxShadow: selected
                 ? const [
@@ -604,7 +885,9 @@ class _WebshopProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasSale = product.hasSale;
-    final priceText = hasSale ? 'NOK ${product.salePrice}' : 'NOK ${product.price}';
+    final priceText = hasSale
+        ? 'NOK ${product.salePrice}'
+        : 'NOK ${product.price}';
 
     return InkWell(
       onTap: () {
@@ -762,27 +1045,37 @@ class _WebshopProductCard extends StatelessWidget {
 }
 
 class _WebshopQuery {
+  final String campusId;
   final String campusName;
   final String? departmentId;
   final String? search;
 
   const _WebshopQuery({
+    required this.campusId,
     required this.campusName,
     this.departmentId,
     this.search,
   });
 
+  Map<String, dynamic> toLogMap() => {
+    'campus_id': campusId,
+    'campus_name': campusName,
+    'department_id': departmentId,
+    'search': search,
+  };
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is _WebshopQuery &&
+        other.campusId == campusId &&
         other.campusName == campusName &&
         other.departmentId == departmentId &&
         other.search == search;
   }
 
   @override
-  int get hashCode => Object.hash(campusName, departmentId, search);
+  int get hashCode => Object.hash(campusId, campusName, departmentId, search);
 }
 
 class _PremiumProductCard extends ConsumerStatefulWidget {
@@ -1110,6 +1403,15 @@ class _ProductQuery {
     this.showFavorites = false,
     this.userId,
   });
+
+  Map<String, dynamic> toLogMap() => {
+    'campus_id': campusId,
+    'category': category,
+    'status': status,
+    'search': search,
+    'show_favorites': showFavorites,
+    'user_id': userId,
+  };
 
   @override
   bool operator ==(Object other) {

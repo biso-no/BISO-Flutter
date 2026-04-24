@@ -76,20 +76,6 @@ class PremiumHtmlRenderer extends StatelessWidget {
     // First, ensure all HTML entities are decoded
     enhanced = _decodeHtmlEntities(enhanced);
 
-    // Enhance quotes with premium styling
-    enhanced = enhanced.replaceAllMapped(
-      RegExp(r'"([^"]*)"'),
-      (match) =>
-          '<span style="color: #BD9E16; font-style: italic; font-weight: 500;">"${match.group(1)}"</span>',
-    );
-
-    // Enhance apostrophes and contractions
-    enhanced = enhanced.replaceAllMapped(
-      RegExp(r"\b(\w+)'(\w+)\b"),
-      (match) =>
-          '<span style="color: #1A77E9; font-weight: 500;">${match.group(1)}\'${match.group(2)}</span>',
-    );
-
     return enhanced;
   }
 

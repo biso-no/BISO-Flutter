@@ -94,7 +94,10 @@ class BisoApp extends ConsumerWidget {
     ref.watch(authStateProvider);
     // Ensure campus is initialized before rendering content on first launch
     final _ = ref.watch(campusInitializedProvider);
-    
+    // Start feature flag resolution at launch so shop routes do not decide
+    // their initial mode from a screen-local loading state.
+    ref.watch(market.marketplaceFeatureEnabledProvider);
+
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);
 
@@ -242,7 +245,9 @@ final _router = GoRouter(
               name: 'volunteer',
               builder: (context, state) {
                 final extra = state.extra as Map<String, dynamic>?;
-                final openJobId = extra != null ? extra['openJobId'] as String? : null;
+                final openJobId = extra != null
+                    ? extra['openJobId'] as String?
+                    : null;
                 return JobsScreen(openJobId: openJobId);
               },
             ),
