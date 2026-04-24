@@ -23,7 +23,6 @@ class StudentService {
 
       // Microsoft Azure configuration for BI tenant
       const String clientId = '09d8bb72-2cef-4b98-a1d3-2414a7a40873';
-      const String tenantId = 'adee44b2-91fc-40f1-abdd-9cc29351b5fd';
       const String redirectUrl = 'com.biso.no://oauth/callback';
 
       // OAuth2 request configuration
@@ -229,8 +228,8 @@ class StudentService {
         databaseId: AppConstants.databaseId,
         tableId: 'student_id',
         queries: [
-          Query.equal('user_id', userId).toString(),
-          Query.limit(1).toString(),
+          Query.equal('user_id', userId),
+          Query.limit(1),
         ],
       );
 

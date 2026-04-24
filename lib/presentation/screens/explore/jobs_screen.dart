@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../data/services/job_service.dart';
@@ -35,6 +36,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
+  String? _lastVisibleJobsLogKey;
 
   @override
   void initState() {
@@ -60,6 +62,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 
   Future<void> _ensureInitialLoad(String? campusId) async {
     if (_loadedForCampusId == campusId && _jobs.isNotEmpty) return;
+    AppLogger.info(
+      '[JOBS_SCREEN] Initial load requested',
+      extra: {
+        'campus_id': campusId,
+        'previous_campus_id': _loadedForCampusId,
+        'existing_count': _jobs.length,
+      },
+    );
     _loadedForCampusId = campusId;
     _isLoading = true;
     _jobs.clear();
@@ -72,13 +82,25 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   Future<void> _fetchPage({required int page, bool replace = false}) async {
     final campusId = ref.read(filterCampusProvider).id;
     final service = ref.read(_jobServiceProvider);
+    final stopwatch = Stopwatch()..start();
     try {
+      AppLogger.info(
+        '[JOBS_SCREEN] Fetching jobs page',
+        extra: {
+          'campus_id': campusId,
+          'page': page,
+          'page_size': _pageSize,
+          'replace': replace,
+          'selected_type': _selectedType,
+        },
+      );
       final items = await service.getLatestJobs(
         campusId: campusId,
         limit: _pageSize,
         page: page,
         includeExpired: false,
       );
+      stopwatch.stop();
       if (mounted) {
         setState(() {
           if (replace) {
@@ -93,6 +115,20 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           _hasMore = items.length >= _pageSize;
         });
       }
+      AppLogger.info(
+        '[JOBS_SCREEN] Jobs page loaded',
+        extra: {
+          'campus_id': campusId,
+          'page': page,
+          'page_size': _pageSize,
+          'replace': replace,
+          'returned_count': items.length,
+          'accumulated_count': _jobs.length,
+          'has_more': _hasMore,
+          'duration_ms': stopwatch.elapsedMilliseconds,
+          'sample_ids': items.take(3).map((job) => job.id).toList(),
+        },
+      );
       // Auto-open after first batch
       if (_pendingAutoOpen && widget.openJobId != null && _jobs.isNotEmpty) {
         final matches = _jobs
@@ -101,12 +137,29 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
         if (matches.isNotEmpty) {
           _pendingAutoOpen = false;
           final jobToOpen = matches.first;
+          AppLogger.info(
+            '[JOBS_SCREEN] Auto-opening requested job',
+            extra: {'job_id': widget.openJobId, 'campus_id': campusId},
+          );
           Future.microtask(() {
             if (mounted) _showJobDetails(context, jobToOpen);
           });
         }
       }
-    } catch (e) {
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      AppLogger.error(
+        '[JOBS_SCREEN] Jobs page failed',
+        error: error,
+        stackTrace: stackTrace,
+        extra: {
+          'campus_id': campusId,
+          'page': page,
+          'page_size': _pageSize,
+          'replace': replace,
+          'duration_ms': stopwatch.elapsedMilliseconds,
+        },
+      );
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -118,6 +171,10 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 
   Future<void> _reload() async {
+    AppLogger.info(
+      '[JOBS_SCREEN] Reload requested',
+      extra: {'loaded_for_campus_id': _loadedForCampusId},
+    );
     _pendingAutoOpen = true;
     await _fetchPage(page: 1, replace: true);
     _currentPage = 1;
@@ -125,6 +182,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 
   Future<void> _loadMore() async {
     if (!_hasMore || _isLoadingMore) return;
+    AppLogger.info(
+      '[JOBS_SCREEN] Loading more jobs',
+      extra: {
+        'current_page': _currentPage,
+        'next_page': _currentPage + 1,
+        'current_count': _jobs.length,
+      },
+    );
     setState(() => _isLoadingMore = true);
     _currentPage += 1;
     await _fetchPage(page: _currentPage);
@@ -136,8 +201,20 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final campusId = ref.watch(filterCampusProvider).id;
+    final isCampusReady =
+        ref.watch(campusInitializedProvider) && campusId.isNotEmpty;
     // Ensure initial load for current campus
-    _ensureInitialLoad(campusId);
+    if (isCampusReady) {
+      _ensureInitialLoad(campusId);
+    } else {
+      AppLogger.debug(
+        '[JOBS_SCREEN] Waiting for campus before loading jobs',
+        extra: {
+          'campus_id': campusId,
+          'is_initialized': ref.watch(campusInitializedProvider),
+        },
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -177,6 +254,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   label: Text(_getTypeDisplayName(type)),
                   selected: isSelected,
                   onSelected: (selected) {
+                    AppLogger.info(
+                      '[JOBS_SCREEN] Job type filter changed',
+                      extra: {
+                        'previous_type': _selectedType,
+                        'next_type': type,
+                        'loaded_count': _jobs.length,
+                      },
+                    );
                     setState(() {
                       _selectedType = type;
                     });
@@ -208,43 +293,83 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh: _reload,
-                    child: ListView.separated(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: (_selectedType == 'all'
-                              ? _jobs
-                              : _jobs
-                                  .where((j) => j.type == _selectedType)
-                                  .toList())
-                          .length + (_isLoadingMore ? 1 : 0),
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final filtered = _selectedType == 'all'
-                            ? _jobs
-                            : _jobs
+                : Builder(
+                    builder: (context) {
+                      final filtered = _selectedType == 'all'
+                          ? _jobs
+                          : _jobs
                                 .where((j) => j.type == _selectedType)
                                 .toList();
-                        if (index >= filtered.length) {
-                          return const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        final job = filtered[index];
-                        return _JobCard(
-                          job: job,
-                          onTap: () => _showJobDetails(context, job),
-                        );
-                      },
-                    ),
+                      _logVisibleJobsState(
+                        campusId: campusId,
+                        visibleCount: filtered.length,
+                      );
+
+                      return RefreshIndicator(
+                        onRefresh: _reload,
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: filtered.length + (_isLoadingMore ? 1 : 0),
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            if (index >= filtered.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            final job = filtered[index];
+                            return _JobCard(
+                              job: job,
+                              onTap: () => _showJobDetails(context, job),
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
           ),
         ],
       ),
     );
+  }
+
+  void _logVisibleJobsState({
+    required String? campusId,
+    required int visibleCount,
+  }) {
+    final key = [
+      campusId,
+      _selectedType,
+      _jobs.length,
+      visibleCount,
+      _hasMore,
+      _isLoadingMore,
+    ].join('|');
+    if (_lastVisibleJobsLogKey == key) return;
+    _lastVisibleJobsLogKey = key;
+
+    final extra = {
+      'campus_id': campusId,
+      'selected_type': _selectedType,
+      'loaded_count': _jobs.length,
+      'visible_count': visibleCount,
+      'has_more': _hasMore,
+      'is_loading_more': _isLoadingMore,
+    };
+
+    if (visibleCount == 0) {
+      AppLogger.warning(
+        '[JOBS_SCREEN] No visible jobs after filters',
+        extra: extra,
+      );
+    } else {
+      AppLogger.info('[JOBS_SCREEN] Rendering visible jobs', extra: extra);
+    }
   }
 
   String _getTypeDisplayName(String type) {
@@ -550,7 +675,9 @@ class _JobDetailSheet extends StatelessWidget {
                 job.title.toFullHtml(
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                    color: isDark
+                        ? AppColors.onSurfaceDark
+                        : AppColors.onSurface,
                   ),
                   fontSize: 20,
                 ),
@@ -574,7 +701,9 @@ class _JobDetailSheet extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
+                          color: isDark
+                              ? AppColors.surfaceVariantDark
+                              : AppColors.surfaceVariant,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -582,13 +711,17 @@ class _JobDetailSheet extends StatelessWidget {
                             Icon(
                               Icons.work,
                               size: 24,
-                              color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                              color: isDark
+                                  ? AppColors.onSurfaceVariantDark
+                                  : AppColors.onSurfaceVariant,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               job.type,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                                color: isDark
+                                    ? AppColors.onSurfaceVariantDark
+                                    : AppColors.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -600,7 +733,9 @@ class _JobDetailSheet extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
+                          color: isDark
+                              ? AppColors.surfaceVariantDark
+                              : AppColors.surfaceVariant,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -608,13 +743,17 @@ class _JobDetailSheet extends StatelessWidget {
                             Icon(
                               Icons.location_on,
                               size: 24,
-                              color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                              color: isDark
+                                  ? AppColors.onSurfaceVariantDark
+                                  : AppColors.onSurfaceVariant,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               job.department,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                                color: isDark
+                                    ? AppColors.onSurfaceVariantDark
+                                    : AppColors.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -632,14 +771,18 @@ class _JobDetailSheet extends StatelessWidget {
                     'Description',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                      color: isDark
+                          ? AppColors.onSurfaceDark
+                          : AppColors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 8),
                   job.description.toFullHtml(
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.5,
-                      color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                      color: isDark
+                          ? AppColors.onSurfaceVariantDark
+                          : AppColors.onSurfaceVariant,
                     ),
                     fontSize: 16,
                   ),
@@ -652,41 +795,50 @@ class _JobDetailSheet extends StatelessWidget {
                     'Requirements',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                      color: isDark
+                          ? AppColors.onSurfaceDark
+                          : AppColors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...job.requirements.map((requirement) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          size: 16,
-                          color: AppColors.success,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            requirement,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                  ...job.requirements.map(
+                    (requirement) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: AppColors.success,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              requirement,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: isDark
+                                    ? AppColors.onSurfaceVariantDark
+                                    : AppColors.onSurfaceVariant,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                   const SizedBox(height: 24),
                 ],
 
                 // Contact Info
-                if (job.contactPersonEmail != null || job.contactPersonPhone != null) ...[
+                if (job.contactPersonEmail != null ||
+                    job.contactPersonPhone != null) ...[
                   Text(
                     'Contact Information',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                      color: isDark
+                          ? AppColors.onSurfaceDark
+                          : AppColors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -696,13 +848,17 @@ class _JobDetailSheet extends StatelessWidget {
                         Icon(
                           Icons.email,
                           size: 20,
-                          color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                          color: isDark
+                              ? AppColors.onSurfaceVariantDark
+                              : AppColors.onSurfaceVariant,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           job.contactPersonEmail!,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                            color: isDark
+                                ? AppColors.onSurfaceVariantDark
+                                : AppColors.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -714,13 +870,17 @@ class _JobDetailSheet extends StatelessWidget {
                         Icon(
                           Icons.phone,
                           size: 20,
-                          color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                          color: isDark
+                              ? AppColors.onSurfaceVariantDark
+                              : AppColors.onSurfaceVariant,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           job.contactPersonPhone!,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                            color: isDark
+                                ? AppColors.onSurfaceVariantDark
+                                : AppColors.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -735,4 +895,3 @@ class _JobDetailSheet extends StatelessWidget {
     );
   }
 }
-

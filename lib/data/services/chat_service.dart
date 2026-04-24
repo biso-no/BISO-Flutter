@@ -22,6 +22,19 @@ class ChatService {
   Stream<List<ChatMessageModel>> get messagesStream =>
       _messagesController.stream;
 
+  String get _chatsChannel =>
+      Channel.tablesdb(AppConstants.databaseId).table('chats').row().toString();
+
+  String get _chatMessagesChannel =>
+      Channel.tablesdb(
+        AppConstants.databaseId,
+      ).table('chat_messages').row().toString();
+
+  String get _typingIndicatorsChannel =>
+      Channel.tablesdb(
+        AppConstants.databaseId,
+      ).table('typing_indicators').row().toString();
+
   // Get user's chats
   Future<List<ChatModel>> getUserChats(String userId) async {
     try {
@@ -29,9 +42,9 @@ class ChatService {
         databaseId: AppConstants.databaseId,
         tableId: 'chats',
         queries: [
-          'contains("participants", "$userId")',
-          'equal("is_active", true)',
-          'orderDesc("last_activity_at")',
+          Query.contains('participants', userId),
+          Query.equal('is_active', true),
+          Query.orderDesc('last_activity_at'),
         ],
       );
 
@@ -53,14 +66,14 @@ class ChatService {
     String? offset,
   }) async {
     try {
-      List<String> queries = [
-        'equal("chat_id", "$chatId")',
-        'orderDesc("timestamp")',
-        'limit($limit)',
+      final queries = <String>[
+        Query.equal('chat_id', chatId).toString(),
+        Query.orderDesc('timestamp').toString(),
+        Query.limit(limit).toString(),
       ];
 
       if (offset != null) {
-        queries.add('cursorAfter("$offset")');
+        queries.add(Query.cursorAfter(offset).toString());
       }
 
       final documents = await db.listRows(
@@ -185,25 +198,19 @@ class ChatService {
   void subscribeToUpdates(String userId) {
     try {
       _subscription = _realtime.subscribe([
-        'databases.${AppConstants.databaseId}.collections.chats.documents',
-        'databases.${AppConstants.databaseId}.collections.chat_messages.documents',
-        'databases.${AppConstants.databaseId}.collections.typing_indicators.documents',
+        _chatsChannel,
+        _chatMessagesChannel,
+        _typingIndicatorsChannel,
       ]);
 
       _subscription!.stream.listen((response) {
         final payload = response.payload;
 
-        if (response.channels.contains(
-          'databases.${AppConstants.databaseId}.collections.chat_messages.documents',
-        )) {
+        if (response.channels.contains(_chatMessagesChannel)) {
           _handleMessageUpdate(payload);
-        } else if (response.channels.contains(
-          'databases.${AppConstants.databaseId}.collections.chats.documents',
-        )) {
+        } else if (response.channels.contains(_chatsChannel)) {
           _handleChatUpdate(payload, userId);
-        } else if (response.channels.contains(
-          'databases.${AppConstants.databaseId}.collections.typing_indicators.documents',
-        )) {
+        } else if (response.channels.contains(_typingIndicatorsChannel)) {
           _handleTypingUpdate(payload);
         }
       });
@@ -225,14 +232,12 @@ class ChatService {
       final teamId = chat.data['team_id'];
 
       if (!participants.contains(userId)) {
-        participants.add(userId);
-
         // Update chat participants
         await db.updateRow(
           databaseId: AppConstants.databaseId,
           tableId: 'chats',
           rowId: chatId,
-          data: {'participants': participants},
+          data: {'participants': Operator.arrayAppend([userId])},
         );
 
         // Update team members if team exists
@@ -275,23 +280,20 @@ class ChatService {
   // Remove user from chat (removes from both chat and team)
   Future<void> removeUserFromChat(String chatId, String userId) async {
     try {
+      // Fetch only to get teamId for the cascade remove; participant removal uses arrayRemove
       final chat = await db.getRow(
         databaseId: AppConstants.databaseId,
         tableId: 'chats',
         rowId: chatId,
       );
 
-      final participants = List<String>.from(chat.data['participants']);
       final teamId = chat.data['team_id'];
 
-      participants.remove(userId);
-
-      // Update chat participants
       await db.updateRow(
         databaseId: AppConstants.databaseId,
         tableId: 'chats',
         rowId: chatId,
-        data: {'participants': participants},
+        data: {'participants': Operator.arrayRemove(userId)},
       );
 
       // Remove from team if team exists
@@ -1156,10 +1158,10 @@ class ChatService {
         databaseId: AppConstants.databaseId,
         tableId: 'chats',
         queries: [
-          'contains("participants", "$currentUserId")',
-          'equal("is_active", true)',
-          'orderDesc("last_activity_at")',
-          'limit(10)',
+          Query.contains('participants', currentUserId),
+          Query.equal('is_active', true),
+          Query.orderDesc('last_activity_at'),
+          Query.limit(10),
         ],
       );
 
@@ -1190,7 +1192,7 @@ class ChatService {
       final documents = await db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: 'departments',
-        queries: ['equal("active", true)', 'orderAsc("name")'],
+        queries: [Query.equal('active', true), Query.orderAsc('name')],
       );
 
       return documents.rows.map((doc) => doc.data).toList();
@@ -1206,8 +1208,8 @@ class ChatService {
         databaseId: AppConstants.databaseId,
         tableId: 'teams',
         queries: [
-          'equal("prefs.is_chat_team", false)', // Exclude auto-created chat teams
-          'orderAsc("name")',
+          Query.equal('prefs.is_chat_team', false),
+          Query.orderAsc('name'),
         ],
       );
 

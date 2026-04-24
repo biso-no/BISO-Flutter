@@ -6,11 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/favorites_storage.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
-import '../../../data/services/expense_service_v2.dart';
-import '../../../core/utils/favorites_storage.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -35,11 +34,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   bool _didPrefillFromUser = false;
   bool _zipFieldFocused = false;
 
-  // Fetched from Appwrite
-  final ExpenseServiceV2 _expenseService = ExpenseServiceV2();
-  List<Map<String, dynamic>> _campuses = []; // [{id,name}]
-  List<Map<String, String>> _departments = []; // [{id (Id), name (Name)}]
-
   @override
   void initState() {
     super.initState();
@@ -55,7 +49,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _applyUser(user);
       _didPrefillFromUser = true;
     }
-    _loadCampusesAndDeps();
   }
 
   void _applyUser(UserModel user) {
@@ -78,50 +71,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _selectedDepartments = List.from(user.departments);
       _selectedCampusId = user.campusId;
     });
-
-    if (_selectedCampusId != null && _selectedCampusId!.isNotEmpty) {
-      _loadDepartments(_selectedCampusId!);
-    }
-  }
-
-  Future<void> _loadCampusesAndDeps() async {
-    try {
-      final campuses = await _expenseService.listCampuses();
-      setState(() => _campuses = campuses);
-    } catch (_) {}
-    if (_selectedCampusId != null && _selectedCampusId!.isNotEmpty) {
-      await _loadDepartments(_selectedCampusId!);
-    }
-  }
-
-  Future<void> _loadDepartments(String campusId) async {
-    try {
-      final docs = await _expenseService.listDepartmentsForCampus(campusId);
-      setState(() {
-        _departments = docs
-            .map(
-              (e) => {
-                'id': (e['Id'] ?? '').toString(),
-                'name': (e['Name'] ?? '').toString(),
-              },
-            )
-            .where((e) => e['id']!.isNotEmpty && e['name']!.isNotEmpty)
-            .toList();
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _toggleFavorite(String deptId) async {
-    final favored = await FavoritesStorage.toggleFavoriteDepartment(deptId);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            favored ? 'Added to favorites' : 'Removed from favorites',
-          ),
-        ),
-      );
-    }
   }
 
   @override
@@ -684,9 +633,6 @@ class _DepartmentPickerState extends State<_DepartmentPicker> {
 
     final favoriteItems = filtered
         .where((d) => _favorites.contains(d['id']))
-        .toList();
-    final otherItems = filtered
-        .where((d) => !_favorites.contains(d['id']))
         .toList();
 
     return Column(

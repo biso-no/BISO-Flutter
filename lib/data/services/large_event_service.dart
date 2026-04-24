@@ -39,10 +39,11 @@ class LargeEventService {
   }
 
   Stream<List<LargeEventModel>> subscribeActiveEvents() {
-    final channel =
-        'databases.${AppConstants.databaseId}.collections.$collectionId.documents';
-    final stream = realtime.subscribe([channel]);
-    return stream.stream.asyncMap((message) async {
+    final channel = Channel.tablesdb(
+      AppConstants.databaseId,
+    ).table(collectionId).row();
+    final stream = realtime.subscribe([channel.toString()]);
+    return stream.stream.asyncMap((_) async {
       // After any change, re-fetch active list
       return await fetchActiveEvents();
     });

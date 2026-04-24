@@ -418,7 +418,7 @@ class CampusService {
         studentBenefits: campusData?.studentBenefits ?? [],
         businessBenefits: campusData?.businessBenefits ?? [],
         careerAdvantages: campusData?.careerAdvantages ?? [],
-        contactEmail: campusData?.location?.email ?? '${campusDoc['name']?.toLowerCase()}@bi.no',
+        contactEmail: campusData?.location?.email ?? 'contact@bi.no',
         contactAddress: campusData?.location?.address,
         weather: weather,
         stats: stats,

@@ -11,17 +11,8 @@ import '../../../data/models/large_event_model.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/campus/campus_data_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
-import '../../../data/services/feature_flag_service.dart';
-
-// Feature flag provider for expenses
-final _featureFlagServiceProvider = Provider<FeatureFlagService>(
-  (ref) => FeatureFlagService(),
-);
-
-final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((ref) async {
-  final service = ref.watch(_featureFlagServiceProvider);
-  return service.isEnabled('expenses');
-});
+import '../../../data/models/app_config.dart';
+import '../../../providers/config/app_config_provider.dart';
 
 class ExploreScreen extends ConsumerWidget {
   const ExploreScreen({super.key});
@@ -163,17 +154,19 @@ class ExploreScreen extends ConsumerWidget {
             // Main Categories Grid
             Consumer(
               builder: (context, ref, child) {
-                final expenseFlagAsync = ref.watch(expenseFeatureFlagProvider);
-                return expenseFlagAsync.when(
-                  data: (enabled) {
-                    final List<Widget> gridChildren = [
-                      _CategoryCard(
-                        icon: Icons.event,
-                        title: l10n.eventsMessage,
-                        subtitle: l10n.campusEventsActivitiesMessage,
-                        color: AppColors.accentBlue,
-                        onTap: () => context.go('/explore/events'),
-                      ),
+                final configAsync = ref.watch(appConfigProvider);
+                final config = configAsync.valueOrNull ?? const AppConfig();
+
+                List<Widget> buildGrid() {
+                  final cards = <Widget>[
+                    _CategoryCard(
+                      icon: Icons.event,
+                      title: l10n.eventsMessage,
+                      subtitle: l10n.campusEventsActivitiesMessage,
+                      color: AppColors.accentBlue,
+                      onTap: () => context.go('/explore/events'),
+                    ),
+                    if (config.departuresEnabled)
                       _CategoryCard(
                         icon: Icons.departure_board,
                         title: l10n.departuresMessage,
@@ -181,6 +174,7 @@ class ExploreScreen extends ConsumerWidget {
                         color: AppColors.defaultBlue,
                         onTap: () => context.go('/explore/departures'),
                       ),
+                    if (config.marketplaceEnabled)
                       _CategoryCard(
                         icon: Icons.shopping_bag,
                         title: l10n.bisoShopMessage,
@@ -188,160 +182,47 @@ class ExploreScreen extends ConsumerWidget {
                         color: AppColors.green9,
                         onTap: () => context.go('/explore/products'),
                       ),
+                    _CategoryCard(
+                      icon: Icons.groups,
+                      title: l10n.unitsMessage,
+                      subtitle: l10n.studentOrganizationsMessage,
+                      color: AppColors.purple9,
+                      onTap: () => context.go('/explore/units'),
+                    ),
+                    if (config.expensesEnabled)
                       _CategoryCard(
-                        icon: Icons.groups,
-                        title: l10n.unitsMessage,
-                        subtitle: l10n.studentOrganizationsMessage,
-                        color: AppColors.purple9,
-                        onTap: () => context.go('/explore/units'),
+                        icon: Icons.receipt_long,
+                        title: l10n.expensesMessage,
+                        subtitle: l10n.expenseReimbursementsMessage,
+                        color: AppColors.orange9,
+                        onTap: () => context.go('/explore/expenses'),
                       ),
-                    ];
+                    _CategoryCard(
+                      icon: Icons.volunteer_activism,
+                      title: l10n.volunteerMessage,
+                      subtitle: l10n.volunteerOpportunitiesMessage,
+                      color: AppColors.pink9,
+                      onTap: () => context.go('/explore/volunteer'),
+                    ),
+                    _CategoryCard(
+                      icon: Icons.chat,
+                      title: l10n.aiAssistantMessage,
+                      subtitle: l10n.getHelpInformationMessage,
+                      color: AppColors.defaultGold,
+                      onTap: () => context.go('/explore/ai-chat'),
+                    ),
+                  ];
+                  return cards;
+                }
 
-                    // Only add expense card when feature is enabled
-                    if (enabled) {
-                      gridChildren.add(
-                        _CategoryCard(
-                          icon: Icons.receipt_long,
-                          title: l10n.expensesMessage,
-                          subtitle: l10n.expenseReimbursementsMessage,
-                          color: AppColors.orange9,
-                          onTap: () => context.go('/explore/expenses'),
-                        ),
-                      );
-                    }
-
-                    // Add remaining cards
-                    gridChildren.addAll([
-                      _CategoryCard(
-                        icon: Icons.volunteer_activism,
-                        title: l10n.volunteerMessage,
-                        subtitle: l10n.volunteerOpportunitiesMessage,
-                        color: AppColors.pink9,
-                        onTap: () => context.go('/explore/volunteer'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.chat,
-                        title: l10n.aiAssistantMessage,
-                        subtitle: l10n.getHelpInformationMessage,
-                        color: AppColors.defaultGold,
-                        onTap: () => context.go('/explore/ai-chat'),
-                      ),
-                    ]);
-
-                    return GridView.count(
-                      crossAxisCount: 2,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.05,
-                      children: gridChildren,
-                    );
-                  },
-                  loading: () => GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.05,
-                    children: [
-                      _CategoryCard(
-                        icon: Icons.event,
-                        title: l10n.eventsMessage,
-                        subtitle: l10n.campusEventsActivitiesMessage,
-                        color: AppColors.accentBlue,
-                        onTap: () => context.go('/explore/events'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.departure_board,
-                        title: l10n.departuresMessage,
-                        subtitle: l10n.realtimeBusMetroMessage,
-                        color: AppColors.defaultBlue,
-                        onTap: () => context.go('/explore/departures'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.shopping_bag,
-                        title: l10n.bisoShopMessage,
-                        subtitle: l10n.buySellItemsMessage,
-                        color: AppColors.green9,
-                        onTap: () => context.go('/explore/products'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.groups,
-                        title: l10n.unitsMessage,
-                        subtitle: l10n.studentOrganizationsMessage,
-                        color: AppColors.purple9,
-                        onTap: () => context.go('/explore/units'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.volunteer_activism,
-                        title: l10n.volunteerMessage,
-                        subtitle: l10n.volunteerOpportunitiesMessage,
-                        color: AppColors.pink9,
-                        onTap: () => context.go('/explore/volunteer'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.chat,
-                        title: l10n.aiAssistantMessage,
-                        subtitle: l10n.getHelpInformationMessage,
-                        color: AppColors.defaultGold,
-                        onTap: () => context.go('/explore/ai-chat'),
-                      ),
-                    ],
-                  ),
-                  error: (_, _) => GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.05,
-                    children: [
-                      _CategoryCard(
-                        icon: Icons.event,
-                        title: l10n.eventsMessage,
-                        subtitle: l10n.campusEventsActivitiesMessage,
-                        color: AppColors.accentBlue,
-                        onTap: () => context.go('/explore/events'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.departure_board,
-                        title: l10n.departuresMessage,
-                        subtitle: l10n.realtimeBusMetroMessage,
-                        color: AppColors.defaultBlue,
-                        onTap: () => context.go('/explore/departures'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.shopping_bag,
-                        title: l10n.bisoShopMessage,
-                        subtitle: l10n.buySellItemsMessage,
-                        color: AppColors.green9,
-                        onTap: () => context.go('/explore/products'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.groups,
-                        title: l10n.unitsMessage,
-                        subtitle: l10n.studentOrganizationsMessage,
-                        color: AppColors.purple9,
-                        onTap: () => context.go('/explore/units'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.volunteer_activism,
-                        title: l10n.volunteerMessage,
-                        subtitle: l10n.volunteerOpportunitiesMessage,
-                        color: AppColors.pink9,
-                        onTap: () => context.go('/explore/volunteer'),
-                      ),
-                      _CategoryCard(
-                        icon: Icons.chat,
-                        title: l10n.aiAssistantMessage,
-                        subtitle: l10n.getHelpInformationMessage,
-                        color: AppColors.defaultGold,
-                        onTap: () => context.go('/explore/ai-chat'),
-                      ),
-                    ],
-                  ),
+                return GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.05,
+                  children: buildGrid(),
                 );
               },
             ),

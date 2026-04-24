@@ -52,9 +52,10 @@ class EnturService {
 
   void subscribeToDepartures(String stopPlaceId) {
     _subscription?.close();
-    final channel =
-        'databases.$enturDatabaseId.collections.$departuresCollectionId.documents.${sanitizeDocumentId(stopPlaceId)}';
-    _subscription = _realtime.subscribe([channel]);
+    final channel = Channel.tablesdb(
+      enturDatabaseId,
+    ).table(departuresCollectionId).row(sanitizeDocumentId(stopPlaceId));
+    _subscription = _realtime.subscribe([channel.toString()]);
     _subscription!.stream.listen((event) {
       final payload = event.payload;
       try {

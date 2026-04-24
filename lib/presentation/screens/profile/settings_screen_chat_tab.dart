@@ -104,7 +104,12 @@ class ChatSettingsTab extends ConsumerWidget {
                       loading: () => null,
                       error: (_, _) => null,
                     ),
-                    activeThumbColor: _getCampusColor(selectedCampus.id),
+                    thumbColor: campusSwitchThumbColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
+                    trackColor: campusSwitchTrackColor(
+                      _getCampusColor(selectedCampus.id),
+                    ),
                   ),
                   loading: () => const ListTile(
                     leading: CircularProgressIndicator(),
@@ -133,7 +138,12 @@ class ChatSettingsTab extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setNotification('chat_vibration', value);
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: campusSwitchThumbColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
+                  trackColor: campusSwitchTrackColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -149,7 +159,12 @@ class ChatSettingsTab extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setNotification('chat_sound', value);
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: campusSwitchThumbColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
+                  trackColor: campusSwitchTrackColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
                 ),
               ],
             ),
@@ -185,7 +200,12 @@ class ChatSettingsTab extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setNotification('read_receipts', value);
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: campusSwitchThumbColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
+                  trackColor: campusSwitchTrackColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -202,7 +222,12 @@ class ChatSettingsTab extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setNotification('typing_indicators', value);
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: campusSwitchThumbColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
+                  trackColor: campusSwitchTrackColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
                 ),
                 const Divider(height: 1),
                 SwitchListTile(
@@ -218,7 +243,12 @@ class ChatSettingsTab extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setNotification('last_seen', value);
                   },
-                  activeThumbColor: _getCampusColor(selectedCampus.id),
+                  thumbColor: campusSwitchThumbColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
+                  trackColor: campusSwitchTrackColor(
+                    _getCampusColor(selectedCampus.id),
+                  ),
                 ),
               ],
             ),

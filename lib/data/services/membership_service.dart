@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:appwrite/appwrite.dart';
+import '../../core/constants/app_constants.dart';
 import '../models/membership_model.dart';
 import 'appwrite_service.dart';
 
@@ -73,12 +74,12 @@ class MembershipService {
   Future<List<MembershipPurchaseOption>> getAvailableMemberships() async {
     try {
       final documents = await db.listRows(
-        databaseId: 'app',
+        databaseId: AppConstants.databaseId,
         tableId: 'memberships',
         queries: [
-          Query.equal('status', true).toString(), // Only active memberships
-          Query.orderAsc('price').toString(), // Order by price
-          Query.equal('canPurchase', true).toString(),
+          Query.equal('status', true),
+          Query.orderAsc('price'),
+          Query.equal('canPurchase', true),
         ],
       );
 
@@ -156,12 +157,12 @@ class MembershipService {
   Future<MembershipModel?> getUserMembership(String userId) async {
     try {
       final documents = await db.listRows(
-        databaseId: 'app',
+        databaseId: AppConstants.databaseId,
         tableId: 'biso_membership',
         queries: [
-          Query.equal('user_id', userId).toString(),
-          Query.orderDesc('\$createdAt').toString(),
-          Query.limit(1).toString(),
+          Query.equal('user_id', userId),
+          Query.orderDesc('\$createdAt'),
+          Query.limit(1),
         ],
       );
 
@@ -180,16 +181,13 @@ class MembershipService {
     String userId,
     Function(RealtimeMessage) callback,
   ) {
-    return realtime.subscribe([
-        'databases.app.collections.student_id.documents',
-      ])
-      ..stream.listen((response) {
-        // Filter for this user's student ID updates
-        final payload = response.payload;
-        if (payload['user_id'] == userId) {
-          callback(response);
-        }
-      });
+    final sub = realtime.subscribe([
+      Channel.tablesdb(AppConstants.databaseId).table('student_id').row(),
+    ], queries: [
+      Query.equal('user_id', userId),
+    ]);
+    sub.stream.listen(callback);
+    return sub;
   }
 
   /// Subscribes to membership updates for realtime notifications
@@ -197,15 +195,12 @@ class MembershipService {
     String userId,
     Function(RealtimeMessage) callback,
   ) {
-    return realtime.subscribe([
-        'databases.app.collections.biso_membership.documents',
-      ])
-      ..stream.listen((response) {
-        // Filter for this user's membership updates
-        final payload = response.payload;
-        if (payload['user_id'] == userId) {
-          callback(response);
-        }
-      });
+    final sub = realtime.subscribe([
+      Channel.tablesdb(AppConstants.databaseId).table('biso_membership').row(),
+    ], queries: [
+      Query.equal('user_id', userId),
+    ]);
+    sub.stream.listen(callback);
+    return sub;
   }
 }
