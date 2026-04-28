@@ -26,6 +26,7 @@ import 'presentation/screens/explore/webshop_product_detail_screen.dart';
 import 'data/models/webshop_product_model.dart';
 import 'presentation/screens/explore/jobs_screen.dart';
 import 'presentation/screens/explore/expenses_screen.dart';
+import 'presentation/screens/expense/create_expense_screen.dart';
 import 'presentation/screens/explore/units_overview_screen.dart';
 import 'presentation/screens/explore/unit_detail_screen.dart';
 import 'presentation/screens/explore/departures_screen.dart';
@@ -239,6 +240,13 @@ final _router = GoRouter(
               path: '/expenses',
               name: 'expenses',
               builder: (context, state) => const ExpensesScreen(),
+              routes: [
+                GoRoute(
+                  path: '/new',
+                  name: 'expense-new',
+                  builder: (context, state) => const CreateExpenseScreen(),
+                ),
+              ],
             ),
             GoRoute(
               path: '/volunteer',

@@ -1,25 +1,34 @@
+import 'dart:io';
+import 'dart:math';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-
-import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:printing/printing.dart';
-import 'dart:ui' as ui;
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
-import '../../../providers/auth/auth_provider.dart';
+import '../../../data/models/expense_model.dart';
+import '../../../data/models/expense_v2_models.dart';
+import '../../../data/services/expense_api_client.dart';
 import '../../../data/services/expense_service_v2.dart';
-import '../../../core/utils/favorites_storage.dart';
+import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/expense/expense_provider.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
   final String? eventId;
   final String? eventName;
+  final ExpenseModel? draftExpense;
 
-  const CreateExpenseScreen({super.key, this.eventId, this.eventName});
+  const CreateExpenseScreen({
+    super.key,
+    this.eventId,
+    this.eventName,
+    this.draftExpense,
+  });
 
   @override
   ConsumerState<CreateExpenseScreen> createState() =>
@@ -27,1715 +36,1772 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
-  final PageController _pageController = PageController();
-  int _currentStep = 0;
+  final ExpenseServiceV2 _expenseService = ExpenseServiceV2();
+  final ExpenseApiClient _apiClient = ExpenseApiClient();
+  final ImagePicker _imagePicker = ImagePicker();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _eventController = TextEditingController();
 
-  // Form data
-  final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _overallDescriptionController = TextEditingController();
-  final _bankAccountController = TextEditingController();
-  final _accountHolderController = TextEditingController();
-
-  String? _selectedDepartmentId;
-  String _selectedDepartmentName = '';
-  final bool _isPrepayment = false;
-  final DateTime _expenseDate = DateTime.now();
-  final List<File> _attachedFiles = [];
-  final List<_ReceiptDraft> _receiptDrafts = [];
-  bool _useAi = false;
-  bool _isAnalyzing = false;
-  String? _selectedCampusId;
-  String? _selectedCampusName;
   List<Map<String, String>> _campuses = [];
   List<Map<String, String>> _departments = [];
-  final ExpenseServiceV2 _expenseService = ExpenseServiceV2();
-  List<String> _favoriteDepartmentIds = [];
-
-  // categories removed per new flow
+  ExpenseAssignment? _assignment;
+  List<ExpenseReceiptDraft> _receipts = [];
+  String? _selectedReceiptId;
+  String? _draftExpenseId;
+  String? _lastSummarySnapshot;
+  bool _isLoadingLookups = true;
+  bool _isSavingDraft = false;
+  bool _isSubmitting = false;
+  bool _isSummaryLoading = false;
+  String? _flowError;
+  int _mobileTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    // No categories in the new flow
-    // Prefill from profile if available
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final user = ref.read(currentUserProvider);
-      // Load campuses (id + name)
-      try {
-        final rawCampuses = await _expenseService.listCampuses();
-        _campuses = rawCampuses
-            .map<Map<String, String>>((c) => {
-                  'id': (c['\$id'] ?? c['id'] ?? '').toString(),
-                  'name': (c['name'] ?? '').toString(),
-                })
-            .where((c) => c['id']!.isNotEmpty && c['name']!.isNotEmpty)
-            .toList();
-      } catch (_) {}
-      _favoriteDepartmentIds =
-          await FavoritesStorage.getFavoriteDepartmentIds();
-      if (user != null) {
-        _accountHolderController.text = user.name;
-        _bankAccountController.text = formatNorwegianBankAccount(
-          user.bankAccount ?? '',
-        );
-        _selectedCampusId = user.campusId;
-        _selectedCampusName = _campuses.firstWhere(
-          (c) => c['id'] == _selectedCampusId,
-          orElse: () => {'id': '', 'name': ''},
-        )['name'];
-        await _loadDepartments();
-      }
-      _maybePromptForMissingProfile();
-    });
-  }
-
-  Widget _buildDepartmentTile(Map<String, String> dept, bool isSelected) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      color: isSelected ? AppColors.subtleBlue : null,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedDepartmentId = dept['id'];
-            _selectedDepartmentName = dept['name']!;
-          });
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.defaultBlue : AppColors.gray200,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.business,
-                  color: isSelected ? Colors.white : AppColors.onSurfaceVariant,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  dept['name']!,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: isSelected ? AppColors.defaultBlue : null,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () async {
-                  final favored =
-                      await FavoritesStorage.toggleFavoriteDepartment(
-                        dept['id']!,
-                      );
-                  final updated =
-                      await FavoritesStorage.getFavoriteDepartmentIds();
-                  setState(() => _favoriteDepartmentIds = updated);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          favored
-                              ? 'Added to favorites'
-                              : 'Removed from favorites',
-                        ),
-                      ),
-                    );
-                  }
-                },
-                icon: Icon(
-                  _favoriteDepartmentIds.contains(dept['id'])
-                      ? Icons.star_rounded
-                      : Icons.star_border_rounded,
-                  color: _favoriteDepartmentIds.contains(dept['id'])
-                      ? AppColors.orange9
-                      : AppColors.onSurfaceVariant,
-                ),
-              ),
-              if (isSelected)
-                const Icon(Icons.check_circle, color: AppColors.defaultBlue),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _maybePromptForMissingProfile() {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-    final missing = <String>[];
-    // Only soft prompt for missing bank account; campus can be overridden per expense
-    if ((user.bankAccount ?? '').isEmpty) missing.add('Bank account');
-    if (missing.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Please complete your profile: ${missing.join(', ')}'),
-      ),
-    );
+    _draftExpenseId = widget.draftExpense?.id;
+    _descriptionController.text = widget.draftExpense?.description ?? '';
+    _eventController.text =
+        widget.eventName ?? widget.draftExpense?.eventName ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadLookups());
   }
 
   @override
   void dispose() {
-    _pageController.dispose();
-    _amountController.dispose();
     _descriptionController.dispose();
-    _bankAccountController.dispose();
-    _accountHolderController.dispose();
-    // Payment/profile text controllers removed as we use profile directly
-    _overallDescriptionController.dispose();
+    _eventController.dispose();
     super.dispose();
   }
 
-  void _nextStep() {
-    if (_currentStep < 4) {
-      if (_validateCurrentStep()) {
-        setState(() => _currentStep++);
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    }
-  }
+  bool get _hasAssignment => _assignment?.isComplete == true;
+  bool get _hasBusyReceipts => _receipts.any((receipt) => receipt.isBusy);
+  bool get _hasReadyExpenseReceipts =>
+      _receipts.any((receipt) => receipt.isReady && !receipt.isBankStatement);
+  List<ExpenseReceiptDraft> get _readyReceipts =>
+      _receipts.where((receipt) => receipt.isReady).toList();
+  double get _totalAmount => _readyReceipts
+      .where((receipt) => !receipt.isBankStatement)
+      .fold(0, (sum, receipt) => sum + receipt.effectiveAmount);
 
-  void _previousStep() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  bool _validateCurrentStep() {
-    switch (_currentStep) {
-      case 0: // Campus & Department
-        return _selectedCampusId != null && _selectedDepartmentId != null;
-      case 1: // Attachments
-        return _attachedFiles.isNotEmpty;
-      case 2: // Details (event + description)
-        return true;
-      case 3: // Review
-        return true;
-      default:
-        return true;
-    }
-  }
-
-  Future<void> _submitExpense() async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+  Future<void> _loadLookups() async {
+    setState(() => _isLoadingLookups = true);
     try {
-      setState(() {});
+      final rawCampuses = await _expenseService.listCampuses();
+      final campuses = rawCampuses
+          .map<Map<String, String>>(
+            (campus) => {
+              'id': (campus['\$id'] ?? campus['id'] ?? '').toString(),
+              'name': (campus['name'] ?? '').toString(),
+            },
+          )
+          .where(
+            (campus) => campus['id']!.isNotEmpty && campus['name']!.isNotEmpty,
+          )
+          .toList();
+
+      _campuses = campuses;
+      final draft = widget.draftExpense;
       final user = ref.read(currentUserProvider);
-      if (user == null) throw Exception('Not authenticated');
-
-      // Ensure profile exists and has bank account and campus
-      await _ensureProfileExistsAndUpToDate();
-
-      // Upload attachments and create attachment documents
-      final List<String> attachmentDocIds = [];
-      for (int i = 0; i < _attachedFiles.length; i++) {
-        final file = _attachedFiles[i];
-        final url = await _expenseService.uploadAttachmentFile(file);
-        double amount = 0;
-        String description = '';
-        DateTime date = _expenseDate;
-        String type = file.path.split('.').last.toLowerCase();
-        if (i < _receiptDrafts.length) {
-          final draft = _receiptDrafts[i];
-          amount = draft.amount ?? 0;
-          description = draft.description ?? '';
-          date = draft.date ?? _expenseDate;
-        }
-        final doc = await _expenseService.createAttachmentDocument(
-          date: date,
-          url: url,
-          amount: amount,
-          description: description,
-          type: type,
+      final initialCampusId = draft?.campus.isNotEmpty == true
+          ? draft!.campus
+          : user?.campusId;
+      if (initialCampusId != null && initialCampusId.isNotEmpty) {
+        final campusName = campuses.firstWhere(
+          (campus) => campus['id'] == initialCampusId,
+          orElse: () => {'id': initialCampusId, 'name': initialCampusId},
+        )['name']!;
+        _assignment = ExpenseAssignment(
+          campusId: initialCampusId,
+          campusName: campusName,
+          departmentId: draft?.department ?? '',
+          departmentName: draft?.departmentName ?? draft?.department ?? '',
         );
-        attachmentDocIds.add(doc['\$id'] as String);
+        await _loadDepartments(initialCampusId);
       }
-
-      // Determine total and description
-      double total;
-      String description;
-      if (_receiptDrafts.isNotEmpty) {
-        total = _receiptDrafts.fold(0, (p, e) => p + (e.amount ?? 0));
-        if (_useAi) {
-          final descs = _receiptDrafts
-              .map((e) => e.description ?? '')
-              .where((e) => e.isNotEmpty)
-              .toList();
-          if (descs.isNotEmpty) {
-            description = await _expenseService.summarizeExpenseDescriptions(
-              descs,
-            );
-          } else {
-            description = _descriptionController.text.trim();
-          }
-        } else {
-          description = _descriptionController.text.trim();
-        }
-      } else {
-        total = double.tryParse(_amountController.text) ?? 0;
-        description = _descriptionController.text.trim();
-      }
-
-      final sanitizedBank = normalizeNorwegianBankAccount(
-        _bankAccountController.text,
-      );
-
-      final data = <String, dynamic>{
-        'campus': _selectedCampusId ?? '',
-        'department': _selectedDepartmentName,
-        'departmentRel': _selectedDepartmentId,
-        'bank_account': sanitizedBank,
-        'description': description,
-        'expenseAttachments': attachmentDocIds,
-        'total': _isPrepayment ? 0 : total,
-        'prepayment_amount': _isPrepayment ? total : null,
-        'status': 'pending',
-        'user': user.id,
-        'userId': user.id,
-        'eventName': widget.eventName,
-      };
-
-      await _expenseService.createExpenseDocument(data: data);
-
-      if (mounted) {
-        Navigator.pop(context);
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Expense submitted'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
+      if (draft != null) _hydrateDraft(draft);
     } catch (e) {
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Failed to submit: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      _flowError = 'Failed to load campuses: $e';
+    } finally {
+      if (mounted) setState(() => _isLoadingLookups = false);
     }
   }
 
-  Future<void> _saveDraft() async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    try {
-      final user = ref.read(currentUserProvider);
-      if (user == null) throw Exception('Not authenticated');
-
-      // Minimal validation for draft: require campus & department selection
-      if (_selectedCampusId == null || _selectedDepartmentId == null) {
-        throw Exception('Select campus and department to save draft');
-      }
-
-      // No uploads for draft; attachments can be added later in edit flow
-      final sanitizedBank = normalizeNorwegianBankAccount(
-        _bankAccountController.text,
+  void _hydrateDraft(ExpenseModel draft) {
+    if (draft.expenseAttachments.isEmpty) return;
+    _receipts = draft.expenseAttachments.map((attachment) {
+      final rawUrl = attachment.url ?? '';
+      final fileId = _extractAppwriteFileId(rawUrl);
+      return ExpenseReceiptDraft(
+        localId: attachment.id ?? _newLocalId(),
+        fileName: fileId ?? attachment.fileName,
+        fileId: fileId,
+        viewUrl: rawUrl.startsWith('http') ? rawUrl : null,
+        mimeType: _normalizeAttachmentType(attachment.type),
+        status: ExpenseReceiptStatus.ready,
+        date: attachment.date,
+        amount: attachment.amount,
+        amountInNok: attachment.amount,
+        description: attachment.description ?? '',
       );
-      final description = (_useAi
-              ? _overallDescriptionController.text
-              : _descriptionController.text)
-          .trim();
+    }).toList();
+    _selectedReceiptId = _receipts.isNotEmpty ? _receipts.first.localId : null;
+  }
 
-      final data = <String, dynamic>{
-        'campus': _selectedCampusId ?? '',
-        'department': _selectedDepartmentName,
-        'departmentRel': _selectedDepartmentId,
-        'bank_account': sanitizedBank,
-        if (description.isNotEmpty) 'description': description,
-        'expenseAttachments': <String>[],
-        'total': 0,
-        'status': 'draft',
-        'user': user.id,
-        'userId': user.id,
-        'eventName': widget.eventName,
-      };
-
-      await _expenseService.createExpenseDocument(data: data);
-      if (mounted) {
-        Navigator.pop(context);
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Draft saved'),
-            backgroundColor: AppColors.success,
-          ),
+  Future<void> _loadDepartments(String campusId) async {
+    final list = await _expenseService.listDepartmentsForCampus(campusId);
+    final mapped = list
+        .where((department) => department['active'] != false)
+        .map<Map<String, String>>(
+          (department) => {
+            'id': (department['Id'] ?? department['\$id'] ?? '').toString(),
+            'name': (department['Name'] ?? department['name'] ?? '').toString(),
+          },
+        )
+        .where(
+          (department) =>
+              department['id']!.isNotEmpty && department['name']!.isNotEmpty,
+        )
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _departments = mapped;
+      final current = _assignment;
+      if (current != null && current.departmentId.isNotEmpty) {
+        final match = mapped.where(
+          (dept) => dept['id'] == current.departmentId,
         );
+        if (match.isNotEmpty) {
+          final dept = match.first;
+          _assignment = ExpenseAssignment(
+            campusId: current.campusId,
+            campusName: current.campusName,
+            departmentId: dept['id']!,
+            departmentName: dept['name']!,
+          );
+        }
       }
-    } catch (e) {
-      if (mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(
-            content: Text('Failed to save draft: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Expense'),
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.close),
-        ),
-        actions: [
-          if (_currentStep > 0)
-            TextButton(onPressed: _previousStep, child: const Text('Back')),
-        ],
-      ),
-      body: Column(
-        children: [
-          _PremiumHeader(
-            step: _currentStep,
-            totalSteps: 4,
-            onBack: _currentStep > 0 ? _previousStep : null,
-            onClose: () => Navigator.pop(context),
-            title: _getStepTitle(),
-          ),
+    final user = ref.watch(currentUserProvider);
+    final profileReadiness = ExpenseProfileReadiness.fromUser(user);
 
-          // Content
-          Expanded(
-            child: Form(
-              key: _formKey,
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (index) => setState(() => _currentStep = index),
-                children: [
-                  _buildDepartmentSelectionStep(),
-                  _buildAttachmentsStep(),
-                  _buildDetailsStep(),
-                  _buildReviewStep(),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getStepTitle() {
-    switch (_currentStep) {
-      case 0:
-        return 'Campus & Department';
-      case 1:
-        return 'Receipts';
-      case 2:
-        return 'Details & Summary';
-      case 3:
-        return 'Review & Submit';
-      default:
-        return '';
+    if (_isLoadingLookups) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('New reimbursement')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
-  }
 
-  Widget _buildDetailsStep() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Add context (optional)',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldLeave = await _confirmLeaveIfNeeded();
+        if (shouldLeave && context.mounted) {
+          NavigationUtils.safeGoBack(
+            context,
+            fallbackRoute: '/explore/expenses',
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            _draftExpenseId == null
+                ? 'New reimbursement'
+                : 'Draft reimbursement',
           ),
-          const SizedBox(height: 12),
-          CheckboxListTile(
-            value: widget.eventName != null,
-            onChanged: (_) {},
-            title: const Text('Relates to an event'),
-            subtitle: widget.eventName != null
-                ? Text(widget.eventName!)
-                : const Text('No event selected'),
-            controlAffinity: ListTileControlAffinity.leading,
-          ),
-
-          const SizedBox(height: 16),
-          if (_useAi)
-            TextFormField(
-              controller: _overallDescriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Overall description (AI-generated, editable)',
-              ),
-              maxLines: 4,
-            )
-          else
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Overall description',
-                hintText: 'Describe briefly what the expense is for',
-              ),
-              maxLines: 4,
-            ),
-
-          const SizedBox(height: 24),
-          PrimaryButton(enabled: true, label: 'Continue', onPressed: _nextStep),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDepartmentSelectionStep() {
-    final favoritesList = _departments
-        .where((d) => _favoriteDepartmentIds.contains(d['id']))
-        .toList();
-    final othersList = _departments
-        .where((d) => !_favoriteDepartmentIds.contains(d['id']))
-        .toList();
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Campus and department',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose your campus and the department responsible for this expense',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
-
-          // Campus selector (from database)
-          DropdownButtonFormField<String>(
-            value: _selectedCampusId,
-            decoration: const InputDecoration(
-              labelText: 'Campus',
-              prefixIcon: Icon(Icons.location_city),
-            ),
-            items: _campuses
-                .map(
-                  (c) =>
-                      DropdownMenuItem(value: c['id'], child: Text(c['name']!)),
-                )
-                .toList(),
-            onChanged: (value) async {
-              setState(() {
-                _selectedCampusId = value;
-                _selectedCampusName = _campuses.firstWhere(
-                  (c) => c['id'] == value,
-                )['name'];
-                _selectedDepartmentId = null;
-                _selectedDepartmentName = '';
-              });
-              await _loadDepartments();
-            },
-          ),
-          const SizedBox(height: 16),
-
-          if (favoritesList.isNotEmpty) ...[
-            Text(
-              'Favorites',
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            ...favoritesList.map<Widget>((dept) {
-              final isSelected = _selectedDepartmentId == dept['id'];
-              return _buildDepartmentTile(dept, isSelected);
-            }),
-            const SizedBox(height: 16),
-            Text(
-              'All departments',
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-          ],
-
-          ...(othersList.map<Widget>((dept) {
-            final isSelected = _selectedDepartmentId == dept['id'];
-            return _buildDepartmentTile(dept, isSelected);
-          }).toList()),
-
-          const SizedBox(height: 24),
-
-          PrimaryButton(
-            enabled: _selectedCampusId != null && _selectedDepartmentId != null,
-            label: 'Continue',
-            onPressed: _nextStep,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAttachmentsStep() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Upload receipts and documents',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _isPrepayment
-                ? 'For prepayments, you can upload quotes or estimates'
-                : 'Upload photos or scans of your receipts',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
-
-          // AI toggle
-          SwitchListTile(
-            title: const Text('Use AI to extract details'),
-            subtitle: const Text(
-              'Auto-fill date, amount and description from receipts',
-            ),
-            value: _useAi,
-            onChanged: (value) async {
-              setState(() => _useAi = value);
-              if (value) {
-                await _analyzeAllIfNeeded();
+          leading: IconButton(
+            onPressed: () async {
+              final shouldLeave = await _confirmLeaveIfNeeded();
+              if (shouldLeave && context.mounted) {
+                NavigationUtils.safeGoBack(
+                  context,
+                  fallbackRoute: '/explore/expenses',
+                );
               }
             },
-            contentPadding: EdgeInsets.zero,
+            icon: const Icon(Icons.close),
           ),
-          if (_isAnalyzing) ...[
-            const SizedBox(height: 8),
-            const LinearProgressIndicator(),
-          ],
-
-          // Upload Buttons
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickImageFromCamera,
-                  icon: const Icon(Icons.camera_alt),
-                  label: const Text('Take Photo'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickImageFromGallery,
-                  icon: const Icon(Icons.photo_library),
-                  label: const Text('From Gallery'),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          OutlinedButton.icon(
-            onPressed: _pickDocument,
-            icon: const Icon(Icons.attach_file),
-            label: const Text('Upload Document (PDF)'),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Attached Files List
-          if (_attachedFiles.isNotEmpty) ...[
-            Text(
-              'Attached Files',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          actions: [
+            TextButton.icon(
+              onPressed: _canSaveDraft(user) ? () => _saveDraft(user!) : null,
+              icon: _isSavingDraft
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: const Text('Save draft'),
             ),
-            const SizedBox(height: 12),
-
-            ...(_attachedFiles.asMap().entries.map((entry) {
-              final index = entry.key;
-              final file = entry.value;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: AppColors.gray200,
-                            child: Icon(
-                              _getFileIcon(file.path),
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              file.path.split('/').last,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _attachedFiles.removeAt(index);
-                                if (index < _receiptDrafts.length) {
-                                  _receiptDrafts.removeAt(index);
-                                }
-                              });
-                            },
-                            icon: const Icon(
-                              Icons.delete,
-                              color: AppColors.error,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_useAi) ...[
-                        const SizedBox(height: 8),
-                        _AiFieldsEditor(
-                          key: ValueKey('ai-editor-${file.path}-$index'),
-                          draft: index < _receiptDrafts.length
-                              ? _receiptDrafts[index]
-                              : _ReceiptDraft(),
-                          onChanged: (d) {
-                            if (index >= _receiptDrafts.length) {
-                              _receiptDrafts.add(d);
-                            } else {
-                              _receiptDrafts[index] = d;
-                            }
-                          },
-                          onRetry: () => _analyzeSingle(index),
-                        ),
-                      ] else ...[
-                        const SizedBox(height: 8),
-                        _ManualFieldsEditor(
-                          key: ValueKey('manual-editor-${file.path}-$index'),
-                          initial: index < _receiptDrafts.length
-                              ? _receiptDrafts[index]
-                              : _ReceiptDraft(),
-                          onChanged: (d) {
-                            if (index >= _receiptDrafts.length) {
-                              _receiptDrafts.add(d);
-                            } else {
-                              _receiptDrafts[index] = d;
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _getFileSizeText(file),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            })),
-
-            const SizedBox(height: 24),
+            const SizedBox(width: 8),
           ],
-
-          if (_attachedFiles.isEmpty && !_isPrepayment) ...[
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: AppColors.outline,
-                  style: BorderStyle.solid,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.upload_file,
-                    size: 48,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'No files uploaded yet',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Receipts are required for reimbursement',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          PrimaryButton(
-            enabled: _attachedFiles.isNotEmpty,
-            label: 'Continue',
-            onPressed: _nextStep,
-          ),
-        ],
+        ),
+        body: _hasAssignment
+            ? _buildSplitFlow(user, profileReadiness)
+            : _buildAssignmentGate(user),
       ),
     );
   }
 
-  // Legacy payment step removed (unused)
-
-  Widget _buildReviewStep() {
-    final amount = _receiptDrafts.isNotEmpty
-        ? _receiptDrafts.fold(0.0, (p, e) => p + (e.amount ?? 0.0))
-        : 0.0;
-
-    return SingleChildScrollView(
+  Widget _buildAssignmentGate(dynamic user) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.gray50,
+      alignment: Alignment.center,
       padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Review your expense',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Please review all information before submitting',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: 24),
-
-          // Amount Card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.subtleBlue,
-              borderRadius: BorderRadius.circular(12),
-            ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.subtleBlue,
+                  child: Icon(Icons.apartment, color: AppColors.defaultBlue),
+                ),
+                const SizedBox(height: 20),
                 Text(
-                  'Total Amount',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: AppColors.defaultBlue,
+                  'Choose cost allocation',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'NOK ${amount.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.defaultBlue,
+                  'Select the campus and department responsible for this reimbursement before uploading receipts.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurfaceVariant,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                if (_isPrepayment) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.defaultBlue.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Prepayment Request',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.defaultBlue,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                const SizedBox(height: 24),
+                DropdownButtonFormField<String>(
+                  value: _assignment?.campusId.isNotEmpty == true
+                      ? _assignment!.campusId
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Campus',
+                    prefixIcon: Icon(Icons.location_city),
+                  ),
+                  items: _campuses
+                      .map(
+                        (campus) => DropdownMenuItem(
+                          value: campus['id'],
+                          child: Text(campus['name']!),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (campusId) async {
+                    if (campusId == null) return;
+                    final campus = _campuses.firstWhere(
+                      (item) => item['id'] == campusId,
+                    );
+                    setState(() {
+                      _assignment = ExpenseAssignment(
+                        campusId: campus['id']!,
+                        campusName: campus['name']!,
+                        departmentId: '',
+                        departmentName: '',
+                      );
+                      _departments = [];
+                    });
+                    await _loadDepartments(campusId);
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _assignment?.departmentId.isNotEmpty == true
+                      ? _assignment!.departmentId
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Department',
+                    prefixIcon: Icon(Icons.business),
+                  ),
+                  items: _departments
+                      .map(
+                        (department) => DropdownMenuItem(
+                          value: department['id'],
+                          child: Text(department['name']!),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _assignment == null
+                      ? null
+                      : (departmentId) {
+                          if (departmentId == null) return;
+                          final department = _departments.firstWhere(
+                            (item) => item['id'] == departmentId,
+                          );
+                          final current = _assignment!;
+                          setState(() {
+                            _assignment = ExpenseAssignment(
+                              campusId: current.campusId,
+                              campusName: current.campusName,
+                              departmentId: department['id']!,
+                              departmentName: department['name']!,
+                            );
+                          });
+                          _maybeGenerateSummary();
+                        },
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _hasAssignment ? () => setState(() {}) : null,
+                  icon: const Icon(Icons.arrow_forward),
+                  label: const Text('Continue'),
+                ),
+                if (_flowError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _flowError!,
+                    style: const TextStyle(color: AppColors.error),
                   ),
                 ],
               ],
             ),
           ),
-
-          const SizedBox(height: 24),
-
-          // Details Cards
-          _ReviewSection(
-            title: 'Expense Details',
-            children: [
-              TextFormField(
-                controller: _useAi
-                    ? _overallDescriptionController
-                    : _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Overall description',
-                  hintText: 'What was this expense for? (you can edit)',
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 8),
-              _ReviewItem(label: 'Campus', value: _selectedCampusName ?? ''),
-              _ReviewItem(label: 'Department', value: _selectedDepartmentName),
-              if (widget.eventName != null)
-                _ReviewItem(label: 'Event', value: widget.eventName!),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Payment info is implicitly from profile; no manual entry step required
-          const SizedBox(height: 16),
-
-          _ReviewSection(
-            title: 'Attachments',
-            children: [
-              _ReviewItem(
-                label: 'Files',
-                value: '${_attachedFiles.length} file(s) attached',
-              ),
-              if (_receiptDrafts.isNotEmpty)
-                ..._receiptDrafts.asMap().entries.map(
-                  (e) => _ReviewItem(
-                    label:
-                        '• ${e.value.date != null ? _formatDate(e.value.date!) : 'Date'}',
-                    value:
-                        'NOK ${(e.value.amount ?? 0).toStringAsFixed(2)} — ${e.value.description ?? ''}',
-                  ),
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 32),
-
-          // Submit Button
-          ElevatedButton.icon(
-            onPressed: _submitExpense,
-            icon: const Icon(Icons.send),
-            label: Text(
-              _isPrepayment ? 'Request Prepayment' : 'Submit for Approval',
-            ),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          OutlinedButton.icon(
-            onPressed: _saveDraft,
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Save as Draft'),
-          ),
-
-          const SizedBox(height: 12),
-
-          Text(
-            'By submitting, you confirm that all information is accurate and you have appropriate receipts.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppColors.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
-
-  // _formatBankForInput removed (unused)
-
-  IconData _getFileIcon(String path) {
-    if (path.toLowerCase().endsWith('.pdf')) {
-      return Icons.picture_as_pdf;
-    } else if (path.toLowerCase().contains('jpg') ||
-        path.toLowerCase().contains('png') ||
-        path.toLowerCase().contains('jpeg')) {
-      return Icons.image;
-    }
-    return Icons.attach_file;
-  }
-
-  String _getFileSizeText(File file) {
-    final bytes = file.lengthSync();
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-
-  Future<void> _pickImageFromCamera() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera);
-    if (image != null) {
-      setState(() {
-        _attachedFiles.add(File(image.path));
-      });
-      if (_useAi) await _analyzeSingle(_attachedFiles.length - 1);
-    }
-  }
-
-  Future<void> _pickImageFromGallery() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() {
-        _attachedFiles.add(File(image.path));
-      });
-      if (_useAi) await _analyzeSingle(_attachedFiles.length - 1);
-    }
-  }
-
-  Future<void> _pickDocument() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-
-    if (result != null && result.files.isNotEmpty) {
-      final file = File(result.files.first.path!);
-      setState(() {
-        _attachedFiles.add(file);
-      });
-      if (_useAi) await _analyzeSingle(_attachedFiles.length - 1);
-    }
-  }
-
-  Future<void> _loadDepartments() async {
-    if (_selectedCampusId == null) return;
-    try {
-      final list = await _expenseService.listDepartmentsForCampus(
-        _selectedCampusId!,
+  Widget _buildSplitFlow(
+    dynamic user,
+    ExpenseProfileReadiness profileReadiness,
+  ) {
+    final isWide = MediaQuery.sizeOf(context).width >= 820;
+    if (isWide) {
+      return Row(
+        children: [
+          SizedBox(width: 390, child: _buildReceiptWallet()),
+          const VerticalDivider(width: 1),
+          Expanded(child: _buildReportPane(user, profileReadiness)),
+        ],
       );
-      setState(() {
-        _departments = list
-            .map(
-              (e) => {
-                'id': (e['Id'] ?? '').toString(),
-                'name': (e['Name'] ?? '').toString(),
-              },
-            )
-            .where((e) => e['id']!.isNotEmpty && e['name']!.isNotEmpty)
-            .toList();
-      });
-    } catch (_) {}
-  }
-
-  Future<void> _analyzeAllIfNeeded() async {
-    if (!_useAi) return;
-    for (int i = 0; i < _attachedFiles.length; i++) {
-      if (i >= _receiptDrafts.length || _receiptDrafts[i].isEmpty) {
-        await _analyzeSingle(i);
-      }
     }
-    await _refreshOverallSummary();
-  }
 
-  Future<void> _analyzeSingle(int index) async {
-    if (!_useAi) return;
-    if (index < 0 || index >= _attachedFiles.length) return;
-    try {
-      setState(() => _isAnalyzing = true);
-      final file = _attachedFiles[index];
-      final text = await _extractText(file);
-      if (text.trim().isEmpty) {
-        setState(() => _isAnalyzing = false);
-        return;
-      }
-      final result = await _expenseService.analyzeReceiptText(text);
-      final parsed = _ReceiptDraft(
-        amount: _safeDouble(result['amount']),
-        description: (result['description'] ?? '').toString(),
-        date: _safeDate(result['date']),
-      );
-      if (index >= _receiptDrafts.length) {
-        _receiptDrafts.add(parsed);
-      } else {
-        _receiptDrafts[index] = parsed;
-      }
-      setState(() => _isAnalyzing = false);
-      await _refreshOverallSummary();
-    } catch (_) {
-      setState(() => _isAnalyzing = false);
-    }
-  }
-
-  Future<void> _refreshOverallSummary() async {
-    if (!_useAi) return;
-    final descs = _receiptDrafts
-        .map((e) => e.description ?? '')
-        .where((e) => e.isNotEmpty)
-        .toList();
-    if (descs.isEmpty) return;
-    final summary = await _expenseService.summarizeExpenseDescriptions(descs);
-    if (summary.trim().isNotEmpty) {
-      setState(() {
-        _overallDescriptionController.text = summary.trim();
-      });
-    }
-  }
-
-  Future<void> _ensureProfileExistsAndUpToDate() async {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-    final hasProfile = ref.read(hasProfileProvider);
-    final name = _accountHolderController.text.trim().isEmpty
-        ? user.name
-        : _accountHolderController.text.trim();
-    final phone = user.phone;
-    final address = user.address;
-    final city = user.city;
-    final zip = user.zipCode;
-    final campusId = _selectedCampusId ?? user.campusId;
-    final bank = normalizeNorwegianBankAccount(_bankAccountController.text);
-    final effectiveBank = bank.isEmpty
-        ? normalizeNorwegianBankAccount(user.bankAccount ?? '')
-        : bank;
-    try {
-      if (hasProfile) {
-        await ref
-            .read(authServiceProvider)
-            .updateUserProfile(
-              name: name,
-              phone: phone,
-              address: address,
-              city: city,
-              zipCode: zip,
-              campusId: campusId,
-              bankAccount: effectiveBank,
-            );
-      } else {
-        await ref
-            .read(authServiceProvider)
-            .createUserProfile(
-              name: name,
-              phone: phone,
-              address: address,
-              city: city,
-              zipCode: zip,
-              campusId: campusId,
-              departments: const [],
-              bankAccount: effectiveBank,
-            );
-      }
-      await ref.read(authStateProvider.notifier).refreshProfile();
-    } catch (_) {}
-  }
-
-  Future<String> _extractText(File file) async {
-    final lower = file.path.toLowerCase();
-    final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
-    try {
-      if (lower.endsWith('.pdf')) {
-        // 1) Try text layer first (fast, if selectable text exists)
-        try {
-          final bytes = await file.readAsBytes();
-          final document = PdfDocument(inputBytes: bytes);
-          final textExtractor = PdfTextExtractor(document);
-          final extracted = textExtractor.extractText();
-          document.dispose();
-          if (extracted.trim().isNotEmpty) return extracted;
-        } catch (_) {}
-        // 2) Deep OCR fallback: rasterize first pages and run ML Kit
-        try {
-          final bytes = await file.readAsBytes();
-          final buffer = StringBuffer();
-          int processed = 0;
-          await for (final page in Printing.raster(bytes, dpi: 170)) {
-            if (processed >= 3) break; // safety cap
-            final uiImage = await page.toImage();
-            final byteData = await uiImage.toByteData(
-              format: ui.ImageByteFormat.png,
-            );
-            if (byteData != null) {
-              final tmp = File('${file.path}.p$processed.png');
-              await tmp.writeAsBytes(
-                byteData.buffer.asUint8List(),
-                flush: true,
-              );
-              try {
-                final inputImage = InputImage.fromFile(tmp);
-                final text = await recognizer.processImage(inputImage);
-                if (text.text.isNotEmpty) buffer.writeln(text.text);
-              } finally {
-                if (await tmp.exists()) await tmp.delete();
-              }
-            }
-            processed++;
-          }
-          return buffer.toString();
-        } catch (_) {
-          return '';
-        }
-      } else {
-        final inputImage = InputImage.fromFile(file);
-        final text = await recognizer.processImage(inputImage);
-        return text.text;
-      }
-    } catch (_) {
-      return '';
-    } finally {
-      await recognizer.close();
-    }
-  }
-
-  double? _safeDouble(dynamic v) {
-    if (v == null) return null;
-    if (v is num) return v.toDouble();
-    return double.tryParse(v.toString());
-  }
-
-  DateTime? _safeDate(dynamic v) {
-    if (v == null) return null;
-    try {
-      return DateTime.parse(v.toString());
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-class _ReviewSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _ReviewSection({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.gray50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outlineVariant),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(
+                value: 0,
+                label: Text('Receipts'),
+                icon: Icon(Icons.receipt_long),
+              ),
+              ButtonSegment(
+                value: 1,
+                label: Text('Report'),
+                icon: Icon(Icons.description_outlined),
+              ),
+            ],
+            selected: {_mobileTabIndex},
+            onSelectionChanged: (selection) {
+              setState(() => _mobileTabIndex = selection.first);
+            },
           ),
+        ),
+        Expanded(
+          child: _mobileTabIndex == 0
+              ? _buildReceiptWallet()
+              : _buildReportPane(user, profileReadiness),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReceiptWallet() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Receipt wallet',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Upload images or PDFs. OCR runs after upload.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickCameraReceipt(),
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Camera'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickImageReceipt(),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Photo'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => _pickDocumentReceipt(),
+                icon: const Icon(Icons.attach_file),
+                label: const Text('PDF receipt'),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: _receipts.isEmpty
+              ? _buildEmptyWallet()
+              : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _receipts.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final receipt = _receipts[index];
+                    return _ReceiptTile(
+                      receipt: receipt,
+                      isSelected: receipt.localId == _selectedReceiptId,
+                      onTap: () {
+                        setState(() {
+                          _selectedReceiptId = receipt.localId;
+                          _mobileTabIndex = 1;
+                        });
+                      },
+                      onRemove: () => _removeReceipt(receipt.localId),
+                      onRetry: receipt.localPath != null
+                          ? () => _processReceipt(receipt.localId)
+                          : null,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyWallet() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 56,
+              color: AppColors.onSurfaceVariant,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No receipts yet',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Receipts are required before this can be submitted.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportPane(
+    dynamic user,
+    ExpenseProfileReadiness profileReadiness,
+  ) {
+    final selected = _selectedReceipt();
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              if (!profileReadiness.isReady)
+                _WarningBanner(
+                  icon: Icons.warning_amber_rounded,
+                  color: AppColors.orange9,
+                  title: 'Complete your profile',
+                  message:
+                      'Missing: ${profileReadiness.missingFields.join(', ')}',
+                  actionLabel: 'Update',
+                  onAction: () => _showProfileCompletionSheet(user),
+                ),
+              if (_hasBusyReceipts)
+                const _InfoBanner(
+                  icon: Icons.hourglass_top,
+                  color: AppColors.accentBlue,
+                  title: 'Processing receipts',
+                  message:
+                      'Drafts and submissions wait until upload and OCR finish.',
+                ),
+              if (_flowError != null)
+                _WarningBanner(
+                  icon: Icons.error_outline,
+                  color: AppColors.error,
+                  title: 'Expense error',
+                  message: _flowError!,
+                  actionLabel: 'Dismiss',
+                  onAction: () => setState(() => _flowError = null),
+                ),
+              _buildReportDocument(user),
+              const SizedBox(height: 20),
+              if (selected != null)
+                _ReceiptDetailEditor(
+                  receipt: selected,
+                  onChanged: _updateReceipt,
+                  onAddBankStatement:
+                      selected.isForeignCurrency && !selected.isBankStatement
+                      ? () => _pickBankStatement(selected.localId)
+                      : null,
+                ),
+            ],
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _canSaveDraft(user)
+                        ? () => _saveDraft(user!)
+                        : null,
+                    icon: _isSavingDraft
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined),
+                    label: Text(
+                      _draftExpenseId == null ? 'Save draft' : 'Update draft',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _canSubmit(user, profileReadiness)
+                        ? () => _submit(user!)
+                        : null,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                    label: const Text('Submit'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
-}
 
-class _ReviewItem extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _ReviewItem({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildReportDocument(dynamic user) {
+    final assignment = _assignment!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Reimbursement report',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _draftExpenseId == null
+                          ? DateFormat.yMMMd().format(DateTime.now())
+                          : 'Draft $_draftExpenseId',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              Text(
+                'NOK ${_totalAmount.toStringAsFixed(2)}',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppColors.defaultBlue,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _ReportInfoChip(
+                icon: Icons.person_outline,
+                label: user?.name ?? 'Unknown user',
+                value: user?.email ?? '',
+              ),
+              _ReportInfoChip(
+                icon: Icons.account_balance,
+                label: 'Bank account',
+                value: user?.bankAccount == null
+                    ? 'Missing'
+                    : formatNorwegianBankAccount(user!.bankAccount!),
+              ),
+              _ReportInfoChip(
+                icon: Icons.apartment,
+                label: assignment.campusName,
+                value: assignment.departmentName,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _descriptionController,
+            maxLines: 4,
+            decoration: InputDecoration(
+              labelText: _isSummaryLoading
+                  ? 'Generating summary...'
+                  : 'Accounting summary',
+              hintText: 'What was this expense for?',
+              suffixIcon: _isSummaryLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : IconButton(
+                      tooltip: 'Regenerate summary',
+                      onPressed: _hasReadyExpenseReceipts
+                          ? () => _maybeGenerateSummary(force: true)
+                          : null,
+                      icon: const Icon(Icons.auto_awesome),
+                    ),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+          const SizedBox(height: 20),
+          Text(
+            'Receipts',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          if (_readyReceipts.isEmpty)
+            const Text('No ready receipts yet.')
+          else
+            ..._readyReceipts.map(
+              (receipt) => _ReportReceiptRow(receipt: receipt),
             ),
+          const Divider(height: 28),
+          Row(
+            children: [
+              Text('${_readyReceipts.length} file(s)'),
+              const Spacer(),
+              Text(
+                'Total NOK ${_totalAmount.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  Future<void> _pickCameraReceipt() async {
+    final image = await _imagePicker.pickImage(source: ImageSource.camera);
+    if (image != null) await _addFile(File(image.path));
+  }
+
+  Future<void> _pickImageReceipt() async {
+    final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (image != null) await _addFile(File(image.path));
+  }
+
+  Future<void> _pickDocumentReceipt() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: true,
+    );
+    if (result == null) return;
+    for (final picked in result.files) {
+      final path = picked.path;
+      if (path != null) await _addFile(File(path));
+    }
+  }
+
+  Future<void> _pickBankStatement(String parentReceiptId) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.first.path == null) return;
+    await _addFile(
+      File(result.files.first.path!),
+      purpose: 'bank-statement',
+      parentReceiptId: parentReceiptId,
+    );
+  }
+
+  Future<void> _addFile(
+    File file, {
+    String purpose = 'receipt',
+    String? parentReceiptId,
+  }) async {
+    final mimeType = detectExpenseMimeType(file.path);
+    if (!_isSupportedOcrMime(mimeType)) {
+      setState(() {
+        _flowError = 'Unsupported file type for OCR: $mimeType';
+      });
+      return;
+    }
+    if (await file.length() > 10 * 1024 * 1024) {
+      setState(() {
+        _flowError = 'Files must be 10 MB or smaller.';
+      });
+      return;
+    }
+
+    final receipt =
+        ExpenseReceiptDraft.manual(
+          localId: _newLocalId(),
+          fileName: file.uri.pathSegments.last,
+          localPath: file.path,
+          mimeType: mimeType,
+        ).copyWith(
+          documentType: purpose == 'bank-statement'
+              ? 'bank-statement'
+              : 'receipt',
+          parentReceiptId: parentReceiptId,
+        );
+
+    setState(() {
+      _receipts = [..._receipts, receipt];
+      _selectedReceiptId = receipt.localId;
+      _mobileTabIndex = 1;
+    });
+    await _processReceipt(receipt.localId, purpose: purpose);
+  }
+
+  Future<void> _processReceipt(String localId, {String? purpose}) async {
+    final current = _receipts.firstWhere(
+      (receipt) => receipt.localId == localId,
+    );
+    final path = current.localPath;
+    if (path == null) return;
+
+    try {
+      _replaceReceipt(
+        current.copyWith(status: ExpenseReceiptStatus.uploading, error: null),
+      );
+      final upload = await _apiClient.uploadExpenseAttachment(File(path));
+      _replaceReceipt(
+        current
+            .withUpload(upload)
+            .copyWith(status: ExpenseReceiptStatus.processing),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final uploaded = _receipts.firstWhere(
+        (receipt) => receipt.localId == localId,
+      );
+      _replaceReceipt(
+        uploaded.copyWith(status: ExpenseReceiptStatus.analyzing),
+      );
+      final ocr = await _apiClient.runOcr(
+        File(path),
+        purpose: purpose ?? current.documentType,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      final analyzed = _receipts.firstWhere(
+        (receipt) => receipt.localId == localId,
+      );
+      var ready = analyzed.withOcr(ocr);
+      if (current.parentReceiptId != null) {
+        ready = ready.copyWith(
+          documentType: 'bank-statement',
+          parentReceiptId: current.parentReceiptId,
+        );
+      }
+      _replaceReceipt(ready);
+      _applyBankStatementIfNeeded(ready);
+      await _maybeGenerateSummary();
+    } catch (e) {
+      final failed = _receipts.firstWhere(
+        (receipt) => receipt.localId == localId,
+        orElse: () => current,
+      );
+      _replaceReceipt(
+        failed.copyWith(
+          status: ExpenseReceiptStatus.error,
+          error: e.toString(),
+        ),
+      );
+    }
+  }
+
+  void _applyBankStatementIfNeeded(ExpenseReceiptDraft bankStatement) {
+    final parentId = bankStatement.parentReceiptId;
+    if (parentId == null || !bankStatement.isBankStatement) return;
+    final exactAmount = bankStatement.amountInNok ?? bankStatement.amount;
+    if (exactAmount == null || exactAmount <= 0) return;
+    setState(() {
+      _receipts = _receipts.map((receipt) {
+        if (receipt.localId != parentId) return receipt;
+        return receipt.copyWith(
+          amountInNok: exactAmount,
+          hasLinkedBankStatement: true,
+        );
+      }).toList();
+    });
+  }
+
+  Future<void> _maybeGenerateSummary({bool force = false}) async {
+    final assignment = _assignment;
+    if (assignment == null ||
+        !assignment.isComplete ||
+        !_hasReadyExpenseReceipts) {
+      return;
+    }
+    final snapshot = ExpensePayloadBuilder.summarySnapshot(
+      assignment: assignment,
+      receipts: _receipts,
+    );
+    if (!force && snapshot == _lastSummarySnapshot) return;
+
+    setState(() {
+      _isSummaryLoading = true;
+      _lastSummarySnapshot = snapshot;
+    });
+    try {
+      final summary = await _apiClient.summarize(
+        assignment: assignment,
+        receipts: _receipts,
+      );
+      if (mounted && summary.trim().isNotEmpty) {
+        setState(() => _descriptionController.text = summary.trim());
+      }
+    } catch (e) {
+      if (mounted) setState(() => _flowError = 'Summary failed: $e');
+    } finally {
+      if (mounted) setState(() => _isSummaryLoading = false);
+    }
+  }
+
+  bool _canSaveDraft(dynamic user) {
+    return user != null &&
+        _hasAssignment &&
+        !_hasBusyReceipts &&
+        !_isSavingDraft &&
+        !_isSubmitting &&
+        (user.bankAccount ?? '').trim().isNotEmpty;
+  }
+
+  bool _canSubmit(dynamic user, ExpenseProfileReadiness profileReadiness) {
+    return user != null &&
+        profileReadiness.isReady &&
+        _hasAssignment &&
+        !_hasBusyReceipts &&
+        _hasReadyExpenseReceipts &&
+        _descriptionController.text.trim().isNotEmpty &&
+        !_isSavingDraft &&
+        !_isSubmitting;
+  }
+
+  Future<void> _saveDraft(dynamic user) async {
+    final assignment = _assignment;
+    if (assignment == null || user == null) return;
+    setState(() {
+      _isSavingDraft = true;
+      _flowError = null;
+    });
+    try {
+      final payload = ExpensePayloadBuilder.buildBasePayload(
+        expenseId: _draftExpenseId,
+        assignment: assignment,
+        bankAccount: user.bankAccount ?? '',
+        description: _descriptionController.text.trim(),
+        receipts: _receipts,
+        eventName: _eventController.text.trim(),
+      );
+      final result = await _apiClient.saveDraft(payload);
+      if (!result.success || result.draftId == null) {
+        throw const ExpenseApiException(
+          'Draft save did not return a draft ID.',
+        );
+      }
+      setState(() => _draftExpenseId = result.draftId);
+      ref.read(expensesStateProvider.notifier).refresh();
+      _showSnack('Draft saved');
+    } catch (e) {
+      setState(() => _flowError = 'Failed to save draft: $e');
+    } finally {
+      if (mounted) setState(() => _isSavingDraft = false);
+    }
+  }
+
+  Future<void> _submit(dynamic user) async {
+    final assignment = _assignment;
+    if (assignment == null || user == null) return;
+    setState(() {
+      _isSubmitting = true;
+      _flowError = null;
+    });
+    try {
+      final payload = ExpensePayloadBuilder.buildBasePayload(
+        expenseId: _draftExpenseId,
+        assignment: assignment,
+        bankAccount: user.bankAccount ?? '',
+        description: _descriptionController.text.trim(),
+        receipts: _receipts,
+        eventName: _eventController.text.trim(),
+      );
+      final result = await _apiClient.submit(payload);
+      await ref.read(expensesStateProvider.notifier).refresh();
+      if (!mounted) return;
+      _showSnack('Expense submitted');
+      final expense = result.expense;
+      if (expense != null) {
+        Navigator.of(context).pop(expense);
+      } else {
+        context.go('/explore/expenses');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _flowError = 'Failed to submit: $e');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _showProfileCompletionSheet(dynamic user) async {
+    if (user == null) return;
+    final nameController = TextEditingController(text: user.name);
+    final phoneController = TextEditingController(text: user.phone ?? '');
+    final bankController = TextEditingController(
+      text: formatNorwegianBankAccount(user.bankAccount ?? ''),
+    );
+    final addressController = TextEditingController(text: user.address ?? '');
+    final zipController = TextEditingController(text: user.zipCode ?? '');
+    final cityController = TextEditingController(text: user.city ?? '');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Complete profile',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(labelText: 'Phone'),
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: bankController,
+                  decoration: const InputDecoration(labelText: 'Bank account'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(labelText: 'Address'),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: zipController,
+                        decoration: const InputDecoration(labelText: 'Zip'),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: cityController,
+                        decoration: const InputDecoration(labelText: 'City'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                ElevatedButton(
+                  onPressed: () async {
+                    final bank = normalizeNorwegianBankAccount(
+                      bankController.text,
+                    );
+                    final bankError = validateNorwegianBankAccount(bank);
+                    if (bankError != null) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(bankError)));
+                      return;
+                    }
+                    await ref
+                        .read(authServiceProvider)
+                        .updateUserProfile(
+                          name: nameController.text.trim(),
+                          phone: phoneController.text.trim(),
+                          bankAccount: bank,
+                          address: addressController.text.trim(),
+                          zipCode: zipController.text.trim(),
+                          city: cityController.text.trim(),
+                          campusId: _assignment?.campusId ?? user.campusId,
+                        );
+                    await ref.read(authStateProvider.notifier).refreshProfile();
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
+                  child: const Text('Save profile'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    nameController.dispose();
+    phoneController.dispose();
+    bankController.dispose();
+    addressController.dispose();
+    zipController.dispose();
+    cityController.dispose();
+  }
+
+  Future<bool> _confirmLeaveIfNeeded() async {
+    if (_receipts.isEmpty && _draftExpenseId == null) return true;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Leave reimbursement?'),
+            content: const Text(
+              'Save your draft before leaving if you want to continue later.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Stay'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Leave'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  void _replaceReceipt(ExpenseReceiptDraft updated) {
+    if (!mounted) return;
+    setState(() {
+      _receipts = _receipts
+          .map(
+            (receipt) => receipt.localId == updated.localId ? updated : receipt,
+          )
+          .toList();
+    });
+  }
+
+  void _updateReceipt(ExpenseReceiptDraft updated) {
+    _replaceReceipt(updated.copyWith(status: ExpenseReceiptStatus.ready));
+    _maybeGenerateSummary(force: true);
+  }
+
+  void _removeReceipt(String localId) {
+    setState(() {
+      _receipts = _receipts
+          .where(
+            (receipt) =>
+                receipt.localId != localId &&
+                receipt.parentReceiptId != localId,
+          )
+          .toList();
+      _selectedReceiptId = _receipts.isEmpty ? null : _receipts.first.localId;
+    });
+    _maybeGenerateSummary(force: true);
+  }
+
+  ExpenseReceiptDraft? _selectedReceipt() {
+    if (_receipts.isEmpty) return null;
+    if (_selectedReceiptId == null) return _receipts.first;
+    for (final receipt in _receipts) {
+      if (receipt.localId == _selectedReceiptId) return receipt;
+    }
+    return _receipts.first;
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _newLocalId() {
+    return '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(99999)}';
+  }
+
+  bool _isSupportedOcrMime(String mimeType) {
+    return const {
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    }.contains(mimeType);
+  }
+
+  String _normalizeAttachmentType(String type) {
+    if (type.contains('/')) return type;
+    switch (type.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      default:
+        return type.isEmpty ? 'application/octet-stream' : type;
+    }
+  }
+
+  String? _extractAppwriteFileId(String value) {
+    if (value.isEmpty) return null;
+    if (!value.startsWith('http')) return value;
+    final match = RegExp(r'/files/([^/]+)/').firstMatch(value);
+    return match?.group(1);
+  }
 }
 
-// _BankAccountFormatter removed (unused)
+class _ReceiptTile extends StatelessWidget {
+  final ExpenseReceiptDraft receipt;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+  final VoidCallback? onRetry;
 
-class _ReceiptDraft {
-  final double? amount;
-  final String? description;
-  final DateTime? date;
-
-  _ReceiptDraft({this.amount, this.description, this.date});
-
-  bool get isEmpty =>
-      (amount == null || amount == 0) &&
-      (description == null || description!.isEmpty) &&
-      date == null;
-}
-
-class _ManualFieldsEditor extends StatefulWidget {
-  final _ReceiptDraft initial;
-  final void Function(_ReceiptDraft) onChanged;
-
-  const _ManualFieldsEditor({
-    super.key,
-    required this.initial,
-    required this.onChanged,
+  const _ReceiptTile({
+    required this.receipt,
+    required this.isSelected,
+    required this.onTap,
+    required this.onRemove,
+    this.onRetry,
   });
 
   @override
-  State<_ManualFieldsEditor> createState() => _ManualFieldsEditorState();
+  Widget build(BuildContext context) {
+    final color = _statusColor(receipt.status);
+    return Card(
+      color: isSelected ? AppColors.subtleBlue : null,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: color.withValues(alpha: 0.12),
+                    child: Icon(_fileIcon(receipt), color: color, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          receipt.vendor?.isNotEmpty == true
+                              ? receipt.vendor!
+                              : receipt.fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          _statusLabel(receipt),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (receipt.status == ExpenseReceiptStatus.error &&
+                      onRetry != null)
+                    IconButton(
+                      tooltip: 'Retry',
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  IconButton(
+                    tooltip: 'Remove',
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
+              ),
+              if (receipt.isBusy) ...[
+                const SizedBox(height: 10),
+                LinearProgressIndicator(color: color),
+              ],
+              if (receipt.hasEstimatedNok) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Estimated NOK amount. Add bank statement for exact verification.',
+                  style: TextStyle(color: AppColors.orange9, fontSize: 12),
+                ),
+              ],
+              if (receipt.hasLinkedBankStatement) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Bank statement attached',
+                  style: TextStyle(color: AppColors.success, fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static IconData _fileIcon(ExpenseReceiptDraft receipt) {
+    if (receipt.mimeType == 'application/pdf') return Icons.picture_as_pdf;
+    if (receipt.isBankStatement) return Icons.account_balance_wallet_outlined;
+    return Icons.image_outlined;
+  }
+
+  static String _statusLabel(ExpenseReceiptDraft receipt) {
+    if (receipt.error != null) return receipt.error!;
+    switch (receipt.status) {
+      case ExpenseReceiptStatus.uploading:
+        return 'Uploading';
+      case ExpenseReceiptStatus.processing:
+        return 'Processing';
+      case ExpenseReceiptStatus.analyzing:
+        return 'Analyzing receipt';
+      case ExpenseReceiptStatus.ready:
+        return receipt.isBankStatement
+            ? 'Bank statement'
+            : 'NOK ${receipt.effectiveAmount.toStringAsFixed(2)}';
+      case ExpenseReceiptStatus.error:
+        return 'Could not process receipt';
+      case ExpenseReceiptStatus.editing:
+        return 'Editing';
+    }
+  }
+
+  static Color _statusColor(ExpenseReceiptStatus status) {
+    switch (status) {
+      case ExpenseReceiptStatus.ready:
+        return AppColors.success;
+      case ExpenseReceiptStatus.error:
+        return AppColors.error;
+      case ExpenseReceiptStatus.analyzing:
+      case ExpenseReceiptStatus.processing:
+      case ExpenseReceiptStatus.uploading:
+      case ExpenseReceiptStatus.editing:
+        return AppColors.accentBlue;
+    }
+  }
 }
 
-class _ManualFieldsEditorState extends State<_ManualFieldsEditor> {
-  late final TextEditingController _amountController;
-  late final TextEditingController _descriptionController;
+class _ReceiptDetailEditor extends StatefulWidget {
+  final ExpenseReceiptDraft receipt;
+  final ValueChanged<ExpenseReceiptDraft> onChanged;
+  final VoidCallback? onAddBankStatement;
+
+  const _ReceiptDetailEditor({
+    required this.receipt,
+    required this.onChanged,
+    this.onAddBankStatement,
+  });
+
+  @override
+  State<_ReceiptDetailEditor> createState() => _ReceiptDetailEditorState();
+}
+
+class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
+  late TextEditingController _vendorController;
+  late TextEditingController _amountController;
+  late TextEditingController _descriptionController;
   DateTime? _date;
 
   @override
   void initState() {
     super.initState();
-    _amountController = TextEditingController(
-      text: widget.initial.amount?.toStringAsFixed(2) ?? '',
-    );
-    _descriptionController = TextEditingController(
-      text: widget.initial.description ?? '',
-    );
-    _date = widget.initial.date;
+    _initControllers();
   }
 
   @override
-  void didUpdateWidget(covariant _ManualFieldsEditor oldWidget) {
+  void didUpdateWidget(covariant _ReceiptDetailEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final newAmount = widget.initial.amount != null
-        ? widget.initial.amount!.toStringAsFixed(2)
-        : '';
-    if (_amountController.text != newAmount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _amountController.value = TextEditingValue(
-          text: newAmount,
-          selection: TextSelection.collapsed(offset: newAmount.length),
-        );
-      });
-    }
-    final newDesc = widget.initial.description ?? '';
-    if (_descriptionController.text != newDesc) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _descriptionController.value = TextEditingValue(
-          text: newDesc,
-          selection: TextSelection.collapsed(offset: newDesc.length),
-        );
-      });
-    }
-    _date = widget.initial.date ?? _date;
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dateText = _date != null
-        ? '${_date!.day}/${_date!.month}/${_date!.year}'
-        : '';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _amountController,
-                decoration: const InputDecoration(labelText: 'Amount (NOK)'),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                textDirection: TextDirection.ltr,
-                onChanged: (v) => widget.onChanged(
-                  _ReceiptDraft(
-                    amount: double.tryParse(v),
-                    description: _descriptionController.text,
-                    date: _date,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: InkWell(
-                onTap: () async {
-                  final now = DateTime.now();
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _date ?? now,
-                    firstDate: now.subtract(const Duration(days: 365 * 3)),
-                    lastDate: now,
-                  );
-                  if (picked != null) {
-                    setState(() => _date = picked);
-                    widget.onChanged(
-                      _ReceiptDraft(
-                        amount: double.tryParse(_amountController.text),
-                        description: _descriptionController.text,
-                        date: picked,
-                      ),
-                    );
-                  }
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Date'),
-                  child: Text(dateText.isEmpty ? 'Select' : dateText),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _descriptionController,
-          decoration: const InputDecoration(labelText: 'Description'),
-          textDirection: TextDirection.ltr,
-          onChanged: (v) => widget.onChanged(
-            _ReceiptDraft(
-              amount: double.tryParse(_amountController.text),
-              description: v,
-              date: _date,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AiFieldsEditor extends StatefulWidget {
-  final _ReceiptDraft draft;
-  final void Function(_ReceiptDraft) onChanged;
-  final Future<void> Function() onRetry;
-
-  const _AiFieldsEditor({
-    super.key,
-    required this.draft,
-    required this.onChanged,
-    required this.onRetry,
-  });
-
-  @override
-  State<_AiFieldsEditor> createState() => _AiFieldsEditorState();
-}
-
-class _AiFieldsEditorState extends State<_AiFieldsEditor> {
-  late final TextEditingController _amountController;
-  late final TextEditingController _descriptionController;
-
-  @override
-  void initState() {
-    super.initState();
-    _amountController = TextEditingController(
-      text: widget.draft.amount?.toStringAsFixed(2) ?? '',
-    );
-    _descriptionController = TextEditingController(
-      text: widget.draft.description ?? '',
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant _AiFieldsEditor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final newAmountText = widget.draft.amount != null
-        ? widget.draft.amount!.toStringAsFixed(2)
-        : '';
-    if (_amountController.text != newAmountText) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _amountController.value = TextEditingValue(
-          text: newAmountText,
-          selection: TextSelection.collapsed(offset: newAmountText.length),
-        );
-      });
-    }
-    final newDescText = widget.draft.description ?? '';
-    if (_descriptionController.text != newDescText) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _descriptionController.value = TextEditingValue(
-          text: newDescText,
-          selection: TextSelection.collapsed(offset: newDescText.length),
-        );
-      });
+    if (oldWidget.receipt.localId != widget.receipt.localId) {
+      _disposeControllers();
+      _initControllers();
     }
   }
 
   @override
   void dispose() {
-    _amountController.dispose();
-    _descriptionController.dispose();
+    _disposeControllers();
     super.dispose();
   }
 
+  void _initControllers() {
+    _vendorController = TextEditingController(
+      text: widget.receipt.vendor ?? '',
+    );
+    _amountController = TextEditingController(
+      text: widget.receipt.effectiveAmount == 0
+          ? ''
+          : widget.receipt.effectiveAmount.toStringAsFixed(2),
+    );
+    _descriptionController = TextEditingController(
+      text: widget.receipt.description,
+    );
+    _date = widget.receipt.date;
+  }
+
+  void _disposeControllers() {
+    _vendorController.dispose();
+    _amountController.dispose();
+    _descriptionController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateText = widget.draft.date != null
-        ? '${widget.draft.date!.day}/${widget.draft.date!.month}/${widget.draft.date!.year}'
-        : '';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    final receipt = widget.receipt;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: TextFormField(
-                controller: _amountController,
-                decoration: const InputDecoration(labelText: 'Amount (NOK)'),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                textDirection: TextDirection.ltr,
-                onChanged: (v) => widget.onChanged(
-                  _ReceiptDraft(
-                    amount: double.tryParse(v),
-                    description: _descriptionController.text,
-                    date: widget.draft.date,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: InkWell(
-                onTap: () async {
-                  final now = DateTime.now();
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: widget.draft.date ?? now,
-                    firstDate: now.subtract(const Duration(days: 365 * 3)),
-                    lastDate: now,
-                  );
-                  if (picked != null) {
-                    widget.onChanged(
-                      _ReceiptDraft(
-                        amount: double.tryParse(_amountController.text),
-                        description: _descriptionController.text,
-                        date: picked,
-                      ),
-                    );
-                  }
-                },
-                child: InputDecorator(
-                  decoration: const InputDecoration(labelText: 'Date'),
-                  child: Text(dateText.isEmpty ? 'Select' : dateText),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _descriptionController,
-          decoration: const InputDecoration(labelText: 'Description'),
-          textDirection: TextDirection.ltr,
-          onChanged: (v) => widget.onChanged(
-            _ReceiptDraft(
-              amount: double.tryParse(_amountController.text),
-              description: v,
-              date: widget.draft.date,
-            ),
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: widget.onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Re-run AI'),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PrimaryButtonPainter extends CustomPainter {
-  final Color color;
-  _PrimaryButtonPainter(this.color);
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(14),
-    );
-    final paint = Paint()
-      ..shader = LinearGradient(
-        colors: [color.withValues(alpha: 0.95), color.withValues(alpha: 0.85)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(r.outerRect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-    canvas.drawRRect(r, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PrimaryButtonPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-class PrimaryButton extends StatelessWidget {
-  final bool enabled;
-  final String label;
-  final VoidCallback? onPressed;
-  final IconData? icon;
-  const PrimaryButton({
-    super.key,
-    this.enabled = true,
-    required this.label,
-    this.onPressed,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final Color base = enabled ? AppColors.defaultBlue : AppColors.gray200;
-    return GestureDetector(
-      onTap: enabled ? onPressed : null,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: enabled ? 1 : 0.6,
-        child: CustomPaint(
-          painter: _PrimaryButtonPainter(base),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
+            Row(
               children: [
-                if (icon != null) ...[
-                  Icon(icon, color: Colors.white),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    receipt.isBankStatement
+                        ? 'Bank statement'
+                        : 'Receipt detail',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Chip(
+                  avatar: const Icon(Icons.auto_awesome, size: 16),
+                  label: Text(
+                    receipt.isBusy ? 'Analyzing receipt...' : 'AI Extracted',
                   ),
                 ),
               ],
             ),
-          ),
+            const SizedBox(height: 16),
+            _buildPreview(receipt),
+            const SizedBox(height: 16),
+            if (receipt.hasEstimatedNok)
+              _WarningBanner(
+                icon: Icons.currency_exchange,
+                color: AppColors.orange9,
+                title: 'Estimated exchange rate',
+                message:
+                    '${receipt.originalForeignAmount ?? receipt.currency} was converted using historical rates.',
+                actionLabel: 'Add bank statement',
+                onAction: widget.onAddBankStatement,
+              ),
+            if (receipt.hasLinkedBankStatement)
+              const _InfoBanner(
+                icon: Icons.verified_outlined,
+                color: AppColors.success,
+                title: 'Verified NOK amount',
+                message: 'A bank statement is linked to this receipt.',
+              ),
+            TextField(
+              controller: _vendorController,
+              decoration: const InputDecoration(
+                labelText: 'Vendor',
+                prefixIcon: Icon(Icons.storefront),
+              ),
+              onChanged: (_) => _emit(),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(
+                      labelText: 'Amount in NOK',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (_) => _emit(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final now = DateTime.now();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _date ?? now,
+                        firstDate: now.subtract(const Duration(days: 365 * 5)),
+                        lastDate: now.add(const Duration(days: 1)),
+                      );
+                      if (picked != null) {
+                        setState(() => _date = picked);
+                        _emit();
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Date',
+                        prefixIcon: Icon(Icons.calendar_today_outlined),
+                      ),
+                      child: Text(
+                        _date == null
+                            ? 'Select'
+                            : DateFormat.yMMMd().format(_date!),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                prefixIcon: Icon(Icons.notes_outlined),
+              ),
+              maxLines: 2,
+              onChanged: (_) => _emit(),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPreview(ExpenseReceiptDraft receipt) {
+    if (receipt.mimeType == 'application/pdf') {
+      return Container(
+        height: 180,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.gray100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.picture_as_pdf, size: 42),
+            SizedBox(height: 8),
+            Text('No preview available'),
+          ],
+        ),
+      );
+    }
+    final path = receipt.localPath;
+    if (path != null) {
+      return AspectRatio(
+        aspectRatio: 3 / 4,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.file(File(path), fit: BoxFit.cover),
+        ),
+      );
+    }
+    final viewUrl = receipt.viewUrl;
+    if (viewUrl != null) {
+      return AspectRatio(
+        aspectRatio: 3 / 4,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.network(viewUrl, fit: BoxFit.cover),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  void _emit() {
+    final amount = double.tryParse(_amountController.text.replaceAll(',', '.'));
+    widget.onChanged(
+      widget.receipt.copyWith(
+        vendor: _vendorController.text.trim(),
+        amountInNok: amount,
+        date: _date,
+        description: _descriptionController.text.trim(),
+        status: ExpenseReceiptStatus.ready,
       ),
     );
   }
 }
 
-class _PremiumHeader extends StatelessWidget {
-  final int step;
-  final int totalSteps;
-  final VoidCallback? onBack;
-  final VoidCallback onClose;
-  final String title;
-  const _PremiumHeader({
-    required this.step,
-    required this.totalSteps,
-    required this.onBack,
-    required this.onClose,
-    required this.title,
+class _ReportInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _ReportInfoChip({
+    required this.icon,
+    required this.label,
+    required this.value,
   });
 
   @override
   Widget build(BuildContext context) {
-    final progress = (step + 1) / totalSteps;
     return Container(
-      padding: const EdgeInsets.only(top: 48, left: 16, right: 16, bottom: 12),
+      constraints: const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.subtleBlue, Colors.white],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
+        color: AppColors.gray50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outlineVariant),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              if (onBack != null)
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                  onPressed: onBack,
-                ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: onClose,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: AppColors.gray200,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.defaultBlue),
+          Icon(icon, size: 20, color: AppColors.defaultBlue),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (value.isNotEmpty)
+                  Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ReportReceiptRow extends StatelessWidget {
+  final ExpenseReceiptDraft receipt;
+
+  const _ReportReceiptRow({required this.receipt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(
+            receipt.isBankStatement
+                ? Icons.account_balance_wallet_outlined
+                : Icons.receipt_long,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              receipt.description.isNotEmpty
+                  ? receipt.description
+                  : receipt.fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text('NOK ${receipt.effectiveAmount.toStringAsFixed(2)}'),
+        ],
+      ),
+    );
+  }
+}
+
+class _WarningBanner extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const _WarningBanner({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                Text(message),
+              ],
+            ),
+          ),
+          if (actionLabel != null && onAction != null)
+            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String message;
+
+  const _InfoBanner({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _WarningBanner(
+      icon: icon,
+      color: color,
+      title: title,
+      message: message,
     );
   }
 }

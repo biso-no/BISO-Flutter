@@ -382,11 +382,16 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     );
   }
 
-  void _startNewExpense(BuildContext context) {
-    Navigator.push(
+  Future<void> _startNewExpense(BuildContext context) async {
+    final result = await Navigator.push<ExpenseModel>(
       context,
       MaterialPageRoute(builder: (context) => const CreateExpenseScreen()),
     );
+    if (!mounted) return;
+    await ref.read(expensesStateProvider.notifier).refresh();
+    if (result != null && context.mounted) {
+      _showExpenseDetails(context, result);
+    }
   }
 }
 
@@ -860,7 +865,10 @@ class _ExpenseDetailSheet extends ConsumerWidget {
                             if (url == null || url.isEmpty) return;
                             final uri = Uri.parse(url);
                             if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
                             }
                           },
                           icon: const Icon(Icons.open_in_new),
@@ -913,44 +921,43 @@ class _ExpenseDetailSheet extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
+                          onPressed: () async {
                             Navigator.pop(context);
-                            // Navigate to create/edit screen; editing can be implemented there later
-                            Navigator.push(
+                            final result = await Navigator.push<ExpenseModel>(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const CreateExpenseScreen(),
+                                builder: (context) => CreateExpenseScreen(
+                                  draftExpense: expense,
+                                  eventName: expense.eventName,
+                                ),
                               ),
                             );
+                            await ref
+                                .read(expensesStateProvider.notifier)
+                                .refresh();
+                            if (context.mounted && result != null) {
+                              _showSubmittedSnack(context);
+                            }
                           },
                           icon: const Icon(Icons.edit),
-                          label: const Text('Edit'),
+                          label: const Text('Continue editing'),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: expense.canSubmit
-                              ? () async {
-                                  // Update status to pending and refresh list
-                                  await ref
-                                      .read(expensesStateProvider.notifier)
-                                      .updateExpense(
-                                        expenseId: expense.id,
-                                        status: 'pending',
-                                      );
-                                  if (context.mounted) {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Expense submitted'),
-                                      ),
-                                    );
-                                  }
-                                }
-                              : null,
-                          icon: const Icon(Icons.send),
-                          label: const Text('Submit'),
+                          onPressed: () async {
+                            final deleted = await _confirmDeleteDraft(
+                              context,
+                              ref,
+                              expense.id,
+                            );
+                            if (deleted && context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Delete draft'),
                         ),
                       ),
                     ],
@@ -990,6 +997,42 @@ class _ExpenseDetailSheet extends ConsumerWidget {
       return Icons.image;
     }
     return Icons.attach_file;
+  }
+
+  void _showSubmittedSnack(BuildContext context) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Expense submitted')));
+  }
+
+  Future<bool> _confirmDeleteDraft(
+    BuildContext context,
+    WidgetRef ref,
+    String expenseId,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete draft?'),
+            content: const Text(
+              'This draft will be removed from your expenses.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return false;
+    return ref.read(expensesStateProvider.notifier).deleteExpense(expenseId);
   }
 }
 
