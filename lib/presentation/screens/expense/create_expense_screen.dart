@@ -477,31 +477,82 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         Expanded(
           child: _receipts.isEmpty
               ? _buildEmptyWallet()
-              : ListView.separated(
+              : ListView(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _receipts.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final receipt = _receipts[index];
-                    return _ReceiptTile(
-                      receipt: receipt,
-                      isSelected: receipt.localId == _selectedReceiptId,
-                      onTap: () {
-                        setState(() {
-                          _selectedReceiptId = receipt.localId;
-                          _mobileTabIndex = 1;
-                        });
-                      },
-                      onRemove: () => _removeReceipt(receipt.localId),
-                      onRetry: receipt.localPath != null
-                          ? () => _processReceipt(receipt.localId)
-                          : null,
-                    );
-                  },
+                  children: _buildGroupedReceiptTiles(),
                 ),
         ),
       ],
     );
+  }
+
+  List<Widget> _buildGroupedReceiptTiles() {
+    final topLevel =
+        _receipts.where((r) => r.parentReceiptId == null).toList();
+    final widgets = <Widget>[];
+    for (final receipt in topLevel) {
+      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 10));
+      widgets.add(
+        _ReceiptTile(
+          receipt: receipt,
+          isSelected: receipt.localId == _selectedReceiptId,
+          onTap: () => setState(() {
+            _selectedReceiptId = receipt.localId;
+            _mobileTabIndex = 1;
+          }),
+          onRemove: () => _removeReceipt(receipt.localId),
+          onRetry: receipt.localPath != null
+              ? () => _processReceipt(receipt.localId)
+              : null,
+        ),
+      );
+      final children = _receipts
+          .where((r) => r.parentReceiptId == receipt.localId)
+          .toList();
+      for (final child in children) {
+        widgets.add(const SizedBox(height: 6));
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  children: [
+                    Container(
+                      width: 2,
+                      height: 20,
+                      color: AppColors.outlineVariant,
+                    ),
+                    Container(
+                      width: 10,
+                      height: 2,
+                      color: AppColors.outlineVariant,
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _ReceiptTile(
+                    receipt: child,
+                    isSelected: child.localId == _selectedReceiptId,
+                    onTap: () => setState(() {
+                      _selectedReceiptId = child.localId;
+                      _mobileTabIndex = 1;
+                    }),
+                    onRemove: () => _removeReceipt(child.localId),
+                    onRetry: child.localPath != null
+                        ? () => _processReceipt(child.localId)
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    return widgets;
   }
 
   Widget _buildEmptyWallet() {
@@ -1301,10 +1352,7 @@ class _ReceiptTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: color.withValues(alpha: 0.12),
-                    child: Icon(_fileIcon(receipt), color: color, size: 20),
-                  ),
+                  _buildReceiptLeading(receipt, color),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1364,6 +1412,42 @@ class _ReceiptTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  static Widget _buildReceiptLeading(ExpenseReceiptDraft receipt, Color color) {
+    final isPdf = receipt.mimeType == 'application/pdf';
+    final path = receipt.localPath;
+    if (!isPdf && path != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Image.file(
+          File(path),
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+    final url = receipt.viewUrl;
+    if (!isPdf && url != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Image.network(
+          url,
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => CircleAvatar(
+            backgroundColor: color.withValues(alpha: 0.12),
+            child: Icon(_fileIcon(receipt), color: color, size: 20),
+          ),
+        ),
+      );
+    }
+    return CircleAvatar(
+      backgroundColor: color.withValues(alpha: 0.12),
+      child: Icon(_fileIcon(receipt), color: color, size: 20),
     );
   }
 

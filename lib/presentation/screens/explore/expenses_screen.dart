@@ -20,6 +20,9 @@ class ExpensesScreen extends ConsumerStatefulWidget {
 
 class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   String _selectedStatus = 'all';
+  bool _showSearch = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   final List<String> _statusFilters = [
     'all',
@@ -29,6 +32,12 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     'success',
     'rejected',
   ];
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,9 +51,20 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       );
     }
     final expensesState = ref.watch(expensesStateProvider);
-    final filteredExpenses = ref.watch(
+    final filteredByStatus = ref.watch(
       filteredExpensesProvider(_selectedStatus),
     );
+    final filteredExpenses = _searchQuery.isEmpty
+        ? filteredByStatus
+        : filteredByStatus
+            .where(
+              (e) =>
+                  (e.description ?? '')
+                      .toLowerCase()
+                      .contains(_searchQuery) ||
+                  e.displayDepartment.toLowerCase().contains(_searchQuery),
+            )
+            .toList();
 
     // Show loading state
     if (expensesState.isLoading && expensesState.expenses.isEmpty) {
@@ -115,26 +135,54 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.expensesMessage),
+        title: _showSearch
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search expenses...',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) =>
+                    setState(() => _searchQuery = value.toLowerCase().trim()),
+              )
+            : Text(l10n.expensesMessage),
         leading: IconButton(
           onPressed: () {
-            // Navigate back to home screen (explore tab)
+            if (_showSearch) {
+              setState(() {
+                _showSearch = false;
+                _searchQuery = '';
+                _searchController.clear();
+              });
+              return;
+            }
             if (context.canPop()) {
               context.pop();
             } else {
               context.go('/home');
             }
           },
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(_showSearch ? Icons.close : Icons.arrow_back),
         ),
         actions: [
+          if (!_showSearch)
+            IconButton(
+              onPressed: () {
+                ref.read(expensesStateProvider.notifier).refresh();
+              },
+              icon: const Icon(Icons.refresh),
+            ),
           IconButton(
-            onPressed: () {
-              ref.read(expensesStateProvider.notifier).refresh();
-            },
-            icon: const Icon(Icons.refresh),
+            onPressed: () => setState(() {
+              _showSearch = !_showSearch;
+              if (!_showSearch) {
+                _searchQuery = '';
+                _searchController.clear();
+              }
+            }),
+            icon: Icon(_showSearch ? Icons.search_off : Icons.search),
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'history') {
@@ -922,6 +970,8 @@ class _ExpenseDetailSheet extends ConsumerWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
+                            final notifier =
+                                ref.read(expensesStateProvider.notifier);
                             Navigator.pop(context);
                             final result = await Navigator.push<ExpenseModel>(
                               context,
@@ -932,9 +982,7 @@ class _ExpenseDetailSheet extends ConsumerWidget {
                                 ),
                               ),
                             );
-                            await ref
-                                .read(expensesStateProvider.notifier)
-                                .refresh();
+                            await notifier.refresh();
                             if (context.mounted && result != null) {
                               _showSubmittedSnack(context);
                             }
@@ -1010,6 +1058,7 @@ class _ExpenseDetailSheet extends ConsumerWidget {
     WidgetRef ref,
     String expenseId,
   ) async {
+    final notifier = ref.read(expensesStateProvider.notifier);
     final confirmed =
         await showDialog<bool>(
           context: context,
@@ -1032,7 +1081,7 @@ class _ExpenseDetailSheet extends ConsumerWidget {
         ) ??
         false;
     if (!confirmed) return false;
-    return ref.read(expensesStateProvider.notifier).deleteExpense(expenseId);
+    return notifier.deleteExpense(expenseId);
   }
 }
 
