@@ -41,6 +41,7 @@ import 'data/models/large_event_model.dart';
 import 'data/services/large_event_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
+import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
 
 // Background message handler for Firebase
@@ -73,6 +74,8 @@ void main() async {
     // Continue app startup even if deep links fail
   }
 
+  await ExpenseIntakeService.instance.initialize();
+
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -84,6 +87,10 @@ void main() async {
   );
 
   runApp(const ProviderScope(child: BisoApp()));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    DeepLinkService().flushPendingLinks();
+    ExpenseIntakeService.instance.handlePendingNativeEntrypoints();
+  });
 }
 
 class BisoApp extends ConsumerWidget {
@@ -244,7 +251,9 @@ final _router = GoRouter(
                 GoRoute(
                   path: '/new',
                   name: 'expense-new',
-                  builder: (context, state) => const CreateExpenseScreen(),
+                  builder: (context, state) => CreateExpenseScreen(
+                    intakeBatchId: state.uri.queryParameters['batch'],
+                  ),
                 ),
               ],
             ),

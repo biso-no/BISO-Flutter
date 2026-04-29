@@ -1,0 +1,10 @@
+<resources>
+    <string name="shortcut_new_expense_short">New reimbursement</string>
+    <string name="shortcut_new_expense_long">Create a reimbursement</string>
+    <string name="shortcut_events_short">Events</string>
+    <string name="shortcut_events_long">Open BI student events</string>
+    <string name="shortcut_marketplace_short">Marketplace</string>
+    <string name="shortcut_marketplace_long">Open BISO marketplace</string>
+    <string name="shortcut_jobs_short">Jobs</string>
+    <string name="shortcut_jobs_long">Open volunteer jobs</string>
+</resources>
