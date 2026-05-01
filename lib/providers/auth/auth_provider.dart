@@ -99,12 +99,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
       if (user != null) {
         await _loadCompleteProfile(user.id);
       } else {
+        // Server confirmed: no valid session exists
         state = state.copyWith(
           user: null,
           isAuthenticated: false,
           isLoading: false,
           hasProfile: false,
           isProfileComplete: false,
+        );
+      }
+    } on NetworkException catch (e) {
+      // Network unavailable — restore from local cache so the user
+      // isn't logged out due to a transient connectivity issue.
+      final cachedUser = await _authService.getCachedSessionUser();
+      if (cachedUser != null) {
+        logPrint('🔐 AuthProvider: Network error, restoring session from cache');
+        state = state.copyWith(
+          user: cachedUser,
+          isAuthenticated: true,
+          isLoading: false,
+          hasProfile: false,
+          isProfileComplete: false,
+          error: e.message,
+        );
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          isAuthenticated: false,
+          error: e.message,
         );
       }
     } catch (e) {
@@ -195,9 +217,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
           hasProfile: false,
           isProfileComplete: false,
         );
+      } else if (e is NetworkException) {
+        // Network error while loading profile — user is still authenticated,
+        // just couldn't fetch full profile details right now.
+        logPrint('🔐 AuthProvider: Network error loading profile: $e');
+        rethrow; // Let _checkAuthState handle via NetworkException branch
       } else {
         logPrint('🔐 AuthProvider: Error loading profile: $e');
-        rethrow;
+        // Keep the user authenticated — a profile fetch error is not a sign-out event.
+        // The basic user object from the session check is sufficient for now.
+        state = state.copyWith(
+          isAuthenticated: true,
+          isLoading: false,
+          hasProfile: false,
+          isProfileComplete: false,
+          error: e.toString(),
+        );
       }
     }
   }
