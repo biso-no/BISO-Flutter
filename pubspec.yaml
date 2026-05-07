@@ -1,7 +1,7 @@
 name: biso
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.1.0+82
+version: 2.1.1+83
 
 environment:
   sdk: ^3.8.1
@@ -49,6 +49,7 @@ dependencies:
   flutter_appauth: ^9.0.1
   app_links: ^6.4.1
   appwrite: ^22.0.0
+  liquid_glass_widgets: ^0.10.7
 
 dev_dependencies:
   flutter_test:
@@ -80,12 +81,15 @@ flutter_icons:
   
 dependency_overrides:
   dart_style: ^3.0.0
+  meta: ^1.17.0
+  vector_math: ^2.3.0
 
 flutter:
   uses-material-design: true
   generate: true
   
   assets:
+    - assets/
     - assets/images/
     - assets/images/campus/
    # - assets/icons/

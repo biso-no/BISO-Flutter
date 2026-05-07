@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/logging/print_migration.dart';
+import '../../providers/auth/auth_provider.dart';
 
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
@@ -86,8 +88,17 @@ class DeepLinkService {
     }
 
     final segments = uri.pathSegments;
-    if (segments.length >= 2 && segments.first == 'auth') {
-      logPrint('ℹ️ Ignoring https auth link: ${uri.toString()}');
+    if (segments.isNotEmpty && segments.first == 'auth') {
+      // Handle sign-in link callbacks from email (e.g. /auth/verify?userId=&secret=)
+      final queryParams = uri.queryParameters;
+      final userId = queryParams['userId'];
+      final secret = queryParams['secret'];
+      if (userId != null && secret != null) {
+        logPrint('🔗 Sign-in link universal link received');
+        _go('/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}');
+      } else {
+        logPrint('ℹ️ Auth universal link without credentials, ignoring: $uri');
+      }
       return;
     }
 
@@ -141,12 +152,45 @@ class DeepLinkService {
     logPrint('🔗 Auth deep link path: $path');
     logPrint('🔗 Auth deep link params: $queryParams');
 
-    if (path == '/magic-link' || path == '/verify') {
-      // Magic link scheme disabled (OTP-only). Do nothing.
-      logPrint('ℹ️ Magic link deep links disabled. Ignoring: $uri');
+    if (path == '/oauth-callback') {
+      _handleOAuthCallback();
+    } else if (path == '/oauth-failed') {
+      logPrint('🔴 OAuth flow failed or was cancelled');
+      _go('/auth/login');
+    } else if (path == '/magic-link' || path == '/verify') {
+      final userId = queryParams['userId'];
+      final secret = queryParams['secret'];
+      if (userId != null && secret != null) {
+        _go('/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}');
+      } else {
+        logPrint('🔴 Missing userId or secret in sign-in link deep link');
+        _go('/auth/login');
+      }
     } else {
       logPrint('🔴 Unknown auth deep link path: $path');
     }
+  }
+
+  void _handleOAuthCallback() {
+    final context = navigatorKey.currentContext;
+    if (context == null) {
+      logPrint('🔗 No context for OAuth callback — will retry after flush');
+      return;
+    }
+
+    logPrint('🔗 OAuth callback received — refreshing auth state');
+    final container = ProviderScope.containerOf(context);
+    container
+        .read(authStateProvider.notifier)
+        .refreshAuthState()
+        .then((_) {
+      final authState = container.read(authStateProvider);
+      if (authState.isAuthenticated) {
+        _go(authState.needsOnboarding ? '/onboarding' : '/home');
+      } else {
+        _go('/auth/login');
+      }
+    });
   }
 
   void dispose() {

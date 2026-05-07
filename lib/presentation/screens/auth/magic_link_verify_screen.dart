@@ -16,25 +16,24 @@ class MagicLinkVerifyScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<MagicLinkVerifyScreen> createState() => _MagicLinkVerifyScreenState();
+  ConsumerState<MagicLinkVerifyScreen> createState() =>
+      _MagicLinkVerifyScreenState();
 }
 
-class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
+class _MagicLinkVerifyScreenState
+    extends ConsumerState<MagicLinkVerifyScreen> {
   bool _isVerifying = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    // Start verification immediately when screen loads
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _verifyMagicLink();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _verifyLink());
   }
 
-  Future<void> _verifyMagicLink() async {
+  Future<void> _verifyLink() async {
     if (_isVerifying) return;
-    
+
     setState(() {
       _isVerifying = true;
       _errorMessage = null;
@@ -42,12 +41,11 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
 
     try {
       await ref.read(authStateProvider.notifier).verifyMagicLink(
-        widget.userId,
-        widget.secret,
-      );
+            widget.userId,
+            widget.secret,
+          );
 
       if (mounted) {
-        // Navigate to appropriate screen based on auth state
         final authState = ref.read(authStateProvider);
         if (authState.needsOnboarding) {
           context.go('/onboarding');
@@ -73,9 +71,8 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
 
     try {
       await ref.read(authStateProvider.notifier).clearSession();
-      // Wait a moment for session to clear
       await Future.delayed(const Duration(milliseconds: 500));
-      await _verifyMagicLink();
+      await _verifyLink();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -86,14 +83,20 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
     }
   }
 
-  void _requestFallbackCode() {
-    // Navigate back to login with a flag to use OTP fallback
-    context.go('/auth/login', extra: {'useFallback': true});
+  void _backToLogin() {
+    context.go('/auth/login');
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final titleText = _errorMessage != null
+        ? 'Sign In Failed'
+        : _isVerifying
+            ? 'Signing you in...'
+            : 'Welcome back!';
 
     return Scaffold(
       body: SafeArea(
@@ -104,31 +107,18 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
             children: [
               const SizedBox(height: 60),
 
-              // Logo/Title Section
               Column(
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: const BoxDecoration(
-                      color: AppColors.defaultBlue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _errorMessage != null ? Icons.error : Icons.link,
-                      color: Colors.white,
-                      size: 40,
-                    ),
+                  Image.asset(
+                    isDark ? 'assets/logo-dark.png' : 'assets/logo.png',
+                    height: 64,
+                    fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    _errorMessage != null 
-                        ? 'Sign In Failed'
-                        : _isVerifying 
-                            ? 'Signing You In...'
-                            : 'Welcome Back!',
+                    titleText,
                     style: theme.textTheme.displaySmall?.copyWith(
-                      color: AppColors.strongBlue,
+                      color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
@@ -136,9 +126,9 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
                   const SizedBox(height: 16),
                   if (_isVerifying && _errorMessage == null)
                     Text(
-                      'Please wait while we verify your magic link...',
+                      'Please wait while we verify your sign-in link...',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -147,14 +137,10 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
 
               const SizedBox(height: 80),
 
-              // Loading indicator or error message
               if (_isVerifying && _errorMessage == null)
-                const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                const Center(child: CircularProgressIndicator()),
 
               if (_errorMessage != null) ...[
-                // Error message
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -162,16 +148,11 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: AppColors.error.withValues(alpha: 0.3),
-                      width: 1,
                     ),
                   ),
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.error_outline,
-                        color: AppColors.error,
-                        size: 24,
-                      ),
+                      Icon(Icons.error_outline, color: AppColors.error, size: 24),
                       const SizedBox(height: 8),
                       Text(
                         _getErrorMessage(),
@@ -186,25 +167,23 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
 
                 const SizedBox(height: 24),
 
-                // Clear Session and Retry button
                 if (_shouldShowClearSession())
                   ElevatedButton.icon(
                     onPressed: _clearSessionAndRetry,
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Clear Session & Try Again'),
+                    label: const Text('Clear session & try again'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.defaultBlue,
                       foregroundColor: Colors.white,
                     ),
                   ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-                // Fallback to OTP button
                 OutlinedButton.icon(
-                  onPressed: _requestFallbackCode,
-                  icon: const Icon(Icons.mail_outline),
-                  label: const Text('Get a Code Instead'),
+                  onPressed: _backToLogin,
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Back to sign in'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.defaultBlue,
                     side: const BorderSide(color: AppColors.defaultBlue),
@@ -214,11 +193,10 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
 
               const Spacer(),
 
-              // Footer
               Text(
                 'BI Student Organisation',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -231,9 +209,10 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
 
   String _getErrorMessage() {
     if (_errorMessage == null) return '';
-    
-    if (_errorMessage!.contains('expired') || _errorMessage!.contains('invalid')) {
-      return 'This magic link has expired or is invalid. Please request a new one.';
+
+    if (_errorMessage!.contains('expired') ||
+        _errorMessage!.contains('invalid')) {
+      return 'This sign-in link has expired or is no longer valid. Please request a new one.';
     } else if (_errorMessage!.contains('active session')) {
       return 'You may already be signed in. Try clearing your session and signing in again.';
     } else {
@@ -242,8 +221,8 @@ class _MagicLinkVerifyScreenState extends ConsumerState<MagicLinkVerifyScreen> {
   }
 
   bool _shouldShowClearSession() {
-    return _errorMessage != null && 
-           (_errorMessage!.contains('active session') || 
+    return _errorMessage != null &&
+        (_errorMessage!.contains('active session') ||
             _errorMessage!.contains('User (role: guests) missing scope') ||
             _errorMessage!.contains('Invalid credentials'));
   }

@@ -9,6 +9,7 @@ import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/privacy/privacy_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
+import '../../../providers/ui/theme_mode_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../../data/services/validator_service.dart';
 import '../../../data/services/feature_flag_service.dart';
@@ -20,7 +21,9 @@ final _featureFlagServiceProvider = Provider<FeatureFlagService>(
   (ref) => FeatureFlagService(),
 );
 
-final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((ref) async {
+final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((
+  ref,
+) async {
   final service = ref.watch(_featureFlagServiceProvider);
   return service.isEnabled('expenses');
 });
@@ -185,7 +188,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           controller: _tabController,
           indicatorColor: _getCampusColor(selectedCampus.id),
           labelColor: _getCampusColor(selectedCampus.id),
-          unselectedLabelColor: AppColors.onSurfaceVariant,
+          unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
           tabs: const [
             Tab(text: 'General'),
             Tab(text: 'Notifications'),
@@ -227,12 +230,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 class _GeneralSettingsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settingsState = ref.watch(appSettingsProvider);
     final authState = ref.watch(authStateProvider);
     final selectedCampus = ref.watch(selectedCampusProvider);
+    final themeMode = ref.watch(themeModeProvider);
+    final brandColor = _getCampusColor(selectedCampus.id);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -272,19 +276,83 @@ class _GeneralSettingsTab extends ConsumerWidget {
                   },
                 ),
                 const Divider(height: 1),
-                SwitchListTile(
-                  secondary: const Icon(Icons.dark_mode_outlined),
-                  title: const Text('Dark Mode'),
-                  subtitle: const Text('Use dark theme throughout the app'),
-                  value: settingsState.darkMode,
-                  onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setDarkMode(value);
-                  },
-                  thumbColor: campusSwitchThumbColor(
-                    _getCampusColor(selectedCampus.id),
-                  ),
-                  trackColor: campusSwitchTrackColor(
-                    _getCampusColor(selectedCampus.id),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.brightness_6_outlined),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Appearance',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 40),
+                        child: Text(
+                          'Choose a theme or follow your system setting',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<ThemeMode>(
+                          segments: const [
+                            ButtonSegment(
+                              value: ThemeMode.system,
+                              icon: Icon(Icons.phone_iphone),
+                              label: Text('System'),
+                            ),
+                            ButtonSegment(
+                              value: ThemeMode.light,
+                              icon: Icon(Icons.light_mode_outlined),
+                              label: Text('Light'),
+                            ),
+                            ButtonSegment(
+                              value: ThemeMode.dark,
+                              icon: Icon(Icons.dark_mode_outlined),
+                              label: Text('Dark'),
+                            ),
+                          ],
+                          selected: {themeMode},
+                          onSelectionChanged: (selection) {
+                            ref
+                                .read(themeModeProvider.notifier)
+                                .setThemeMode(selection.first);
+                          },
+                          style: ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            foregroundColor:
+                                WidgetStateProperty.resolveWith<Color?>((
+                                  states,
+                                ) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return Colors.white;
+                                  }
+                                  return brandColor;
+                                }),
+                            backgroundColor:
+                                WidgetStateProperty.resolveWith<Color?>((
+                                  states,
+                                ) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return brandColor;
+                                  }
+                                  return null;
+                                }),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -399,9 +467,9 @@ class _GeneralSettingsTab extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.cached,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Clear Cache'),
                   subtitle: const Text('Free up storage space'),
@@ -410,9 +478,9 @@ class _GeneralSettingsTab extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.download,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Offline Data'),
                   subtitle: const Text('Manage downloaded content'),
@@ -446,18 +514,18 @@ class _GeneralSettingsTab extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.info_outline,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('App Version'),
                   subtitle: const Text('1.0.0 (Build 1)'),
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.privacy_tip_outlined,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Privacy Policy'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -467,9 +535,9 @@ class _GeneralSettingsTab extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.description_outlined,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Terms of Service'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -536,7 +604,7 @@ class _NotificationSettingsTab extends ConsumerWidget {
     final notificationPrefsAsync = ref.watch(notificationPreferencesProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -608,7 +676,9 @@ class _NotificationSettingsTab extends ConsumerWidget {
                   // Expense feature - only show when enabled
                   Consumer(
                     builder: (context, ref, child) {
-                      final expenseFlagAsync = ref.watch(expenseFeatureFlagProvider);
+                      final expenseFlagAsync = ref.watch(
+                        expenseFeatureFlagProvider,
+                      );
                       return expenseFlagAsync.when(
                         data: (enabled) => enabled
                             ? Column(
@@ -624,8 +694,14 @@ class _NotificationSettingsTab extends ConsumerWidget {
                                     isEnabled: preferences['expenses'] ?? false,
                                     onChanged: (value) {
                                       ref
-                                          .read(notificationPreferencesProvider.notifier)
-                                          .updateTopicSubscription('expenses', value);
+                                          .read(
+                                            notificationPreferencesProvider
+                                                .notifier,
+                                          )
+                                          .updateTopicSubscription(
+                                            'expenses',
+                                            value,
+                                          );
                                     },
                                     selectedCampus: selectedCampus,
                                   ),
@@ -692,14 +768,16 @@ class _NotificationSettingsTab extends ConsumerWidget {
                     Text(
                       error.toString(),
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () {
-                        ref.read(notificationPreferencesProvider.notifier).refresh();
+                        ref
+                            .read(notificationPreferencesProvider.notifier)
+                            .refresh();
                       },
                       child: const Text('Retry'),
                     ),
@@ -725,9 +803,9 @@ class _NotificationSettingsTab extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.schedule,
-                    color: AppColors.onSurfaceVariant,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Quiet Hours'),
                   subtitle: const Text(
@@ -752,9 +830,9 @@ class _NotificationSettingsTab extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.vibration,
-                    color: AppColors.onSurfaceVariant,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Vibration'),
                   subtitle: const Text('Vibrate for notifications'),
@@ -815,7 +893,7 @@ class _PrivacySettingsTab extends ConsumerWidget {
     final userPrivacyAsync = ref.watch(userPrivacyProvider(userId));
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -914,18 +992,27 @@ class _PrivacySettingsTab extends ConsumerWidget {
             data: (status) => Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.subtleBlue,
+                color: theme.brightness == Brightness.dark
+                    ? AppColors.midNavy.withValues(alpha: 0.5)
+                    : AppColors.subtleBlue,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline, color: AppColors.defaultBlue),
+                  Icon(
+                    Icons.info_outline,
+                    color: theme.brightness == Brightness.dark
+                        ? AppColors.skyBlue
+                        : AppColors.defaultBlue,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       status,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.defaultBlue,
+                        color: theme.brightness == Brightness.dark
+                            ? AppColors.skyBlue
+                            : AppColors.defaultBlue,
                       ),
                     ),
                   ),
@@ -1041,7 +1128,7 @@ class _LanguageSettingsTab extends ConsumerWidget {
     final selectedCampus = ref.watch(selectedCampusProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1079,18 +1166,27 @@ class _LanguageSettingsTab extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.subtleBlue,
+              color: theme.brightness == Brightness.dark
+                  ? AppColors.midNavy.withValues(alpha: 0.5)
+                  : AppColors.subtleBlue,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: AppColors.defaultBlue),
+                Icon(
+                  Icons.info_outline,
+                  color: theme.brightness == Brightness.dark
+                      ? AppColors.skyBlue
+                      : AppColors.defaultBlue,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Language changes will take effect immediately.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.defaultBlue,
+                      color: theme.brightness == Brightness.dark
+                          ? AppColors.skyBlue
+                          : AppColors.defaultBlue,
                     ),
                   ),
                 ),
@@ -1114,9 +1210,9 @@ class _LanguageSettingsTab extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.schedule,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Date Format'),
                   subtitle: const Text('DD/MM/YYYY (Norwegian)'),
@@ -1131,9 +1227,9 @@ class _LanguageSettingsTab extends ConsumerWidget {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.attach_money,
-                    color: AppColors.onSurfaceVariant,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                   title: const Text('Currency'),
                   subtitle: const Text('NOK (Norwegian Krone)'),

@@ -18,7 +18,7 @@ class ChatSettingsTab extends ConsumerWidget {
     final notificationStatus = ref.watch(notificationStatusProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -313,18 +313,27 @@ class ChatSettingsTab extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.subtleBlue,
+              color: theme.brightness == Brightness.dark
+                  ? AppColors.midNavy.withValues(alpha: 0.5)
+                  : AppColors.subtleBlue,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: AppColors.defaultBlue),
+                Icon(
+                  Icons.info_outline,
+                  color: theme.brightness == Brightness.dark
+                      ? AppColors.skyBlue
+                      : AppColors.defaultBlue,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Chat settings apply to all conversations. Individual chat settings can be changed from the chat info screen.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.defaultBlue,
+                      color: theme.brightness == Brightness.dark
+                          ? AppColors.skyBlue
+                          : AppColors.defaultBlue,
                     ),
                   ),
                 ),

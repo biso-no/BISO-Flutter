@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../core/theme/premium_theme.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
@@ -529,12 +531,11 @@ class _CampusSwitcherModal extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
+    return BisoGlassCard(
       height: MediaQuery.of(context).size.height * 0.75,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      padding: EdgeInsets.zero,
+      borderRadius: 24,
+      quality: GlassQuality.standard,
       child: Column(
         children: [
           // Handle
@@ -681,7 +682,7 @@ class _CampusModalCard extends StatelessWidget {
                   Text(
                     campus.location,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceVariant,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -691,7 +692,7 @@ class _CampusModalCard extends StatelessWidget {
                       Text(
                         '${campus.stats.activeEvents} events',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -723,9 +724,9 @@ class _CampusModalCard extends StatelessWidget {
                     size: 24,
                   )
                 else
-                  const Icon(
+                  Icon(
                     Icons.radio_button_unchecked,
-                    color: AppColors.onSurfaceVariant,
+                    color: theme.colorScheme.onSurfaceVariant,
                     size: 24,
                   ),
               ],

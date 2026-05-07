@@ -1403,11 +1403,19 @@ class _ReplyBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-        color: AppColors.subtleBlue,
-        border: Border(top: BorderSide(color: AppColors.outline, width: 0.5)),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.midNavy.withValues(alpha: 0.5)
+            : AppColors.subtleBlue,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.outlineDark : AppColors.outline,
+            width: 0.5,
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -1465,11 +1473,19 @@ class _EditBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-        color: AppColors.subtleBlue,
-        border: Border(top: BorderSide(color: AppColors.outline, width: 0.5)),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.midNavy.withValues(alpha: 0.5)
+            : AppColors.subtleBlue,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.outlineDark : AppColors.outline,
+            width: 0.5,
+          ),
+        ),
       ),
       child: Row(
         children: [

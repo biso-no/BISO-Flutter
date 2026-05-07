@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../core/theme/premium_theme.dart';
 
 /// Premium Navigation System
@@ -26,259 +26,49 @@ class PremiumBottomNav extends StatefulWidget {
   State<PremiumBottomNav> createState() => _PremiumBottomNavState();
 }
 
-class _PremiumBottomNavState extends State<PremiumBottomNav>
-    with TickerProviderStateMixin {
-  late List<AnimationController> _controllers;
-  late List<Animation<double>> _scaleAnimations;
-  late List<Animation<double>> _bounceAnimations;
-
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(
-      widget.items.length,
-      (index) => AnimationController(
-        duration: PremiumTheme.mediumAnimation,
-        vsync: this,
-      ),
-    );
-
-    _scaleAnimations = _controllers
-        .map(
-          (controller) => Tween<double>(begin: 1.0, end: 1.2).animate(
-            CurvedAnimation(
-              parent: controller,
-              curve: PremiumTheme.premiumCurve,
-            ),
-          ),
-        )
-        .toList();
-
-    _bounceAnimations = _controllers
-        .map(
-          (controller) => Tween<double>(begin: 0.0, end: 1.0).animate(
-            CurvedAnimation(parent: controller, curve: Curves.elasticOut),
-          ),
-        )
-        .toList();
-
-    // Animate the selected item on init
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controllers[widget.currentIndex].forward();
-    });
-  }
-
-  @override
-  void didUpdateWidget(PremiumBottomNav oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.currentIndex != oldWidget.currentIndex) {
-      _controllers[oldWidget.currentIndex].reverse();
-      _controllers[widget.currentIndex].forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    for (var controller in _controllers) {
-      controller.dispose();
-    }
-    super.dispose();
-  }
-
+class _PremiumBottomNavState extends State<PremiumBottomNav> {
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
     if (widget.floating) {
-      return _buildFloatingNav(isDark, bottomPadding);
+      return _buildFloatingNav();
     } else {
-      return _buildStandardNav(isDark, bottomPadding);
+      return _buildStandardNav();
     }
   }
 
-  Widget _buildFloatingNav(bool isDark, double bottomPadding) {
+  Widget _buildFloatingNav() {
     return Positioned(
-      bottom: bottomPadding + 16,
-      left: 20,
-      right: 20,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            height: 72,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.charcoalBlack.withValues(alpha: 0.8)
-                  : Colors.white.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.black.withValues(alpha: 0.1),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 30,
-                  offset: const Offset(0, 20),
-                ),
-              ],
+      bottom: 0,
+      left: 8,
+      right: 8,
+      child: BisoGlassBottomNavigation(
+        currentIndex: widget.currentIndex,
+        onTap: widget.onTap,
+        items: [
+          for (final item in widget.items)
+            BisoGlassNavItem(
+              icon: item.icon,
+              activeIcon: item.activeIcon,
+              label: item.label,
+              glowColor: AppColors.biLightBlue,
             ),
-            child: _buildNavContent(isDark),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStandardNav(bool isDark, double bottomPadding) {
-    return Container(
-      height: 72 + bottomPadding,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.charcoalBlack : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
         ],
       ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: _buildNavContent(isDark),
-      ),
     );
   }
 
-  Widget _buildNavContent(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(widget.items.length, (index) {
-          final item = widget.items[index];
-          final isSelected = index == widget.currentIndex;
-
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => widget.onTap(index),
-              behavior: HitTestBehavior.opaque,
-              child: AnimatedBuilder(
-                animation: _controllers[index],
-                builder: (context, child) => Transform.scale(
-                  scale: _scaleAnimations[index].value,
-                  child: _PremiumNavButton(
-                    item: item,
-                    isSelected: isSelected,
-                    isDark: isDark,
-                    bounceAnimation: _bounceAnimations[index],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _PremiumNavButton extends StatelessWidget {
-  final PremiumNavItem item;
-  final bool isSelected;
-  final bool isDark;
-  final Animation<double> bounceAnimation;
-
-  const _PremiumNavButton({
-    required this.item,
-    required this.isSelected,
-    required this.isDark,
-    required this.bounceAnimation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Icon container with selection indicator
-        AnimatedContainer(
-          duration: PremiumTheme.mediumAnimation,
-          curve: PremiumTheme.premiumCurve,
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.biLightBlue.withValues(alpha: 0.15)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildStandardNav() {
+    return BisoGlassBottomNavigation(
+      currentIndex: widget.currentIndex,
+      onTap: widget.onTap,
+      items: [
+        for (final item in widget.items)
+          BisoGlassNavItem(
+            icon: item.icon,
+            activeIcon: item.activeIcon,
+            label: item.label,
+            glowColor: AppColors.biLightBlue,
           ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Selection background with pulse effect
-              if (isSelected)
-                AnimatedBuilder(
-                  animation: bounceAnimation,
-                  builder: (context, child) => Container(
-                    width: 48 * (0.8 + 0.2 * bounceAnimation.value),
-                    height: 48 * (0.8 + 0.2 * bounceAnimation.value),
-                    decoration: BoxDecoration(
-                      color: AppColors.biLightBlue.withValues(
-                        alpha: 0.1 * bounceAnimation.value,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-
-              // Icon
-              AnimatedSwitcher(
-                duration: PremiumTheme.fastAnimation,
-                child: Icon(
-                  isSelected ? item.activeIcon : item.icon,
-                  key: ValueKey(isSelected),
-                  size: 24,
-                  color: isSelected
-                      ? AppColors.biLightBlue
-                      : (isDark ? AppColors.mist : AppColors.stoneGray),
-                ),
-              ),
-
-              // Badge if present
-              if (item.badge != null)
-                Positioned(top: 8, right: 8, child: item.badge!),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 4),
-
-        // Label
-        AnimatedDefaultTextStyle(
-          duration: PremiumTheme.mediumAnimation,
-          curve: PremiumTheme.premiumCurve,
-          style:
-              theme.textTheme.labelSmall?.copyWith(
-                color: isSelected
-                    ? AppColors.biLightBlue
-                    : (isDark ? AppColors.mist : AppColors.stoneGray),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              ) ??
-              const TextStyle(),
-          child: Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ),
       ],
     );
   }
