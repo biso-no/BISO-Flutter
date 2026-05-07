@@ -94,6 +94,7 @@
 		E37B196818B31B0FCB46CAB5 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		E728886638B2647F7EDD64F9 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		F642579103179CCBCF8EDA1C /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8732717F82A86D131259B0F /* ShareExtension.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = ShareExtension.xcconfig; path = Flutter/ShareExtension.xcconfig; sourceTree = "<group>"; };
 		FC3D5F2962530AC8E5D22817 /* BISOShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BISOShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -170,6 +171,7 @@
 				7AFA3C8F1D35360C0083082E /* Profile.xcconfig */,
 				7AFA3C8E1D35360C0083082E /* Release.xcconfig */,
 				9740EEB31CF90195004384FC /* Generated.xcconfig */,
+				F8732717F82A86D131259B0F /* ShareExtension.xcconfig */,
 			);
 			name = Flutter;
 			sourceTree = "<group>";
@@ -669,7 +671,9 @@
 		};
 		366CC71A7E158F50E7345A08 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F8732717F82A86D131259B0F /* ShareExtension.xcconfig */;
 			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = BISOShareExtension/BISOShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -691,7 +695,9 @@
 		};
 		8EDA076E99B94F4C41B71178 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F8732717F82A86D131259B0F /* ShareExtension.xcconfig */;
 			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = BISOShareExtension/BISOShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -889,7 +895,9 @@
 		};
 		C3D4F445853BC9223FE40F5C /* Profile */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F8732717F82A86D131259B0F /* ShareExtension.xcconfig */;
 			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = BISOShareExtension/BISOShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;

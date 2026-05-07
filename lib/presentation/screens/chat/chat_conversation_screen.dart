@@ -129,8 +129,8 @@ class _ChatConversationScreenState
             icon: const Icon(Icons.info_outline),
           ),
         ],
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.onSurface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 1,
       ),
       body: Column(
@@ -226,9 +226,9 @@ class _ChatConversationScreenState
           // Message input
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: const Border(
                 top: BorderSide(color: AppColors.outline, width: 0.5),
               ),
             ),
@@ -287,10 +287,10 @@ class _ChatConversationScreenState
                               height: 16,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: AppColors.white,
                               ),
                             )
-                          : const Icon(Icons.send, color: Colors.white),
+                          : const Icon(Icons.send, color: AppColors.white),
                     ),
                   ),
                 ],

@@ -67,7 +67,7 @@ class _WonderousBottomNavBarState extends State<WonderousBottomNavBar>
     return Container(
       height: 90,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
             color: AppColors.shadowMedium,
@@ -238,7 +238,7 @@ class _WonderousNavButtonState extends State<_WonderousNavButton>
                             : widget.item.icon,
                         size: 24,
                         color: widget.isSelected
-                            ? Colors.white
+                            ? AppColors.white
                             : AppColors.stoneGray,
                       ),
                     );
@@ -257,7 +257,7 @@ class _WonderousNavButtonState extends State<_WonderousNavButton>
                         ? FontWeight.w600
                         : FontWeight.w500,
                     color: widget.isSelected
-                        ? Colors.white
+                        ? AppColors.white
                         : AppColors.stoneGray,
                     fontFamily: 'Inter',
                   ),
@@ -373,7 +373,7 @@ class _WonderousFloatingActionState extends State<WonderousFloatingAction>
                   ),
                 ],
               ),
-              child: Icon(widget.icon, color: Colors.white, size: 28),
+              child: Icon(widget.icon, color: AppColors.white, size: 28),
             ),
           ),
         ),

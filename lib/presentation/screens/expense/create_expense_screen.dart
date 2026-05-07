@@ -669,10 +669,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
+                  color: AppColors.shadowLight,
                   blurRadius: 12,
                   offset: const Offset(0, -4),
                 ),
@@ -726,11 +726,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: AppColors.shadowLight,
             blurRadius: 24,
             offset: const Offset(0, 12),
           ),

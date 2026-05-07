@@ -1088,13 +1088,13 @@ class _AnimatedStudentIdCard extends StatelessWidget {
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
-                                          color: Colors.grey[800],
+                                          color: Theme.of(context).colorScheme.onSurface,
                                         ),
                                   ),
                                   Text(
                                     'Show this to validators',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Colors.grey[600],
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ],
@@ -1768,7 +1768,7 @@ class _QRCodePlaceholder extends StatelessWidget {
         data: qrData,
         version: QrVersions.auto,
         size: double.infinity,
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.white,
         dataModuleStyle: QrDataModuleStyle(
           dataModuleShape: QrDataModuleShape.square,
           color: campusColor,

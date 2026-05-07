@@ -207,4 +207,7 @@ class AppColors {
   static const Color overlayLight = Color(0x0A000000); // 4% black
   static const Color overlayMedium = Color(0x1F000000); // 12% black
   static const Color overlayHeavy = Color(0x66000000); // 40% black
+
+  // Third-party brand colors
+  static const Color vippsPurple = Color(0xFF6D3EFF);
 }

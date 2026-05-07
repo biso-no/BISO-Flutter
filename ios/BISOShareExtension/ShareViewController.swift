@@ -15,12 +15,12 @@ final class ShareViewController: UIViewController {
   private func configureView() {
     view.backgroundColor = .systemBackground
 
-    statusLabel.text = "Add selected receipts to BISO."
+    statusLabel.text = "Add selected receipts to BISO Expenses."
     statusLabel.textAlignment = .center
     statusLabel.numberOfLines = 0
     statusLabel.font = .preferredFont(forTextStyle: .headline)
 
-    addButton.setTitle("Add to BISO", for: .normal)
+    addButton.setTitle("Add to BISO Expenses", for: .normal)
     addButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
     addButton.addTarget(self, action: #selector(addToBISO), for: .touchUpInside)
 

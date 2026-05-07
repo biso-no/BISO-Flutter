@@ -72,8 +72,8 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
               icon: Icon(_isEditing ? Icons.check : Icons.edit),
             ),
         ],
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.onSurface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 1,
       ),
       body: SingleChildScrollView(

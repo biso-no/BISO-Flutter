@@ -87,23 +87,23 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
     final campusColor = _getCampusColor(selectedCampus.id);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.charcoalBlack,
       appBar: AppBar(
         title: const Text(
           'Validator Mode',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppColors.white),
         ),
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.charcoalBlack,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppColors.white),
           onPressed: () => NavigationUtils.safeGoBack(context),
         ),
         actions: [
           IconButton(
             icon: Icon(
               _isFlashOn ? Icons.flash_on : Icons.flash_off,
-              color: Colors.white,
+              color: AppColors.white,
             ),
             onPressed: _toggleFlash,
           ),
@@ -121,7 +121,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                 Text(
                   'Scan Student QR Code',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
+                    color: AppColors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -130,7 +130,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                   'Point camera at student\'s QR code to verify membership',
                   style: Theme.of(
                     context,
-                  ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.white.withValues(alpha: 0.7)),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -178,12 +178,12 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                 if (_isProcessing)
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black54,
+                      color: Colors.black.withValues(alpha: 0.54),
                       child: Center(
                         child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -212,7 +212,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                         return Transform.scale(
                           scale: _resultAnimation.value,
                           child: Container(
-                            color: Colors.black87,
+                            color: Colors.black.withValues(alpha: 0.87),
                             child: Center(child: _buildResultCard(campusColor)),
                           ),
                         );
@@ -226,7 +226,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
           // Bottom status panel
           Container(
             padding: const EdgeInsets.all(24),
-            color: Colors.grey[900],
+            color: AppColors.smokeGray,
             child: Row(
               children: [
                 Expanded(
@@ -236,7 +236,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                       Text(
                         'Status: ${_isProcessing ? 'Scanning...' : 'Ready'}',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: Colors.white,
+                          color: AppColors.white,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -245,7 +245,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                         Text(
                           'Last scan: ${_formatTime(_lastScanTime!)}',
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Colors.white70),
+                              ?.copyWith(color: AppColors.white.withValues(alpha: 0.7)),
                         ),
                       ],
                     ],
@@ -273,7 +273,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
   Widget _buildResultCard(Color campusColor) {
     final isValid = _lastResult?.result == 'VALID';
     final backgroundColor = isValid ? AppColors.green9 : AppColors.error;
-    final iconColor = Colors.white;
+    const iconColor = AppColors.white;
     final icon = isValid ? Icons.check_circle : Icons.error;
 
     return Container(
@@ -571,7 +571,7 @@ class _ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.7)
+      ..color = AppColors.charcoalBlack.withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     // Calculate center position

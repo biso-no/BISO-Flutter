@@ -81,7 +81,7 @@ void main() async {
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
+      systemNavigationBarColor: Colors.transparent,
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
@@ -369,10 +369,10 @@ class _AppShellState extends ConsumerState<_AppShell> {
       body: widget.child,
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: AppColors.shadowMedium,
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -383,7 +383,7 @@ class _AppShellState extends ConsumerState<_AppShell> {
           onTap: _onTabChanged,
           type: BottomNavigationBarType.fixed,
           selectedItemColor: AppColors.defaultBlue,
-          unselectedItemColor: Colors.grey,
+          unselectedItemColor: AppColors.mist,
           items: [
             BottomNavigationBarItem(
               icon: const Icon(Icons.home_outlined),

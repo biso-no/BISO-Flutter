@@ -66,7 +66,7 @@ class PremiumTheme {
       elevation: 0,
       shadowColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
+      color: AppColors.white,
       surfaceTintColor: Colors.transparent,
     ),
 
@@ -76,7 +76,7 @@ class PremiumTheme {
         elevation: 0,
         shadowColor: Colors.transparent,
         backgroundColor: AppColors.biLightBlue,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         textStyle: _premiumTextTheme.labelLarge?.copyWith(
@@ -160,7 +160,7 @@ class PremiumTheme {
 
     // === BOTTOM SHEET STYLING ===
     bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -170,7 +170,7 @@ class PremiumTheme {
 
     // === DIALOG STYLING ===
     dialogTheme: DialogThemeData(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.white,
       elevation: 0,
       shadowColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -188,7 +188,7 @@ class PremiumTheme {
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return Colors.white;
+          return AppColors.white;
         }
         return AppColors.mist;
       }),
@@ -213,7 +213,7 @@ class PremiumTheme {
     // === LIST TILE STYLING ===
     listTileTheme: ListTileThemeData(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      tileColor: Colors.white,
+      tileColor: AppColors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       titleTextStyle: _premiumTextTheme.titleMedium?.copyWith(
         color: AppColors.charcoalBlack,
@@ -290,6 +290,109 @@ class PremiumTheme {
     ),
 
     scaffoldBackgroundColor: AppColors.charcoalBlack,
+
+    // === DARK CARD STYLING (already set above) ===
+
+    // === DARK BUTTON STYLING ===
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        backgroundColor: AppColors.biLightBlue,
+        foregroundColor: AppColors.biNavy,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        textStyle: _premiumTextTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+
+    // === DARK BOTTOM SHEET STYLING ===
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.smokeGray,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      elevation: 0,
+      shadowColor: Colors.transparent,
+    ),
+
+    // === DARK DIALOG STYLING ===
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppColors.smokeGray,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      titleTextStyle: _premiumTextTheme.headlineSmall?.copyWith(
+        color: AppColors.pearl,
+        fontWeight: FontWeight.w600,
+      ),
+      contentTextStyle: _premiumTextTheme.bodyLarge?.copyWith(
+        color: AppColors.mist,
+        height: 1.5,
+      ),
+    ),
+
+    // === DARK SWITCH STYLING ===
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppColors.pearl;
+        }
+        return AppColors.stoneGray;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return AppColors.biLightBlue;
+        }
+        return AppColors.smokeGray;
+      }),
+    ),
+
+    // === DARK ICON STYLING ===
+    iconTheme: const IconThemeData(color: AppColors.mist, size: 24),
+
+    // === DARK LIST TILE STYLING ===
+    listTileTheme: ListTileThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      tileColor: AppColors.smokeGray,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      titleTextStyle: _premiumTextTheme.titleMedium?.copyWith(
+        color: AppColors.pearl,
+        fontWeight: FontWeight.w500,
+      ),
+      subtitleTextStyle: _premiumTextTheme.bodyMedium?.copyWith(
+        color: AppColors.mist,
+      ),
+      iconColor: AppColors.mist,
+    ),
+
+    // === DARK DIVIDER STYLING ===
+    dividerTheme: const DividerThemeData(
+      color: AppColors.smokeGray,
+      thickness: 1,
+      space: 1,
+    ),
+
+    // === DARK CHIP STYLING ===
+    chipTheme: ChipThemeData(
+      backgroundColor: AppColors.smokeGray,
+      labelStyle: _premiumTextTheme.bodySmall?.copyWith(
+        color: AppColors.mist,
+        fontWeight: FontWeight.w500,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      side: BorderSide.none,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    ),
+
+    // === DARK PROGRESS INDICATOR STYLING ===
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: AppColors.biLightBlue,
+      linearTrackColor: AppColors.smokeGray,
+      circularTrackColor: AppColors.smokeGray,
+    ),
 
     // Dark theme input styling
     inputDecorationTheme: InputDecorationTheme(
@@ -488,9 +591,9 @@ class PremiumTheme {
               colors: gradientColors,
             )
           : null,
-      color: color ?? Colors.white.withValues(alpha: opacity),
+      color: color ?? AppColors.white.withValues(alpha: opacity),
       boxShadow: mediumShadow,
-      border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
+      border: Border.all(color: AppColors.white.withValues(alpha: 0.2), width: 1),
     );
   }
 

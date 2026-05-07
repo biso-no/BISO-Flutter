@@ -241,7 +241,7 @@ class _GeneralSettingsTab extends ConsumerWidget {
             'Account',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -298,7 +298,7 @@ class _GeneralSettingsTab extends ConsumerWidget {
             'Campus',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -345,7 +345,7 @@ class _GeneralSettingsTab extends ConsumerWidget {
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.strongBlue,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                           ),
                           const SizedBox(height: 12),
@@ -389,7 +389,7 @@ class _GeneralSettingsTab extends ConsumerWidget {
             'Data & Storage',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -436,7 +436,7 @@ class _GeneralSettingsTab extends ConsumerWidget {
             'About',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -544,7 +544,7 @@ class _NotificationSettingsTab extends ConsumerWidget {
             'Push Notifications',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -715,7 +715,7 @@ class _NotificationSettingsTab extends ConsumerWidget {
             'Notification Schedule',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -823,7 +823,7 @@ class _PrivacySettingsTab extends ConsumerWidget {
             'Chat Privacy',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -942,7 +942,7 @@ class _PrivacySettingsTab extends ConsumerWidget {
             'Privacy Information',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -1049,7 +1049,7 @@ class _LanguageSettingsTab extends ConsumerWidget {
             'App Language',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 
@@ -1104,7 +1104,7 @@ class _LanguageSettingsTab extends ConsumerWidget {
             'Regional Settings',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: AppColors.strongBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
 

@@ -92,8 +92,8 @@ class _MessageSearchScreenState extends ConsumerState<MessageSearchScreen> {
           icon: const Icon(Icons.arrow_back),
         ),
         title: const Text('Search Messages'),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.onSurface,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 1,
       ),
       body: Column(
