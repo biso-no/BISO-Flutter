@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:appwrite/appwrite.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/user_model.dart';
 import '../models/student_id_model.dart';
@@ -19,6 +20,44 @@ class AuthService {
 
   // Student service for managing student verification
   final StudentService _studentService = StudentService();
+
+  // SharedPreferences keys for local session cache
+  static const _cachedUserIdKey = 'session_user_id';
+  static const _cachedUserEmailKey = 'session_user_email';
+  static const _cachedUserNameKey = 'session_user_name';
+
+  Future<void> _cacheSessionUser(UserModel user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cachedUserIdKey, user.id);
+      await prefs.setString(_cachedUserEmailKey, user.email);
+      await prefs.setString(_cachedUserNameKey, user.name);
+    } catch (_) {}
+  }
+
+  Future<UserModel?> getCachedSessionUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString(_cachedUserIdKey);
+      if (userId == null || userId.isEmpty) return null;
+      return UserModel(
+        id: userId,
+        email: prefs.getString(_cachedUserEmailKey) ?? '',
+        name: prefs.getString(_cachedUserNameKey) ?? '',
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _clearSessionCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cachedUserIdKey);
+      await prefs.remove(_cachedUserEmailKey);
+      await prefs.remove(_cachedUserNameKey);
+    } catch (_) {}
+  }
 
   Future<String> sendMagicLink(String email) async {
     try {
@@ -137,12 +176,14 @@ class AuthService {
         // User profile doesn't exist, will need onboarding
       }
 
-      return userProfile ??
+      final result = userProfile ??
           UserModel(
             id: accountUser.$id,
             name: accountUser.name,
             email: accountUser.email,
           );
+      await _cacheSessionUser(result);
+      return result;
     } on AppwriteException catch (e) {
       logPrint(
         '🔗 DEBUG: AppwriteException - Code: ${e.code}, Message: ${e.message}',
@@ -200,12 +241,14 @@ class AuthService {
         // User profile doesn't exist, will need onboarding
       }
 
-      return userProfile ??
+      final result = userProfile ??
           UserModel(
             id: accountUser.$id,
             name: accountUser.name,
             email: accountUser.email,
           );
+      await _cacheSessionUser(result);
+      return result;
     } on AppwriteException catch (e) {
       logPrint(
         '🔥 DEBUG: AppwriteException - Code: ${e.code}, Message: ${e.message}',
@@ -254,16 +297,20 @@ class AuthService {
       }
     } on AppwriteException catch (e) {
       if (e.code == 401) {
-        // User not authenticated
+        // Server confirmed no valid session — clear local cache
+        await _clearSessionCache();
         return null;
       }
       throw AuthException('Failed to get current user: ${e.message}');
     } catch (e) {
-      throw AuthException('Network error occurred');
+      // Network/connectivity error — don't clear the local cache;
+      // the caller should distinguish this from "not authenticated".
+      throw NetworkException('Network error: $e');
     }
   }
 
   Future<void> logout() async {
+    await _clearSessionCache();
     try {
       await _account.deleteSession(sessionId: 'current');
     } on AppwriteException catch (e) {
@@ -274,6 +321,7 @@ class AuthService {
   }
 
   Future<void> clearSession() async {
+    await _clearSessionCache();
     try {
       // Try to delete the current session
       await _account.deleteSession(sessionId: 'current');
@@ -592,6 +640,14 @@ class AuthException implements Exception {
 class MagicLinkException implements Exception {
   final String message;
   MagicLinkException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+class NetworkException implements Exception {
+  final String message;
+  NetworkException(this.message);
 
   @override
   String toString() => message;
