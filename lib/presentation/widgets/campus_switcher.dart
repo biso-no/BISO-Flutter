@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../core/logging/print_migration.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/biso_glass.dart';
 import '../../providers/weather/weather_provider.dart';
 import '../../data/models/campus_model.dart';
 import '../../providers/campus/campus_provider.dart';
@@ -26,14 +28,17 @@ class CampusSwitcher extends ConsumerWidget {
     final isInitialized = ref.watch(campusInitializedProvider);
     final theme = Theme.of(context);
 
-    logInfo('CampusSwitcher.build: start', context: {
-      'initialized': isInitialized,
-      'selected_id': selectedCampus.id,
-      'selected_name': selectedCampus.name,
-      'allCampuses_state': allCampusesAsync.hasValue
-          ? 'data'
-          : (allCampusesAsync.hasError ? 'error' : 'loading'),
-    });
+    logInfo(
+      'CampusSwitcher.build: start',
+      context: {
+        'initialized': isInitialized,
+        'selected_id': selectedCampus.id,
+        'selected_name': selectedCampus.name,
+        'allCampuses_state': allCampusesAsync.hasValue
+            ? 'data'
+            : (allCampusesAsync.hasError ? 'error' : 'loading'),
+      },
+    );
 
     if (showFullScreen) {
       return allCampusesAsync.when(
@@ -43,17 +48,18 @@ class CampusSwitcher extends ConsumerWidget {
         },
         error: (e, _) {
           logError('CampusSwitcher.fullScreen: error', error: e);
-          return Center(
-            child: Text('Failed to load campuses'),
-          );
+          return Center(child: Text('Failed to load campuses'));
         },
         data: (allCampuses) {
-          logInfo('CampusSwitcher.fullScreen: data', context: {
-            'campus_count': allCampuses.length,
-            'elapsed_ms_since_build': DateTime.now()
-                .difference(buildStart)
-                .inMilliseconds,
-          });
+          logInfo(
+            'CampusSwitcher.fullScreen: data',
+            context: {
+              'campus_count': allCampuses.length,
+              'elapsed_ms_since_build': DateTime.now()
+                  .difference(buildStart)
+                  .inMilliseconds,
+            },
+          );
           return _FullScreenCampusSwitcher(
             selectedCampus: selectedCampus,
             allCampuses: allCampuses,
@@ -63,16 +69,22 @@ class CampusSwitcher extends ConsumerWidget {
       );
     }
 
+    final isDark = theme.brightness == Brightness.dark;
+
     return InkWell(
       onTap: () => _showCampusSwitcherModal(context),
       borderRadius: BorderRadius.circular(24),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.subtleBlue,
+          color: isDark
+              ? AppColors.midNavy.withValues(alpha: 0.55)
+              : AppColors.subtleBlue,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: AppColors.defaultBlue.withValues(alpha: 0.3),
+            color: isDark
+                ? AppColors.skyBlue.withValues(alpha: 0.3)
+                : AppColors.defaultBlue.withValues(alpha: 0.3),
           ),
         ),
         child: Row(
@@ -105,31 +117,42 @@ class CampusSwitcher extends ConsumerWidget {
                   selectedCampus.name,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.defaultBlue,
+                    color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
                   ),
                 ),
                 Consumer(
                   builder: (context, ref, _) {
-                    final weatherAsync = ref.watch(campusWeatherProvider(selectedCampus.name));
+                    final weatherAsync = ref.watch(
+                      campusWeatherProvider(selectedCampus.name),
+                    );
                     return weatherAsync.when(
                       data: (w) => w == null
                           ? const SizedBox.shrink()
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(w.icon, style: const TextStyle(fontSize: 10)),
+                                Text(
+                                  w.icon,
+                                  style: const TextStyle(fontSize: 10),
+                                ),
                                 const SizedBox(width: 2),
                                 Text(
                                   '${w.temperature.round()}°',
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.onSurfaceVariant,
+                                    color: isDark
+                                        ? AppColors.mist
+                                        : AppColors.onSurfaceVariant,
                                     fontSize: 10,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
-                      loading: () => const SizedBox(height: 12, width: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+                      loading: () => const SizedBox(
+                        height: 12,
+                        width: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                       error: (err, st) => const SizedBox.shrink(),
                     );
                   },
@@ -137,7 +160,11 @@ class CampusSwitcher extends ConsumerWidget {
               ],
             ),
             const SizedBox(width: 4),
-            Icon(Icons.expand_more, size: 16, color: AppColors.defaultBlue),
+            Icon(
+              Icons.expand_more,
+              size: 16,
+              color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
+            ),
           ],
         ),
       ),
@@ -164,18 +191,24 @@ class CampusSwitcher extends ConsumerWidget {
               return Center(child: Text('Failed to load campuses'));
             },
             data: (allCampuses) {
-              logInfo('CampusSwitcher.modal: data', context: {
-                'campus_count': allCampuses.length,
-                'selected_id': selectedCampus.id,
-              });
+              logInfo(
+                'CampusSwitcher.modal: data',
+                context: {
+                  'campus_count': allCampuses.length,
+                  'selected_id': selectedCampus.id,
+                },
+              );
               return _CampusSwitcherModal(
                 selectedCampus: selectedCampus,
                 allCampuses: allCampuses,
                 onCampusSelected: (campus) {
-                  logInfo('CampusSwitcher.modal: select campus', context: {
-                    'selected_id': campus.id,
-                    'selected_name': campus.name,
-                  });
+                  logInfo(
+                    'CampusSwitcher.modal: select campus',
+                    context: {
+                      'selected_id': campus.id,
+                      'selected_name': campus.name,
+                    },
+                  );
                   ref
                       .read(filterCampusStateProvider.notifier)
                       .selectFilterCampus(campus);
@@ -268,13 +301,12 @@ class _CampusSwitcherModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
-    return Container(
+
+    return BisoGlassCard(
       height: MediaQuery.of(context).size.height * 0.75,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      padding: EdgeInsets.zero,
+      borderRadius: 24,
+      quality: GlassQuality.standard,
       child: Column(
         children: [
           // Handle
@@ -297,7 +329,9 @@ class _CampusSwitcherModal extends StatelessWidget {
                   'Select Campus',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                    color: isDark
+                        ? AppColors.onSurfaceDark
+                        : AppColors.onSurface,
                   ),
                 ),
                 const Spacer(),
@@ -305,11 +339,17 @@ class _CampusSwitcherModal extends StatelessWidget {
                   onPressed: () => Navigator.pop(context),
                   icon: Icon(
                     Icons.close,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                    color: isDark
+                        ? AppColors.onSurfaceDark
+                        : AppColors.onSurface,
                   ),
                   style: IconButton.styleFrom(
-                    backgroundColor: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
-                    foregroundColor: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                    backgroundColor: isDark
+                        ? AppColors.surfaceVariantDark
+                        : AppColors.surfaceVariant,
+                    foregroundColor: isDark
+                        ? AppColors.onSurfaceVariantDark
+                        : AppColors.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -547,9 +587,11 @@ class _CampusModalCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected 
-            ? (isDark ? AppColors.subtleBlue.withValues(alpha: 0.2) : AppColors.subtleBlue)
-            : Theme.of(context).colorScheme.surface,
+          color: isSelected
+              ? (isDark
+                    ? AppColors.subtleBlue.withValues(alpha: 0.2)
+                    : AppColors.subtleBlue)
+              : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? AppColors.defaultBlue : Colors.transparent,
@@ -587,7 +629,9 @@ class _CampusModalCard extends StatelessWidget {
                     campus.name,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
+                      color: isDark
+                          ? AppColors.onSurfaceDark
+                          : AppColors.onSurface,
                     ),
                   ),
                   if (campus.location.isNotEmpty) ...[
@@ -595,7 +639,9 @@ class _CampusModalCard extends StatelessWidget {
                     Text(
                       campus.location,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
+                        color: isDark
+                            ? AppColors.onSurfaceVariantDark
+                            : AppColors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -604,11 +650,7 @@ class _CampusModalCard extends StatelessWidget {
             ),
 
             if (isSelected)
-              Icon(
-                Icons.check_circle,
-                color: AppColors.defaultBlue,
-                size: 24,
-              ),
+              Icon(Icons.check_circle, color: AppColors.defaultBlue, size: 24),
           ],
         ),
       ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../core/theme/premium_theme.dart';
 
 /// Premium UI Components Collection
@@ -186,15 +188,29 @@ class PremiumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    Widget card = Container(
-      margin: margin,
-      padding: padding ?? const EdgeInsets.all(20),
-      decoration: isGlass
-          ? PremiumTheme.glassContainer(
-              borderRadius: BorderRadius.circular(borderRadius),
-              gradientColors: gradientColors,
-            )
-          : BoxDecoration(
+    Widget card = isGlass
+        ? BisoGlassCard(
+            margin: margin,
+            padding: padding ?? const EdgeInsets.all(20),
+            borderRadius: borderRadius,
+            quality: GlassQuality.standard,
+            child: gradientColors == null
+                ? child
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: gradientColors!,
+                      ),
+                    ),
+                    child: child,
+                  ),
+          )
+        : Container(
+            margin: margin,
+            padding: padding ?? const EdgeInsets.all(20),
+            decoration: BoxDecoration(
               color:
                   backgroundColor ??
                   (isDark ? AppColors.smokeGray : Colors.white),
@@ -217,15 +233,9 @@ class PremiumCard extends StatelessWidget {
                       ...PremiumTheme.mediumShadow,
                     ]
                   : PremiumTheme.softShadow,
-              border: isGlass
-                  ? Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 1,
-                    )
-                  : null,
             ),
-      child: child,
-    );
+            child: child,
+          );
 
     if (onTap != null) {
       return PremiumInkWell(
@@ -399,31 +409,8 @@ class _PremiumTextFieldState extends State<PremiumTextField>
 
         AnimatedBuilder(
           animation: _borderColorAnimation,
-          builder: (context, child) => Container(
-            decoration: widget.isGlass
-                ? PremiumTheme.glassContainer()
-                : BoxDecoration(
-                    color: isDark ? AppColors.smokeGray : AppColors.pearl,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: widget.errorText != null
-                          ? AppColors.error
-                          : (_borderColorAnimation.value ?? AppColors.cloud),
-                      width: _focusNode.hasFocus ? 2 : 1,
-                    ),
-                    boxShadow: _focusNode.hasFocus
-                        ? [
-                            BoxShadow(
-                              color: AppColors.biLightBlue.withValues(
-                                alpha: 0.1,
-                              ),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ]
-                        : null,
-                  ),
-            child: TextField(
+          builder: (context, child) {
+            final field = TextField(
               controller: _textController,
               focusNode: _focusNode,
               onChanged: widget.onChanged,
@@ -461,8 +448,40 @@ class _PremiumTextFieldState extends State<PremiumTextField>
                   vertical: 18,
                 ),
               ),
-            ),
-          ),
+            );
+
+            if (widget.isGlass) {
+              return BisoGlassContainer(
+                padding: EdgeInsets.zero,
+                borderRadius: 16,
+                quality: GlassQuality.standard,
+                child: field,
+              );
+            }
+
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.smokeGray : AppColors.pearl,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: widget.errorText != null
+                      ? AppColors.error
+                      : (_borderColorAnimation.value ?? AppColors.cloud),
+                  width: _focusNode.hasFocus ? 2 : 1,
+                ),
+                boxShadow: _focusNode.hasFocus
+                    ? [
+                        BoxShadow(
+                          color: AppColors.biLightBlue.withValues(alpha: 0.1),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: field,
+            );
+          },
         ),
 
         if (widget.errorText != null) ...[
@@ -490,6 +509,7 @@ class PremiumChip extends StatelessWidget {
   final VoidCallback? onTap;
   final IconData? icon;
   final Color? selectedColor;
+  final bool isGlass;
 
   const PremiumChip({
     super.key,
@@ -498,6 +518,7 @@ class PremiumChip extends StatelessWidget {
     this.onTap,
     this.icon,
     this.selectedColor,
+    this.isGlass = false,
   });
 
   @override
@@ -511,6 +532,22 @@ class PremiumChip extends StatelessWidget {
     final textColor = isSelected
         ? Colors.white
         : (isDark ? AppColors.mist : AppColors.stoneGray);
+
+    if (isGlass) {
+      return GlassChip(
+        label: label,
+        selected: isSelected,
+        onTap: onTap,
+        selectedColor: selectedColor ?? AppColors.accentBlue,
+        icon: icon != null ? Icon(icon, size: 16, color: textColor) : null,
+        labelStyle: theme.textTheme.labelMedium?.copyWith(
+          color: textColor,
+          fontWeight: FontWeight.w600,
+        ),
+        quality: GlassQuality.minimal,
+        settings: BisoGlass.denseSettings,
+      );
+    }
 
     return PremiumInkWell(
       onTap: onTap ?? () {},

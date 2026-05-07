@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/enums.dart' as enums;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
@@ -503,6 +504,40 @@ class AuthService {
     } catch (e) {
       logPrint('🔴 General avatar upload error: $e');
       throw AuthException('Avatar upload failed: $e');
+    }
+  }
+
+  /// Sign in with Google via Appwrite OAuth2.
+  /// Opens the system browser; the session is finalised when the app
+  /// receives the deep-link callback at biso://auth/oauth-callback.
+  Future<void> signInWithGoogle() async {
+    try {
+      await _account.createOAuth2Session(
+        provider: enums.OAuthProvider.google,
+        success: 'biso://auth/oauth-callback',
+        failure: 'biso://auth/oauth-failed',
+      );
+    } on AppwriteException catch (e) {
+      throw AuthException('Google sign-in failed: ${e.message}');
+    } catch (e) {
+      throw AuthException('Google sign-in failed');
+    }
+  }
+
+  /// Sign in with Apple via Appwrite OAuth2 (iOS only).
+  /// Opens the system browser; the session is finalised when the app
+  /// receives the deep-link callback at biso://auth/oauth-callback.
+  Future<void> signInWithApple() async {
+    try {
+      await _account.createOAuth2Session(
+        provider: enums.OAuthProvider.apple,
+        success: 'biso://auth/oauth-callback',
+        failure: 'biso://auth/oauth-failed',
+      );
+    } on AppwriteException catch (e) {
+      throw AuthException('Apple sign-in failed: ${e.message}');
+    } catch (e) {
+      throw AuthException('Apple sign-in failed');
     }
   }
 

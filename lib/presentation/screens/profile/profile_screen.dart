@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
@@ -17,7 +19,9 @@ final _featureFlagServiceProvider = Provider<FeatureFlagService>(
   (ref) => FeatureFlagService(),
 );
 
-final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((ref) async {
+final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((
+  ref,
+) async {
   final service = ref.watch(_featureFlagServiceProvider);
   return service.isEnabled('expenses');
 });
@@ -29,6 +33,7 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
     final selectedCampus = ref.watch(selectedCampusProvider);
@@ -44,34 +49,6 @@ class ProfileScreen extends ConsumerWidget {
               CircularProgressIndicator(),
               SizedBox(height: 16),
               Text('Loading your profile...'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (!authState.isAuthenticated) {
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.profile)),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.person_outline,
-                size: 64,
-                color: AppColors.onSurfaceVariant,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Sign in to view your profile',
-                style: theme.textTheme.titleLarge,
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () => context.push('/login'),
-                child: const Text('Sign In'),
-              ),
             ],
           ),
         ),
@@ -173,7 +150,9 @@ class ProfileScreen extends ConsumerWidget {
                   // Profile Completion Banner (if profile is incomplete)
                   if (authState.needsOnboarding) ...[
                     Card(
-                      color: AppColors.accentGold.withValues(alpha: 0.1),
+                      color: isDark
+                          ? AppColors.warmGold.withValues(alpha: 0.15)
+                          : AppColors.accentGold.withValues(alpha: 0.1),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Column(
@@ -183,7 +162,9 @@ class ProfileScreen extends ConsumerWidget {
                               children: [
                                 Icon(
                                   Icons.info_outline,
-                                  color: AppColors.strongGold,
+                                  color: isDark
+                                      ? AppColors.warmGold
+                                      : AppColors.strongGold,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
@@ -191,7 +172,9 @@ class ProfileScreen extends ConsumerWidget {
                                   'Complete Your Profile',
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.strongGold,
+                                    color: isDark
+                                        ? AppColors.warmGold
+                                        : AppColors.strongGold,
                                   ),
                                 ),
                               ],
@@ -200,7 +183,9 @@ class ProfileScreen extends ConsumerWidget {
                             Text(
                               'Get the most out of BISO by completing your profile with campus and contact information.',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: AppColors.strongGold,
+                                color: isDark
+                                    ? AppColors.warmGold
+                                    : AppColors.strongGold,
                               ),
                             ),
                             const SizedBox(height: 12),
@@ -237,7 +222,8 @@ class ProfileScreen extends ConsumerWidget {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const EditProfileScreen(),
+                                  builder: (context) =>
+                                      const EditProfileScreen(),
                                 ),
                               ),
                             ),
@@ -335,13 +321,16 @@ class ProfileScreen extends ConsumerWidget {
                       // Expense feature - only show when enabled
                       Consumer(
                         builder: (context, ref, child) {
-                          final expenseFlagAsync = ref.watch(expenseFeatureFlagProvider);
+                          final expenseFlagAsync = ref.watch(
+                            expenseFeatureFlagProvider,
+                          );
                           return expenseFlagAsync.when(
                             data: (enabled) => enabled
                                 ? _ProfileActionTile(
                                     icon: Icons.receipt_long_outlined,
                                     label: 'Expense History',
-                                    onTap: () => context.push('/explore/expenses'),
+                                    onTap: () =>
+                                        context.push('/explore/expenses'),
                                   )
                                 : const SizedBox.shrink(),
                             loading: () => const SizedBox.shrink(),
@@ -378,7 +367,7 @@ class ProfileScreen extends ConsumerWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) =>
-                                const SettingsScreen(initialTab: 2),
+                                const SettingsScreen(initialTab: 4),
                           ),
                         ),
                       ),
@@ -399,7 +388,7 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 132),
                 ],
               ),
             ),
@@ -481,17 +470,18 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final Color iconColor = disabled
-        ? color.withValues(alpha: 0.5)
-        : color;
+    final Color iconColor = disabled ? color.withValues(alpha: 0.5) : color;
     final Color iconBackground = disabled
         ? color.withValues(alpha: 0.06)
         : color.withValues(alpha: 0.1);
 
-    return Card(
+    return BisoGlassCard(
+      padding: EdgeInsets.zero,
+      borderRadius: 16,
+      quality: GlassQuality.minimal,
       child: InkWell(
         onTap: disabled ? null : onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -544,7 +534,10 @@ class _ProfileSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Card(
+        BisoGlassCard(
+          padding: EdgeInsets.zero,
+          borderRadius: 16,
+          quality: GlassQuality.minimal,
           child: Column(
             children: children
                 .expand((widget) => [widget, const Divider(height: 1)])

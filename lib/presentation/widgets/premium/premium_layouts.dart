@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../core/theme/premium_theme.dart';
 import 'premium_components.dart';
 
@@ -108,6 +109,34 @@ class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
             ? Colors.transparent
             : (isDark ? AppColors.charcoalBlack : Colors.white));
 
+    if (hasBlur) {
+      return BisoGlassAppBar(
+        title:
+            titleWidget ??
+            (title != null
+                ? Text(
+                    title!,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.pearl : AppColors.charcoalBlack,
+                    ),
+                  )
+                : null),
+        centerTitle: centerTitle,
+        leading:
+            leading ??
+            (Navigator.of(context).canPop()
+                ? PremiumIconButton(
+                    icon: Icons.arrow_back_ios,
+                    onPressed:
+                        onBackPressed ?? () => Navigator.of(context).pop(),
+                    isGlass: true,
+                  )
+                : null),
+        actions: actions,
+      );
+    }
+
     Widget appBarContent = Container(
       height: kToolbarHeight + statusBarHeight,
       padding: EdgeInsets.only(top: statusBarHeight, left: 4, right: 4),
@@ -165,15 +194,6 @@ class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
     );
-
-    if (hasBlur) {
-      return ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: appBarContent,
-        ),
-      );
-    }
 
     return appBarContent;
   }
@@ -234,6 +254,26 @@ class _PremiumIconButtonState extends State<PremiumIconButton>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor =
+        widget.iconColor ?? (isDark ? AppColors.mist : AppColors.stoneGray);
+
+    if (widget.isGlass) {
+      Widget button = GlassIconButton(
+        icon: Icon(widget.icon, color: iconColor, size: widget.size * 0.45),
+        onPressed: widget.onPressed,
+        size: widget.size,
+        shape: GlassIconButtonShape.circle,
+        settings: BisoGlass.fixedSurfaceSettings,
+        quality: GlassQuality.standard,
+        glowColor: AppColors.accentBlue,
+      );
+
+      if (widget.tooltip != null) {
+        button = Tooltip(message: widget.tooltip!, child: button);
+      }
+
+      return button;
+    }
 
     Widget button = GestureDetector(
       onTapDown: widget.onPressed != null ? (_) => _controller.forward() : null,
@@ -261,9 +301,7 @@ class _PremiumIconButtonState extends State<PremiumIconButton>
             child: Icon(
               widget.icon,
               size: widget.size * 0.45,
-              color:
-                  widget.iconColor ??
-                  (isDark ? AppColors.mist : AppColors.stoneGray),
+              color: iconColor,
             ),
           ),
         ),
@@ -461,42 +499,60 @@ class PremiumContainer extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final defaultColor = isDark ? AppColors.smokeGray : Colors.white;
 
+    if (isGlass) {
+      return BisoGlassContainer(
+        width: width,
+        height: height,
+        margin: margin,
+        padding: padding ?? const EdgeInsets.all(20),
+        borderRadius: borderRadius,
+        quality: GlassQuality.standard,
+        child: gradientColors == null
+            ? child
+            : DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: gradientColors!,
+                  ),
+                ),
+                child: child,
+              ),
+      );
+    }
+
     return Container(
       width: width,
       height: height,
       margin: margin,
       padding: padding ?? const EdgeInsets.all(20),
-      decoration: isGlass
-          ? PremiumTheme.glassContainer(
-              borderRadius: BorderRadius.circular(borderRadius),
-              gradientColors: gradientColors,
-            )
-          : BoxDecoration(
-              color: gradientColors == null ? (color ?? defaultColor) : null,
-              gradient: gradientColors != null
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: gradientColors!,
-                    )
-                  : null,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: border,
-              boxShadow:
-                  customShadow ??
-                  (hasGlow
-                      ? [
-                          BoxShadow(
-                            color: (color ?? AppColors.biLightBlue).withValues(
-                              alpha: 0.2,
-                            ),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                          ...PremiumTheme.mediumShadow,
-                        ]
-                      : PremiumTheme.softShadow),
-            ),
+      decoration: BoxDecoration(
+        color: gradientColors == null ? (color ?? defaultColor) : null,
+        gradient: gradientColors != null
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: gradientColors!,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border,
+        boxShadow:
+            customShadow ??
+            (hasGlow
+                ? [
+                    BoxShadow(
+                      color: (color ?? AppColors.biLightBlue).withValues(
+                        alpha: 0.2,
+                      ),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                    ...PremiumTheme.mediumShadow,
+                  ]
+                : PremiumTheme.softShadow),
+      ),
       child: child,
     );
   }

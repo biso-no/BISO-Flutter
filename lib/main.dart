@@ -5,14 +5,18 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
+import 'core/theme/biso_glass.dart';
 import 'core/theme/premium_theme.dart';
 import 'core/logging/logging_config.dart';
 import 'core/constants/app_colors.dart';
 // Appwrite services are now globally initialized
 import 'generated/l10n/app_localizations.dart';
 import 'presentation/screens/auth/login_screen.dart';
+import 'presentation/screens/auth/magic_link_verify_screen.dart';
 import 'presentation/screens/auth/otp_verification_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/home/premium_home_screen.dart';
@@ -35,6 +39,7 @@ import 'presentation/screens/ai_chat/ai_chat_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
+import 'providers/ui/theme_mode_provider.dart';
 import 'presentation/screens/events/large_event_screen.dart';
 import 'presentation/screens/validator/controller_mode_screen.dart';
 import 'data/models/large_event_model.dart';
@@ -76,6 +81,12 @@ void main() async {
 
   await ExpenseIntakeService.instance.initialize();
 
+  final prefs = await SharedPreferences.getInstance();
+  final initialGlassQuality = BisoGlass.parseQuality(
+    prefs.getString(BisoGlass.qualityPreferenceKey),
+  );
+  await LiquidGlassWidgets.initialize();
+
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -86,7 +97,19 @@ void main() async {
     ),
   );
 
-  runApp(const ProviderScope(child: BisoApp()));
+  runApp(
+    LiquidGlassWidgets.wrap(
+      adaptiveQuality: true,
+      adaptiveConfig: GlassAdaptiveScopeConfig(
+        initialQuality: initialGlassQuality ?? GlassQuality.standard,
+        allowStepUp: true,
+        onQualityChanged: (_, to) {
+          prefs.setString(BisoGlass.qualityPreferenceKey, to.name);
+        },
+      ),
+      child: const ProviderScope(child: BisoApp()),
+    ),
+  );
   WidgetsBinding.instance.addPostFrameCallback((_) {
     DeepLinkService().flushPendingLinks();
     ExpenseIntakeService.instance.handlePendingNativeEntrypoints();
@@ -108,6 +131,7 @@ class BisoApp extends ConsumerWidget {
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     // Auth state listener is now handled internally by AuthProvider
     // No need for external orchestration
@@ -117,7 +141,7 @@ class BisoApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: PremiumTheme.lightTheme,
       darkTheme: PremiumTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       locale: currentLocale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -127,6 +151,12 @@ class BisoApp extends ConsumerWidget {
       ],
       supportedLocales: const [Locale('en'), Locale('no')],
       routerConfig: _router,
+      builder: (context, child) {
+        return GlassTheme(
+          data: BisoGlass.theme,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
@@ -152,7 +182,17 @@ final _router = GoRouter(
       builder: (context, state) =>
           OtpVerificationScreen(email: state.extra as String? ?? ''),
     ),
-    // Magic link route removed: OTP-only flow
+    GoRoute(
+      path: '/auth/verify-magic-link',
+      name: 'verify-magic-link',
+      builder: (context, state) {
+        final params = state.uri.queryParameters;
+        return MagicLinkVerifyScreen(
+          userId: params['userId'] ?? '',
+          secret: params['secret'] ?? '',
+        );
+      },
+    ),
     GoRoute(
       path: '/onboarding',
       name: 'onboarding',
@@ -366,42 +406,31 @@ class _AppShellState extends ConsumerState<_AppShell> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      body: widget.child,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadowMedium,
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onTabChanged,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppColors.defaultBlue,
-          unselectedItemColor: AppColors.mist,
-          items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.home_outlined),
-              activeIcon: const Icon(Icons.home_rounded),
-              label: l10n.homeMessage,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.explore_outlined),
-              activeIcon: const Icon(Icons.explore_rounded),
-              label: l10n.exploreMessage,
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.person_outline_rounded),
-              activeIcon: const Icon(Icons.person_rounded),
-              label: l10n.profileMessage,
-            ),
-          ],
-        ),
+      extendBody: true,
+      body: BisoGlassScope(child: widget.child),
+      bottomNavigationBar: BisoGlassBottomNavigation(
+        currentIndex: _selectedIndex,
+        onTap: _onTabChanged,
+        items: [
+          BisoGlassNavItem(
+            icon: Icons.home_outlined,
+            activeIcon: Icons.home_rounded,
+            label: l10n.homeMessage,
+            glowColor: AppColors.accentBlue,
+          ),
+          BisoGlassNavItem(
+            icon: Icons.explore_outlined,
+            activeIcon: Icons.explore_rounded,
+            label: l10n.exploreMessage,
+            glowColor: AppColors.biLightBlue,
+          ),
+          BisoGlassNavItem(
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            label: l10n.profileMessage,
+            glowColor: AppColors.accentBlue,
+          ),
+        ],
       ),
     );
   }
@@ -448,17 +477,15 @@ class _ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
-    final l10n = AppLocalizations.of(context)!;
 
-    if (authState.isAuthenticated) {
-      return const ProfileScreen();
-    } else {
-      return PremiumAuthRequiredPage(
-        title: l10n.profileMessage,
-        description: 'Manage your account and preferences',
-        icon: Icons.person_outline_rounded,
-      );
+    if (!authState.isAuthenticated && !authState.isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.go('/auth/login');
+      });
+      return const SizedBox.shrink();
     }
+
+    return const ProfileScreen();
   }
 }
 

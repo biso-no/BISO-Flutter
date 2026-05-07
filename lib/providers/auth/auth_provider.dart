@@ -445,6 +445,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Re-check auth state from the server — called after OAuth callbacks.
+  Future<void> refreshAuthState() async => _checkAuthState();
+
+  /// Sign in with Google via Appwrite OAuth2 (opens browser).
+  Future<void> signInWithGoogle() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _authService.signInWithGoogle();
+      // Session is created asynchronously via deep-link callback.
+      // isLoading is cleared there via refreshAuthState().
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+      rethrow;
+    }
+  }
+
+  /// Sign in with Apple via Appwrite OAuth2 (opens browser, iOS only).
+  Future<void> signInWithApple() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _authService.signInWithApple();
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+      rethrow;
+    }
+  }
+
   /// Register student ID via OAuth
   Future<void> registerStudentIdViaOAuth() async {
     state = state.copyWith(isLoading: true, error: null);

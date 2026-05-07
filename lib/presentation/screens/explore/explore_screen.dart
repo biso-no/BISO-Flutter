@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/large_event/large_event_provider.dart';
 import '../../../data/models/large_event_model.dart';
@@ -21,6 +23,7 @@ class ExploreScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final currentLocale = ref.watch(localeProvider);
 
     Future<void> openDirections(String address) async {
@@ -31,7 +34,9 @@ class ExploreScreen extends ConsumerWidget {
       } else if (Platform.isAndroid) {
         uri = Uri.parse('geo:0,0?q=$encoded');
       } else {
-        uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$encoded');
+        uri = Uri.parse(
+          'https://www.google.com/maps/search/?api=1&query=$encoded',
+        );
       }
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
@@ -95,7 +100,7 @@ class ExploreScreen extends ConsumerWidget {
                         SnackBar(
                           content: Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.language,
                                 color: Colors.white,
                                 size: 20,
@@ -127,7 +132,7 @@ class ExploreScreen extends ConsumerWidget {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -241,11 +246,13 @@ class ExploreScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: AppColors.subtleBlue,
+                    leading: CircleAvatar(
+                      backgroundColor: isDark
+                          ? AppColors.midNavy.withValues(alpha: 0.5)
+                          : AppColors.subtleBlue,
                       child: Icon(
                         Icons.web,
-                        color: AppColors.defaultBlue,
+                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.bisoWebsiteMessage),
@@ -257,11 +264,13 @@ class ExploreScreen extends ConsumerWidget {
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: AppColors.subtleBlue,
+                    leading: CircleAvatar(
+                      backgroundColor: isDark
+                          ? AppColors.midNavy.withValues(alpha: 0.5)
+                          : AppColors.subtleBlue,
                       child: Icon(
                         Icons.calendar_today,
-                        color: AppColors.defaultBlue,
+                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.academicCalendarMessage),
@@ -277,11 +286,13 @@ class ExploreScreen extends ConsumerWidget {
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: AppColors.subtleBlue,
+                    leading: CircleAvatar(
+                      backgroundColor: isDark
+                          ? AppColors.midNavy.withValues(alpha: 0.5)
+                          : AppColors.subtleBlue,
                       child: Icon(
                         Icons.library_books,
-                        color: AppColors.defaultBlue,
+                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.libraryServicesMessage),
@@ -295,11 +306,13 @@ class ExploreScreen extends ConsumerWidget {
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: AppColors.subtleBlue,
+                    leading: CircleAvatar(
+                      backgroundColor: isDark
+                          ? AppColors.midNavy.withValues(alpha: 0.5)
+                          : AppColors.subtleBlue,
                       child: Icon(
                         Icons.support_agent,
-                        color: AppColors.defaultBlue,
+                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.studentSupportMessage),
@@ -329,10 +342,16 @@ class ExploreScreen extends ConsumerWidget {
 
                 return campusDataAsync.when(
                   data: (campusData) {
-                    final contactEmail = campusData?.location?.email ?? resolveCampusEmail(campus.id);
-                    final campusAddress = campusData?.location?.address ?? 'Address not available';
-                    final campusName = campus.name.isNotEmpty ? campus.name : 'Campus';
-                    
+                    final contactEmail =
+                        campusData?.location?.email ??
+                        resolveCampusEmail(campus.id);
+                    final campusAddress =
+                        campusData?.location?.address ??
+                        'Address not available';
+                    final campusName = campus.name.isNotEmpty
+                        ? campus.name
+                        : 'Campus';
+
                     // Only show the card if we have valid data
                     if (campusData?.location?.address.isNotEmpty == true) {
                       return Card(
@@ -350,9 +369,8 @@ class ExploreScreen extends ConsumerWidget {
                                   const SizedBox(width: 8),
                                   Text(
                                     campusName,
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
                                   ),
                                 ],
                               ),
@@ -362,7 +380,8 @@ class ExploreScreen extends ConsumerWidget {
                               Row(
                                 children: [
                                   TextButton.icon(
-                                    onPressed: () => openDirections(campusAddress),
+                                    onPressed: () =>
+                                        openDirections(campusAddress),
                                     icon: const Icon(Icons.directions),
                                     label: Text(l10n.directionsMessage),
                                   ),
@@ -394,9 +413,8 @@ class ExploreScreen extends ConsumerWidget {
                                   const SizedBox(width: 8),
                                   Text(
                                     campusName,
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w600),
                                   ),
                                 ],
                               ),
@@ -497,7 +515,8 @@ class ExploreScreen extends ConsumerWidget {
                                 label: Text(l10n.directionsMessage),
                               ),
                               TextButton.icon(
-                                onPressed: () => openEmail(resolveCampusEmail(campus.id)),
+                                onPressed: () =>
+                                    openEmail(resolveCampusEmail(campus.id)),
                                 icon: const Icon(Icons.mail),
                                 label: Text(l10n.contactMessage),
                               ),
@@ -536,10 +555,13 @@ class _CategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
+    return BisoGlassCard(
+      padding: EdgeInsets.zero,
+      borderRadius: 16,
+      quality: GlassQuality.minimal,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -569,7 +591,7 @@ class _CategoryCard extends StatelessWidget {
                 child: Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
+                    color: theme.colorScheme.onSurfaceVariant,
                     height: 1.2,
                   ),
                   maxLines: 2,
@@ -593,45 +615,50 @@ class _LargeEventBanner extends StatelessWidget {
     final gradient = event.gradientColors;
     return GestureDetector(
       onTap: () => context.push('/events/large/${event.slug}', extra: event),
-      child: Container(
+      child: BisoGlassCard(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: gradient,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    event.name,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: event.textColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    event.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: event.textColor.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ],
-              ),
+        padding: EdgeInsets.zero,
+        borderRadius: 18,
+        quality: GlassQuality.standard,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradient,
             ),
-            const SizedBox(width: 12),
-            const Icon(Icons.chevron_right, color: Colors.white),
-          ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.name,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: event.textColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      event.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: event.textColor.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.chevron_right, color: Colors.white),
+            ],
+          ),
         ),
       ),
     );
@@ -652,30 +679,14 @@ class _LanguageSwitcher extends StatefulWidget {
 }
 
 class _LanguageSwitcherState extends State<_LanguageSwitcher> {
-
   @override
   Widget build(BuildContext context) {
-
     return GestureDetector(
       onTap: () => _showLanguageMenu(context),
-      child: Container(
+      child: BisoGlassContainer(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.defaultBlue.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppColors.defaultBlue.withValues(alpha: 0.4),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.defaultBlue.withValues(alpha: 0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-              spreadRadius: 0,
-            ),
-          ],
-        ),
+        borderRadius: 20,
+        quality: GlassQuality.standard,
         child: SizedBox(
           width: 24,
           height: 24,
@@ -696,7 +707,7 @@ class _LanguageSwitcherState extends State<_LanguageSwitcher> {
 
   void _showLanguageMenu(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -704,20 +715,11 @@ class _LanguageSwitcherState extends State<_LanguageSwitcher> {
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          child: Container(
+          child: BisoGlassCard(
             margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.scaffoldBackgroundColor,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 25,
-                  offset: const Offset(0, 15),
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
+            padding: EdgeInsets.zero,
+            borderRadius: 24,
+            quality: GlassQuality.standard,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -829,17 +831,17 @@ class _LanguageOptionState extends State<_LanguageOption> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Container(
       decoration: BoxDecoration(
-        color: widget.isSelected 
-          ? AppColors.defaultBlue.withValues(alpha: 0.12)
-          : Colors.transparent,
+        color: widget.isSelected
+            ? AppColors.defaultBlue.withValues(alpha: 0.12)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: widget.isSelected 
-            ? AppColors.defaultBlue.withValues(alpha: 0.3)
-            : Colors.transparent,
+          color: widget.isSelected
+              ? AppColors.defaultBlue.withValues(alpha: 0.3)
+              : Colors.transparent,
           width: 2,
         ),
       ),
@@ -859,33 +861,37 @@ class _LanguageOptionState extends State<_LanguageOption> {
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: widget.isSelected 
-                        ? [
-                            AppColors.defaultBlue,
-                            AppColors.defaultBlue.withValues(alpha: 0.8),
-                          ]
-                        : [
-                            AppColors.subtleBlue,
-                            AppColors.subtleBlue.withValues(alpha: 0.6),
-                          ],
+                      colors: widget.isSelected
+                          ? [
+                              AppColors.defaultBlue,
+                              AppColors.defaultBlue.withValues(alpha: 0.8),
+                            ]
+                          : [
+                              AppColors.subtleBlue,
+                              AppColors.subtleBlue.withValues(alpha: 0.6),
+                            ],
                     ),
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: widget.isSelected ? [
-                      BoxShadow(
-                        color: AppColors.defaultBlue.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ] : null,
+                    boxShadow: widget.isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppColors.defaultBlue.withValues(
+                                alpha: 0.3,
+                              ),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Center(
                     child: Text(
                       widget.code.toUpperCase(),
                       style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: widget.isSelected 
-                          ? Colors.white
-                          : AppColors.defaultBlue,
+                        color: widget.isSelected
+                            ? Colors.white
+                            : AppColors.defaultBlue,
                         fontSize: 14,
                       ),
                     ),
@@ -900,9 +906,9 @@ class _LanguageOptionState extends State<_LanguageOption> {
                         widget.name,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: widget.isSelected 
-                            ? AppColors.defaultBlue
-                            : theme.textTheme.titleMedium?.color,
+                          color: widget.isSelected
+                              ? AppColors.defaultBlue
+                              : theme.textTheme.titleMedium?.color,
                         ),
                       ),
                       const SizedBox(height: 4),

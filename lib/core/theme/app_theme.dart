@@ -34,12 +34,25 @@ class AppTheme {
         backgroundColor: AppColors.backgroundDark,
         foregroundColor: AppColors.onBackgroundDark,
         systemOverlayStyle: SystemUiOverlayStyle.light,
+        titleTextStyle: _appBarTheme.titleTextStyle?.copyWith(
+          color: AppColors.onBackgroundDark,
+        ),
       ),
       elevatedButtonTheme: _elevatedButtonTheme,
       textButtonTheme: _textButtonTheme,
       outlinedButtonTheme: _outlinedButtonTheme,
       inputDecorationTheme: _inputDecorationTheme.copyWith(
         fillColor: AppColors.surfaceDark,
+        hintStyle: const TextStyle(
+          color: AppColors.mist,
+          fontSize: 16,
+          fontFamily: 'Inter',
+        ),
+        labelStyle: const TextStyle(
+          color: AppColors.onSurfaceDark,
+          fontSize: 16,
+          fontFamily: 'Inter',
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.outlineDark),
@@ -54,6 +67,17 @@ class AppTheme {
         backgroundColor: AppColors.backgroundDark,
         selectedItemColor: AppColors.crystalBlue,
         unselectedItemColor: AppColors.mist,
+      ),
+      tabBarTheme: _tabBarThemeData.copyWith(
+        unselectedLabelColor: AppColors.mist,
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.outlineVariantDark,
+        thickness: 1,
+        space: 1,
+      ),
+      listTileTheme: _listTileThemeData.copyWith(
+        iconColor: AppColors.mist,
       ),
       textTheme: _textTheme.apply(
         bodyColor: AppColors.onBackgroundDark,

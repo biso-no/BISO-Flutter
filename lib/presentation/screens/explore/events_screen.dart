@@ -86,7 +86,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   }
 
   Future<void> _ensureInitialLoad(String? campusId) async {
-    if (_loadedForCampusId == campusId && _events.isNotEmpty) return;
+    if (_loadedForCampusId == campusId) return;
     AppLogger.info(
       '[EVENTS_SCREEN] Initial load requested',
       extra: {

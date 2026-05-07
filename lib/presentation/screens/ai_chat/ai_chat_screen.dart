@@ -1,9 +1,10 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../data/models/ai_chat_models.dart';
 import '../../../data/services/ai_chat_service.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_glass.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/ai_chat/ai_message_bubble.dart';
 import '../../widgets/ai_chat/user_message_bubble.dart';
@@ -447,28 +448,8 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
   }
 
   PreferredSizeWidget _buildAppBar(ThemeData theme, bool isDark) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
+    return BisoGlassAppBar(
       leading: NavigationUtils.buildBackButton(context, fallbackRoute: '/home'),
-      flexibleSpace: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: (isDark ? AppColors.backgroundDark : AppColors.white)
-                  .withValues(alpha: 0.8),
-              border: Border(
-                bottom: BorderSide(
-                  color: (isDark ? AppColors.outlineDark : AppColors.outline)
-                      .withValues(alpha: 0.2),
-                  width: 0.5,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
       title: Row(
         children: [
           Container(
@@ -509,13 +490,14 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
         ],
       ),
       actions: [
-        IconButton(
+        GlassIconButton(
           onPressed: _clearChat,
-          icon: const Icon(Icons.refresh_rounded),
-          tooltip: 'Clear chat',
-          style: IconButton.styleFrom(
-            backgroundColor: theme.colorScheme.surface.withValues(alpha: 0.5),
+          icon: Icon(
+            Icons.refresh_rounded,
+            color: isDark ? AppColors.pearl : AppColors.strongBlue,
           ),
+          settings: BisoGlass.fixedSurfaceSettings,
+          quality: GlassQuality.standard,
         ),
         const SizedBox(width: 8),
       ],
@@ -632,28 +614,15 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
           ),
         ),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: (isDark ? AppColors.surfaceDark : AppColors.white)
-                  .withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: (isDark ? AppColors.outlineDark : AppColors.outline)
-                    .withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: ChatInputField(
-              controller: _textController,
-              onSend: _sendMessage,
-              enabled: !_isStreaming,
-              isDark: isDark,
-            ),
-          ),
+      child: BisoGlassContainer(
+        padding: EdgeInsets.zero,
+        borderRadius: 28,
+        quality: GlassQuality.standard,
+        child: ChatInputField(
+          controller: _textController,
+          onSend: _sendMessage,
+          enabled: !_isStreaming,
+          isDark: isDark,
         ),
       ),
     );
