@@ -205,7 +205,7 @@ class _CampusParallaxHeaderState extends State<CampusParallaxHeader>
                           Shadow(
                             offset: Offset(0, 2),
                             blurRadius: 4,
-                            color: Colors.black26,
+                            color: AppColors.shadowHeavy,
                           ),
                         ],
                       ),
@@ -683,10 +683,10 @@ class _CampusBenefitCardState extends State<CampusBenefitCard>
                                   Expanded(
                                     child: Text(
                                       benefit,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 14,
                                         height: 1.5,
-                                        color: Colors.black87,
+                                        color: Theme.of(context).colorScheme.onSurface,
                                       ),
                                     ),
                                   ),
@@ -904,14 +904,14 @@ class _ContactItemState extends State<_ContactItem> {
         duration: const Duration(milliseconds: 100),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: _isPressed 
+          color: _isPressed
               ? AppColors.strongGold.withValues(alpha: 0.1)
-              : Colors.grey.withValues(alpha: 0.05),
+              : AppColors.outlineVariant.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _isPressed 
+            color: _isPressed
                 ? AppColors.strongGold.withValues(alpha: 0.3)
-                : Colors.grey.withValues(alpha: 0.1),
+                : AppColors.outlineVariant.withValues(alpha: 0.5),
           ),
         ),
         child: Row(
@@ -928,19 +928,19 @@ class _ContactItemState extends State<_ContactItem> {
                 children: [
                   Text(
                     widget.label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
+                      color: AppColors.stoneGray,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     widget.value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -949,7 +949,7 @@ class _ContactItemState extends State<_ContactItem> {
             if (widget.onTap != null)
               Icon(
                 Icons.arrow_forward_ios,
-                color: Colors.grey.shade400,
+                color: AppColors.mist,
                 size: 16,
               ),
           ],

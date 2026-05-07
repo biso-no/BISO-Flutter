@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/launcher_icon"
+        android:shortcutId="new_reimbursement"
+        android:shortcutLongLabel="@string/shortcut_new_expense_long"
+        android:shortcutShortLabel="@string/shortcut_new_expense_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://biso.no/app/expenses/new"
+            android:targetClass="com.biso.no.MainActivity"
+            android:targetPackage="com.biso.no" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/launcher_icon"
+        android:shortcutId="events"
+        android:shortcutLongLabel="@string/shortcut_events_long"
+        android:shortcutShortLabel="@string/shortcut_events_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://biso.no/app/events"
+            android:targetClass="com.biso.no.MainActivity"
+            android:targetPackage="com.biso.no" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/launcher_icon"
+        android:shortcutId="marketplace"
+        android:shortcutLongLabel="@string/shortcut_marketplace_long"
+        android:shortcutShortLabel="@string/shortcut_marketplace_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://biso.no/app/marketplace"
+            android:targetClass="com.biso.no.MainActivity"
+            android:targetPackage="com.biso.no" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/launcher_icon"
+        android:shortcutId="jobs"
+        android:shortcutLongLabel="@string/shortcut_jobs_long"
+        android:shortcutShortLabel="@string/shortcut_jobs_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://biso.no/app/jobs"
+            android:targetClass="com.biso.no.MainActivity"
+            android:targetPackage="com.biso.no" />
+    </shortcut>
+</shortcuts>

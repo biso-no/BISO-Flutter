@@ -180,7 +180,7 @@ class _DepartureTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isMetro
             ? AppColors.subtleBlue
-            : Colors.grey.withValues(alpha: 0.08),
+            : AppColors.outlineVariant.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(12),
       ),
       padding: const EdgeInsets.all(12),
@@ -188,7 +188,7 @@ class _DepartureTile extends StatelessWidget {
         children: [
           CircleAvatar(
             backgroundColor:
-                isMetro ? AppColors.defaultBlue : Colors.black87,
+                isMetro ? AppColors.defaultBlue : AppColors.stoneGray,
             child: Icon(
               isMetro ? Icons.subway : Icons.directions_bus,
               color: Colors.white,

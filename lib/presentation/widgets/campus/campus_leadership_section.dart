@@ -35,11 +35,11 @@ class CampusLeadershipSection extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: AppColors.shadowLight,
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -125,7 +125,7 @@ class _LoadingState extends StatelessWidget {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.05),
+        color: AppColors.outlineVariant.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: const Center(
@@ -137,7 +137,7 @@ class _LoadingState extends StatelessWidget {
             Text(
               'Loading board members...',
               style: TextStyle(
-                color: Colors.grey,
+                color: AppColors.mist,
                 fontSize: 14,
               ),
             ),
@@ -162,17 +162,17 @@ class _ErrorState extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.05),
+        color: AppColors.error.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.red.withValues(alpha: 0.2),
+          color: AppColors.error.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
         children: [
           const Icon(
             Icons.error_outline,
-            color: Colors.red,
+            color: AppColors.error,
             size: 48,
           ),
           const SizedBox(height: 12),
@@ -181,15 +181,15 @@ class _ErrorState extends StatelessWidget {
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: Colors.red,
+              color: AppColors.error,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             error,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
-              color: Colors.red.shade700,
+              color: AppColors.error,
             ),
             textAlign: TextAlign.center,
           ),
@@ -199,8 +199,8 @@ class _ErrorState extends StatelessWidget {
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.white,
             ),
           ),
         ],
@@ -219,17 +219,17 @@ class _EmptyState extends StatelessWidget {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.05),
+        color: AppColors.outlineVariant.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.people_outline,
               size: 48,
-              color: Colors.grey.shade400,
+              color: AppColors.mist,
             ),
             const SizedBox(height: 8),
             Text(
@@ -237,7 +237,7 @@ class _EmptyState extends StatelessWidget {
                   ? 'No members found for $departmentName'
                   : 'No board members found',
               style: const TextStyle(
-                color: Colors.grey,
+                color: AppColors.mist,
                 fontStyle: FontStyle.italic,
                 fontSize: 14,
               ),
@@ -377,14 +377,14 @@ class _BoardMemberCardState extends State<BoardMemberCard> {
                         Icon(
                           Icons.location_on_outlined,
                           size: 12,
-                          color: Colors.grey.shade600,
+                          color: AppColors.stoneGray,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           widget.member.officeLocation,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade600,
+                            color: AppColors.stoneGray,
                           ),
                         ),
                       ],
@@ -464,7 +464,7 @@ class _MemberDetailModal extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
@@ -477,7 +477,7 @@ class _MemberDetailModal extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: AppColors.cloud,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -542,14 +542,14 @@ class _MemberDetailModal extends StatelessWidget {
                   Icon(
                     Icons.location_on_outlined,
                     size: 16,
-                    color: Colors.grey.shade600,
+                    color: AppColors.stoneGray,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     member.officeLocation,
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey.shade600,
+                      color: AppColors.stoneGray,
                     ),
                   ),
                 ],
@@ -650,14 +650,14 @@ class _ContactButtonState extends State<_ContactButton> {
           children: [
             Icon(
               widget.icon,
-              color: _isPressed ? Colors.white : AppColors.defaultBlue,
+              color: _isPressed ? AppColors.white : AppColors.defaultBlue,
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
               widget.label,
               style: TextStyle(
-                color: _isPressed ? Colors.white : AppColors.defaultBlue,
+                color: _isPressed ? AppColors.white : AppColors.defaultBlue,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -750,7 +750,7 @@ class _SafeAvatarImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: Colors.grey.shade200,
+      color: AppColors.cloud,
       child: const Center(
         child: Icon(
           Icons.person,
@@ -765,7 +765,7 @@ class _SafeAvatarImage extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: Colors.grey.shade200,
+      color: AppColors.cloud,
       child: const Center(
         child: SizedBox(
           width: 20,

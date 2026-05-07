@@ -14,20 +14,24 @@ import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/models/expense_v2_models.dart';
 import '../../../data/services/expense_api_client.dart';
+import '../../../data/services/expense_intake_service.dart';
 import '../../../data/services/expense_service_v2.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
+import '../home/premium_home_screen.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
   final String? eventId;
   final String? eventName;
   final ExpenseModel? draftExpense;
+  final String? intakeBatchId;
 
   const CreateExpenseScreen({
     super.key,
     this.eventId,
     this.eventName,
     this.draftExpense,
+    this.intakeBatchId,
   });
 
   @override
@@ -53,8 +57,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   bool _isSavingDraft = false;
   bool _isSubmitting = false;
   bool _isSummaryLoading = false;
+  bool _isImportingIntakeBatch = false;
   String? _flowError;
   int _mobileTabIndex = 0;
+  final Set<String> _importedIntakeBatchIds = {};
 
   @override
   void initState() {
@@ -188,12 +194,23 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final user = ref.watch(currentUserProvider);
     final profileReadiness = ExpenseProfileReadiness.fromUser(user);
 
+    if (user == null) {
+      return const PremiumAuthRequiredPage(
+        title: 'New reimbursement',
+        description:
+            'Sign in to attach shared receipts and submit reimbursements.',
+        icon: Icons.receipt_long_rounded,
+      );
+    }
+
     if (_isLoadingLookups) {
       return Scaffold(
         appBar: AppBar(title: const Text('New reimbursement')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+
+    _scheduleIntakeImportIfReady(user);
 
     return PopScope(
       canPop: false,
@@ -228,7 +245,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           ),
           actions: [
             TextButton.icon(
-              onPressed: _canSaveDraft(user) ? () => _saveDraft(user!) : null,
+              onPressed: _canSaveDraft(user) ? () => _saveDraft(user) : null,
               icon: _isSavingDraft
                   ? const SizedBox(
                       width: 16,
@@ -487,8 +504,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   List<Widget> _buildGroupedReceiptTiles() {
-    final topLevel =
-        _receipts.where((r) => r.parentReceiptId == null).toList();
+    final topLevel = _receipts.where((r) => r.parentReceiptId == null).toList();
     final widgets = <Widget>[];
     for (final receipt in topLevel) {
       if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 10));
@@ -617,6 +633,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   message:
                       'Drafts and submissions wait until upload and OCR finish.',
                 ),
+              if (_isImportingIntakeBatch)
+                const _InfoBanner(
+                  icon: Icons.file_upload_outlined,
+                  color: AppColors.accentBlue,
+                  title: 'Importing shared receipts',
+                  message:
+                      'Files shared with BISO are being added to this reimbursement.',
+                ),
               if (_flowError != null)
                 _WarningBanner(
                   icon: Icons.error_outline,
@@ -645,10 +669,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
+                  color: AppColors.shadowLight,
                   blurRadius: 12,
                   offset: const Offset(0, -4),
                 ),
@@ -702,11 +726,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: AppColors.shadowLight,
             blurRadius: 24,
             offset: const Offset(0, 12),
           ),
@@ -841,7 +865,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   Future<void> _pickDocumentReceipt() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
       allowMultiple: true,
     );
     if (result == null) return;
@@ -854,7 +878,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   Future<void> _pickBankStatement(String parentReceiptId) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
       allowMultiple: false,
     );
     if (result == null || result.files.first.path == null) return;
@@ -863,6 +887,64 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       purpose: 'bank-statement',
       parentReceiptId: parentReceiptId,
     );
+  }
+
+  void _scheduleIntakeImportIfReady(dynamic user) {
+    final batchId = widget.intakeBatchId;
+    if (batchId == null ||
+        batchId.isEmpty ||
+        user == null ||
+        _isLoadingLookups ||
+        _isImportingIntakeBatch ||
+        _importedIntakeBatchIds.contains(batchId)) {
+      return;
+    }
+    _importedIntakeBatchIds.add(batchId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _importIntakeBatch(batchId);
+    });
+  }
+
+  Future<void> _importIntakeBatch(String batchId) async {
+    setState(() {
+      _isImportingIntakeBatch = true;
+      _flowError = null;
+    });
+    try {
+      final batch = await ExpenseIntakeService.instance.getBatch(batchId);
+      if (batch == null || batch.files.isEmpty) {
+        setState(() {
+          _flowError =
+              'Shared receipt batch was not found. Try sharing the files again.';
+        });
+        return;
+      }
+
+      var importedCount = 0;
+      for (final intakeFile in batch.files) {
+        if (!mounted) return;
+        if (await intakeFile.file.exists()) {
+          await _addFile(intakeFile.file);
+          importedCount += 1;
+        }
+      }
+
+      if (importedCount == 0) {
+        setState(
+          () => _flowError = 'No shared receipt files could be imported.',
+        );
+      } else {
+        _showSnack(
+          importedCount == 1
+              ? 'Imported 1 shared file'
+              : 'Imported $importedCount shared files',
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _flowError = 'Shared import failed: $e');
+    } finally {
+      if (mounted) setState(() => _isImportingIntakeBatch = false);
+    }
   }
 
   Future<void> _addFile(
@@ -1293,6 +1375,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       'image/jpeg',
       'image/png',
       'image/webp',
+      'image/heic',
+      'image/heif',
       'application/pdf',
     }.contains(mimeType);
   }
@@ -1306,6 +1390,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         return 'image/png';
       case 'webp':
         return 'image/webp';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
       case 'jpg':
       case 'jpeg':
         return 'image/jpeg';
@@ -1421,12 +1509,7 @@ class _ReceiptTile extends StatelessWidget {
     if (!isPdf && path != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: Image.file(
-          File(path),
-          width: 40,
-          height: 40,
-          fit: BoxFit.cover,
-        ),
+        child: Image.file(File(path), width: 40, height: 40, fit: BoxFit.cover),
       );
     }
     final url = receipt.viewUrl;

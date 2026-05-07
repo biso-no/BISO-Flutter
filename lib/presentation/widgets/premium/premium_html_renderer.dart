@@ -79,58 +79,64 @@ class PremiumHtmlRenderer extends StatelessWidget {
     return enhanced;
   }
 
-  /// Build comprehensive HTML styles with BI brand colors
+  /// Build comprehensive HTML styles with theme-aware colors
   Map<String, Style> _buildHtmlStyles(ThemeData theme, double fontSize) {
+    final colorScheme = theme.colorScheme;
+    final onSurface = colorScheme.onSurface;
+    final primary = colorScheme.primary;
+    final surfaceHighest = colorScheme.surfaceContainerHighest;
+    final outline = colorScheme.outline;
+
     return {
       // Base elements
       'body': Style(
         margin: Margins.zero,
         padding: HtmlPaddings.zero,
         fontSize: FontSize(fontSize),
-        color: theme.textTheme.bodyMedium?.color ?? AppColors.charcoalBlack,
+        color: theme.textTheme.bodyMedium?.color ?? onSurface,
         fontFamily: theme.textTheme.bodyMedium?.fontFamily ?? 'Inter',
         lineHeight: LineHeight.percent(150),
         maxLines: maxLines,
       ),
 
-      // Headings with BI brand styling
+      // Headings
       'h1': Style(
         fontSize: FontSize(isCompact ? fontSize + 6 : fontSize + 12),
         fontWeight: FontWeight.w700,
-        color: AppColors.strongBlue,
+        color: onSurface,
         margin: Margins.only(bottom: 16, top: 8),
         lineHeight: LineHeight.percent(120),
       ),
       'h2': Style(
         fontSize: FontSize(isCompact ? fontSize + 4 : fontSize + 8),
         fontWeight: FontWeight.w600,
-        color: AppColors.defaultBlue,
+        color: primary,
         margin: Margins.only(bottom: 12, top: 6),
         lineHeight: LineHeight.percent(125),
       ),
       'h3': Style(
         fontSize: FontSize(isCompact ? fontSize + 2 : fontSize + 4),
         fontWeight: FontWeight.w600,
-        color: AppColors.accentBlue,
+        color: primary,
         margin: Margins.only(bottom: 8, top: 4),
         lineHeight: LineHeight.percent(130),
       ),
       'h4': Style(
         fontSize: FontSize(fontSize + 2),
         fontWeight: FontWeight.w500,
-        color: AppColors.defaultBlue,
+        color: primary,
         margin: Margins.only(bottom: 6, top: 3),
       ),
       'h5': Style(
         fontSize: FontSize(fontSize + 1),
         fontWeight: FontWeight.w500,
-        color: AppColors.strongBlue,
+        color: onSurface,
         margin: Margins.only(bottom: 4, top: 2),
       ),
       'h6': Style(
         fontSize: FontSize(fontSize),
         fontWeight: FontWeight.w500,
-        color: AppColors.defaultBlue,
+        color: primary,
         margin: Margins.only(bottom: 3, top: 1),
       ),
 
@@ -141,20 +147,20 @@ class PremiumHtmlRenderer extends StatelessWidget {
         textAlign: TextAlign.left,
       ),
 
-      // Premium text styling
-      'strong': Style(fontWeight: FontWeight.w700, color: AppColors.strongBlue),
-      'b': Style(fontWeight: FontWeight.w700, color: AppColors.strongBlue),
-      'em': Style(fontStyle: FontStyle.italic, color: AppColors.defaultBlue),
-      'i': Style(fontStyle: FontStyle.italic, color: AppColors.defaultBlue),
+      // Emphasis styling
+      'strong': Style(fontWeight: FontWeight.w700, color: onSurface),
+      'b': Style(fontWeight: FontWeight.w700, color: onSurface),
+      'em': Style(fontStyle: FontStyle.italic, color: primary),
+      'i': Style(fontStyle: FontStyle.italic, color: primary),
 
-      // Links with BI brand colors
+      // Links
       'a': Style(
-        color: AppColors.accentBlue,
+        color: primary,
         textDecoration: TextDecoration.underline,
         fontWeight: FontWeight.w500,
       ),
 
-      // Lists with premium styling
+      // Lists
       'ul': Style(
         margin: Margins.only(bottom: isCompact ? 8 : 12, left: 4),
         padding: HtmlPaddings.only(left: 16),
@@ -169,68 +175,68 @@ class PremiumHtmlRenderer extends StatelessWidget {
         display: Display.listItem,
       ),
 
-      // Blockquotes with elegant styling
+      // Blockquotes
       'blockquote': Style(
         margin: Margins.only(left: 16, right: 16, bottom: 12),
         padding: HtmlPaddings.only(left: 16, top: 8, bottom: 8),
         border: Border(
           left: BorderSide(color: AppColors.defaultGold, width: 4),
         ),
-        backgroundColor: AppColors.subtleBlue.withValues(alpha: 0.1),
+        backgroundColor: primary.withValues(alpha: 0.08),
         fontStyle: FontStyle.italic,
-        color: AppColors.stoneGray,
+        color: colorScheme.onSurfaceVariant,
       ),
 
       // Code styling
       'code': Style(
-        backgroundColor: AppColors.cloud,
-        color: AppColors.charcoalBlack,
+        backgroundColor: surfaceHighest,
+        color: onSurface,
         padding: HtmlPaddings.symmetric(horizontal: 6, vertical: 2),
         fontSize: FontSize(fontSize - 1),
         fontFamily: 'monospace',
       ),
       'pre': Style(
-        backgroundColor: AppColors.cloud,
+        backgroundColor: surfaceHighest,
         padding: HtmlPaddings.all(12),
         margin: Margins.only(bottom: 12),
       ),
 
-      // Tables with clean styling
+      // Tables
       'table': Style(
-        border: Border.all(color: AppColors.gray300),
+        border: Border.all(color: outline),
         width: Width(double.infinity),
         margin: Margins.only(bottom: 12),
       ),
       'th': Style(
-        backgroundColor: AppColors.subtleBlue,
+        backgroundColor: primary.withValues(alpha: 0.12),
         padding: HtmlPaddings.all(8),
         fontWeight: FontWeight.w600,
-        color: AppColors.strongBlue,
-        border: Border.all(color: AppColors.gray300),
+        color: onSurface,
+        border: Border.all(color: outline),
       ),
       'td': Style(
         padding: HtmlPaddings.all(8),
-        border: Border.all(color: AppColors.gray300),
+        border: Border.all(color: outline),
       ),
 
-      // Remove margins from compact mode
+      // Compact mode overrides
       if (isCompact) ...{
         'h1': Style(
           fontSize: FontSize(fontSize + 6),
           fontWeight: FontWeight.w700,
-          color: AppColors.strongBlue,
+          color: onSurface,
           margin: Margins.only(bottom: 4, top: 2),
         ),
         'h2': Style(
           fontSize: FontSize(fontSize + 4),
           fontWeight: FontWeight.w600,
-          color: AppColors.defaultBlue,
+          color: primary,
           margin: Margins.only(bottom: 4, top: 2),
         ),
         'h3': Style(
           fontSize: FontSize(fontSize + 2),
           fontWeight: FontWeight.w600,
-          color: AppColors.accentBlue,
+          color: primary,
           margin: Margins.only(bottom: 4, top: 2),
         ),
         'p': Style(margin: Margins.only(bottom: 4)),

@@ -609,9 +609,9 @@ class _MembershipPurchaseModalState extends State<MembershipPurchaseModal>
               onPressed: isProcessing ? null : _handlePurchase,
               style: FilledButton.styleFrom(
                 backgroundColor: selectedPaymentMethod == 'VIPPS'
-                    ? const Color(0xFF6D3EFF) // Vipps purple
+                    ? AppColors.vippsPurple
                     : widget.campusColor,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),

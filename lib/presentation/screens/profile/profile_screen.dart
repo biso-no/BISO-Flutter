@@ -111,14 +111,14 @@ class ProfileScreen extends ConsumerWidget {
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
+                          border: Border.all(color: AppColors.white, width: 3),
                         ),
                         child: CircleAvatar(
                           radius: 38,
                           backgroundImage: user?.avatarUrl != null
                               ? NetworkImage(user!.avatarUrl!)
                               : null,
-                          backgroundColor: Colors.white,
+                          backgroundColor: AppColors.white,
                           child: user?.avatarUrl == null
                               ? Icon(
                                   Icons.person,
@@ -132,7 +132,7 @@ class ProfileScreen extends ConsumerWidget {
                       Text(
                         user?.name ?? 'Unknown User',
                         style: theme.textTheme.headlineSmall?.copyWith(
-                          color: Colors.white,
+                          color: AppColors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -141,7 +141,7 @@ class ProfileScreen extends ConsumerWidget {
                       Text(
                         'BI ${selectedCampus.name}',
                         style: theme.textTheme.bodyLarge?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: AppColors.white.withValues(alpha: 0.9),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -158,7 +158,7 @@ class ProfileScreen extends ConsumerWidget {
                     builder: (context) => const SettingsScreen(),
                   ),
                 ),
-                icon: const Icon(Icons.settings, color: Colors.white),
+                icon: const Icon(Icons.settings, color: AppColors.white),
               ),
             ],
           ),
