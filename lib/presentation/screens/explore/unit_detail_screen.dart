@@ -5,8 +5,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/department_model.dart';
 import '../../../data/services/department_service.dart';
+import '../../../data/services/pages_service.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+import '../../widgets/page_blocks/block_renderer.dart';
 
 final _departmentProvider = FutureProvider.family<DepartmentModel?, String>((
   ref,
@@ -23,6 +25,11 @@ final _socialsProvider =
       return await service.getDepartmentSocials(id);
     });
 
+final _pageBlocksProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, id) async {
+      return await PagesService().getPublishedBlocksForDepartment(id);
+    });
+
 class UnitDetailScreen extends ConsumerWidget {
   final String departmentId;
   final String departmentName;
@@ -32,6 +39,7 @@ class UnitDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncDept = ref.watch(_departmentProvider(departmentId));
     final asyncSocials = ref.watch(_socialsProvider(departmentId));
+    final asyncBlocks = ref.watch(_pageBlocksProvider(departmentId));
     final theme = Theme.of(context);
 
     //Department name
@@ -136,6 +144,18 @@ class UnitDetailScreen extends ConsumerWidget {
                     ],
                   ),
                 ),
+                // Page editor blocks — rendered only when a published page exists
+                asyncBlocks.whenData((blocks) {
+                  if (blocks.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Divider(height: 32),
+                      ...blocks.map(BlockRenderer.forBlock),
+                      const SizedBox(height: 24),
+                    ],
+                  );
+                }).value ?? const SizedBox.shrink(),
               ],
             ),
           );
