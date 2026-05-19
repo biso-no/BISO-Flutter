@@ -10,6 +10,11 @@ class AppConstants {
   static const String productsBucketId = 'products';
   static const String expensesBucketId = 'expenses';
 
+  // Page editor database — must match APPWRITE_DATABASE_ID in the page editor's .env.local
+  // Default is 'biso'; change both here and in the editor env if you want them in the same DB.
+  static const String pagesDatabaseId = 'biso';
+  static const String pagesCollectionId = 'pages';
+
   // Collections
   static const String expensesCollectionId = 'expense';
   static const String expenseAttachmentsCollectionId = 'expense_attachments';
