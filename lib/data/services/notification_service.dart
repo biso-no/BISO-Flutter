@@ -296,8 +296,22 @@ class NotificationService {
   /// Get all topic subscriptions
   Map<String, bool> get topicSubscriptions => Map.from(_topicSubscriptions);
 
+  bool _topicSubscriptionsLoaded = false;
+
+  /// Ensure the saved topic opt-outs are loaded from user preferences before a
+  /// consumer (e.g. the inbox) reads [topicSubscriptions]. `_loadTopicSubscriptions`
+  /// otherwise only runs after a notification-permission request, so on a fresh
+  /// start the in-memory map would be empty and opt-outs ignored.
+  Future<Map<String, bool>> ensureTopicSubscriptionsLoaded() async {
+    if (!_topicSubscriptionsLoaded) {
+      await _loadTopicSubscriptions();
+    }
+    return topicSubscriptions;
+  }
+
   /// Load topic subscriptions from user preferences
   Future<void> _loadTopicSubscriptions() async {
+    _topicSubscriptionsLoaded = true;
     try {
       final prefs = await _account.getPrefs();
       final subscriptions = prefs.data['topic_subscriptions'] as Map<String, dynamic>?;

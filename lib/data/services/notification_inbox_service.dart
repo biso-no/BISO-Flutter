@@ -62,13 +62,25 @@ class NotificationInboxService {
         userNotificationIdByAnnouncement[announcementId] = row.$id;
       }
 
-      // 2. Broadcast feed: sent announcements addressed to everyone.
+      // 2. Broadcast feed: sent announcements addressed to everyone. Query
+      // broadcasts and topics separately, each with its own limit, so a busy
+      // topic backlog can't push broadcasts out of the limited result set.
       final broadcastRows = await db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
           Query.equal('status', 'sent'),
-          Query.equal('audience_type', ['topic', 'broadcast']),
+          Query.equal('audience_type', 'broadcast'),
+          Query.orderDesc('sent_at'),
+          Query.limit(_fetchLimit),
+        ],
+      );
+      final topicRows = await db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: _announcementsTable,
+        queries: [
+          Query.equal('status', 'sent'),
+          Query.equal('audience_type', 'topic'),
           Query.orderDesc('sent_at'),
           Query.limit(_fetchLimit),
         ],
@@ -76,8 +88,10 @@ class NotificationInboxService {
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
-        // Hide topic announcements the user has opted out of (broadcasts and
-        // anything else always pass).
+        announcementById[row.$id] = _rowToMap(row);
+      }
+      for (final row in topicRows.rows) {
+        // Hide topic announcements the user has opted out of.
         if (!_isTopicVisible(row.data, topicSubscriptions)) continue;
         announcementById[row.$id] = _rowToMap(row);
       }

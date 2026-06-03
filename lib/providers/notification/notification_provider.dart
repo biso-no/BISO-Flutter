@@ -173,10 +173,12 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      final subscriptions =
+          await _notificationService.ensureTopicSubscriptionsLoaded();
       final items = await _service.fetchInbox(
         userId: userId,
         locale: _locale,
-        topicSubscriptions: _notificationService.topicSubscriptions,
+        topicSubscriptions: subscriptions,
       );
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
@@ -190,10 +192,12 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     if (userId == null || userId.isEmpty) return;
 
     try {
+      final subscriptions =
+          await _notificationService.ensureTopicSubscriptionsLoaded();
       final items = await _service.fetchInbox(
         userId: userId,
         locale: _locale,
-        topicSubscriptions: _notificationService.topicSubscriptions,
+        topicSubscriptions: subscriptions,
       );
       state = state.copyWith(items: items, clearError: true);
     } catch (e) {
