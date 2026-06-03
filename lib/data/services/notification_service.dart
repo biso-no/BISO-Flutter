@@ -438,6 +438,15 @@ class NotificationService {
       return;
     }
 
+    final announcementId = data['announcement_id'] as String?;
+    if (announcementId != null && announcementId.isNotEmpty) {
+      debugPrint('Navigating to announcement detail: $announcementId');
+      deepLinkService.handleDeepLink(
+        Uri.parse('biso://announcement?id=$announcementId'),
+      );
+      return;
+    }
+
     debugPrint('Opening notifications inbox for announcement');
     final context = navigatorKey.currentContext;
     if (context != null) {

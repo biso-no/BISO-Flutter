@@ -110,6 +110,68 @@ class NotificationInboxService {
     }
   }
 
+  /// Fetch a single announcement by [announcementId] localized to [locale].
+  ///
+  /// When [userId] is provided, also looks up the matching `user_notifications`
+  /// row so the returned [AppNotification] carries the per-user read state and
+  /// its row `$id`. Returns `null` when the announcement does not exist.
+  Future<AppNotification?> fetchAnnouncementById({
+    required String announcementId,
+    required String locale,
+    String? userId,
+  }) async {
+    try {
+      final announcementRows = await db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: _announcementsTable,
+        queries: [
+          Query.equal('\$id', announcementId),
+          Query.limit(1),
+        ],
+      );
+
+      if (announcementRows.rows.isEmpty) {
+        return null;
+      }
+
+      final doc = announcementRows.rows.first.data;
+
+      bool read = false;
+      String? userNotificationId;
+
+      if (userId != null && userId.isNotEmpty) {
+        final userRows = await db.listRows(
+          databaseId: AppConstants.databaseId,
+          tableId: _userNotificationsTable,
+          queries: [
+            Query.equal('user_id', userId),
+            Query.equal('announcement_id', announcementId),
+            Query.limit(1),
+          ],
+        );
+
+        if (userRows.rows.isNotEmpty) {
+          final row = userRows.rows.first;
+          read = row.data['read'] == true;
+          userNotificationId = row.$id;
+        }
+      }
+
+      return AppNotification.fromAnnouncement(
+        doc,
+        locale: locale,
+        read: read,
+        userNotificationId: userNotificationId,
+      );
+    } on AppwriteException catch (e) {
+      throw NotificationInboxException(
+        'Failed to load announcement: ${e.message}',
+      );
+    } catch (e) {
+      throw NotificationInboxException('Failed to load announcement: $e');
+    }
+  }
+
   /// Mark [notification] as read for [userId].
   ///
   /// Updates the existing `user_notifications` row when present, otherwise

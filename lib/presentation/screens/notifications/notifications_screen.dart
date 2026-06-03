@@ -94,8 +94,13 @@ class NotificationsScreen extends ConsumerWidget {
       DeepLinkService().handleDeepLink(
         Uri.parse('biso://event?id=${item.eventId}'),
       );
+      return;
     }
-    // Otherwise stay on the inbox.
+
+    // No deep link or event: open the rich announcement detail directly.
+    if (item.id.isNotEmpty && context.mounted) {
+      context.go('/announcements/${item.id}');
+    }
   }
 }
 

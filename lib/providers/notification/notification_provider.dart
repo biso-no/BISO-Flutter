@@ -240,3 +240,19 @@ final notificationInboxProvider =
 final unreadCountProvider = Provider<int>((ref) {
   return ref.watch(notificationInboxProvider).unreadCount;
 });
+
+/// Fetches a single announcement by id, localized and merged with the current
+/// user's read state. Keyed by announcement id. Used by the announcement
+/// detail screen.
+final announcementDetailProvider =
+    FutureProvider.family<AppNotification?, String>((ref, announcementId) async {
+      final service = ref.watch(notificationInboxServiceProvider);
+      final userId = ref.watch(authStateProvider).user?.id;
+      final locale = ref.watch(localeProvider).languageCode;
+
+      return service.fetchAnnouncementById(
+        announcementId: announcementId,
+        locale: locale,
+        userId: userId,
+      );
+    });
