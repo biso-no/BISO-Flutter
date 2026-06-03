@@ -70,7 +70,7 @@ class NotificationInboxService {
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
-        announcementById[row.$id] = row.data;
+        announcementById[row.$id] = _rowToMap(row);
       }
 
       // 3. Fetch any targeted announcements not already in the broadcast feed.
@@ -88,7 +88,7 @@ class NotificationInboxService {
           ],
         );
         for (final row in rows.rows) {
-          announcementById[row.$id] = row.data;
+          announcementById[row.$id] = _rowToMap(row);
         }
       }
 
@@ -134,7 +134,7 @@ class NotificationInboxService {
         return null;
       }
 
-      final doc = announcementRows.rows.first.data;
+      final doc = _rowToMap(announcementRows.rows.first);
 
       bool read = false;
       String? userNotificationId;
@@ -228,6 +228,17 @@ class NotificationInboxService {
     });
 
     return subscription;
+  }
+
+  /// Appwrite's `row.data` doesn't carry the system fields, but the model needs
+  /// `$id` (and `$createdAt` for ordering). Merge them back in before building
+  /// an [AppNotification] so broadcast items get a real id (for tap → detail
+  /// and mark-as-read), not an empty string.
+  Map<String, dynamic> _rowToMap(dynamic row) {
+    final data = Map<String, dynamic>.from(row.data as Map);
+    data['\$id'] = row.$id;
+    data['\$createdAt'] = row.$createdAt;
+    return data;
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {
