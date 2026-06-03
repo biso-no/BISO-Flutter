@@ -31,9 +31,15 @@ class NotificationInboxService {
   ).table(_userNotificationsTable).row().toString();
 
   /// Fetch the merged inbox for [userId] localized to [locale].
+  ///
+  /// [topicSubscriptions] is the user's per-topic opt-in map (from
+  /// `NotificationService`). Broadcast announcements always appear; a `topic`
+  /// announcement is shown only when the user hasn't explicitly opted out of
+  /// that topic (default-show when the map is empty/unknown).
   Future<List<AppNotification>> fetchInbox({
     required String userId,
     required String locale,
+    Map<String, bool> topicSubscriptions = const {},
   }) async {
     try {
       // 1. Targeted notifications for this user (read state + row id).
@@ -70,6 +76,9 @@ class NotificationInboxService {
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
+        // Hide topic announcements the user has opted out of (broadcasts and
+        // anything else always pass).
+        if (!_isTopicVisible(row.data, topicSubscriptions)) continue;
         announcementById[row.$id] = _rowToMap(row);
       }
 
@@ -239,6 +248,19 @@ class NotificationInboxService {
     data['\$id'] = row.$id;
     data['\$createdAt'] = row.$createdAt;
     return data;
+  }
+
+  /// A `topic` announcement is visible only when the user is subscribed to its
+  /// topic; broadcasts (and any non-topic audience) are always visible.
+  /// Default-show when the topic isn't present in the map.
+  bool _isTopicVisible(
+    Map<String, dynamic> data,
+    Map<String, bool> topicSubscriptions,
+  ) {
+    if (data['audience_type'] != 'topic') return true;
+    final topic = data['audience_value'] as String?;
+    if (topic == null || topic.isEmpty) return true;
+    return topicSubscriptions[topic] != false;
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {

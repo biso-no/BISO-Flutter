@@ -139,6 +139,7 @@ class NotificationInboxState {
 
 class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   final NotificationInboxService _service;
+  final NotificationService _notificationService;
   final String? _userId;
   final String _locale;
 
@@ -147,16 +148,19 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
 
   NotificationInboxNotifier(
     this._service, {
+    required NotificationService notificationService,
     required String? userId,
     required String locale,
-    required Stream<void> onForegroundMessage,
-  }) : _userId = userId,
+  }) : _notificationService = notificationService,
+       _userId = userId,
        _locale = locale,
        super(const NotificationInboxState()) {
     if (_userId != null && _userId.isNotEmpty) {
       load();
       _subscription = _service.subscribe(onChange: refresh);
-      _foregroundSubscription = onForegroundMessage.listen((_) => refresh());
+      _foregroundSubscription = _notificationService.onForegroundMessage.listen(
+        (_) => refresh(),
+      );
     }
   }
 
@@ -169,7 +173,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final items = await _service.fetchInbox(userId: userId, locale: _locale);
+      final items = await _service.fetchInbox(
+        userId: userId,
+        locale: _locale,
+        topicSubscriptions: _notificationService.topicSubscriptions,
+      );
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -182,7 +190,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     if (userId == null || userId.isEmpty) return;
 
     try {
-      final items = await _service.fetchInbox(userId: userId, locale: _locale);
+      final items = await _service.fetchInbox(
+        userId: userId,
+        locale: _locale,
+        topicSubscriptions: _notificationService.topicSubscriptions,
+      );
       state = state.copyWith(items: items, clearError: true);
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -230,9 +242,9 @@ final notificationInboxProvider =
 
       return NotificationInboxNotifier(
         service,
+        notificationService: notificationService,
         userId: userId,
         locale: locale,
-        onForegroundMessage: notificationService.onForegroundMessage,
       );
     });
 
