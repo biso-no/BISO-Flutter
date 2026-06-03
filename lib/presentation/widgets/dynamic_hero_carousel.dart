@@ -9,6 +9,7 @@ import '../../data/models/large_event_model.dart';
 import '../../data/models/campus_model.dart';
 import '../../data/services/showcase_navigation_service.dart';
 import '../../providers/campus/campus_provider.dart';
+import '../../providers/notification/notification_provider.dart';
 
 /// Dynamic hero carousel that can display different types of showcase content
 class DynamicHeroCarousel extends ConsumerStatefulWidget {
@@ -336,7 +337,19 @@ class _DynamicHeroCarouselState extends ConsumerState<DynamicHeroCarousel>
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (showCampusButton) _CampusButton(campus: widget.campus, onTap: widget.onCampusTap),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const _NotificationBellButton(),
+                        if (showCampusButton) ...[
+                          const SizedBox(width: 8),
+                          _CampusButton(
+                            campus: widget.campus,
+                            onTap: widget.onCampusTap,
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
 
@@ -752,6 +765,66 @@ class ShowcaseHeroCard extends StatelessWidget {
 }
 
 /// Campus button widget for switching campuses
+/// Bell button shown in the hero header with an unread badge driven by
+/// [unreadCountProvider]. Opens the in-app notifications inbox.
+class _NotificationBellButton extends ConsumerWidget {
+  const _NotificationBellButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreadCount = ref.watch(unreadCountProvider);
+
+    return Material(
+      color: Colors.white.withValues(alpha: 0.15),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/notifications'),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(
+                Icons.notifications_none_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      unreadCount > 9 ? '9+' : '$unreadCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CampusButton extends StatelessWidget {
   final CampusModel campus;
   final VoidCallback onTap;

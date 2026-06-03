@@ -37,6 +37,7 @@ import 'presentation/screens/explore/departures_screen.dart';
 import 'presentation/screens/explore/campus_detail_screen.dart';
 import 'presentation/screens/ai_chat/ai_chat_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
+import 'presentation/screens/notifications/notifications_screen.dart';
 import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
@@ -351,6 +352,11 @@ final _router = GoRouter(
       path: '/controller-mode',
       name: 'controller-mode',
       builder: (context, state) => const ControllerModeScreen(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      name: 'notifications',
+      builder: (context, state) => const NotificationsScreen(),
     ),
   ],
 );

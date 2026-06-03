@@ -1,9 +1,24 @@
+import 'dart:async';
+
+import 'package:appwrite/appwrite.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../data/models/app_notification_model.dart';
+import '../../data/services/notification_inbox_service.dart';
 import '../../data/services/notification_service.dart';
+import '../auth/auth_provider.dart';
+import '../ui/locale_provider.dart';
 
 // Provider for the notification service
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService();
+});
+
+// Provider for the inbox service (announcements + user_notifications)
+final notificationInboxServiceProvider = Provider<NotificationInboxService>((
+  ref,
+) {
+  return NotificationInboxService();
 });
 
 // Provider for checking if notifications are enabled
@@ -89,3 +104,139 @@ final notificationPreferencesProvider =
       final service = ref.read(notificationServiceProvider);
       return NotificationPreferencesNotifier(service);
     });
+
+// ---------------------------------------------------------------------------
+// In-app notification inbox
+// ---------------------------------------------------------------------------
+
+/// Immutable state for the notification inbox.
+class NotificationInboxState {
+  final List<AppNotification> items;
+  final bool isLoading;
+  final String? error;
+
+  const NotificationInboxState({
+    this.items = const [],
+    this.isLoading = false,
+    this.error,
+  });
+
+  int get unreadCount => items.where((item) => !item.read).length;
+
+  NotificationInboxState copyWith({
+    List<AppNotification>? items,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+  }) {
+    return NotificationInboxState(
+      items: items ?? this.items,
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
+  final NotificationInboxService _service;
+  final String? _userId;
+  final String _locale;
+
+  RealtimeSubscription? _subscription;
+  StreamSubscription<void>? _foregroundSubscription;
+
+  NotificationInboxNotifier(
+    this._service, {
+    required String? userId,
+    required String locale,
+    required Stream<void> onForegroundMessage,
+  }) : _userId = userId,
+       _locale = locale,
+       super(const NotificationInboxState()) {
+    if (_userId != null && _userId.isNotEmpty) {
+      load();
+      _subscription = _service.subscribe(onChange: refresh);
+      _foregroundSubscription = onForegroundMessage.listen((_) => refresh());
+    }
+  }
+
+  Future<void> load() async {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) {
+      state = const NotificationInboxState();
+      return;
+    }
+
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final items = await _service.fetchInbox(userId: userId, locale: _locale);
+      state = state.copyWith(items: items, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// Reload without showing the full-screen loading state.
+  Future<void> refresh() async {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) return;
+
+    try {
+      final items = await _service.fetchInbox(userId: userId, locale: _locale);
+      state = state.copyWith(items: items, clearError: true);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> markRead(AppNotification notification) async {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty || notification.read) return;
+
+    // Optimistically update local state for instant UI feedback.
+    state = state.copyWith(
+      items: [
+        for (final item in state.items)
+          item.id == notification.id ? item.copyWith(read: true) : item,
+      ],
+    );
+
+    try {
+      await _service.markAsRead(notification, userId: userId);
+      // Refresh so we pick up the persisted user_notifications row id.
+      await refresh();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.close();
+    _foregroundSubscription?.cancel();
+    super.dispose();
+  }
+}
+
+/// Inbox state provider. Rebuilds when the signed-in user or locale changes.
+final notificationInboxProvider =
+    StateNotifierProvider<NotificationInboxNotifier, NotificationInboxState>((
+      ref,
+    ) {
+      final service = ref.watch(notificationInboxServiceProvider);
+      final userId = ref.watch(authStateProvider).user?.id;
+      final locale = ref.watch(localeProvider).languageCode;
+      final notificationService = ref.watch(notificationServiceProvider);
+
+      return NotificationInboxNotifier(
+        service,
+        userId: userId,
+        locale: locale,
+        onForegroundMessage: notificationService.onForegroundMessage,
+      );
+    });
+
+/// Convenience provider for the unread badge count.
+final unreadCountProvider = Provider<int>((ref) {
+  return ref.watch(notificationInboxProvider).unreadCount;
+});
