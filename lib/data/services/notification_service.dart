@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart'
     as permission_handler;
 import 'package:appwrite/appwrite.dart';
+import 'package:go_router/go_router.dart';
 
 import 'appwrite_service.dart';
 import 'deep_link_service.dart';
@@ -22,6 +25,20 @@ class NotificationService {
   String? _pushTargetId;
   bool _isInitialized = false;
   final Map<String, bool> _topicSubscriptions = {};
+
+  /// Maps a topicId to the Appwrite subscriber `$id` returned by
+  /// [Messaging.createSubscriber]. Needed to delete the subscriber on
+  /// unsubscribe. Persisted to user preferences alongside the bool map.
+  final Map<String, String> _topicSubscriberIds = {};
+
+  /// Broadcasts every foreground [RemoteMessage] so providers (e.g. the inbox)
+  /// can refresh in response to a push that arrives while the app is open.
+  final StreamController<RemoteMessage> _foregroundMessageController =
+      StreamController<RemoteMessage>.broadcast();
+
+  /// Stream of foreground push messages.
+  Stream<RemoteMessage> get onForegroundMessage =>
+      _foregroundMessageController.stream;
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -227,15 +244,16 @@ class NotificationService {
         return;
       }
 
-      await _messaging.createSubscriber(
+      final subscriber = await _messaging.createSubscriber(
         topicId: topicId,
         subscriberId: ID.unique(),
         targetId: _pushTargetId!,
       );
 
       _topicSubscriptions[topicId] = true;
+      _topicSubscriberIds[topicId] = subscriber.$id;
       await _saveTopicSubscriptions();
-      debugPrint('Subscribed to topic: $topicId');
+      debugPrint('Subscribed to topic: $topicId (${subscriber.$id})');
     } catch (e) {
       debugPrint('Failed to subscribe to topic $topicId: $e');
       rethrow;
@@ -245,8 +263,22 @@ class NotificationService {
   /// Unsubscribe from a topic
   Future<void> unsubscribeFromTopic(String topicId) async {
     try {
-      // We need to find the subscriber ID first
-      // For now, we'll track the subscription status in preferences
+      // Delete the Appwrite subscriber if we have its id, so the device
+      // actually stops receiving messages for this topic.
+      final subscriberId = _topicSubscriberIds[topicId];
+      if (subscriberId != null && subscriberId.isNotEmpty) {
+        try {
+          await _messaging.deleteSubscriber(
+            topicId: topicId,
+            subscriberId: subscriberId,
+          );
+          debugPrint('Deleted subscriber $subscriberId for topic: $topicId');
+        } catch (e) {
+          debugPrint('Failed to delete subscriber for topic $topicId: $e');
+        }
+        _topicSubscriberIds.remove(topicId);
+      }
+
       _topicSubscriptions[topicId] = false;
       await _saveTopicSubscriptions();
       debugPrint('Unsubscribed from topic: $topicId');
@@ -264,12 +296,35 @@ class NotificationService {
   /// Get all topic subscriptions
   Map<String, bool> get topicSubscriptions => Map.from(_topicSubscriptions);
 
+  bool _topicSubscriptionsLoaded = false;
+
+  /// Ensure the saved topic opt-outs are loaded from user preferences before a
+  /// consumer (e.g. the inbox) reads [topicSubscriptions]. `_loadTopicSubscriptions`
+  /// otherwise only runs after a notification-permission request, so on a fresh
+  /// start the in-memory map would be empty and opt-outs ignored.
+  Future<Map<String, bool>> ensureTopicSubscriptionsLoaded() async {
+    if (!_topicSubscriptionsLoaded) {
+      await _loadTopicSubscriptions();
+    }
+    return topicSubscriptions;
+  }
+
   /// Load topic subscriptions from user preferences
   Future<void> _loadTopicSubscriptions() async {
+    _topicSubscriptionsLoaded = true;
     try {
       final prefs = await _account.getPrefs();
       final subscriptions = prefs.data['topic_subscriptions'] as Map<String, dynamic>?;
-      
+      final subscriberIds =
+          prefs.data['topic_subscriber_ids'] as Map<String, dynamic>?;
+
+      if (subscriberIds != null) {
+        _topicSubscriberIds.clear();
+        subscriberIds.forEach((key, value) {
+          if (value is String) _topicSubscriberIds[key] = value;
+        });
+      }
+
       if (subscriptions != null) {
         _topicSubscriptions.clear();
         subscriptions.forEach((key, value) {
@@ -298,6 +353,7 @@ class NotificationService {
       final prefs = await _account.getPrefs();
       final updatedPrefs = Map<String, dynamic>.from(prefs.data);
       updatedPrefs['topic_subscriptions'] = _topicSubscriptions;
+      updatedPrefs['topic_subscriber_ids'] = _topicSubscriberIds;
       updatedPrefs['topic_subscriptions_updated_at'] = DateTime.now().toIso8601String();
 
       await _account.updatePrefs(prefs: updatedPrefs);
@@ -331,8 +387,11 @@ class NotificationService {
       debugPrint('Message body: ${message.notification!.body}');
     }
 
-    // You can show custom in-app notification here
-    // For now, just log it
+    // Broadcast to listeners (e.g. the inbox provider) so they can refresh
+    // while the app is open.
+    if (!_foregroundMessageController.isClosed) {
+      _foregroundMessageController.add(message);
+    }
   }
 
   /// Handle notification tap
@@ -360,8 +419,52 @@ class NotificationService {
       case 'expense':
         _handleExpenseNotification(data);
         break;
+      case 'announcement':
+        _handleAnnouncementNotification(data);
+        break;
       default:
         debugPrint('Unknown notification type: $type');
+    }
+  }
+
+  /// Handle announcement notification tap.
+  ///
+  /// Prefers the server-provided `deep_link` (e.g. `biso://event?id=<id>` or
+  /// `biso://announcement?id=<id>`). Falls back to event handling when an
+  /// `event_id` is present, otherwise opens the notifications inbox.
+  void _handleAnnouncementNotification(Map<String, dynamic> data) {
+    final deepLinkService = DeepLinkService();
+
+    final deepLink = data['deep_link'] as String?;
+    if (deepLink != null && deepLink.isNotEmpty) {
+      final uri = Uri.tryParse(deepLink);
+      if (uri != null) {
+        debugPrint('Navigating via announcement deep link: $deepLink');
+        deepLinkService.handleDeepLink(uri);
+        return;
+      }
+    }
+
+    final eventId = data['event_id'] as String?;
+    if (eventId != null && eventId.isNotEmpty) {
+      debugPrint('Navigating to announcement event: $eventId');
+      deepLinkService.handleDeepLink(Uri.parse('biso://event?id=$eventId'));
+      return;
+    }
+
+    final announcementId = data['announcement_id'] as String?;
+    if (announcementId != null && announcementId.isNotEmpty) {
+      debugPrint('Navigating to announcement detail: $announcementId');
+      deepLinkService.handleDeepLink(
+        Uri.parse('biso://announcement?id=$announcementId'),
+      );
+      return;
+    }
+
+    debugPrint('Opening notifications inbox for announcement');
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      context.go('/notifications');
     }
   }
 
@@ -427,6 +530,7 @@ class NotificationService {
       _fcmToken = null;
       _pushTargetId = null;
       _topicSubscriptions.clear();
+      _topicSubscriberIds.clear();
 
       // Remove from Appwrite preferences
       final prefs = await _account.getPrefs();
@@ -435,6 +539,7 @@ class NotificationService {
       updatedPrefs.remove('fcm_token_updated_at');
       updatedPrefs.remove('push_target_id');
       updatedPrefs.remove('topic_subscriptions');
+      updatedPrefs.remove('topic_subscriber_ids');
       updatedPrefs.remove('topic_subscriptions_updated_at');
 
       await _account.updatePrefs(prefs: updatedPrefs);

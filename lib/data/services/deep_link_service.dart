@@ -70,6 +70,9 @@ class DeepLinkService {
         case 'chat':
           _handleChatDeepLink(uri);
           break;
+        case 'announcement':
+          _handleAnnouncementDeepLink(uri);
+          break;
         default:
           logPrint('🔴 Unknown deep link host: ${uri.host}');
       }
@@ -251,6 +254,24 @@ class DeepLinkService {
   /// Handle expense deep links
   void _handleExpenseDeepLink(Uri uri) {
     _openExpenseRoute(uri, pathSegments: uri.pathSegments);
+  }
+
+  /// Handle announcement deep links
+  void _handleAnnouncementDeepLink(Uri uri) {
+    final announcementId = uri.queryParameters['id'];
+
+    logPrint('🔗 Announcement deep link - ID: $announcementId');
+
+    if (announcementId != null && announcementId.isNotEmpty) {
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        context.go('/announcements/$announcementId');
+      } else {
+        logPrint('🔴 No navigation context available for announcement deep link');
+      }
+    } else {
+      logPrint('🔴 Missing announcement ID in deep link');
+    }
   }
 
   /// Handle chat deep links

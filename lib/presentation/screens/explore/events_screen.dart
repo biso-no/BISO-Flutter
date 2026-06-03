@@ -9,6 +9,7 @@ import '../../../data/models/event_model.dart';
 import '../../../data/services/event_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../widgets/event/your_trip_card.dart';
 
 // Provider for EventService
 final eventServiceProvider = Provider<EventService>((ref) => EventService());
@@ -806,6 +807,10 @@ class _EventDetailSheet extends StatelessWidget {
                 ),
 
                 const SizedBox(height: 24),
+
+                // Personalized "Your trip" logistics for the signed-in user.
+                // Renders nothing when signed out or with no assigned segments.
+                YourTripCard(eventId: event.id),
 
                 // Description
                 if (event.description.isNotEmpty) ...[
