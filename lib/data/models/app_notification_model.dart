@@ -9,7 +9,8 @@ import 'package:equatable/equatable.dart';
 class AppNotification extends Equatable {
   final String id; // announcement id ($id)
   final String title; // localized title
-  final String body; // localized body
+  final String body; // localized body as plain text (HTML stripped)
+  final String bodyHtml; // localized body as raw HTML (for rich rendering)
   final String category; // general | trip | urgent | event
   final String? eventId;
   final String? deepLink;
@@ -27,6 +28,7 @@ class AppNotification extends Equatable {
     required this.body,
     required this.category,
     required this.createdAt,
+    this.bodyHtml = '',
     this.eventId,
     this.deepLink,
     this.data = const {},
@@ -51,7 +53,11 @@ class AppNotification extends Equatable {
     final bodyEn = (doc['body_en'] as String?)?.trim();
 
     final title = (isNorwegian ? (titleNo ?? titleEn) : (titleEn ?? titleNo)) ?? '';
-    final body = (isNorwegian ? (bodyNo ?? bodyEn) : (bodyEn ?? bodyNo)) ?? '';
+    final bodyHtml = (isNorwegian ? (bodyNo ?? bodyEn) : (bodyEn ?? bodyNo)) ?? '';
+    // The admin authors the body in a rich (HTML) block editor; the inbox list
+    // shows plain text, so strip tags here and keep the raw HTML for a future
+    // rich detail view.
+    final body = _stripHtml(bodyHtml);
 
     final rawEventId = doc['event_id'] as String?;
     final eventId = (rawEventId != null && rawEventId.isNotEmpty) ? rawEventId : null;
@@ -66,6 +72,7 @@ class AppNotification extends Equatable {
       id: (doc['\$id'] as String?) ?? '',
       title: title,
       body: body,
+      bodyHtml: bodyHtml,
       category: (doc['category'] as String?) ?? 'general',
       eventId: eventId,
       deepLink: deepLink,
@@ -74,6 +81,23 @@ class AppNotification extends Equatable {
       read: read,
       userNotificationId: userNotificationId,
     );
+  }
+
+  /// Strip HTML tags and collapse whitespace for plain-text display.
+  static String _stripHtml(String html) {
+    if (html.isEmpty) return '';
+    final withoutTags = html
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<[^>]+>'), '');
+    final decoded = withoutTags
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'");
+    return decoded.replaceAll(RegExp(r'[ \t]+'), ' ').trim();
   }
 
   static DateTime? _parseDate(dynamic value) {
@@ -104,6 +128,7 @@ class AppNotification extends Equatable {
     String? id,
     String? title,
     String? body,
+    String? bodyHtml,
     String? category,
     String? eventId,
     String? deepLink,
@@ -116,6 +141,7 @@ class AppNotification extends Equatable {
       id: id ?? this.id,
       title: title ?? this.title,
       body: body ?? this.body,
+      bodyHtml: bodyHtml ?? this.bodyHtml,
       category: category ?? this.category,
       eventId: eventId ?? this.eventId,
       deepLink: deepLink ?? this.deepLink,
@@ -131,6 +157,7 @@ class AppNotification extends Equatable {
     id,
     title,
     body,
+    bodyHtml,
     category,
     eventId,
     deepLink,
