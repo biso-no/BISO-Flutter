@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -24,7 +26,9 @@ import '../../../data/services/job_service.dart';
 import '../../../data/services/webshop_service.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/job_model.dart';
+import '../../../data/models/news_model.dart';
 import '../../../data/models/webshop_product_model.dart';
+import '../../../providers/news/news_provider.dart';
 import '../explore/explore_screen.dart';
 import '../auth/login_screen.dart';
 import '../profile/profile_screen.dart';
@@ -337,6 +341,9 @@ class PremiumHomePage extends ConsumerWidget {
     final jobsAsync = isCampusReady
         ? ref.watch(_latestJobsProvider(campusId))
         : const AsyncLoading<List<JobModel>>();
+    final newsAsync = isCampusReady
+        ? ref.watch(latestNewsProvider(campusId))
+        : const AsyncLoading<List<NewsModel>>();
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -373,6 +380,22 @@ class PremiumHomePage extends ConsumerWidget {
               _PremiumEventCarousel(events: items.cast<EventModel>()),
           ref: ref,
           providerFamily: _latestEventsProvider,
+          context: context,
+        ),
+
+        // Latest News Section
+        _buildPremiumContentSection(
+          title: 'Latest News',
+          subtitle: 'Updates from BISO',
+          icon: Icons.newspaper_rounded,
+          onViewAll: () => context.go('/explore/news'),
+          asyncData: newsAsync,
+          sectionName: 'news',
+          campusId: campusId,
+          contentBuilder: (items) =>
+              _PremiumNewsList(news: items.cast<NewsModel>()),
+          ref: ref,
+          providerFamily: latestNewsProvider,
           context: context,
         ),
 
@@ -1415,6 +1438,120 @@ class _PremiumWebshopProductCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PremiumNewsList extends StatelessWidget {
+  final List<NewsModel> news;
+
+  const _PremiumNewsList({required this.news});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      itemCount: news.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 16),
+      itemBuilder: (context, index) {
+        final article = news[index];
+        return SizedBox(width: 260, child: _PremiumNewsCard(article: article));
+      },
+    );
+  }
+}
+
+class _PremiumNewsCard extends StatelessWidget {
+  final NewsModel article;
+
+  const _PremiumNewsCard({required this.article});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final date = article.createdAt;
+
+    return PremiumCard(
+      onTap: () =>
+          context.push('/explore/news/${article.id}', extra: article),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (article.image != null && article.image!.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: CachedNetworkImage(
+                  imageUrl: article.image!,
+                  fit: BoxFit.cover,
+                  errorWidget: (context, url, error) =>
+                      Container(color: AppColors.surfaceVariant),
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.biLightBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                article.departmentName ?? article.campusName ?? 'BISO',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.biLightBlue,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 12),
+
+          Flexible(
+            child: Text(
+              article.title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+
+          if (article.shortDescription != null &&
+              article.shortDescription!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Flexible(
+              child: Text(
+                article.shortDescription!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.stoneGray,
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+
+          if (date != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              DateFormat('MMM dd, yyyy').format(date),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: AppColors.stoneGray,
+              ),
+            ),
+          ],
         ],
       ),
     );

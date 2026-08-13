@@ -229,6 +229,76 @@ class EventModel extends Equatable {
     );
   }
 
+  // Factory for the BISO Sites API payload (Appwrite-native content)
+  factory EventModel.fromBisoApi(Map<String, dynamic> map) {
+    final startDate =
+        DateTime.tryParse((map['start_date'] ?? '').toString()) ??
+        DateTime.tryParse((map['created_at'] ?? '').toString()) ??
+        DateTime.now();
+    final endDate = DateTime.tryParse((map['end_date'] ?? '').toString());
+    final image = _stringValue(map['image']);
+    final category = _stringValue(map['category']);
+    final tags = (map['tags'] is List)
+        ? (map['tags'] as List).map((tag) => tag.toString()).toList()
+        : const <String>[];
+    final ticketUrl = _stringValue(map['ticket_url']);
+    final webUrl = _stringValue(map['url']);
+
+    return EventModel(
+      id: (map['id'] ?? '').toString(),
+      title: (map['title'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      startDate: startDate,
+      endDate: endDate,
+      venue: _stringValue(map['location']) ?? '',
+      location: _stringValue(map['location']),
+      organizerId: _stringValue(map['department_id']) ?? '',
+      organizerName:
+          _stringValue(map['department_name']) ??
+          _stringValue(map['campus_name']) ??
+          'BISO',
+      organizerLogo: null,
+      campusId: (map['campus_id'] ?? '').toString(),
+      categories: [if (category != null) category, ...tags],
+      images: [if (image != null) image],
+      maxAttendees: (map['capacity'] is num)
+          ? (map['capacity'] as num).toInt()
+          : 0,
+      currentAttendees: 0,
+      isPublic: true,
+      requiresRegistration: ticketUrl != null,
+      price: (map['price'] is num) ? (map['price'] as num).toDouble() : null,
+      registrationUrl: ticketUrl ?? webUrl,
+      registrationDeadline: DateTime.tryParse(
+        (map['registration_deadline'] ?? '').toString(),
+      ),
+      status: _deriveScheduleStatus(
+        rawStatus: (map['status'] ?? '').toString(),
+        startDate: startDate,
+        endDate: endDate,
+      ),
+      createdAt: DateTime.tryParse((map['created_at'] ?? '').toString()),
+      updatedAt: DateTime.tryParse((map['updated_at'] ?? '').toString()),
+    );
+  }
+
+  static String _deriveScheduleStatus({
+    required String rawStatus,
+    required DateTime startDate,
+    DateTime? endDate,
+  }) {
+    if (rawStatus == 'cancelled') return 'cancelled';
+    final now = DateTime.now();
+    final effectiveEnd = endDate ?? startDate;
+    if (effectiveEnd.isBefore(now) && startDate.isBefore(now)) {
+      return 'completed';
+    }
+    if (startDate.isBefore(now) && !effectiveEnd.isBefore(now)) {
+      return 'ongoing';
+    }
+    return 'upcoming';
+  }
+
   // Factory for the Appwrite Function events payload
   factory EventModel.fromFunctionEvent(
     Map<String, dynamic> map, {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
@@ -231,8 +232,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           icon: const Icon(Icons.arrow_back),
         ),
         actions: [
-          // IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
-          // IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark_border)),
+          IconButton(
+            tooltip: 'My applications',
+            onPressed: () => context.push('/explore/volunteer/applications'),
+            icon: const Icon(Icons.assignment_outlined),
+          ),
         ],
       ),
       body: Column(
@@ -886,7 +890,64 @@ class _JobDetailSheet extends StatelessWidget {
                       ],
                     ),
                   ],
+                  const SizedBox(height: 24),
                 ],
+
+                // Apply CTA
+                if (job.applicationMethod == 'internal' && job.canApply)
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.push('/explore/volunteer/apply', extra: job);
+                      },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      icon: const Icon(Icons.send),
+                      label: Text(
+                        'Apply by ${DateFormat('MMM dd, yyyy').format(job.applicationDeadline)}',
+                      ),
+                    ),
+                  )
+                else if (job.applicationMethod == 'external' &&
+                    (job.applicationUrl?.isNotEmpty ?? false))
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => launchUrl(
+                        Uri.parse(job.applicationUrl!),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      icon: const Icon(Icons.open_in_browser),
+                      label: const Text('Apply on biso.no'),
+                    ),
+                  )
+                else if (!job.canApply)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.surfaceVariantDark
+                          : AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'This position is no longer accepting applications.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: isDark
+                            ? AppColors.onSurfaceVariantDark
+                            : AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
               ],
             ),
           ),

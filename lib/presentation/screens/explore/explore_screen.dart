@@ -171,6 +171,13 @@ class ExploreScreen extends ConsumerWidget {
                       color: AppColors.accentBlue,
                       onTap: () => context.go('/explore/events'),
                     ),
+                    _CategoryCard(
+                      icon: Icons.newspaper,
+                      title: 'News',
+                      subtitle: 'Latest from BISO',
+                      color: AppColors.strongBlue,
+                      onTap: () => context.go('/explore/news'),
+                    ),
                     if (config.departuresEnabled)
                       _CategoryCard(
                         icon: Icons.departure_board,

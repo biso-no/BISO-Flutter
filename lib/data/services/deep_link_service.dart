@@ -73,6 +73,9 @@ class DeepLinkService {
         case 'announcement':
           _handleAnnouncementDeepLink(uri);
           break;
+        case 'news':
+          _handleNewsDeepLink(uri);
+          break;
         default:
           logPrint('🔴 Unknown deep link host: ${uri.host}');
       }
@@ -131,6 +134,16 @@ class DeepLinkService {
       case 'jobs':
       case 'volunteer':
         _go('/explore/volunteer');
+        break;
+      case 'news':
+        if (appSegments.length >= 2) {
+          _go('/explore/news/${appSegments[1]}');
+        } else {
+          _go('/explore/news');
+        }
+        break;
+      case 'applications':
+        _go('/explore/volunteer/applications');
         break;
       case 'expenses':
       case 'expense':
@@ -271,6 +284,19 @@ class DeepLinkService {
       }
     } else {
       logPrint('🔴 Missing announcement ID in deep link');
+    }
+  }
+
+  /// Handle news deep links
+  void _handleNewsDeepLink(Uri uri) {
+    final newsId = uri.queryParameters['id'];
+
+    logPrint('🔗 News deep link - ID: $newsId');
+
+    if (newsId != null && newsId.isNotEmpty) {
+      _go('/explore/news/$newsId');
+    } else {
+      _go('/explore/news');
     }
   }
 

@@ -1,16 +1,20 @@
 import 'dart:convert';
-import 'dart:math' as math;
-import 'package:appwrite/appwrite.dart';
 import 'package:http/http.dart' as http;
 
 import '../../core/constants/app_constants.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/utils/content_locale.dart';
 import '../models/job_model.dart';
-import 'appwrite_service.dart';
+
+class JobException implements Exception {
+  final String message;
+  JobException(this.message);
+
+  @override
+  String toString() => message;
+}
 
 class JobService {
-  static const String collectionId = 'jobs';
-
   Future<List<JobModel>> getLatestJobs({
     String? campusId,
     int limit = 10,
@@ -18,22 +22,20 @@ class JobService {
     bool includeExpired = false,
     String? departmentId,
     String? verv,
+    String? search,
   }) async {
-    // Prefer Appwrite Function (WordPress-backed)
     try {
-      final shouldClientFilterByCampus =
-          campusId != null && campusId.trim().isNotEmpty;
-      final apiLimit = shouldClientFilterByCampus
-          ? math.max(100, limit * page)
-          : limit;
-      final apiPage = shouldClientFilterByCampus ? 1 : page;
+      final locale = await ContentLocale.current();
       final requestBody = {
         'campusId': campusId,
-        'per_page': apiLimit,
-        'page': apiPage,
+        'per_page': limit,
+        'page': page,
         'includeExpired': includeExpired,
+        'locale': locale,
         if (departmentId != null) 'departmentId': departmentId,
         if (verv != null) 'verv': verv,
+        if (search != null && search.trim().isNotEmpty)
+          'search': search.trim(),
       };
       final endpoint = '${AppConstants.apiUrl}/jobs';
       final stopwatch = Stopwatch()..start();
@@ -46,17 +48,16 @@ class JobService {
           'campus_id': campusId,
           'limit': limit,
           'page': page,
-          'api_limit': apiLimit,
-          'api_page': apiPage,
-          'client_filter_by_campus': shouldClientFilterByCampus,
           'include_expired': includeExpired,
           'department_id': departmentId,
-          'verv': verv,
+          'locale': locale,
+          'search': search,
         },
       );
 
       final execution = await http.post(
         Uri.parse(endpoint),
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(requestBody),
       );
       stopwatch.stop();
@@ -75,139 +76,95 @@ class JobService {
         },
       );
 
-      if (execution.statusCode == 200) {
-        final dynamic decoded = json.decode(execution.body);
-
-        if (decoded is Map<String, dynamic>) {
-          final List<dynamic> jobs =
-              (decoded['jobs'] as List<dynamic>? ?? <dynamic>[]);
-          final mapped = jobs
-              .map(
-                (j) => JobModel.fromFunctionJob(
-                  j as Map<String, dynamic>,
-                  campusId: campusId ?? '',
-                ),
-              )
-              .toList(growable: false);
-          final result = _applyCampusFilterAndPaging(
-            mapped,
-            campusId: campusId,
-            limit: limit,
-            page: page,
-            clientFiltered: shouldClientFilterByCampus,
-          );
-          AppLogger.info(
-            '[JOBS] Parsed API jobs map response',
-            extra: {
-              'campus_id': campusId,
-              'raw_count': mapped.length,
-              'count': result.length,
-              'total_jobs': decoded['total_jobs'],
-              'pagination': decoded['pagination']?.toString(),
-              'client_filter_by_campus': shouldClientFilterByCampus,
-              'sample_ids': result.take(3).map((job) => job.id).toList(),
-            },
-          );
-          return result;
-        }
-        if (decoded is List) {
-          final mapped = decoded
-              .map(
-                (j) => JobModel.fromFunctionJob(
-                  j as Map<String, dynamic>,
-                  campusId: campusId ?? '',
-                ),
-              )
-              .toList(growable: false);
-          final result = _applyCampusFilterAndPaging(
-            mapped,
-            campusId: campusId,
-            limit: limit,
-            page: page,
-            clientFiltered: shouldClientFilterByCampus,
-          );
-          AppLogger.info(
-            '[JOBS] Parsed API jobs list response',
-            extra: {
-              'campus_id': campusId,
-              'raw_count': mapped.length,
-              'count': result.length,
-              'client_filter_by_campus': shouldClientFilterByCampus,
-              'sample_ids': result.take(3).map((job) => job.id).toList(),
-            },
-          );
-          return result;
-        }
-
-        AppLogger.warning(
-          '[JOBS] API returned unexpected response shape; falling back to Appwrite',
-          extra: {
-            'campus_id': campusId,
-            'decoded_type': decoded.runtimeType.toString(),
-            'body_preview': _preview(execution.body),
-          },
-        );
-      } else {
-        AppLogger.warning(
-          '[JOBS] API returned non-200; falling back to Appwrite',
-          extra: {
-            'campus_id': campusId,
-            'status_code': execution.statusCode,
-            'body_preview': _preview(execution.body),
-          },
+      if (execution.statusCode != 200) {
+        throw JobException(
+          'Failed to fetch jobs: HTTP ${execution.statusCode}',
         );
       }
+
+      final dynamic decoded = json.decode(execution.body);
+
+      if (decoded is Map<String, dynamic>) {
+        final isBisoSource = decoded['source'] == 'biso';
+        final List<dynamic> jobs =
+            (decoded['jobs'] as List<dynamic>? ?? <dynamic>[]);
+
+        // BISO Sites source: campus filtering, locale resolution, and
+        // pagination all happen server-side.
+        if (isBisoSource) {
+          final result = jobs
+              .map((j) => JobModel.fromBisoApi(j as Map<String, dynamic>))
+              .toList(growable: false);
+          AppLogger.info(
+            '[JOBS] Parsed BISO Sites jobs response',
+            extra: {
+              'campus_id': campusId,
+              'count': result.length,
+              'total_jobs': decoded['total_jobs'],
+              'sample_ids': result.take(3).map((job) => job.id).toList(),
+            },
+          );
+          return result;
+        }
+
+        // Legacy WordPress proxy: campus metadata is unreliable, so filter
+        // client-side over the returned page.
+        final mapped = jobs
+            .map(
+              (j) => JobModel.fromFunctionJob(
+                j as Map<String, dynamic>,
+                campusId: campusId ?? '',
+              ),
+            )
+            .toList(growable: false);
+        final result = _applyCampusFilter(mapped, campusId: campusId);
+        AppLogger.info(
+          '[JOBS] Parsed API jobs map response',
+          extra: {
+            'campus_id': campusId,
+            'raw_count': mapped.length,
+            'count': result.length,
+            'total_jobs': decoded['total_jobs'],
+            'sample_ids': result.take(3).map((job) => job.id).toList(),
+          },
+        );
+        return result;
+      }
+
+      if (decoded is List) {
+        final mapped = decoded
+            .map(
+              (j) => JobModel.fromFunctionJob(
+                j as Map<String, dynamic>,
+                campusId: campusId ?? '',
+              ),
+            )
+            .toList(growable: false);
+        final result = _applyCampusFilter(mapped, campusId: campusId);
+        AppLogger.info(
+          '[JOBS] Parsed API jobs list response',
+          extra: {
+            'campus_id': campusId,
+            'raw_count': mapped.length,
+            'count': result.length,
+            'sample_ids': result.take(3).map((job) => job.id).toList(),
+          },
+        );
+        return result;
+      }
+
+      throw JobException('Unexpected jobs response shape');
+    } on JobException {
+      rethrow;
     } catch (error, stackTrace) {
-      // Fallback to internal DB if function fails
-      AppLogger.warning(
-        '[JOBS] API jobs fetch failed; falling back to Appwrite',
+      AppLogger.error(
+        '[JOBS] API jobs fetch failed',
         error: error,
         stackTrace: stackTrace,
         extra: {'campus_id': campusId, 'limit': limit, 'page': page},
       );
+      throw JobException('Error fetching jobs: $error');
     }
-
-    // Fallback: internal Appwrite collection
-    final List<String> queries = [
-      Query.orderDesc('\$createdAt'),
-      Query.limit(limit),
-      Query.offset((page - 1) * limit),
-    ];
-
-    if (campusId != null) queries.add(Query.equal('campus_id', campusId));
-    if (!includeExpired) queries.add(Query.equal('status', 'open'));
-
-    AppLogger.info(
-      '[JOBS] Fetching jobs from Appwrite fallback',
-      extra: {
-        'database_id': AppConstants.databaseId,
-        'table_id': collectionId,
-        'campus_id': campusId,
-        'limit': limit,
-        'page': page,
-        'queries': queries,
-      },
-    );
-
-    final results = await db.listRows(
-      databaseId: AppConstants.databaseId,
-      tableId: collectionId,
-      queries: queries,
-    );
-
-    final mapped = results.rows
-        .map((doc) => JobModel.fromMap(doc.data))
-        .toList(growable: false);
-    AppLogger.info(
-      '[JOBS] Appwrite fallback jobs loaded',
-      extra: {
-        'campus_id': campusId,
-        'count': mapped.length,
-        'total': results.total,
-        'sample_ids': mapped.take(3).map((job) => job.id).toList(),
-      },
-    );
-    return mapped;
   }
 
   Future<int> getJobsTotalCount({
@@ -226,14 +183,14 @@ class JobService {
         if (verv != null) 'verv': verv,
       };
 
-      final execution = await functions.createExecution(
-        functionId: AppConstants.fnFetchJobsId,
-        xasync: false,
+      final response = await http.post(
+        Uri.parse('${AppConstants.apiUrl}/jobs'),
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(requestBody),
       );
 
-      if (execution.responseStatusCode == 200) {
-        final dynamic decoded = json.decode(execution.responseBody);
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
         if (decoded is Map<String, dynamic>) {
           if (decoded['total_jobs'] is int) return decoded['total_jobs'] as int;
           final pagination = decoded['pagination'];
@@ -246,41 +203,17 @@ class JobService {
           return decoded.length;
         }
       }
-      throw Exception(
-        'Failed to fetch jobs total: HTTP ${execution.responseStatusCode}',
+      throw JobException(
+        'Failed to fetch jobs total: HTTP ${response.statusCode}',
       );
     } catch (error, stackTrace) {
-      // Fallback: estimate from DB (not accurate for WP source)
       AppLogger.warning(
-        '[JOBS] Total count API fetch failed; estimating from Appwrite',
+        '[JOBS] Total count fetch failed',
         error: error,
         stackTrace: stackTrace,
         extra: {'campus_id': campusId},
       );
-      try {
-        final res = await db.listRows(
-          databaseId: AppConstants.databaseId,
-          tableId: collectionId,
-          queries: [
-            Query.equal('campus_id', campusId),
-            if (!includeExpired) Query.equal('status', 'open'),
-            Query.limit(1),
-          ],
-        );
-        AppLogger.info(
-          '[JOBS] Total count estimated from Appwrite',
-          extra: {'campus_id': campusId, 'total': res.total},
-        );
-        return res.total;
-      } catch (fallbackError, fallbackStackTrace) {
-        AppLogger.error(
-          '[JOBS] Total count fallback failed',
-          error: fallbackError,
-          stackTrace: fallbackStackTrace,
-          extra: {'campus_id': campusId},
-        );
-        return 0;
-      }
+      return 0;
     }
   }
 
@@ -290,24 +223,17 @@ class JobService {
     return '${body.substring(0, maxLength)}...';
   }
 
-  List<JobModel> _applyCampusFilterAndPaging(
+  List<JobModel> _applyCampusFilter(
     List<JobModel> jobs, {
     required String? campusId,
-    required int limit,
-    required int page,
-    required bool clientFiltered,
   }) {
-    if (!clientFiltered || campusId == null || campusId.trim().isEmpty) {
+    if (campusId == null || campusId.trim().isEmpty) {
       return jobs;
     }
 
-    final filtered = jobs
+    return jobs
         .where((job) => _matchesCampus(job, campusId))
         .toList(growable: false);
-    final start = (page - 1) * limit;
-    if (start >= filtered.length) return const <JobModel>[];
-    final end = math.min(start + limit, filtered.length);
-    return filtered.sublist(start, end);
   }
 
   bool _matchesCampus(JobModel job, String campusId) {

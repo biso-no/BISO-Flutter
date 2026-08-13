@@ -51,6 +51,7 @@ class AppSettingsState {
     this.language = 'en',
     this.notifications = const {
       'events': true,
+      'news': true,
       'products': true,
       'jobs': true,
       'expenses': false,
@@ -638,6 +639,22 @@ class _NotificationSettingsTab extends ConsumerWidget {
                       ref
                           .read(notificationPreferencesProvider.notifier)
                           .updateTopicSubscription('events', value);
+                    },
+                    selectedCampus: selectedCampus,
+                  ),
+                  buildDivider(),
+                  buildNotificationTile(
+                    context: context,
+                    ref: ref,
+                    icon: Icons.newspaper_outlined,
+                    iconColor: AppColors.strongBlue,
+                    title: 'News',
+                    subtitle: 'News and announcements from BISO',
+                    isEnabled: preferences['news'] ?? true,
+                    onChanged: (value) {
+                      ref
+                          .read(notificationPreferencesProvider.notifier)
+                          .updateTopicSubscription('news', value);
                     },
                     selectedCampus: selectedCampus,
                   ),

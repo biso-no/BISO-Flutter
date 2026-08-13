@@ -1,10 +1,10 @@
 import 'package:appwrite/appwrite.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:math' as math;
 
 import '../../core/constants/app_constants.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/utils/content_locale.dart';
 import '../models/event_model.dart';
 import 'appwrite_service.dart';
 
@@ -29,7 +29,8 @@ class EventService {
     );
   }
 
-  // Get events via Appwrite Function which fetches from WordPress
+  // Get events from the BISO Sites API (Appwrite-native content with a
+  // WordPress-proxy fallback while the backend content source migrates).
   Future<List<EventModel>> getFunctionEvents({
     String? campusId,
     int limit = AppConstants.defaultPageSize,
@@ -40,17 +41,13 @@ class EventService {
   }) async {
     try {
       final resolvedPage = page ?? ((offset ~/ limit) + 1);
-      final shouldClientFilterByCampus =
-          campusId != null && campusId.trim().isNotEmpty;
-      final apiLimit = shouldClientFilterByCampus
-          ? math.max(100, limit * resolvedPage)
-          : limit;
-      final apiPage = shouldClientFilterByCampus ? 1 : resolvedPage;
+      final locale = await ContentLocale.current();
       final requestBody = {
         'campusId': campusId,
-        'per_page': apiLimit,
-        'page': apiPage,
+        'per_page': limit,
+        'page': resolvedPage,
         'include_past': includePast,
+        'locale': locale,
       };
 
       // Only include search when present and meets minimal length constraints
@@ -68,12 +65,10 @@ class EventService {
         extra: {
           'campus_id': campusId,
           'limit': limit,
-          'api_limit': apiLimit,
           'offset': offset,
-          'api_page': apiPage,
-          'page': requestBody['page'],
-          'client_filter_by_campus': shouldClientFilterByCampus,
+          'page': resolvedPage,
           'include_past': includePast,
+          'locale': locale,
           'search': trimmedSearch,
         },
       );
@@ -103,8 +98,30 @@ class EventService {
         final dynamic decoded = json.decode(execution.body);
 
         if (decoded is Map<String, dynamic>) {
+          final isBisoSource = decoded['source'] == 'biso';
           final List<dynamic> events =
               (decoded['events'] as List<dynamic>? ?? <dynamic>[]);
+
+          // BISO Sites source: campus filtering, locale resolution, and
+          // pagination all happen server-side.
+          if (isBisoSource) {
+            final result = events
+                .map((e) => EventModel.fromBisoApi(e as Map<String, dynamic>))
+                .toList();
+            AppLogger.info(
+              '[EVENTS] Parsed BISO Sites events response',
+              extra: {
+                'campus_id': campusId,
+                'count': result.length,
+                'total_events': decoded['total_events'],
+                'sample_ids': result.take(3).map((event) => event.id).toList(),
+              },
+            );
+            return result;
+          }
+
+          // Legacy WordPress proxy: campus metadata is unreliable, so filter
+          // client-side over the returned page.
           final mapped = events
               .map(
                 (e) => EventModel.fromFunctionEvent(
@@ -113,13 +130,7 @@ class EventService {
                 ),
               )
               .toList();
-          final result = _applyCampusFilterAndPaging(
-            mapped,
-            campusId: campusId,
-            limit: limit,
-            page: resolvedPage,
-            clientFiltered: shouldClientFilterByCampus,
-          );
+          final result = _applyCampusFilter(mapped, campusId: campusId);
           AppLogger.info(
             '[EVENTS] Parsed API events map response',
             extra: {
@@ -128,7 +139,6 @@ class EventService {
               'count': result.length,
               'total_events': decoded['total_events'],
               'pagination': decoded['pagination']?.toString(),
-              'client_filter_by_campus': shouldClientFilterByCampus,
               'sample_ids': result.take(3).map((event) => event.id).toList(),
             },
           );
@@ -146,26 +156,13 @@ class EventService {
               )
               .toList();
           models.sort((a, b) => a.startDate.compareTo(b.startDate));
-          final start = offset < models.length ? offset : models.length;
-          final end = (start + limit) < models.length
-              ? (start + limit)
-              : models.length;
-          final paged = models.sublist(start, end);
-          final result = _applyCampusFilterAndPaging(
-            shouldClientFilterByCampus ? models : paged,
-            campusId: campusId,
-            limit: limit,
-            page: resolvedPage,
-            clientFiltered: shouldClientFilterByCampus,
-          );
+          final result = _applyCampusFilter(models, campusId: campusId);
           AppLogger.info(
             '[EVENTS] Parsed API events list response',
             extra: {
               'campus_id': campusId,
-              'raw_count': paged.length,
+              'raw_count': models.length,
               'count': result.length,
-              'total_before_paging': models.length,
-              'client_filter_by_campus': shouldClientFilterByCampus,
               'sample_ids': result.take(3).map((event) => event.id).toList(),
             },
           );
@@ -204,7 +201,7 @@ class EventService {
     }
   }
 
-  // Get total events count for a campus via Appwrite Function
+  // Get total events count for a campus via the BISO Sites API
   Future<int> getEventsTotalCount({
     required String campusId,
     bool includePast = false,
@@ -217,16 +214,16 @@ class EventService {
         'include_past': includePast,
       };
 
-      final execution = await functions.createExecution(
-        functionId: AppConstants.fnFetchEventsId,
+      final response = await http.post(
+        Uri.parse('${AppConstants.apiUrl}/events'),
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(requestBody),
       );
 
-      if (execution.responseStatusCode == 200) {
-        final dynamic decoded = json.decode(execution.responseBody);
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
 
         if (decoded is Map<String, dynamic>) {
-          // New format
           if (decoded['total_events'] is int) {
             return decoded['total_events'] as int;
           }
@@ -246,7 +243,7 @@ class EventService {
       }
 
       throw EventException(
-        'Failed to fetch events total: HTTP ${execution.responseStatusCode}',
+        'Failed to fetch events total: HTTP ${response.statusCode}',
       );
     } catch (e) {
       throw EventException('Error fetching events total: $e');
@@ -538,24 +535,17 @@ class EventService {
     return '${body.substring(0, maxLength)}...';
   }
 
-  List<EventModel> _applyCampusFilterAndPaging(
+  List<EventModel> _applyCampusFilter(
     List<EventModel> events, {
     required String? campusId,
-    required int limit,
-    required int page,
-    required bool clientFiltered,
   }) {
-    if (!clientFiltered || campusId == null || campusId.trim().isEmpty) {
+    if (campusId == null || campusId.trim().isEmpty) {
       return events;
     }
 
-    final filtered = events
+    return events
         .where((event) => _matchesCampus(event, campusId))
         .toList(growable: false);
-    final start = (page - 1) * limit;
-    if (start >= filtered.length) return const <EventModel>[];
-    final end = math.min(start + limit, filtered.length);
-    return filtered.sublist(start, end);
   }
 
   bool _matchesCampus(EventModel event, String campusId) {

@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart'
 import 'package:appwrite/appwrite.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_constants.dart';
 import 'appwrite_service.dart';
 import 'deep_link_service.dart';
 
@@ -253,6 +254,11 @@ class NotificationService {
       _topicSubscriptions[topicId] = true;
       _topicSubscriberIds[topicId] = subscriber.$id;
       await _saveTopicSubscriptions();
+      await _mirrorSubscriptionRow(
+        topicId: topicId,
+        subscribed: true,
+        subscriberId: subscriber.$id,
+      );
       debugPrint('Subscribed to topic: $topicId (${subscriber.$id})');
     } catch (e) {
       debugPrint('Failed to subscribe to topic $topicId: $e');
@@ -281,10 +287,68 @@ class NotificationService {
 
       _topicSubscriptions[topicId] = false;
       await _saveTopicSubscriptions();
+      await _mirrorSubscriptionRow(topicId: topicId, subscribed: false);
       debugPrint('Unsubscribed from topic: $topicId');
     } catch (e) {
       debugPrint('Failed to unsubscribe from topic $topicId: $e');
       rethrow;
+    }
+  }
+
+  /// Mirror the subscription state into the shared `subs` table so BISO Sites
+  /// (admin CMS, announcement targeting) can read per-user topic preferences.
+  /// Best-effort: push delivery itself is controlled by Appwrite Messaging
+  /// subscribers, so a failure here must never break the toggle.
+  Future<void> _mirrorSubscriptionRow({
+    required String topicId,
+    required bool subscribed,
+    String? subscriberId,
+  }) async {
+    try {
+      final user = await _account.get();
+      final existing = await db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: AppConstants.subscriptionsCollectionId,
+        queries: [
+          Query.equal('user_id', user.$id),
+          Query.equal('topic', topicId),
+          Query.limit(1),
+        ],
+      );
+
+      final resolvedSubscriberId =
+          subscriberId ?? _topicSubscriberIds[topicId] ?? '';
+
+      if (existing.rows.isNotEmpty) {
+        await db.updateRow(
+          databaseId: AppConstants.databaseId,
+          tableId: AppConstants.subscriptionsCollectionId,
+          rowId: existing.rows.first.$id,
+          data: {
+            'subscribed': subscribed,
+            'subscriber_id': resolvedSubscriberId,
+          },
+        );
+      } else {
+        await db.createRow(
+          databaseId: AppConstants.databaseId,
+          tableId: AppConstants.subscriptionsCollectionId,
+          rowId: ID.unique(),
+          data: {
+            'user_id': user.$id,
+            'topic': topicId,
+            'subscribed': subscribed,
+            'subscriber_id': resolvedSubscriberId,
+          },
+          permissions: [
+            Permission.read(Role.user(user.$id)),
+            Permission.update(Role.user(user.$id)),
+            Permission.delete(Role.user(user.$id)),
+          ],
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to mirror subscription row for $topicId: $e');
     }
   }
 
@@ -334,6 +398,7 @@ class NotificationService {
         // Set default subscriptions
         _topicSubscriptions.addAll({
           'events': true,
+          'news': true,
           'products': true,
           'jobs': true,
           'expenses': false,
@@ -422,6 +487,9 @@ class NotificationService {
       case 'announcement':
         _handleAnnouncementNotification(data);
         break;
+      case 'news':
+        _handleNewsNotification(data);
+        break;
       default:
         debugPrint('Unknown notification type: $type');
     }
@@ -466,6 +534,16 @@ class NotificationService {
     if (context != null) {
       context.go('/notifications');
     }
+  }
+
+  /// Handle news notification tap
+  void _handleNewsNotification(Map<String, dynamic> data) {
+    final newsId = data['news_id'] as String? ?? data['id'] as String?;
+    final uri = newsId != null && newsId.isNotEmpty
+        ? Uri.parse('biso://news?id=$newsId')
+        : Uri.parse('biso://news');
+    debugPrint('Navigating to news: $newsId');
+    DeepLinkService().handleDeepLink(uri);
   }
 
   /// Handle chat notification tap

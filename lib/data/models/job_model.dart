@@ -1,5 +1,40 @@
 import 'package:equatable/equatable.dart';
 
+/// A custom application-form question configured on a BISO Sites vacancy.
+class JobQuestionModel extends Equatable {
+  final String id;
+  final String label;
+  final String type; // 'text', 'long_text', 'select', 'multi_select', 'boolean', 'number'
+  final bool required;
+  final String? helpText;
+  final List<String> options;
+
+  const JobQuestionModel({
+    required this.id,
+    required this.label,
+    this.type = 'text',
+    this.required = false,
+    this.helpText,
+    this.options = const [],
+  });
+
+  factory JobQuestionModel.fromMap(Map<String, dynamic> map) {
+    return JobQuestionModel(
+      id: (map['id'] ?? '').toString(),
+      label: (map['label'] ?? '').toString(),
+      type: (map['type'] ?? 'text').toString(),
+      required: map['required'] == true,
+      helpText: map['help_text']?.toString(),
+      options: (map['options'] is List)
+          ? (map['options'] as List).map((o) => o.toString()).toList()
+          : const [],
+    );
+  }
+
+  @override
+  List<Object?> get props => [id, label, type, required, helpText, options];
+}
+
 class JobModel extends Equatable {
   final String id;
   final String title;
@@ -35,6 +70,10 @@ class JobModel extends Equatable {
   final Map<String, dynamic> metadata; // Additional job-specific data
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final String slug;
+  final String? shortDescription;
+  final bool cvRequired;
+  final List<JobQuestionModel> customQuestions;
 
   const JobModel({
     required this.id,
@@ -70,7 +109,89 @@ class JobModel extends Equatable {
     this.metadata = const {},
     this.createdAt,
     this.updatedAt,
+    this.slug = '',
+    this.shortDescription,
+    this.cvRequired = false,
+    this.customQuestions = const [],
   });
+
+  // Create from the BISO Sites API payload (Appwrite-native content)
+  factory JobModel.fromBisoApi(Map<String, dynamic> map) {
+    final deadline = DateTime.tryParse(
+      (map['application_deadline'] ?? '').toString(),
+    );
+    final createdAt = DateTime.tryParse((map['created_at'] ?? '').toString());
+    final isOpen = map['is_open'] != false;
+    final paid = map['paid'] == true;
+    final tags = (map['tags'] is List)
+        ? (map['tags'] as List).map((tag) => tag.toString()).toList()
+        : const <String>[];
+    final department = (map['department_name'] ?? '').toString().isNotEmpty
+        ? map['department_name'].toString()
+        : 'BISO';
+
+    return JobModel(
+      id: (map['id'] ?? '').toString(),
+      title: (map['title'] ?? '').toString(),
+      description: (map['description'] ?? '').toString(),
+      department: department,
+      departmentId: (map['department_id'] ?? '').toString(),
+      departmentLogo: null,
+      campusId: (map['campus_id'] ?? '').toString(),
+      type: paid ? 'paid' : 'volunteer',
+      category: (map['employment_type'] ?? '').toString().isNotEmpty
+          ? map['employment_type'].toString()
+          : 'general',
+      requirements: const [],
+      responsibilities: const [],
+      skills: tags,
+      salary: null,
+      timeCommitment: map['commitment']?.toString(),
+      startDate:
+          DateTime.tryParse((map['start_date'] ?? '').toString()) ??
+          createdAt ??
+          DateTime.now(),
+      url: (map['url'] ?? '').toString(),
+      endDate: null,
+      // No deadline means the vacancy stays open until filled; keep the
+      // existing non-null contract with a one-year horizon.
+      applicationDeadline:
+          deadline ?? DateTime.now().add(const Duration(days: 365)),
+      applicationMethod: 'internal',
+      applicationUrl: map['url']?.toString(),
+      applicationEmail: map['contact_email']?.toString(),
+      contactPersonName: (map['contact_name'] ?? '').toString().isNotEmpty
+          ? map['contact_name'].toString()
+          : department,
+      contactPersonEmail: map['contact_email']?.toString(),
+      contactPersonPhone: null,
+      maxApplicants: 0,
+      currentApplicants: 0,
+      status: isOpen ? 'open' : 'closed',
+      isUrgent: false,
+      isFeatured: false,
+      benefits: const [],
+      metadata: <String, dynamic>{
+        'company': map['company'],
+        'term': map['term'],
+        'location': map['location'],
+        'paid': paid,
+        'locale': map['locale'],
+        'sourceShape': 'biso',
+      },
+      createdAt: createdAt,
+      updatedAt: DateTime.tryParse((map['updated_at'] ?? '').toString()),
+      slug: (map['slug'] ?? '').toString(),
+      shortDescription: map['short_description']?.toString(),
+      cvRequired: map['cv_required'] == true,
+      customQuestions: (map['custom_questions'] is List)
+          ? (map['custom_questions'] as List)
+                .whereType<Map<String, dynamic>>()
+                .map(JobQuestionModel.fromMap)
+                .toList()
+          : const [],
+    );
+  }
 
   // Create from the Appwrite Function jobs payload (WordPress-backed)
   factory JobModel.fromFunctionJob(
@@ -273,6 +394,10 @@ class JobModel extends Equatable {
     Map<String, dynamic>? metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? slug,
+    String? shortDescription,
+    bool? cvRequired,
+    List<JobQuestionModel>? customQuestions,
   }) {
     return JobModel(
       id: id ?? this.id,
@@ -308,6 +433,10 @@ class JobModel extends Equatable {
       metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      slug: slug ?? this.slug,
+      shortDescription: shortDescription ?? this.shortDescription,
+      cvRequired: cvRequired ?? this.cvRequired,
+      customQuestions: customQuestions ?? this.customQuestions,
     );
   }
 
@@ -370,6 +499,10 @@ class JobModel extends Equatable {
     metadata,
     createdAt,
     updatedAt,
+    slug,
+    shortDescription,
+    cvRequired,
+    customQuestions,
   ];
 
   /// Decode HTML entities from WordPress content

@@ -18,6 +18,7 @@ class AppConstants {
   static const String contentTranslationsCollectionId = 'content_translations';
   static const String usersCollectionId = 'user';
   static const String featureFlagsCollectionId = 'feature_flags';
+  static const String subscriptionsCollectionId = 'subs';
   static const String chatMessagesCollectionId = 'chat_messages';
   static const String chatParticipantsCollectionId = 'chat_participants';
   static const String chatRoomsCollectionId = 'chat_rooms';

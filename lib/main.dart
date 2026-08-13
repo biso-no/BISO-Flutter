@@ -29,6 +29,12 @@ import 'presentation/screens/explore/product_detail_screen.dart';
 import 'presentation/screens/explore/webshop_product_detail_screen.dart';
 import 'data/models/webshop_product_model.dart';
 import 'presentation/screens/explore/jobs_screen.dart';
+import 'presentation/screens/explore/job_application_screen.dart';
+import 'presentation/screens/explore/my_applications_screen.dart';
+import 'presentation/screens/explore/news_screen.dart';
+import 'presentation/screens/explore/news_detail_screen.dart';
+import 'data/models/job_model.dart';
+import 'data/models/news_model.dart';
 import 'presentation/screens/explore/expenses_screen.dart';
 import 'presentation/screens/expense/create_expense_screen.dart';
 import 'presentation/screens/explore/units_overview_screen.dart';
@@ -309,6 +315,41 @@ final _router = GoRouter(
                     : null;
                 return JobsScreen(openJobId: openJobId);
               },
+              routes: [
+                GoRoute(
+                  path: '/apply',
+                  name: 'job-apply',
+                  builder: (context, state) {
+                    final job = state.extra as JobModel?;
+                    if (job == null) {
+                      return const Scaffold(
+                        body: Center(child: Text('Position not found')),
+                      );
+                    }
+                    return JobApplicationScreen(job: job);
+                  },
+                ),
+                GoRoute(
+                  path: '/applications',
+                  name: 'my-applications',
+                  builder: (context, state) => const MyApplicationsScreen(),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/news',
+              name: 'news',
+              builder: (context, state) => const NewsScreen(),
+              routes: [
+                GoRoute(
+                  path: '/:newsId',
+                  name: 'news-detail',
+                  builder: (context, state) => NewsDetailScreen(
+                    newsId: state.pathParameters['newsId']!,
+                    article: state.extra as NewsModel?,
+                  ),
+                ),
+              ],
             ),
             GoRoute(
               path: '/ai-chat',
