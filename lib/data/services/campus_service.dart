@@ -547,20 +547,15 @@ class CampusService {
     try {
       // Run all sub-queries in parallel
       final jobService = JobService();
+      final eventService = EventService();
 
       Future<int> fetchEvents() async {
         try {
           final eventsTimer = Stopwatch()..start();
-          final response = await db.listRows(
-            databaseId: AppConstants.databaseId,
-            tableId: 'events',
-            queries: EventService.buildEventQueries(
-              campusId: campusId,
-              limit: 1,
-              includePast: false,
-            ),
+          final count = await eventService.countEvents(
+            campusId: campusId,
+            includePast: false,
           );
-          final count = response.total;
           eventsTimer.stop();
           logInfo('CampusService._getCampusStats: events count fetched', context: {
             'elapsed_ms': eventsTimer.elapsedMilliseconds,
