@@ -10,6 +10,7 @@ import '../../../core/theme/premium_theme.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../../presentation/widgets/premium/premium_components.dart';
 import '../../../presentation/widgets/premium/premium_layouts.dart';
 import '../../../presentation/widgets/premium/premium_navigation.dart';
@@ -17,8 +18,6 @@ import '../../../presentation/widgets/premium/premium_html_renderer.dart';
 import '../../../presentation/widgets/dynamic_hero_carousel.dart';
 
 import '../../../providers/large_event/large_event_provider.dart';
-import '../../../providers/config/app_config_provider.dart';
-import '../../../data/models/app_config.dart';
 import '../../../data/services/event_service.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/services/webshop_service.dart';
@@ -154,26 +153,25 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestEventsProvider =
       FutureProvider.family<List<EventModel>, String>((ref, campusId) async {
         final service = ref.watch(_eventServiceProvider);
-        final config = await ref.watch(appConfigProvider.future);
+        final locale = ref.watch(localeProvider).languageCode;
         final stopwatch = Stopwatch()..start();
         AppLogger.info(
           '[HOME] Loading latest events',
           extra: {
             'section': 'events',
             'campus_id': campusId,
-            'source': config.eventsSource.name,
+            'source': 'appwrite',
             'limit': 6,
           },
         );
 
         try {
-          final events = config.eventsSource == ContentSource.appwrite
-              ? await service.getAppwriteEvents(campusId: campusId, limit: 6)
-              : await service.getWordPressEvents(
-                  campusId: campusId,
-                  limit: 6,
-                  includePast: false,
-                );
+          final events = await service.listEvents(
+            campusId: campusId,
+            locale: locale,
+            limit: 6,
+            includePast: false,
+          );
 
           stopwatch.stop();
           AppLogger.info(
@@ -181,7 +179,7 @@ class PremiumHomePage extends ConsumerWidget {
             extra: {
               'section': 'events',
               'campus_id': campusId,
-              'source': config.eventsSource.name,
+              'source': 'appwrite',
               'count': events.length,
               'duration_ms': stopwatch.elapsedMilliseconds,
               'sample_ids': events.take(3).map((event) => event.id).toList(),
@@ -197,7 +195,7 @@ class PremiumHomePage extends ConsumerWidget {
             extra: {
               'section': 'events',
               'campus_id': campusId,
-              'source': config.eventsSource.name,
+              'source': 'appwrite',
               'duration_ms': stopwatch.elapsedMilliseconds,
             },
           );

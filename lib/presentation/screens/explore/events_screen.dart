@@ -9,6 +9,7 @@ import '../../../data/models/event_model.dart';
 import '../../../data/services/event_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/event/your_trip_card.dart';
 
 // Provider for EventService
@@ -24,6 +25,7 @@ final eventsProvider = FutureProvider.family<List<EventModel>, String?>((
 ) {
   final service = ref.watch(eventServiceProvider);
   final searchTerm = ref.watch(eventsSearchTermProvider);
+  final locale = ref.watch(localeProvider).languageCode;
   AppLogger.info(
     '[EVENTS_SCREEN] Provider load requested',
     extra: {
@@ -33,9 +35,9 @@ final eventsProvider = FutureProvider.family<List<EventModel>, String?>((
       'search': searchTerm,
     },
   );
-  // Use function-backed fetch with pagination params; initial page 1
-  return service.getWordPressEvents(
+  return service.listEvents(
     campusId: campusId,
+    locale: locale,
     limit: 50,
     includePast: false,
     search: searchTerm,
@@ -109,6 +111,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     final campusId = ref.read(filterCampusProvider).id;
     final service = ref.read(eventServiceProvider);
     final searchTerm = ref.read(eventsSearchTermProvider);
+    final locale = ref.read(localeProvider).languageCode;
     final stopwatch = Stopwatch()..start();
     try {
       AppLogger.info(
@@ -122,10 +125,11 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           'include_past': false,
         },
       );
-      final items = await service.getFunctionEvents(
+      final items = await service.listEvents(
         campusId: campusId,
+        locale: locale,
         limit: _pageSize,
-        page: page,
+        offset: (page - 1) * _pageSize,
         includePast: false,
         search: searchTerm,
       );

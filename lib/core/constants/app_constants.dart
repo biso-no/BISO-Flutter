@@ -33,10 +33,6 @@ class AppConstants {
   static const String fnFetchJobsId = 'fetch_jobs';
   static const String fnSyncWebshopProductsId = 'sync_webshop_products';
 
-  // External APIs
-  static const String wordPressEventsApi =
-      'https://biso.no/wp-json/biso/v1/events';
-
   // Email Domains
   static const List<String> allowedEmailDomains = ['bi.no', 'biso.no'];
 
