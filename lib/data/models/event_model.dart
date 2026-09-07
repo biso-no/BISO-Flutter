@@ -151,7 +151,14 @@ class EventModel extends Equatable {
       title: content.title,
       description: content.description,
       shortDescription: content.shortDescription,
-      startDate: parseDate(row['start_date']) ?? DateTime.now(),
+      // `start_date` is `required=False` in the live schema, so a missing or
+      // unparseable value is a legal (if malformed) row, not an error. Fall
+      // back to the Unix epoch (UTC) rather than `DateTime.now()`: sorting a
+      // broken event to the far past keeps it out of "upcoming"/"live"
+      // filtering instead of making it masquerade as happening right now.
+      // Do NOT "fix" this back to `DateTime.now()`.
+      startDate: parseDate(row['start_date']) ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       endDate: parseDate(row['end_date']),
       registrationDeadline: parseDate(row['registration_deadline']),
       campusId: (row['campus_id'] ?? '').toString(),
@@ -449,6 +456,23 @@ class EventModel extends Equatable {
     status,
     createdAt,
     updatedAt,
+    slug,
+    shortDescription,
+    ticketUrl,
+    locationMode,
+    onlineUrl,
+    category,
+    coverPattern,
+    pricingMode,
+    departmentId,
+    contactName,
+    contactRole,
+    contactEmail,
+    memberPrice,
+    memberOnly,
+    waitlist,
+    capacity,
+    tags,
   ];
 
   static Map<String, dynamic> _metadataMap(dynamic value) {

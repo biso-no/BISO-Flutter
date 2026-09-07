@@ -91,5 +91,44 @@ void main() {
       expect(e.title, '');
       expect(e.description, '');
     });
+
+    test('falls back to the epoch sentinel when start_date is missing', () {
+      final row = {...realEventRow}..remove('start_date');
+      final e = EventModel.fromAppwriteRow(row);
+
+      expect(e.startDate, DateTime.fromMillisecondsSinceEpoch(0, isUtc: true));
+    });
+
+    test('falls back to the epoch sentinel when start_date is unparseable',
+        () {
+      final row = {...realEventRow, 'start_date': 'not-a-date'};
+      final e = EventModel.fromAppwriteRow(row);
+
+      expect(e.startDate, DateTime.fromMillisecondsSinceEpoch(0, isUtc: true));
+    });
+  });
+
+  group('EventModel value equality', () {
+    test('two instances differing only in a new field are not equal', () {
+      final a = EventModel.fromAppwriteRow(realEventRow);
+      final withDifferentCapacity =
+          EventModel.fromAppwriteRow({...realEventRow, 'capacity': 1});
+      final withDifferentTags = EventModel.fromAppwriteRow({
+        ...realEventRow,
+        'tags': ['Different'],
+      });
+
+      expect(a.capacity, isNot(equals(withDifferentCapacity.capacity)));
+      expect(a, isNot(equals(withDifferentCapacity)));
+      expect(a, isNot(equals(withDifferentTags)));
+    });
+
+    test('two identical instances are equal', () {
+      final a = EventModel.fromAppwriteRow(realEventRow);
+      final b = EventModel.fromAppwriteRow(realEventRow);
+
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
   });
 }
