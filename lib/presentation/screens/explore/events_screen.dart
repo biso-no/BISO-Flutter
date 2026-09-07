@@ -27,8 +27,6 @@ class EventsScreen extends ConsumerStatefulWidget {
 }
 
 class _EventsScreenState extends ConsumerState<EventsScreen> {
-  final TextEditingController _searchController = TextEditingController();
-
   // Paging state
   final ScrollController _scrollController = ScrollController();
   final List<EventModel> _events = [];
@@ -50,7 +48,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -231,13 +228,12 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : Builder(
                     builder: (context) {
-                      final filteredEvents = _applyClientSearch(_events);
                       _logVisibleEventsState(
                         campusId: campusId,
-                        visibleCount: filteredEvents.length,
+                        visibleCount: _events.length,
                       );
 
-                      if (filteredEvents.isEmpty) {
+                      if (_events.isEmpty) {
                         return _EmptyState(
                           icon: Icons.event_busy,
                           title: 'No Events Found',
@@ -251,12 +247,11 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                         child: ListView.separated(
                           controller: _scrollController,
                           padding: const EdgeInsets.all(16),
-                          itemCount:
-                              filteredEvents.length + (_isLoadingMore ? 1 : 0),
+                          itemCount: _events.length + (_isLoadingMore ? 1 : 0),
                           separatorBuilder: (context, index) =>
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
-                            if (index >= filteredEvents.length) {
+                            if (index >= _events.length) {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 16),
                                 child: Center(
@@ -264,7 +259,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                                 ),
                               );
                             }
-                            final event = filteredEvents[index];
+                            final event = _events[index];
                             return _EventCard(
                               event: event,
                               onTap: () {
@@ -280,16 +275,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         ],
       ),
     );
-  }
-
-  List<EventModel> _applyClientSearch(List<EventModel> events) {
-    final searchQuery = _searchController.text.toLowerCase();
-    if (searchQuery.isEmpty) return events;
-    return events.where((event) {
-      return event.title.toLowerCase().contains(searchQuery) ||
-          event.description.toLowerCase().contains(searchQuery) ||
-          (event.contactName?.toLowerCase().contains(searchQuery) ?? false);
-    }).toList();
   }
 
   void _showEventDetails(BuildContext context, EventModel event) {
@@ -312,9 +297,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   Future<void> _promptSearch(BuildContext context) async {
     final current = ref.read(eventsSearchTermProvider);
-    final controller = TextEditingController(
-      text: current ?? _searchController.text,
-    );
+    final controller = TextEditingController(text: current ?? '');
     final result = await showDialog<String?>(
       context: context,
       builder: (context) {
@@ -355,14 +338,12 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       // clear search
       AppLogger.info('[EVENTS_SCREEN] Search cleared');
       ref.read(eventsSearchTermProvider.notifier).state = null;
-      _searchController.text = '';
     } else if (trimmed.length >= 2) {
       AppLogger.info(
         '[EVENTS_SCREEN] Search applied',
         extra: {'search': trimmed},
       );
       ref.read(eventsSearchTermProvider.notifier).state = trimmed;
-      _searchController.text = trimmed; // keep local for client-side refine
     } else {
       if (mounted) {
         ScaffoldMessenger.of(this.context).showSnackBar(
