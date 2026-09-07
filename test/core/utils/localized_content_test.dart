@@ -38,5 +38,37 @@ void main() {
       expect(r.description, '');
       expect(r.shortDescription, isNull);
     });
+
+    test(
+      'skips a blank title in the requested locale in favour of another '
+      'locale with a real title',
+      () {
+        final mixed = [t('en', ''), t('no', 'Noe')];
+        expect(resolveLocalizedContent(mixed, 'en').title, 'Noe');
+      },
+    );
+
+    test(
+      'the first-available tier skips a blank-title entry for a later '
+      'non-blank one',
+      () {
+        final mixed = [t('fr', ''), t('de', 'Etwas')];
+        expect(resolveLocalizedContent(mixed, 'no').title, 'Etwas');
+      },
+    );
+
+    test('treats a whitespace-only title as blank', () {
+      final mixed = [t('en', '   '), t('no', 'Noe')];
+      expect(resolveLocalizedContent(mixed, 'en').title, 'Noe');
+    });
+
+    test(
+      'returns blank content without throwing when all titles are blank',
+      () {
+        final allBlank = [t('en', ''), t('no', '   ')];
+        final r = resolveLocalizedContent(allBlank, 'en');
+        expect(r.title, '');
+      },
+    );
   });
 }
