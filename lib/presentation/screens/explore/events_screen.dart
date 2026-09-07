@@ -11,6 +11,7 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/event/your_trip_card.dart';
+import '../../widgets/premium/premium_html_renderer.dart';
 
 // Provider for EventService
 final eventServiceProvider = Provider<EventService>((ref) => EventService());
@@ -437,6 +438,36 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   }
 }
 
+/// What the status badge actually communicates to a reader.
+///
+/// Derived from the event's dates, NOT from the Appwrite `status` column:
+/// `status` is the editorial enum `draft`/`published`/`cancelled`, and every
+/// row that reaches this screen is `published` (see
+/// [EventService.buildEventQueries]), so a status-derived badge would print
+/// the constant string "published". `cancelled` is a real enum value and is
+/// still honoured.
+enum _EventLifecycle { cancelled, upcoming, ongoing, completed }
+
+_EventLifecycle _lifecycleOf(EventModel event) {
+  if (event.isCancelled) return _EventLifecycle.cancelled;
+  if (event.isOngoing) return _EventLifecycle.ongoing;
+  if (event.isCompleted) return _EventLifecycle.completed;
+  return _EventLifecycle.upcoming;
+}
+
+String _lifecycleLabel(_EventLifecycle lifecycle, AppLocalizations l10n) {
+  switch (lifecycle) {
+    case _EventLifecycle.cancelled:
+      return l10n.cancelledMessage;
+    case _EventLifecycle.ongoing:
+      return l10n.liveMessage;
+    case _EventLifecycle.completed:
+      return l10n.endedMessage;
+    case _EventLifecycle.upcoming:
+      return l10n.upcomingMessage;
+  }
+}
+
 class _EventCard extends StatelessWidget {
   final EventModel event;
   final VoidCallback onTap;
@@ -446,14 +477,39 @@ class _EventCard extends StatelessWidget {
   /// Chips shown on the card: the single `category`, if any, followed by
   /// `tags` — the schema-backed replacement for the old multi-value
   /// `categories` list.
-  List<String> get _chipLabels => [
-    if (event.category != null && event.category!.isNotEmpty) event.category!,
-    ...event.tags,
-  ];
+  ///
+  /// `category` is a raw lowercase enum token (`social`, `career`, `workshop`,
+  /// `talk`, `party`, `sport`, `academic`, `trip`), so it is capitalised for
+  /// display. Tags are author-written and are shown verbatim. A tag that
+  /// merely repeats the category is dropped case-insensitively — otherwise
+  /// `career` + `Career` burn two of the three visible slots on one value.
+  List<String> get _chipLabels {
+    final labels = <String>[];
+    final seen = <String>{};
+
+    void add(String label) {
+      final trimmed = label.trim();
+      if (trimmed.isEmpty) return;
+      if (!seen.add(trimmed.toLowerCase())) return;
+      labels.add(trimmed);
+    }
+
+    final category = event.category?.trim() ?? '';
+    if (category.isNotEmpty) {
+      add(
+        category[0].toUpperCase() + category.substring(1).toLowerCase(),
+      );
+    }
+    event.tags.forEach(add);
+
+    return labels;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    final lifecycle = _lifecycleOf(event);
 
     return Card(
       child: InkWell(
@@ -574,15 +630,13 @@ class _EventCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(
-                        event.status,
-                      ).withValues(alpha: 0.1),
+                      color: _getStatusColor(lifecycle).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _getStatusText(event.status),
+                      _lifecycleLabel(lifecycle, l10n),
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: _getStatusColor(event.status),
+                        color: _getStatusColor(lifecycle),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -628,33 +682,16 @@ class _EventCard extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'upcoming':
+  Color _getStatusColor(_EventLifecycle lifecycle) {
+    switch (lifecycle) {
+      case _EventLifecycle.upcoming:
         return AppColors.accentBlue;
-      case 'ongoing':
+      case _EventLifecycle.ongoing:
         return AppColors.success;
-      case 'completed':
+      case _EventLifecycle.completed:
         return AppColors.onSurfaceVariant;
-      case 'cancelled':
+      case _EventLifecycle.cancelled:
         return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'upcoming':
-        return 'Upcoming';
-      case 'ongoing':
-        return 'Live';
-      case 'completed':
-        return 'Ended';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
     }
   }
 }
@@ -680,40 +717,25 @@ class _EventDetailSheet extends StatelessWidget {
     return formattedStartDate;
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'upcoming':
+  Color _getStatusColor(_EventLifecycle lifecycle) {
+    switch (lifecycle) {
+      case _EventLifecycle.upcoming:
         return AppColors.accentBlue;
-      case 'ongoing':
+      case _EventLifecycle.ongoing:
         return AppColors.success;
-      case 'completed':
+      case _EventLifecycle.completed:
         return AppColors.gray400;
-      case 'cancelled':
+      case _EventLifecycle.cancelled:
         return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'upcoming':
-        return 'Upcoming';
-      case 'ongoing':
-        return 'Live';
-      case 'completed':
-        return 'Ended';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final isDark = theme.brightness == Brightness.dark;
+    final lifecycle = _lifecycleOf(event);
 
     return Container(
       decoration: BoxDecoration(
@@ -807,17 +829,17 @@ class _EventDetailSheet extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(event.status).withValues(alpha: 0.1),
+                    color: _getStatusColor(lifecycle).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _getStatusColor(event.status),
+                      color: _getStatusColor(lifecycle),
                       width: 1,
                     ),
                   ),
                   child: Text(
-                    _getStatusText(event.status),
+                    _lifecycleLabel(lifecycle, l10n),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: _getStatusColor(event.status),
+                      color: _getStatusColor(lifecycle),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -841,14 +863,16 @@ class _EventDetailSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    event.description,
+                  // `content_translations.description` is HTML — render it,
+                  // don't print the tags. Same helper jobs_screen uses.
+                  event.description.toFullHtml(
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.5,
                       color: isDark
                           ? AppColors.onSurfaceVariantDark
                           : AppColors.onSurfaceVariant,
                     ),
+                    fontSize: 16,
                   ),
                   const SizedBox(height: 24),
                 ],

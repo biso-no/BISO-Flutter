@@ -15,7 +15,9 @@ class EventModel extends Equatable {
   final List<String> images;
   final double? price;
   final DateTime? registrationDeadline;
-  final String status; // 'upcoming', 'ongoing', 'completed', 'cancelled'
+  /// The `status` column's enum: 'draft', 'published', 'cancelled'.
+  /// It is editorial state, not lifecycle — see [isUpcoming] and friends.
+  final String status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -49,7 +51,7 @@ class EventModel extends Equatable {
     this.images = const [],
     this.price,
     this.registrationDeadline,
-    this.status = 'upcoming',
+    this.status = 'published',
     this.createdAt,
     this.updatedAt,
     this.slug,
@@ -199,9 +201,28 @@ class EventModel extends Equatable {
     );
   }
 
-  bool get isUpcoming => status == 'upcoming';
-  bool get isOngoing => status == 'ongoing';
-  bool get isCompleted => status == 'completed';
+  /// The instant an event stops running. A row with no `end_date` is treated
+  /// as ending the moment it starts, so it becomes "completed" immediately
+  /// after [startDate] rather than running forever.
+  DateTime get _effectiveEndDate => endDate ?? startDate;
+
+  /// Lifecycle is derived from the dates, NOT from [status].
+  ///
+  /// `status` is the editorial enum `draft` / `published` / `cancelled`; it
+  /// never carries lifecycle. Reads are hard-filtered to `published`, so a
+  /// status-derived lifecycle would be a constant. Do NOT "restore" these to
+  /// string comparisons against `status`.
+  bool get isUpcoming => DateTime.now().isBefore(startDate);
+
+  bool get isOngoing {
+    final now = DateTime.now();
+    return !now.isBefore(startDate) && !now.isAfter(_effectiveEndDate);
+  }
+
+  bool get isCompleted => DateTime.now().isAfter(_effectiveEndDate);
+
+  /// `cancelled` is a real value of the `status` enum, so this one stays
+  /// column-derived.
   bool get isCancelled => status == 'cancelled';
   bool get canRegister =>
       isUpcoming && (registrationDeadline?.isAfter(DateTime.now()) ?? true);
