@@ -313,7 +313,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     return events.where((event) {
       return event.title.toLowerCase().contains(searchQuery) ||
           event.description.toLowerCase().contains(searchQuery) ||
-          event.organizerName.toLowerCase().contains(searchQuery);
+          (event.contactName?.toLowerCase().contains(searchQuery) ?? false);
     }).toList();
   }
 
@@ -443,6 +443,14 @@ class _EventCard extends StatelessWidget {
 
   const _EventCard({required this.event, required this.onTap});
 
+  /// Chips shown on the card: the single `category`, if any, followed by
+  /// `tags` — the schema-backed replacement for the old multi-value
+  /// `categories` list.
+  List<String> get _chipLabels => [
+    if (event.category != null && event.category!.isNotEmpty) event.category!,
+    ...event.tags,
+  ];
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -499,14 +507,16 @@ class _EventCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        const SizedBox(height: 4),
-
-                        Text(
-                          event.organizerName,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
+                        if (event.contactName != null &&
+                            event.contactName!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            event.contactName!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
                           ),
-                        ),
+                        ],
 
                         const SizedBox(height: 8),
 
@@ -529,28 +539,30 @@ class _EventCard extends StatelessWidget {
                           ],
                         ),
 
-                        const SizedBox(height: 4),
-
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                event.venue,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceVariant,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                        if (event.location != null &&
+                            event.location!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                size: 14,
+                                color: AppColors.onSurfaceVariant,
                               ),
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  event.location!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -578,12 +590,12 @@ class _EventCard extends StatelessWidget {
                 ],
               ),
 
-              if (event.categories.isNotEmpty) ...[
+              if (_chipLabels.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: event.categories.take(3).map((category) {
+                  children: _chipLabels.take(3).map((label) {
                     return Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -593,7 +605,7 @@ class _EventCard extends StatelessWidget {
                         color: AppColors.gray200,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(category, style: theme.textTheme.labelSmall),
+                      child: Text(label, style: theme.textTheme.labelSmall),
                     );
                   }).toList(),
                 ),
@@ -760,30 +772,31 @@ class _EventDetailSheet extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 20,
-                      color: isDark
-                          ? AppColors.onSurfaceVariantDark
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        event.venue,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDark
-                              ? AppColors.onSurfaceVariantDark
-                              : AppColors.onSurfaceVariant,
+                if (event.location != null && event.location!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 20,
+                        color: isDark
+                            ? AppColors.onSurfaceVariantDark
+                            : AppColors.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          event.location!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: isDark
+                                ? AppColors.onSurfaceVariantDark
+                                : AppColors.onSurfaceVariant,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
 
                 const SizedBox(height: 16),
 
@@ -841,14 +854,16 @@ class _EventDetailSheet extends StatelessWidget {
                 ],
 
                 // Organizer Info
-                Text(
-                  'Organized by ${event.organizerName}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isDark
-                        ? AppColors.onSurfaceVariantDark
-                        : AppColors.onSurfaceVariant,
+                if (event.contactName != null &&
+                    event.contactName!.isNotEmpty)
+                  Text(
+                    'Organized by ${event.contactName}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: isDark
+                          ? AppColors.onSurfaceVariantDark
+                          : AppColors.onSurfaceVariant,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

@@ -143,14 +143,6 @@ class EventService {
           'status': 'confirmed',
         },
       );
-
-      // Update event attendee count
-      final event = await getEventById(eventId);
-      if (event != null) {
-        await updateEvent(
-          event.copyWith(currentAttendees: event.currentAttendees + 1),
-        );
-      }
     } on AppwriteException catch (e) {
       throw EventException('Failed to register for event: ${e.message}');
     } catch (e) {
@@ -176,18 +168,6 @@ class EventService {
           tableId: 'event_registrations',
           rowId: response.rows.first.$id,
         );
-
-        // Update event attendee count
-        final event = await getEventById(eventId);
-        if (event != null) {
-          await updateEvent(
-            event.copyWith(
-              currentAttendees: (event.currentAttendees - 1)
-                  .clamp(0, double.infinity)
-                  .toInt(),
-            ),
-          );
-        }
       }
     } on AppwriteException catch (e) {
       throw EventException('Failed to cancel registration: ${e.message}');

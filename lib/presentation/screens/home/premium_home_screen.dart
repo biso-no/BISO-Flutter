@@ -1163,33 +1163,36 @@ class _PremiumEventCard extends StatelessWidget {
 
                 const SizedBox(height: 8),
 
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: AppColors.stoneGray,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        event.venue,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.stoneGray,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                if (event.location != null && event.location!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 16,
+                        color: AppColors.stoneGray,
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          event.location!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.stoneGray,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
 
-                if (event.organizerName.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                if (event.contactName != null &&
+                    event.contactName!.isNotEmpty) ...[
                   Text(
                     AppLocalizations.of(
                       context,
-                    )!.byOrganizerNameMessage(event.organizerName),
+                    )!.byOrganizerNameMessage(event.contactName!),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.biLightBlue,
                       fontWeight: FontWeight.w500,
