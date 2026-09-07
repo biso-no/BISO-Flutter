@@ -1,5 +1,9 @@
 import 'package:equatable/equatable.dart';
 
+import '../../core/utils/appwrite_image.dart';
+import '../../core/utils/localized_content.dart';
+import 'content_translation.dart';
+
 class EventModel extends Equatable {
   final String id;
   final String title;
@@ -25,6 +29,25 @@ class EventModel extends Equatable {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  // --- new schema-backed fields ---
+  final String? slug;
+  final String? shortDescription;
+  final String? ticketUrl;
+  final String? locationMode;
+  final String? onlineUrl;
+  final String? category;
+  final String? coverPattern;
+  final String? pricingMode;
+  final String? departmentId;
+  final String? contactName;
+  final String? contactRole;
+  final String? contactEmail;
+  final double? memberPrice;
+  final bool memberOnly;
+  final bool waitlist;
+  final int capacity;
+  final List<String> tags;
+
   const EventModel({
     required this.id,
     required this.title,
@@ -49,6 +72,23 @@ class EventModel extends Equatable {
     this.status = 'upcoming',
     this.createdAt,
     this.updatedAt,
+    this.slug,
+    this.shortDescription,
+    this.ticketUrl,
+    this.locationMode,
+    this.onlineUrl,
+    this.category,
+    this.coverPattern,
+    this.pricingMode,
+    this.departmentId,
+    this.contactName,
+    this.contactRole,
+    this.contactEmail,
+    this.memberPrice,
+    this.memberOnly = false,
+    this.waitlist = false,
+    this.capacity = 0,
+    this.tags = const [],
   });
 
   factory EventModel.fromMap(Map<String, dynamic> map) {
@@ -82,6 +122,62 @@ class EventModel extends Equatable {
       updatedAt: map['\$updatedAt'] != null
           ? DateTime.parse(map['\$updatedAt'])
           : null,
+    );
+  }
+
+  factory EventModel.fromAppwriteRow(
+    Map<String, dynamic> row, {
+    String locale = 'no',
+  }) {
+    final translations = ContentTranslation.listFrom(row['translation_refs']);
+    final content = resolveLocalizedContent(translations, locale);
+    final image = appwriteImageUrl(row['image']);
+
+    DateTime? parseDate(Object? v) {
+      final s = v?.toString();
+      if (s == null || s.isEmpty) return null;
+      return DateTime.tryParse(s);
+    }
+
+    return EventModel(
+      id: (row[r'$id'] ?? '').toString(),
+      slug: row['slug']?.toString(),
+      // `venue`, `organizerId` and `organizerName` are still `required` on the
+      // constructor at this point. They have no Appwrite column and Task 7
+      // removes them; pass interim values so this task compiles.
+      venue: (row['location'] ?? '').toString(),
+      organizerId: '',
+      organizerName: '',
+      title: content.title,
+      description: content.description,
+      shortDescription: content.shortDescription,
+      startDate: parseDate(row['start_date']) ?? DateTime.now(),
+      endDate: parseDate(row['end_date']),
+      registrationDeadline: parseDate(row['registration_deadline']),
+      campusId: (row['campus_id'] ?? '').toString(),
+      departmentId: row['department_id']?.toString(),
+      location: row['location']?.toString(),
+      locationMode: row['location_mode']?.toString(),
+      onlineUrl: row['online_url']?.toString(),
+      images: image == null ? const <String>[] : <String>[image],
+      price: (row['price'] as num?)?.toDouble(),
+      memberPrice: (row['member_price'] as num?)?.toDouble(),
+      pricingMode: row['pricing_mode']?.toString(),
+      memberOnly: row['member_only'] == true,
+      capacity: (row['capacity'] as num?)?.toInt() ?? 0,
+      waitlist: row['waitlist'] == true,
+      category: row['category']?.toString(),
+      coverPattern: row['cover_pattern']?.toString(),
+      tags: (row['tags'] is List)
+          ? (row['tags'] as List).map((e) => e.toString()).toList(growable: false)
+          : const <String>[],
+      ticketUrl: row['ticket_url']?.toString(),
+      contactName: row['contact_name']?.toString(),
+      contactRole: row['contact_role']?.toString(),
+      contactEmail: row['contact_email']?.toString(),
+      status: (row['status'] ?? 'published').toString(),
+      createdAt: parseDate(row[r'$createdAt']),
+      updatedAt: parseDate(row[r'$updatedAt']),
     );
   }
 
