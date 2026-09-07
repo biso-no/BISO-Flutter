@@ -29,7 +29,6 @@ class AppConstants {
   // Appwrite Functions (IDs)
   static const String fnParseReceiptId = 'fn_parse_receipt';
   static const String fnSummarizeExpenseId = 'fn_summarize_expense';
-  static const String fnFetchEventsId = 'fetch_events';
   static const String fnFetchJobsId = 'fetch_jobs';
   static const String fnSyncWebshopProductsId = 'sync_webshop_products';
 

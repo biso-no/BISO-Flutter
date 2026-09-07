@@ -19,32 +19,6 @@ final eventServiceProvider = Provider<EventService>((ref) => EventService());
 // Search term for events (server-backed)
 final eventsSearchTermProvider = StateProvider<String?>((ref) => null);
 
-// Provider for events list
-final eventsProvider = FutureProvider.family<List<EventModel>, String?>((
-  ref,
-  campusId,
-) {
-  final service = ref.watch(eventServiceProvider);
-  final searchTerm = ref.watch(eventsSearchTermProvider);
-  final locale = ref.watch(localeProvider).languageCode;
-  AppLogger.info(
-    '[EVENTS_SCREEN] Provider load requested',
-    extra: {
-      'campus_id': campusId,
-      'limit': 50,
-      'include_past': false,
-      'search': searchTerm,
-    },
-  );
-  return service.listEvents(
-    campusId: campusId,
-    locale: locale,
-    limit: 50,
-    includePast: false,
-    search: searchTerm,
-  );
-});
-
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
 

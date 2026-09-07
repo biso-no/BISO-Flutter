@@ -73,30 +73,6 @@ class EventModel extends Equatable {
     this.tags = const [],
   });
 
-  factory EventModel.fromMap(Map<String, dynamic> map) {
-    return EventModel(
-      id: map['\$id'] ?? '',
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
-      startDate: DateTime.parse(map['start_date']),
-      endDate: map['end_date'] != null ? DateTime.parse(map['end_date']) : null,
-      location: map['location'],
-      campusId: map['campus_id'] ?? '',
-      images: List<String>.from(map['images'] ?? []),
-      price: map['price']?.toDouble(),
-      registrationDeadline: map['registration_deadline'] != null
-          ? DateTime.parse(map['registration_deadline'])
-          : null,
-      status: map['status'] ?? 'upcoming',
-      createdAt: map['\$createdAt'] != null
-          ? DateTime.parse(map['\$createdAt'])
-          : null,
-      updatedAt: map['\$updatedAt'] != null
-          ? DateTime.parse(map['\$updatedAt'])
-          : null,
-    );
-  }
-
   factory EventModel.fromAppwriteRow(
     Map<String, dynamic> row, {
     String locale = 'no',
@@ -151,53 +127,6 @@ class EventModel extends Equatable {
       status: (row['status'] ?? 'published').toString(),
       createdAt: parseDate(row[r'$createdAt']),
       updatedAt: parseDate(row[r'$updatedAt']),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'description': description,
-      'start_date': startDate.toIso8601String(),
-      'end_date': endDate?.toIso8601String(),
-      'location': location,
-      'campus_id': campusId,
-      'images': images,
-      'price': price,
-      'registration_deadline': registrationDeadline?.toIso8601String(),
-      'status': status,
-    };
-  }
-
-  EventModel copyWith({
-    String? id,
-    String? title,
-    String? description,
-    DateTime? startDate,
-    DateTime? endDate,
-    String? location,
-    String? campusId,
-    List<String>? images,
-    double? price,
-    DateTime? registrationDeadline,
-    String? status,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return EventModel(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
-      location: location ?? this.location,
-      campusId: campusId ?? this.campusId,
-      images: images ?? this.images,
-      price: price ?? this.price,
-      registrationDeadline: registrationDeadline ?? this.registrationDeadline,
-      status: status ?? this.status,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
