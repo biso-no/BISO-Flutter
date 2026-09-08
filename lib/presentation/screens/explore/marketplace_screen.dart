@@ -152,6 +152,10 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   final List<WebshopProduct> _webshopAccumulated = [];
+  // Which query the accumulated webshop pages belong to. Mirrors
+  // `_loadedForCampusId` in events_screen/jobs_screen.
+  String? _webshopLoadedForCampusId;
+  String? _webshopLoadedForLocale;
   String? _lastProductsUiLogKey;
 
   final List<String> _categories = [
@@ -277,7 +281,37 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     }
   }
 
-  List<WebshopProduct> _computeWebshopList(List<WebshopProduct> firstPage) {
+  /// Folds the provider's page 1 into the accumulated webshop list.
+  ///
+  /// The accumulator belongs to one campus/locale pair. When either changes
+  /// the provider family refetches, and the accumulated pages are no longer
+  /// the answer to the current query: keeping them would leave the previous
+  /// campus's products on screen and make the next [_loadMoreWebshop] request
+  /// the new campus at the old offset, skipping items. So the paging state is
+  /// reset first, exactly as `_ensureInitialLoad` does in
+  /// events_screen/jobs_screen. A search change resets via
+  /// [_onSearchChanged] instead and lands in the empty-accumulator branch.
+  List<WebshopProduct> _computeWebshopList(
+    List<WebshopProduct> firstPage, {
+    required String campusId,
+    required String locale,
+  }) {
+    if (_webshopLoadedForCampusId != campusId ||
+        _webshopLoadedForLocale != locale) {
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Webshop query changed; restarting paging',
+        extra: {
+          'previous_campus_id': _webshopLoadedForCampusId,
+          'campus_id': campusId,
+          'previous_locale': _webshopLoadedForLocale,
+          'locale': locale,
+          'discarded_count': _webshopAccumulated.length,
+        },
+      );
+      _webshopLoadedForCampusId = campusId;
+      _webshopLoadedForLocale = locale;
+      _resetWebshopPaging();
+    }
     if (_webshopAccumulated.isEmpty) {
       // initialize with first page
       _webshopAccumulated.addAll(firstPage);
@@ -290,6 +324,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final campus = ref.watch(filterCampusProvider);
+    // The webshop provider resolves translations for this locale, so it is
+    // part of the identity of the accumulated pages.
+    final locale = ref.watch(localeProvider).languageCode;
     final isCampusReady =
         ref.watch(campusInitializedProvider) && campus.id.isNotEmpty;
     final auth = ref.watch(authStateProvider);
@@ -600,7 +637,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                 .when(
                   data: (products) {
                     final visibleProducts = effectiveMode == _ShopMode.webshop
-                        ? _computeWebshopList(products as List<WebshopProduct>)
+                        ? _computeWebshopList(
+                            products as List<WebshopProduct>,
+                            campusId: campus.id,
+                            locale: locale,
+                          )
                         : products;
                     _logProductsUiState(
                       mode: effectiveMode,
@@ -654,6 +695,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                             itemCount: (effectiveMode == _ShopMode.webshop)
                                 ? _computeWebshopList(
                                         products as List<WebshopProduct>,
+                                        campusId: campus.id,
+                                        locale: locale,
                                       ).length +
                                       (_isLoadingMore ? 1 : 0)
                                 : products.length,
@@ -665,6 +708,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                               } else {
                                 final list = _computeWebshopList(
                                   products as List<WebshopProduct>,
+                                  campusId: campus.id,
+                                  locale: locale,
                                 );
                                 if (index >= list.length) {
                                   return const Padding(
