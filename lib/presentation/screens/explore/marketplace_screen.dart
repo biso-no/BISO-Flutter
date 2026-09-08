@@ -372,8 +372,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   /// campus's products on screen and make the next [_loadMoreWebshop] request
   /// the new campus at the old offset, skipping items. So the paging state is
   /// reset first, exactly as `_ensureInitialLoad` does in
-  /// events_screen/jobs_screen. A search change resets via
-  /// [_onSearchChanged] instead and lands in the empty-accumulator branch.
+  /// events_screen/jobs_screen. A search change is deliberately not part
+  /// of that check: it resets the paging state at each of its sources —
+  /// [_onSearchChanged] when the field is typed in, and the field's clear
+  /// button for the X — so it always arrives in the empty-accumulator
+  /// branch below.
   List<WebshopProduct> _computeWebshopList(
     List<WebshopProduct> firstPage, {
     required String campusId,
@@ -629,8 +632,25 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                               'mode': effectiveMode.name,
                             },
                           );
+                          // A debounce started by the last keystroke would
+                          // otherwise fire ~500ms from now and resurrect the
+                          // search the user just cleared.
+                          _debounceTimer?.cancel();
+                          // TextEditingController.clear() does not fire
+                          // onChanged, so _onSearchChanged — the only other
+                          // place that resets paging on a search change —
+                          // never runs for this path. Without the reset
+                          // here, _computeWebshopList finds a non-empty
+                          // accumulator and keeps serving the previous
+                          // search's products even though the provider has
+                          // refetched under the new key, and _currentPage
+                          // stays advanced from the load-more this clear
+                          // just invalidated.
                           _searchController.clear();
-                          setState(() => _search = null);
+                          setState(() {
+                            _search = null;
+                            _resetWebshopPaging();
+                          });
                         },
                         icon: const Icon(
                           Icons.clear,
