@@ -254,13 +254,13 @@ final _router = GoRouter(
                   name: 'webshop-product-detail',
                   builder: (context, state) {
                     final product = state.extra as WebshopProduct?;
-                    if (product == null) {
-                      // Fallback if product not passed - shouldn't happen
-                      return const Scaffold(
-                        body: Center(child: Text('Product not found')),
-                      );
-                    }
-                    return WebshopProductDetailScreen(product: product);
+                    // Callers that only have the id (e.g. showcase CTA deep
+                    // links) omit `extra`; the screen fetches the product
+                    // itself in that case.
+                    return WebshopProductDetailScreen(
+                      product: product,
+                      productId: state.pathParameters['productId'],
+                    );
                   },
                 ),
               ],
