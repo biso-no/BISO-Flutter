@@ -5,3 +5,10 @@ analyzer:
     - lib/generated/**
     - lib/schema/appwrite/**
     - lib/types/**
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**

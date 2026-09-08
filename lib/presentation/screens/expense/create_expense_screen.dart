@@ -304,7 +304,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 ),
                 const SizedBox(height: 24),
                 DropdownButtonFormField<String>(
-                  value: _assignment?.campusId.isNotEmpty == true
+                  initialValue: _assignment?.campusId.isNotEmpty == true
                       ? _assignment!.campusId
                       : null,
                   decoration: const InputDecoration(
@@ -338,7 +338,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _assignment?.departmentId.isNotEmpty == true
+                  initialValue: _assignment?.departmentId.isNotEmpty == true
                       ? _assignment!.departmentId
                       : null,
                   decoration: const InputDecoration(

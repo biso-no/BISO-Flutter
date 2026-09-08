@@ -74,7 +74,7 @@ class DeparturesScreen extends ConsumerWidget {
                 }
 
                 return DropdownButtonFormField<String>(
-                  value: selectedGroupName,
+                  initialValue: selectedGroupName,
                   decoration: const InputDecoration(
                     labelText: 'Stop Place',
                     border: OutlineInputBorder(),
