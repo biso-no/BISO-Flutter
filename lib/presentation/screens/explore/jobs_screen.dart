@@ -61,7 +61,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 
   Future<void> _ensureInitialLoad(String? campusId) async {
-    if (_loadedForCampusId == campusId && _jobs.isNotEmpty) return;
+    if (_loadedForCampusId == campusId) return;
     AppLogger.info(
       '[JOBS_SCREEN] Initial load requested',
       extra: {
