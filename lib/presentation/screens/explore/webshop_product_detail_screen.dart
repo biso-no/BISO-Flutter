@@ -31,6 +31,39 @@ class WebshopProductDetailScreen extends ConsumerStatefulWidget {
       _WebshopProductDetailScreenState();
 }
 
+/// Returns the first required custom field with no collected value, or
+/// `null` when every required field already has one.
+///
+/// This is checked directly against the screen's own collected state
+/// (`selectValues`/`textValues`) rather than via `Form.validate()`. The
+/// custom fields are the tail of a lazily-built `SliverList`, so a field
+/// that lies beyond the viewport plus the sliver's cache extent has never
+/// been built — it has no `FormFieldState`, so it never registers with the
+/// enclosing `Form`, and `Form.validate()` silently skips it. Reading the
+/// collected state directly makes this check correct regardless of scroll
+/// position or which fields happen to be mounted.
+///
+/// Extracted as a top-level, `@visibleForTesting` function (rather than a
+/// private method on the screen's `State`) so the gating logic itself can be
+/// unit-tested without constructing the widget tree.
+@visibleForTesting
+ProductCustomField? firstMissingRequiredCustomField({
+  required List<ProductCustomField> customFields,
+  required Map<String, String?> selectValues,
+  required Map<String, String> textValues,
+}) {
+  for (final field in customFields) {
+    if (!field.isRequired) continue;
+    final value = field.type == 'select'
+        ? selectValues[field.fieldKey]
+        : textValues[field.fieldKey];
+    if (value == null || value.trim().isEmpty) {
+      return field;
+    }
+  }
+  return null;
+}
+
 class _WebshopProductDetailScreenState
     extends ConsumerState<WebshopProductDetailScreen> {
   int _currentImageIndex = 0;
@@ -42,11 +75,20 @@ class _WebshopProductDetailScreenState
 
   final _formKey = GlobalKey<FormState>();
 
+  /// Scrolls a below-the-fold custom field into view when it blocks
+  /// [_handleContinue]; see `_revealCustomField`.
+  final _scrollController = ScrollController();
+
   /// Text/textarea/number/email controllers, keyed by `fieldKey`.
   final Map<String, TextEditingController> _textControllers = {};
 
   /// Selected option for `select` fields, keyed by `fieldKey`.
   final Map<String, String?> _selectValues = {};
+
+  /// One `GlobalKey` per custom field, keyed by `fieldKey`, used to locate
+  /// and scroll to a field that fails validation — including one that has
+  /// never been built (see `firstMissingRequiredCustomField`).
+  final Map<String, GlobalKey> _customFieldKeys = {};
 
   /// Collected custom-field values, keyed by `fieldKey`. This is populated
   /// once validation passes and is kept in screen state only — nothing here
@@ -70,6 +112,7 @@ class _WebshopProductDetailScreenState
     for (final controller in _textControllers.values) {
       controller.dispose();
     }
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -121,8 +164,10 @@ class _WebshopProductDetailScreenState
     _textControllers.clear();
     _selectValues.clear();
     _customFieldValues.clear();
+    _customFieldKeys.clear();
 
     for (final field in product.customFields) {
+      _customFieldKeys[field.fieldKey] = GlobalKey();
       if (field.type == 'select') {
         _selectValues[field.fieldKey] = null;
       } else {
@@ -142,11 +187,92 @@ class _WebshopProductDetailScreenState
     return product.variations[_selectedVariationIndex];
   }
 
-  void _handleContinue() {
-    final isValid = _formKey.currentState?.validate() ?? true;
-    if (!isValid) return;
+  /// Looks up the first required custom field missing a value, using
+  /// [product]'s own collected controller/select state.
+  ///
+  /// Delegates to the top-level [firstMissingRequiredCustomField] so the
+  /// actual gating logic is independently unit-testable; this method only
+  /// adapts the screen's `TextEditingController` map into the plain
+  /// `Map<String, String>` that function expects.
+  ProductCustomField? _firstMissingRequiredField(WebshopProduct product) {
+    return firstMissingRequiredCustomField(
+      customFields: product.customFields,
+      selectValues: _selectValues,
+      textValues: _textControllers.map(
+        (key, controller) => MapEntry(key, controller.text),
+      ),
+    );
+  }
 
+  /// Scrolls [field] into view and re-validates the form so the field's own
+  /// error text paints, even when [field] has never been built (Finding 1:
+  /// it lies beyond the sliver's viewport + cache extent and so has never
+  /// registered with [_formKey]).
+  void _revealCustomField(ProductCustomField field) {
+    final builtContext = _customFieldKeys[field.fieldKey]?.currentContext;
+
+    if (builtContext != null) {
+      // Already built — likely just scrolled past, or within the cache
+      // extent. Scroll precisely to it and re-validate.
+      Scrollable.ensureVisible(
+        builtContext,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      ).then((_) {
+        if (mounted) _formKey.currentState?.validate();
+      });
+      return;
+    }
+
+    // Not built yet. Custom fields are always the last section of the
+    // sliver list, so animating to the end of the scroll view forces it to
+    // build (and register with the Form) regardless of how long the
+    // description above it happens to be.
+    final scrollController = _scrollController;
+    if (!scrollController.hasClients) return;
+    scrollController
+        .animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        )
+        .then((_) {
+          if (!mounted) return;
+          final revealedContext = _customFieldKeys[field.fieldKey]?.currentContext;
+          if (revealedContext != null) {
+            // `mounted` was just checked above; `revealedContext` is read
+            // fresh from the key at this point, not carried across the
+            // `animateTo` gap, so this is safe despite the lint.
+            // ignore: use_build_context_synchronously
+            Scrollable.ensureVisible(revealedContext, duration: const Duration(milliseconds: 200));
+          }
+          _formKey.currentState?.validate();
+        });
+  }
+
+  void _handleContinue() {
     final product = _product;
+
+    // Always run this first so any *currently built* field still paints its
+    // own inline error, per the review's explicit instruction to keep this
+    // call even though it cannot be trusted on its own (Finding 1).
+    final isFormValid = _formKey.currentState?.validate() ?? false;
+
+    // Authoritative gate: checked directly against the collected state, so
+    // it blocks regardless of scroll position/registration (Finding 1).
+    final missingField = product == null
+        ? null
+        : _firstMissingRequiredField(product);
+    if (missingField != null) {
+      _revealCustomField(missingField);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${missingField.label} is required')),
+      );
+      return;
+    }
+
+    if (!isFormValid) return;
+
     if (product != null) {
       for (final field in product.customFields) {
         _customFieldValues[field.fieldKey] = field.type == 'select'
@@ -270,8 +396,19 @@ class _WebshopProductDetailScreenState
       backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
       body: Form(
         key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
+        // `onUserInteractionIfError` (rather than `onUserInteraction`) so a
+        // keystroke in one field cannot cascade error text onto other,
+        // untouched fields the user hasn't reached yet (Finding 2):
+        // `Form.build()` only re-validates every registered field when the
+        // form has *both* seen interaction *and* already has a stored error
+        // on some field — i.e. only after a failed `validate()` call (from
+        // `_handleContinue`), not on every keystroke. Chosen over moving
+        // `autovalidateMode` onto each individual `FormField` because it is
+        // a single change at the `Form` itself, keeping the fix inside
+        // "Form wiring" without touching `_buildCustomField`'s widgets.
+        autovalidateMode: AutovalidateMode.onUserInteractionIfError,
         child: CustomScrollView(
+          controller: _scrollController,
           slivers: [
             // App Bar
             SliverAppBar(
@@ -512,6 +649,7 @@ class _WebshopProductDetailScreenState
                     const SizedBox(height: 12),
                     for (final field in product.customFields)
                       Padding(
+                        key: _customFieldKeys[field.fieldKey],
                         padding: const EdgeInsets.only(bottom: 16),
                         child: _buildCustomField(field),
                       ),
