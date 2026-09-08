@@ -167,6 +167,74 @@ class BisoApp extends ConsumerWidget {
   }
 }
 
+/// The sub-routes of `/explore/products`.
+///
+/// Extracted so the ordering rule below can be tested: it is invisible at the
+/// call site and breaks the whole cart flow when violated.
+@visibleForTesting
+List<RouteBase> productRoutes() {
+  return [
+                GoRoute(
+                  path: '/new',
+                  name: 'product-new',
+                  builder: (context, state) => const SellProductScreen(),
+                ),
+                // Every static single-segment route below MUST stay above
+                // `/:productId`: go_router takes the first matching sibling,
+                // so a wildcard placed first swallows `/cart`, `/checkout`
+                // and `/orders` and renders a product detail screen for a
+                // product called "cart".
+                GoRoute(
+                  path: '/cart',
+                  name: 'shop-cart',
+                  builder: (context, state) => const CartScreen(),
+                ),
+                GoRoute(
+                  path: '/checkout',
+                  name: 'shop-checkout',
+                  builder: (context, state) => const CheckoutScreen(),
+                ),
+                // The buyer is sent here before leaving for the payment
+                // provider, and the return deep link lands here too — so
+                // there is always somewhere to come back to, whether they
+                // finish, cancel, or just switch away mid-payment.
+                GoRoute(
+                  path: '/order/:orderId',
+                  name: 'shop-order',
+                  builder: (context, state) => OrderScreen(
+                    orderId: state.pathParameters['orderId']!,
+                    initialStatus: state.uri.queryParameters['status'],
+                  ),
+                ),
+                GoRoute(
+                  path: '/orders',
+                  name: 'shop-orders',
+                  builder: (context, state) => const OrdersScreen(),
+                ),
+                GoRoute(
+                  path: '/:productId',
+                  name: 'product-detail',
+                  builder: (context, state) => ProductDetailScreen(
+                    productId: state.pathParameters['productId']!,
+                  ),
+                ),
+                GoRoute(
+                  path: '/webshop/:productId',
+                  name: 'webshop-product-detail',
+                  builder: (context, state) {
+                    final product = state.extra as WebshopProduct?;
+                    // Callers that only have the id (e.g. showcase CTA deep
+                    // links) omit `extra`; the screen fetches the product
+                    // itself in that case.
+                    return WebshopProductDetailScreen(
+                      product: product,
+                      productId: state.pathParameters['productId'],
+                    );
+                  },
+                ),
+  ];
+}
+
 // Create router as a static instance to prevent rebuilding
 final _router = GoRouter(
   navigatorKey: navigatorKey,
@@ -241,59 +309,7 @@ final _router = GoRouter(
               name: 'products',
               builder: (context, state) => const market.MarketplaceScreen(),
               routes: [
-                GoRoute(
-                  path: '/new',
-                  name: 'product-new',
-                  builder: (context, state) => const SellProductScreen(),
-                ),
-                GoRoute(
-                  path: '/:productId',
-                  name: 'product-detail',
-                  builder: (context, state) => ProductDetailScreen(
-                    productId: state.pathParameters['productId']!,
-                  ),
-                ),
-                GoRoute(
-                  path: '/cart',
-                  name: 'shop-cart',
-                  builder: (context, state) => const CartScreen(),
-                ),
-                GoRoute(
-                  path: '/checkout',
-                  name: 'shop-checkout',
-                  builder: (context, state) => const CheckoutScreen(),
-                ),
-                // The buyer is sent here before leaving for the payment
-                // provider, and the return deep link lands here too — so
-                // there is always somewhere to come back to, whether they
-                // finish, cancel, or just switch away mid-payment.
-                GoRoute(
-                  path: '/order/:orderId',
-                  name: 'shop-order',
-                  builder: (context, state) => OrderScreen(
-                    orderId: state.pathParameters['orderId']!,
-                    initialStatus: state.uri.queryParameters['status'],
-                  ),
-                ),
-                GoRoute(
-                  path: '/orders',
-                  name: 'shop-orders',
-                  builder: (context, state) => const OrdersScreen(),
-                ),
-                GoRoute(
-                  path: '/webshop/:productId',
-                  name: 'webshop-product-detail',
-                  builder: (context, state) {
-                    final product = state.extra as WebshopProduct?;
-                    // Callers that only have the id (e.g. showcase CTA deep
-                    // links) omit `extra`; the screen fetches the product
-                    // itself in that case.
-                    return WebshopProductDetailScreen(
-                      product: product,
-                      productId: state.pathParameters['productId'],
-                    );
-                  },
-                ),
+              ...productRoutes(),
               ],
             ),
             GoRoute(

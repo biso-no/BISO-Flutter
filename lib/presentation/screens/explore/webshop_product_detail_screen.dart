@@ -298,15 +298,31 @@ class _WebshopProductDetailScreenState
 
     setState(() => _addingToCart = true);
     try {
-      await ref
-          .read(cartProvider.notifier)
-          .addProduct(
-            product: product,
-            variation: _selectedVariation,
-            customFields: _customFieldValues,
-            customFieldDefinitions: product.customFields,
-          );
+      final notifier = ref.read(cartProvider.notifier);
+      await notifier.addProduct(
+        product: product,
+        variation: _selectedVariation,
+        customFields: _customFieldValues,
+        customFieldDefinitions: product.customFields,
+      );
       if (!mounted) return;
+
+      // Adding can still come back empty-handed: the stock hold is written
+      // during `addProduct`, and a rejection there removes the line again
+      // rather than throwing. Confirm the line actually landed before
+      // claiming it did — and report the server's reason, which the cart
+      // screen would otherwise never show, since it is not mounted yet.
+      final cart = ref.read(cartProvider);
+      final landed = cart.items.any((item) => item.productId == product.id);
+      if (!landed) {
+        final reason = cart.error ?? 'This item could not be added right now.';
+        notifier.clearError();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(reason)));
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${product.title ?? 'Item'} added to your cart'),

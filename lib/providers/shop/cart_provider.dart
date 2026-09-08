@@ -83,9 +83,16 @@ class CartNotifier extends StateNotifier<CartState> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final storedUser = prefs.getString(_storageUserKey);
-      if (storedUser != _userId) {
-        // A cart saved by a different account (or by a signed-out session that
-        // has since signed in) is not this buyer's. Start clean.
+
+      // Browsing and filling a cart is deliberately open to anyone; only
+      // paying needs an account. So a cart saved with no owner belongs to
+      // whoever is now signing in — discarding it would empty the cart at
+      // precisely the sign-in step checkout forces on them, which is the one
+      // moment they are most committed to buying.
+      final claimsGuestCart = storedUser == null && _userId != null;
+
+      if (storedUser != _userId && !claimsGuestCart) {
+        // Someone else's cart, or this buyer signing out on a shared device.
         state = const CartState(items: <CartItem>[], isLoading: false);
         return;
       }
@@ -105,6 +112,18 @@ class CartNotifier extends StateNotifier<CartState> {
                 .toList()
           : <CartItem>[];
       state = CartState(items: items, isLoading: false);
+
+      if (claimsGuestCart) {
+        // Re-stamp the cart with its new owner, then take out the stock holds
+        // that could not be written while there was nobody to write them for.
+        // The sync also corrects anything that sold out in the meantime.
+        await _persist();
+        for (final productId in {
+          for (final item in items) item.productId,
+        }) {
+          await _syncReservation(productId);
+        }
+      }
     } catch (error) {
       logPrint('🛒 Failed to restore cart: $error');
       state = const CartState(items: <CartItem>[], isLoading: false);

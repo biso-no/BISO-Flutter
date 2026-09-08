@@ -1,6 +1,7 @@
 import 'package:biso/data/models/product_custom_field.dart';
 import 'package:biso/data/models/webshop_product_model.dart';
 import 'package:biso/presentation/screens/explore/webshop_product_detail_screen.dart';
+import 'package:biso/data/services/shop_api_client.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -159,13 +160,19 @@ void main() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
     });
 
-    Future<void> pumpScreen(WidgetTester tester, WebshopProduct product) {
+    Future<void> pumpScreen(
+      WidgetTester tester,
+      WebshopProduct product, {
+      String? userId,
+      ShopApiClient? api,
+    }) {
       return tester.pumpWidget(
         ProviderScope(
           overrides: [
-            // Pin a signed-out identity rather than standing up the whole
+            // Pin the identity rather than standing up the whole
             // authentication stack (which would try to reach Appwrite).
-            cartUserIdProvider.overrideWithValue(null),
+            cartUserIdProvider.overrideWithValue(userId),
+            if (api != null) shopApiClientProvider.overrideWithValue(api),
           ],
           child: MaterialApp(
             home: WebshopProductDetailScreen(product: product),
@@ -325,6 +332,35 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    testWidgets(
+      'reports the reason instead of claiming an item was added when the '
+      'stock hold is rejected',
+      (tester) async {
+        final product = WebshopProduct(
+          id: 'p6',
+          images: const [],
+          title: 'Last one',
+          regularPrice: 20,
+        );
+
+        await pumpScreen(
+          tester,
+          product,
+          userId: 'buyer-1',
+          api: _RejectingShopApi(),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Add to cart'));
+        await tester.pumpAndSettle();
+
+        // The hold is written during the add and a 409 removes the line again
+        // rather than throwing, so a bare "added" message would be a lie.
+        expect(find.textContaining('added to your cart'), findsNothing);
+        expect(find.text('Sold out while you were deciding'), findsOneWidget);
+      },
+    );
+
     testWidgets('refuses to add a members-only product', (tester) async {
       final product = WebshopProduct(
         id: 'p5',
@@ -343,4 +379,21 @@ void main() {
       expect(button.onPressed, isNull);
     });
   });
+}
+
+/// Refuses every stock hold, the way the server does once a product sells out
+/// between the product page loading and the buyer tapping add.
+class _RejectingShopApi extends ShopApiClient {
+  @override
+  Future<int> reserve({
+    required String productId,
+    required int quantity,
+    Map<String, String>? customFields,
+    Map<String, String>? customFieldLabels,
+  }) async {
+    throw const ShopApiException(
+      'Sold out while you were deciding',
+      statusCode: 409,
+    );
+  }
 }

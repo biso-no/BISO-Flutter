@@ -235,5 +235,51 @@ void main() {
 
       expect(cart.state.items, isEmpty);
     });
+
+    test('carries a guest cart into the account that signs in', () async {
+      // Browsing and filling a cart is open to anyone, but paying is not — so
+      // the cart must survive the sign-in that checkout forces, or it empties
+      // at the moment the buyer is most committed.
+      final guest = await buildCart(userId: null);
+      await guest.addProduct(product: _hoodie, quantity: 2);
+
+      await guest.handleUserChanged('buyer-1');
+
+      expect(guest.state.items, hasLength(1));
+      expect(guest.state.items.single.quantity, 2);
+    });
+
+    test('holds the stock a guest cart could not reserve, once claimed', () async {
+      final guest = await buildCart(userId: null);
+      await guest.addProduct(product: _hoodie, quantity: 2);
+      expect(api.reserved, isEmpty, reason: 'nobody to reserve for yet');
+
+      await guest.handleUserChanged('buyer-1');
+
+      expect(api.reserved, contains((productId: 'prod-1', quantity: 2)));
+    });
+
+    test('a claimed guest cart survives the next launch', () async {
+      final guest = await buildCart(userId: null);
+      await guest.addProduct(product: _hoodie);
+      await guest.handleUserChanged('buyer-1');
+
+      final relaunched = await buildCart(userId: 'buyer-1');
+
+      expect(
+        relaunched.state.items,
+        hasLength(1),
+        reason: 'claiming must re-stamp the stored owner, not just the state',
+      );
+    });
+
+    test('still refuses a cart belonging to a different account', () async {
+      final first = await buildCart();
+      await first.addProduct(product: _hoodie);
+
+      final other = await buildCart(userId: 'buyer-2');
+
+      expect(other.state.items, isEmpty);
+    });
   });
 }
