@@ -72,6 +72,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     );
     _loadedForCampusId = campusId;
     _isLoading = true;
+    _isLoadingMore = false;
     _events.clear();
     _currentPage = 1;
     _hasMore = true;
@@ -106,20 +107,35 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         search: searchTerm,
       );
       stopwatch.stop();
-      if (mounted) {
-        setState(() {
-          if (replace) {
-            _events
-              ..clear()
-              ..addAll(items);
-            _isLoading = false;
-          } else {
-            _events.addAll(items);
-            _isLoadingMore = false;
-          }
-          _hasMore = items.length >= _pageSize;
-        });
+
+      // The campus may have changed while this request was in flight (the
+      // user switched campus mid-fetch). A page fetched for the old campus
+      // must never be appended to the newly reset list for the new one.
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      if (!mounted || currentCampusId != campusId) {
+        AppLogger.info(
+          '[EVENTS_SCREEN] Dropping stale events page (campus changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'page': page,
+          },
+        );
+        return;
       }
+
+      setState(() {
+        if (replace) {
+          _events
+            ..clear()
+            ..addAll(items);
+          _isLoading = false;
+        } else {
+          _events.addAll(items);
+          _isLoadingMore = false;
+        }
+        _hasMore = items.length >= _pageSize;
+      });
       AppLogger.info(
         '[EVENTS_SCREEN] Events page loaded',
         extra: {

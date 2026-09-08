@@ -206,6 +206,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
     _currentPage = 1;
     _hasMore = true;
+    _isLoadingMore = false;
     _webshopAccumulated.clear();
   }
 
@@ -246,6 +247,32 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         search: _search,
       );
       stopwatch.stop();
+
+      // The campus or locale may have changed while this request was in
+      // flight. Unlike events/jobs, the webshop provider itself
+      // ref.watches locale (so a locale change already refetches page 1
+      // under a new family key) — but this paging method still reads both
+      // via ref.read, so a page fetched for the old campus/locale must
+      // never be appended to the accumulator for the new one.
+      final currentCampus = ref.read(filterCampusProvider);
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (!mounted ||
+          currentCampus.id != campus.id ||
+          currentLocale != locale) {
+        AppLogger.info(
+          '[MARKETPLACE_SCREEN] Dropping stale webshop page '
+          '(campus/locale changed)',
+          extra: {
+            'requested_campus_id': campus.id,
+            'current_campus_id': currentCampus.id,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'page': _currentPage,
+          },
+        );
+        return;
+      }
+
       setState(() {
         _webshopAccumulated.addAll(next);
         _isLoadingMore = false;
