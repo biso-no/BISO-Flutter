@@ -21,6 +21,7 @@ import '../../../providers/large_event/large_event_provider.dart';
 import '../../../data/services/event_service.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/services/webshop_service.dart';
+import '../../../data/models/campus_model.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/job_model.dart';
 import '../../../data/models/webshop_product_model.dart';
@@ -511,9 +512,9 @@ class PremiumHomePage extends ConsumerWidget {
 // === CAMPUS SWITCHER MODAL ===
 
 class _CampusSwitcherModal extends StatelessWidget {
-  final dynamic selectedCampus;
-  final List<dynamic> allCampuses;
-  final Function(dynamic) onCampusSelected;
+  final CampusModel selectedCampus;
+  final List<CampusModel> allCampuses;
+  final ValueChanged<CampusModel> onCampusSelected;
 
   const _CampusSwitcherModal({
     required this.selectedCampus,
@@ -609,7 +610,7 @@ class _CampusSwitcherModal extends StatelessWidget {
 // === CAMPUS MODAL CARD ===
 
 class _CampusModalCard extends StatelessWidget {
-  final dynamic campus;
+  final CampusModel campus;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -820,7 +821,7 @@ class _PremiumStatItem extends StatelessWidget {
 // ignore: unused_element
 class _PremiumQuickActions extends StatelessWidget {
   final dynamic authState;
-  final dynamic campus;
+  final CampusModel campus;
   final AppLocalizations l10n;
 
   const _PremiumQuickActions({
