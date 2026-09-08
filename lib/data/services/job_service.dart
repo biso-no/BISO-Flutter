@@ -67,12 +67,9 @@ class JobService {
       ),
       // Nested translations are only returned when explicitly selected.
       Query.select(['*', 'translations.*']),
-      // Only meaningful while the deadline window filter is active: with
-      // includeExpired the field is unfiltered, and this method must not
-      // reference `application_deadline` at all in that case (open-ended
-      // jobs have no value to sort by, and a stray `orderAsc` clause here
-      // would otherwise be mistaken for the filter itself).
-      if (!includeExpired) Query.orderAsc('application_deadline'),
+      // Soonest deadline first, regardless of includeExpired: results must
+      // always come back in a deterministic order.
+      Query.orderAsc('application_deadline'),
       Query.limit(limit),
       Query.offset(offset),
     ];

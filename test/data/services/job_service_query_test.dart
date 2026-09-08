@@ -72,7 +72,28 @@ void main() {
         includeExpired: true,
         now: DateTime.utc(2026, 9, 8),
       );
-      expect(q.any((s) => s.contains('application_deadline')), isFalse);
+      // The deadline *filter* is the `or(...)` clause. Matching on the bare
+      // string `application_deadline` would also flag the unrelated
+      // `orderAsc` clause, which must stay present even when expired jobs
+      // are included.
+      expect(q.any((s) => s.contains('"method":"or"')), isFalse);
+    });
+
+    test('orders ascending by application_deadline, soonest job first', () {
+      final q = JobService.buildJobQueries();
+      expect(q, hasQuery('orderAsc', containing: ['application_deadline']));
+      // orderDesc would put the furthest-future deadline at the top of the
+      // list.
+      expect(q.any((s) => s.contains('"method":"orderDesc"')), isFalse);
+    });
+
+    test('keeps ordering even when includeExpired is set', () {
+      final q = JobService.buildJobQueries(
+        includeExpired: true,
+        now: DateTime.utc(2026, 9, 8),
+      );
+      expect(q, hasQuery('orderAsc', containing: ['application_deadline']));
+      expect(q.any((s) => s.contains('"method":"orderDesc"')), isFalse);
     });
 
     test('searches server-side with contains on the translated title', () {
