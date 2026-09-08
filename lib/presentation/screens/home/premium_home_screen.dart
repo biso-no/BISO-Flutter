@@ -685,7 +685,14 @@ class _CampusModalCard extends StatelessWidget {
                     children: [
                       const SizedBox(width: 16),
                       Text(
-                        '${campus.stats.activeEvents} events',
+                        '${campus.stats.activeEvents} event${campus.stats.activeEvents == 1 ? '' : 's'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        '${campus.stats.availableJobs} job${campus.stats.availableJobs == 1 ? '' : 's'}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
