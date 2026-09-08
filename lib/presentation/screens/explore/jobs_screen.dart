@@ -343,9 +343,31 @@ class _JobCard extends StatelessWidget {
 
   const _JobCard({required this.job, required this.onTap});
 
+  /// Chips shown on the card: `tags`, de-duplicated case-insensitively so a
+  /// repeated tag doesn't burn two of the three visible slots. Same pattern
+  /// as `_EventCard._chipLabels` in events_screen.dart; jobs have no
+  /// `category` field, so there is nothing to prepend ahead of the tags.
+  List<String> get _chipLabels {
+    final labels = <String>[];
+    final seen = <String>{};
+
+    void add(String label) {
+      final trimmed = label.trim();
+      if (trimmed.isEmpty) return;
+      if (!seen.add(trimmed.toLowerCase())) return;
+      labels.add(trimmed);
+    }
+
+    job.tags.forEach(add);
+
+    return labels;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final shortDescription = job.shortDescription?.trim() ?? '';
+    final chipLabels = _chipLabels;
 
     return Card(
       child: InkWell(
@@ -363,6 +385,44 @@ class _JobCard extends StatelessWidget {
                 maxLines: 2,
                 fontSize: 16,
               ),
+
+              // shortDescription is plain text (unlike title/description,
+              // which are HTML) — render it as a plain Text, not through
+              // toCompactHtml. Style matches the home job card's description
+              // treatment (_PremiumJobCard in premium_home_screen.dart).
+              if (shortDescription.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  shortDescription,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.stoneGray,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+
+              if (chipLabels.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: chipLabels.take(3).map((label) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.gray200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(label, style: theme.textTheme.labelSmall),
+                    );
+                  }).toList(),
+                ),
+              ],
 
               const SizedBox(height: 12),
 
