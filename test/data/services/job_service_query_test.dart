@@ -65,6 +65,22 @@ void main() {
           ],
         ),
       );
+
+      // `Query.or` flattens its nested clauses into one parent string, so the
+      // fragments above are all still present if the comparator is inverted.
+      // `lessThanEqual` would show ONLY expired jobs — the exact inverse of
+      // the intended behaviour — while keeping this test green. Pin the
+      // comparator by name, and assert its opposite is absent.
+      expect(
+        q,
+        hasQuery(
+          'or',
+          containing: [
+            r'{"method":"greaterThanEqual","attribute":"application_deadline"',
+          ],
+        ),
+      );
+      expect(q.any((s) => s.contains('lessThanEqual')), isFalse);
     });
 
     test('includeExpired drops the deadline window entirely', () {
@@ -134,9 +150,64 @@ void main() {
     });
 
     test('uses the same deadline window as the list read', () {
+      final q = JobService.buildJobCountQueries(now: DateTime.utc(2026, 9, 8));
+      expect(q, hasQuery('or', containing: ['application_deadline']));
+      // Same comparator as the list read: a count that admits expired jobs
+      // while the board hides them makes the campus stat disagree with the
+      // list underneath it.
       expect(
-        JobService.buildJobCountQueries(now: DateTime.utc(2026, 9, 8)),
-        hasQuery('or', containing: ['application_deadline']),
+        q,
+        hasQuery(
+          'or',
+          containing: [
+            r'{"method":"greaterThanEqual","attribute":"application_deadline"',
+            '2026-09-08T00:00:00.000Z',
+            'isNull',
+          ],
+        ),
+      );
+    });
+
+    test('matches the list filters: published, campus, open-deadline only', () {
+      final now = DateTime.utc(2026, 9, 8);
+      final q = JobService.buildJobCountQueries(campusId: '1', now: now);
+
+      expect(q, hasQuery('equal', containing: ['status', 'published']));
+      // campus_service.dart drives the campus stats tile from
+      // countJobs(campusId:). Lose this clause and every campus silently
+      // reports the same global number.
+      expect(q, hasQuery('equal', containing: ['campus_id', '"1"']));
+      expect(q, hasQuery('or', containing: ['application_deadline']));
+
+      final all = JobService.buildJobCountQueries(
+        campusId: '1',
+        includeExpired: true,
+        now: now,
+      );
+      expect(all.any((s) => s.contains('"method":"or"')), isFalse);
+      expect(all, hasQuery('equal', containing: ['campus_id', '"1"']));
+    });
+
+    test('omits the campus filter when campusId is null', () {
+      expect(
+        JobService.buildJobCountQueries().any((s) => s.contains('campus_id')),
+        isFalse,
+      );
+    });
+
+    test('never filters on translation locale', () {
+      expect(
+        JobService.buildJobCountQueries().any(
+          (s) => s.contains('translations.locale'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('asks for a single row: total is independent of limit', () {
+      expect(
+        JobService.buildJobCountQueries(),
+        hasQuery('limit', containing: ['1']),
       );
     });
   });
