@@ -123,6 +123,16 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
             'page': page,
           },
         );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched. Only the campus axis resets it (_ensureInitialLoad),
+        // so any entry point that changes the query without going
+        // through it — as the search axis already does on
+        // events_screen — would strand the trailing spinner and make
+        // _onScroll refuse to page again for the life of the screen.
+        if (!replace) {
+          setState(() => _isLoadingMore = false);
+        }
         return;
       }
 
@@ -197,6 +207,16 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
             'page': page,
           },
         );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched. Only the campus axis resets it (_ensureInitialLoad),
+        // so any entry point that changes the query without going
+        // through it — as the search axis already does on
+        // events_screen — would strand the trailing spinner and make
+        // _onScroll refuse to page again for the life of the screen.
+        if (!replace) {
+          setState(() => _isLoadingMore = false);
+        }
         return;
       }
       setState(() {
