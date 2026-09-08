@@ -24,7 +24,6 @@ class AppConstants {
 
   // API Service
   static const String apiBaseUrl = 'https://api.biso.no';
-  static const String apiUrl = 'https://api.biso.no/api'; // For backward compatibility
   static const String publicAssistantEndpoint = '/api/public-assistant';
   // Appwrite Functions (IDs)
   static const String fnParseReceiptId = 'fn_parse_receipt';
