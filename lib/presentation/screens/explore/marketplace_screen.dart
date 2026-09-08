@@ -1055,16 +1055,12 @@ class _WebshopProductCard extends StatelessWidget {
                         color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Row(
-                        children: [
-                          Text(
-                            priceText,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        priceText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),

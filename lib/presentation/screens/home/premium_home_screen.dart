@@ -1334,17 +1334,12 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'NOK ${product.regularPrice.toStringAsFixed(0)}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.charcoalBlack,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'NOK ${product.regularPrice.toStringAsFixed(0)}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.charcoalBlack,
+                      ),
                     ),
                   ),
                 ),
@@ -1355,18 +1350,13 @@ class _PremiumWebshopProductCard extends StatelessWidget {
           // Content
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.title ?? '',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            child: Text(
+              product.title ?? '',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
