@@ -54,6 +54,7 @@ import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
 import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
+import 'providers/shop/checkout_provider.dart';
 
 // Background message handler for Firebase
 @pragma('vm:entry-point')
@@ -134,6 +135,13 @@ class BisoApp extends ConsumerWidget {
     // Start feature flag resolution at launch so shop routes do not decide
     // their initial mode from a screen-local loading state.
     ref.watch(market.marketplaceFeatureEnabledProvider);
+    // Build the checkout controller at launch rather than on first visit to a
+    // shop screen. It is what restores and resolves a payment completed while
+    // the app was evicted, and a cold launch to Home would otherwise never
+    // construct it — leaving a paid order's cart uncleared. Watching the
+    // notifier (never the state) keeps every checkout transition from
+    // rebuilding the whole app.
+    ref.watch(checkoutControllerProvider.notifier);
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,14 +57,55 @@ class CartState {
   }
 }
 
+/// What actually ended up in the cart after a [CartNotifier.addProduct] call.
+///
+/// The stock hold is written as part of the add, and when the server can hold
+/// less than was asked for the cart is corrected to match rather than throwing.
+/// That correction is applied per *product*, oldest line first, so it can shrink
+/// the configuration just requested — or drop it entirely while leaving another
+/// variation of the same product untouched. Reporting the outcome explicitly is
+/// the only way a caller can tell "added" from "something of this product is in
+/// the cart".
+class CartAddResult {
+  /// The configuration the caller asked for: product, variation and answers.
+  final String lineId;
+
+  /// How many units the caller asked to add.
+  final int requested;
+
+  /// How many of them survived the stock hold.
+  final int added;
+
+  const CartAddResult({
+    required this.lineId,
+    required this.requested,
+    required this.added,
+  });
+
+  /// Nothing was added: sold out, or the hold was refused outright.
+  bool get isRejected => added <= 0;
+
+  /// Some but not all of the requested units were added.
+  bool get isPartial => added > 0 && added < requested;
+}
+
 class CartNotifier extends StateNotifier<CartState> {
   CartNotifier(this._api, {required String? userId})
     : _userId = userId,
       super(const CartState()) {
-    unawaited(_restore());
+    _ready = _restore();
   }
 
   final ShopApiClient _api;
+
+  /// Completes when the persisted cart has been read back.
+  ///
+  /// The cart is built lazily, so something can mutate it while its very first
+  /// restore is still in flight — a checkout resolved at launch clearing the
+  /// cart it was just paid for is exactly that case. Without this, the restore
+  /// would land afterwards and put the spent lines back.
+  Future<void> get ready => _ready;
+  late Future<void> _ready;
 
   /// Whose cart this is. A cart is per-account: signing in as someone else must
   /// not inherit the previous account's lines, and reservations are written
@@ -134,7 +174,8 @@ class CartNotifier extends StateNotifier<CartState> {
   Future<void> handleUserChanged(String? userId) async {
     if (_userId == userId) return;
     _userId = userId;
-    await _restore();
+    _ready = _restore();
+    await _ready;
   }
 
   Future<void> _persist() async {
@@ -242,7 +283,13 @@ class CartNotifier extends StateNotifier<CartState> {
 
   /// Adds a configuration of a product, merging into an existing line when the
   /// same product, variation and answers are already in the cart.
-  Future<void> addProduct({
+  ///
+  /// Returns what actually landed. The add is not the last word: the
+  /// reservation sync below can clamp this product's lines to what the server
+  /// could hold, and the caller cannot tell from the cart alone — a *different*
+  /// configuration of the same product left standing looks exactly like
+  /// success.
+  Future<CartAddResult> addProduct({
     required WebshopProduct product,
     ProductVariation? variation,
     int quantity = 1,
@@ -250,6 +297,7 @@ class CartNotifier extends StateNotifier<CartState> {
     List<ProductCustomField> customFieldDefinitions =
         const <ProductCustomField>[],
   }) async {
+    await _ready;
     final line = CartItem.fromProduct(
       product: product,
       variation: variation,
@@ -257,6 +305,11 @@ class CartNotifier extends StateNotifier<CartState> {
       customFields: customFields,
       customFieldDefinitions: customFieldDefinitions,
     );
+
+    // Measured either side of the sync: the difference is exactly how many of
+    // the requested units survived, whether this line was new or merged into
+    // one already in the cart.
+    final before = _quantityOfLine(line.lineId);
 
     final items = [...state.items];
     final index = items.indexWhere((item) => item.lineId == line.lineId);
@@ -270,9 +323,24 @@ class CartNotifier extends StateNotifier<CartState> {
 
     await _commit(items);
     await _syncReservation(line.productId);
+
+    final delta = _quantityOfLine(line.lineId) - before;
+    return CartAddResult(
+      lineId: line.lineId,
+      requested: quantity,
+      added: delta < 0 ? 0 : (delta > quantity ? quantity : delta),
+    );
+  }
+
+  int _quantityOfLine(String lineId) {
+    for (final item in state.items) {
+      if (item.lineId == lineId) return item.quantity;
+    }
+    return 0;
   }
 
   Future<void> setQuantity(String lineId, int quantity) async {
+    await _ready;
     final index = state.items.indexWhere((item) => item.lineId == lineId);
     if (index < 0) return;
 
@@ -289,6 +357,7 @@ class CartNotifier extends StateNotifier<CartState> {
   }
 
   Future<void> removeLine(String lineId) async {
+    await _ready;
     final index = state.items.indexWhere((item) => item.lineId == lineId);
     if (index < 0) return;
 
@@ -304,6 +373,7 @@ class CartNotifier extends StateNotifier<CartState> {
   /// converted the holds into a stock decrement and deleted the rows, so asking
   /// again is pointless work on a screen the buyer is looking at.
   Future<void> clear({bool releaseHolds = true}) async {
+    await _ready;
     await _commit(const <CartItem>[]);
     if (releaseHolds && _userId != null) {
       try {

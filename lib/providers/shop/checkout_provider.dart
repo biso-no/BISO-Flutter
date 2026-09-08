@@ -115,7 +115,18 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       );
       if (_pending!.isStale) {
         await _clearPending();
+        return;
       }
+
+      // Resolve it now rather than waiting for the next foreground. A cold
+      // launch is not a resume: `AppLifecycleListener` reports *changes* to
+      // the lifecycle state, and the app is already resumed by the time the
+      // listener exists. Without this, an order the buyer paid for while the
+      // app was evicted would sit unresolved — cart never cleared, outcome
+      // never shown — until they happened to background the app and return.
+      // `resolvePendingCheckout` is silent on failure, so a launch with no
+      // network simply leaves the marker for the next attempt.
+      await resolvePendingCheckout();
     } catch (error) {
       logPrint('💳 Failed to restore pending checkout: $error');
     }

@@ -584,6 +584,21 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   The deep link is the fast path only; the order screen also verifies on
   resume and polls while pending, and revenue settlement never depends on the
   app (the provider webhook and the reconciliation cron cover it).
+- **Recovering an interrupted payment**: the buyer leaves the app to pay, so
+  the app can be evicted while they are gone. `CheckoutController` persists a
+  marker naming the order and is constructed in `BisoApp.build`, not lazily by
+  a shop screen — a cold launch straight to Home must still resolve it. It
+  verifies on construction as well as on resume, because a cold launch is not
+  a resume: `AppLifecycleListener` reports *changes*, and the app is already
+  resumed by the time the listener exists.
+- **`addProduct` reports what landed.** The stock hold is written as part of
+  the add and the cart is clamped to what the server could hold — per product,
+  oldest line first — so the requested configuration can be dropped while
+  another variation of the same product survives. The cart therefore cannot be
+  used to judge an add; `CartAddResult` is the answer. For the same reason
+  `CartNotifier.ready` exists: the cart is built lazily, and a checkout
+  resolved at launch must not have its `clear()` undone by the restore landing
+  afterwards.
 - **Location**: `lib/providers/shop/`, `lib/data/services/shop_api_client.dart`,
   `lib/data/services/order_service.dart`, `lib/presentation/screens/shop/`
 - **Routes**: `/explore/products/cart`, `/explore/products/checkout`,

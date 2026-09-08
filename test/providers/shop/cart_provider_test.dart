@@ -206,6 +206,72 @@ void main() {
     });
   });
 
+  // What `addProduct` reports back. The cart alone cannot answer "did my add
+  // land?", because the clamp is applied per product, oldest line first: it can
+  // drop the configuration just requested while leaving a different variation
+  // of the same product standing.
+  group('add result', () {
+    test('confirms an add the server held in full', () async {
+      final cart = await buildCart();
+
+      final result = await cart.addProduct(product: _hoodie, quantity: 2);
+
+      expect(result.added, 2);
+      expect(result.isRejected, isFalse);
+      expect(result.isPartial, isFalse);
+    });
+
+    test('reports a short add when the server held fewer', () async {
+      final cart = await buildCart();
+      api.heldQuantity = 2;
+
+      final result = await cart.addProduct(product: _hoodie, quantity: 5);
+
+      expect(result.requested, 5);
+      expect(result.added, 2);
+      expect(result.isPartial, isTrue);
+    });
+
+    test('reports rejection when the clamp kept a different variation', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, variation: _small, quantity: 2);
+      // Only the two units already held remain, so the size just asked for
+      // gets nothing — yet the product is still in the cart.
+      api.heldQuantity = 2;
+
+      final result = await cart.addProduct(product: _hoodie, variation: _large);
+
+      expect(result.isRejected, isTrue);
+      expect(
+        cart.state.items.single.variationId,
+        'var-s',
+        reason: 'the other size survived, which is why the cart cannot be '
+            'used to judge whether this add landed',
+      );
+    });
+
+    test('reports rejection when a repeat add was clamped back', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, quantity: 2);
+      api.heldQuantity = 2;
+
+      final result = await cart.addProduct(product: _hoodie, quantity: 3);
+
+      expect(result.isRejected, isTrue);
+      expect(cart.state.items.single.quantity, 2);
+    });
+
+    test('reports rejection when the stock has gone entirely', () async {
+      final cart = await buildCart();
+      api.failure = const ShopApiException('Out of stock', statusCode: 409);
+
+      final result = await cart.addProduct(product: _hoodie);
+
+      expect(result.isRejected, isTrue);
+      expect(cart.state.items, isEmpty);
+    });
+  });
+
   group('persistence', () {
     test('restores the same buyer cart on the next launch', () async {
       final first = await buildCart();

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:biso/data/models/cart_item.dart';
 import 'package:biso/data/models/product_custom_field.dart';
 import 'package:biso/data/models/webshop_product_model.dart';
 import 'package:biso/presentation/screens/explore/webshop_product_detail_screen.dart';
@@ -361,6 +364,47 @@ void main() {
       },
     );
 
+    testWidgets(
+      'does not claim success when the clamp gave the requested units to a '
+      'line that was already in the cart',
+      (tester) async {
+        final product = WebshopProduct(
+          id: 'p7',
+          images: const [],
+          title: 'Scarce product',
+          regularPrice: 20,
+        );
+
+        // Two of this product are already in the cart, and the server can hold
+        // no more than that. The add merges into the existing line, the clamp
+        // puts it straight back, and nothing was actually added — yet the
+        // product is still in the cart, which is why the cart cannot be used
+        // to judge the outcome.
+        final seeded = CartItem.fromProduct(product: product, quantity: 2);
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'shop_cart_v1': jsonEncode([seeded.toJson()]),
+          'shop_cart_v1_user': 'buyer-1',
+        });
+
+        await pumpScreen(
+          tester,
+          product,
+          userId: 'buyer-1',
+          api: _ClampingShopApi(holds: 2),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.widgetWithText(FilledButton, 'Add to cart'));
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('added to your cart'), findsNothing);
+        expect(
+          find.text('This item could not be added right now.'),
+          findsOneWidget,
+        );
+      },
+    );
+
     testWidgets('refuses to add a members-only product', (tester) async {
       final product = WebshopProduct(
         id: 'p5',
@@ -395,5 +439,23 @@ class _RejectingShopApi extends ShopApiClient {
       'Sold out while you were deciding',
       statusCode: 409,
     );
+  }
+}
+
+/// Holds a fixed number of units however many are asked for, the way the
+/// server does when a product is nearly out of stock.
+class _ClampingShopApi extends ShopApiClient {
+  _ClampingShopApi({required this.holds});
+
+  final int holds;
+
+  @override
+  Future<int> reserve({
+    required String productId,
+    required int quantity,
+    Map<String, String>? customFields,
+    Map<String, String>? customFieldLabels,
+  }) async {
+    return quantity < holds ? quantity : holds;
   }
 }

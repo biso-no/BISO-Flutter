@@ -299,7 +299,7 @@ class _WebshopProductDetailScreenState
     setState(() => _addingToCart = true);
     try {
       final notifier = ref.read(cartProvider.notifier);
-      await notifier.addProduct(
+      final result = await notifier.addProduct(
         product: product,
         variation: _selectedVariation,
         customFields: _customFieldValues,
@@ -307,15 +307,15 @@ class _WebshopProductDetailScreenState
       );
       if (!mounted) return;
 
-      // Adding can still come back empty-handed: the stock hold is written
-      // during `addProduct`, and a rejection there removes the line again
-      // rather than throwing. Confirm the line actually landed before
-      // claiming it did — and report the server's reason, which the cart
-      // screen would otherwise never show, since it is not mounted yet.
-      final cart = ref.read(cartProvider);
-      final landed = cart.items.any((item) => item.productId == product.id);
-      if (!landed) {
-        final reason = cart.error ?? 'This item could not be added right now.';
+      // Adding can still come back empty-handed, or short: the stock hold is
+      // written during `addProduct`, and a rejection there removes the line
+      // again rather than throwing. Trust the result rather than the cart —
+      // the cart cannot answer this, because another size of the same product
+      // left standing after a clamp is indistinguishable from success.
+      if (result.isRejected) {
+        final reason =
+            ref.read(cartProvider).error ??
+            'This item could not be added right now.';
         notifier.clearError();
         ScaffoldMessenger.of(
           context,
@@ -325,7 +325,11 @@ class _WebshopProductDetailScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${product.title ?? 'Item'} added to your cart'),
+          content: Text(
+            result.isPartial
+                ? 'Only ${result.added} left — that is what we added to your cart'
+                : '${product.title ?? 'Item'} added to your cart',
+          ),
           action: SnackBarAction(
             label: 'View cart',
             onPressed: () => context.push('/explore/products/cart'),
