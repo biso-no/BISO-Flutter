@@ -488,7 +488,14 @@ class _JobCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline!)}',
+                      // job.applicationDeadline parses from an Appwrite
+                      // UTC-offset timestamp, so it carries isUtc == true.
+                      // DateFormat renders the object's own (UTC) fields, so
+                      // without .toLocal() the deadline silently displays
+                      // 1-2 hours early for a Norway-based user. Display
+                      // only — do not add toLocal() to any deadline
+                      // comparison used for filtering/expiry.
+                      'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline!.toLocal())}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceVariant,
                       ),

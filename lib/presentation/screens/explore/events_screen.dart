@@ -609,9 +609,20 @@ class _EventCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
+                              // Appwrite returns start_date with an explicit
+                              // UTC offset (e.g. "...T10:00:00.000+00:00"),
+                              // so DateTime.parse produces a DateTime with
+                              // isUtc == true. DateFormat renders the
+                              // object's own (UTC) fields, so without
+                              // .toLocal() this silently shows the event
+                              // 1-2 hours early for a Norway-based user.
+                              // Display-only: do not add toLocal() to the
+                              // isUpcoming/isOngoing/isCompleted comparisons
+                              // in event_model.dart — those compare absolute
+                              // instants and are already correct.
                               DateFormat(
                                 'MMM dd, HH:mm',
-                              ).format(event.startDate),
+                              ).format(event.startDate.toLocal()),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppColors.onSurfaceVariant,
                               ),
@@ -730,13 +741,21 @@ class _EventDetailSheet extends StatelessWidget {
   });
 
   String _formatEventDate(DateTime startDate, DateTime? endDate) {
+    // Appwrite's start_date/end_date parse as UTC DateTimes (isUtc == true).
+    // Convert to the device's local time zone before formatting — and
+    // before the same-day comparison below, so a start/end pair that spans
+    // midnight only in UTC (or only locally) is judged by the calendar day
+    // actually shown to the user. This is display-only: it must not be
+    // backported to any comparison that decides event lifecycle/filtering.
+    final localStart = startDate.toLocal();
+    final localEnd = endDate?.toLocal();
     final formatter = DateFormat('EEEE, MMM dd, yyyy • HH:mm');
-    final formattedStartDate = formatter.format(startDate);
-    if (endDate != null &&
-        startDate.day == endDate.day &&
-        startDate.month == endDate.month &&
-        startDate.year == endDate.year) {
-      return '$formattedStartDate - ${DateFormat('HH:mm').format(endDate)}';
+    final formattedStartDate = formatter.format(localStart);
+    if (localEnd != null &&
+        localStart.day == localEnd.day &&
+        localStart.month == localEnd.month &&
+        localStart.year == localEnd.year) {
+      return '$formattedStartDate - ${DateFormat('HH:mm').format(localEnd)}';
     }
     return formattedStartDate;
   }
