@@ -125,6 +125,45 @@ void main() {
         hasQuery('offset', containing: ['0']),
       );
     });
+
+    test('keeps an event that has started but not yet ended', () {
+      // Karrieredagene runs 22-24 Sep. At midday on the 23rd it is in
+      // progress, and must still be listed.
+      final now = DateTime.utc(2026, 9, 23, 12);
+      final q = EventService.buildEventQueries(now: now);
+
+      // The cutoff is expressed against end_date, so an event that is still
+      // running is kept even though its start_date is in the past.
+      expect(
+        q,
+        hasQuery('or', containing: ['end_date', '2026-09-23T12:00:00.000Z']),
+      );
+
+      // A bare top-level start_date cutoff is the old behaviour: it drops
+      // every event that started before now, including one mid-run.
+      expect(
+        q.any((s) => s.startsWith('{"method":"greaterThanEqual"')),
+        isFalse,
+        reason: 'the start_date cutoff must be nested inside the or-clause',
+      );
+    });
+
+    test('falls back to start_date when an event has no end_date', () {
+      final q = EventService.buildEventQueries(now: DateTime.utc(2026, 9, 23));
+      expect(
+        q,
+        hasQuery('or', containing: ['isNull', 'end_date', 'start_date']),
+      );
+    });
+
+    test('includePast drops the date window entirely', () {
+      final q = EventService.buildEventQueries(
+        includePast: true,
+        now: DateTime.utc(2026, 9, 23),
+      );
+      expect(q.any((s) => s.contains('"method":"or"')), isFalse);
+    });
+
   });
 
   group('EventService.buildEventCountQueries', () {
@@ -165,5 +204,18 @@ void main() {
       final q = EventService.buildEventCountQueries();
       expect(q, hasQuery('limit', containing: ['1']));
     });
+
+    test('uses the same end_date-aware window as the list read', () {
+      final q = EventService.buildEventCountQueries(
+        now: DateTime.utc(2026, 9, 23, 12),
+      );
+      // The count must not drift from the list: a mid-run event counted by
+      // one and dropped by the other makes the campus stat wrong.
+      expect(
+        q,
+        hasQuery('or', containing: ['end_date', '2026-09-23T12:00:00.000Z']),
+      );
+    });
+
   });
 }

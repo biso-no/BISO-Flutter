@@ -25,7 +25,18 @@ class EventService {
 
     if (!includePast) {
       final from = (now ?? DateTime.now().toUtc()).toIso8601String();
-      queries.add(Query.greaterThanEqual('start_date', from));
+      // An event stays listed until it ends, so a multi-day event is not
+      // dropped halfway through its own run. `end_date` is optional, so
+      // fall back to `start_date` for events that have none.
+      queries.add(
+        Query.or([
+          Query.greaterThanEqual('end_date', from),
+          Query.and([
+            Query.isNull('end_date'),
+            Query.greaterThanEqual('start_date', from),
+          ]),
+        ]),
+      );
     }
 
     final term = search?.trim() ?? '';
