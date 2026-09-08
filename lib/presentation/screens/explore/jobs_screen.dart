@@ -36,7 +36,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
-  String? _lastVisibleJobsLogKey;
+  String? _lastJobsLogKey;
 
   @override
   void initState() {
@@ -274,10 +274,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Builder(
               builder: (context) {
-                _logVisibleJobsState(
-                  campusId: campusId,
-                  visibleCount: _jobs.length,
-                );
+                _logJobsState(campusId: campusId);
 
                 // Covers both "no open roles on this campus" (Trondheim has
                 // none today) and a failed fetch: the catch in _fetchPage
@@ -333,35 +330,22 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     );
   }
 
-  void _logVisibleJobsState({
-    required String? campusId,
-    required int visibleCount,
-  }) {
-    final key = [
-      campusId,
-      _jobs.length,
-      visibleCount,
-      _hasMore,
-      _isLoadingMore,
-    ].join('|');
-    if (_lastVisibleJobsLogKey == key) return;
-    _lastVisibleJobsLogKey = key;
+  void _logJobsState({required String? campusId}) {
+    final key = [campusId, _jobs.length, _hasMore, _isLoadingMore].join('|');
+    if (_lastJobsLogKey == key) return;
+    _lastJobsLogKey = key;
 
     final extra = {
       'campus_id': campusId,
       'loaded_count': _jobs.length,
-      'visible_count': visibleCount,
       'has_more': _hasMore,
       'is_loading_more': _isLoadingMore,
     };
 
-    if (visibleCount == 0) {
-      AppLogger.warning(
-        '[JOBS_SCREEN] No visible jobs after filters',
-        extra: extra,
-      );
+    if (_jobs.isEmpty) {
+      AppLogger.warning('[JOBS_SCREEN] No jobs loaded for campus', extra: extra);
     } else {
-      AppLogger.info('[JOBS_SCREEN] Rendering visible jobs', extra: extra);
+      AppLogger.info('[JOBS_SCREEN] Rendering loaded jobs', extra: extra);
     }
   }
 
