@@ -80,23 +80,10 @@ class JobModel extends Equatable {
       status: (row['status'] ?? 'published').toString(),
       applicationDeadline: deadline,
       metadata: metadata,
-      // No Appwrite column; removed in Task 4.
       departmentId: (row['department_id'] ?? '').toString(),
       createdAt: parseDate(row[r'$createdAt']),
       updatedAt: parseDate(row[r'$updatedAt']),
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'title': title,
-      'description': description,
-      'department_id': departmentId,
-      'campus_id': campusId,
-      'application_deadline': applicationDeadline?.toIso8601String(),
-      'status': status,
-      'metadata': metadata,
-    };
   }
 
   JobModel copyWith({
@@ -131,10 +118,15 @@ class JobModel extends Equatable {
     );
   }
 
-  bool get isOpen => status == 'open';
-  bool get isClosed => status == 'closed';
-  bool get isFilled => status == 'filled';
-  bool get isCancelled => status == 'cancelled';
+  // There are deliberately NO status-derived lifecycle getters here.
+  //
+  // `status` is the editorial enum `draft` / `published` / `closed`, and every
+  // read is hard-filtered to `published` (see `JobService._jobFilters`), so any
+  // `status ==` flag is a constant for every row the app can fetch. Whether a
+  // job is still open is derived from `applicationDeadline` instead — and a
+  // null deadline means open-ended, not expired. Do NOT "restore" `isOpen` /
+  // `isClosed` / `isFilled` / `isCancelled`; the last two are not even values
+  // of the enum.
 
   @override
   List<Object?> get props => [
