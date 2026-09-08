@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/models/job_model.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
@@ -82,6 +83,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   Future<void> _fetchPage({required int page, bool replace = false}) async {
     final campusId = ref.read(filterCampusProvider).id;
     final service = ref.read(_jobServiceProvider);
+    final locale = ref.read(localeProvider).languageCode;
     final stopwatch = Stopwatch()..start();
     try {
       AppLogger.info(
@@ -94,10 +96,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           'selected_type': _selectedType,
         },
       );
-      final items = await service.getLatestJobs(
+      final items = await service.listJobs(
         campusId: campusId,
+        locale: locale,
         limit: _pageSize,
-        page: page,
+        offset: (page - 1) * _pageSize,
         includeExpired: false,
       );
       stopwatch.stop();

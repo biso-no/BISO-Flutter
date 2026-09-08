@@ -570,7 +570,7 @@ class CampusService {
       Future<int> fetchJobs() async {
         try {
           final jobsTimer = Stopwatch()..start();
-          final count = await jobService.getJobsTotalCount(
+          final count = await jobService.countJobs(
             campusId: campusId,
             includeExpired: false,
           );

@@ -256,6 +256,7 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestJobsProvider =
       FutureProvider.family<List<JobModel>, String>((ref, campusId) async {
         final service = ref.watch(_jobServiceProvider);
+        final locale = ref.watch(localeProvider).languageCode;
         final stopwatch = Stopwatch()..start();
         AppLogger.info(
           '[HOME] Loading latest jobs',
@@ -263,17 +264,14 @@ class PremiumHomePage extends ConsumerWidget {
             'section': 'jobs',
             'campus_id': campusId,
             'limit': 6,
-            'page': 1,
             'include_expired': false,
           },
         );
-        // jobsSource routing: job_service already auto-falls-back to Appwrite
-        // when api.biso.no is unavailable, so no explicit branch needed here.
         try {
-          final jobs = await service.getLatestJobs(
+          final jobs = await service.listJobs(
             campusId: campusId,
+            locale: locale,
             limit: 6,
-            page: 1,
             includeExpired: false,
           );
           stopwatch.stop();
