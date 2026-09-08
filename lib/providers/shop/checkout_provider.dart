@@ -188,6 +188,11 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Drops the marker: in memory first, then from disk.
+  ///
+  /// The in-memory half is deliberately synchronous — [_applyOutcome] claims
+  /// the pending order by calling this before it awaits anything, so a second
+  /// resolution racing the first finds nothing to apply.
   Future<void> _clearPending() async {
     _pending = null;
     try {
@@ -289,21 +294,35 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
   /// A cancelled or failed order also ends the attempt, but the cart is left
   /// alone — the buyer very likely wants to try again with a different method.
   Future<void> _applyOutcome(ShopOrder order) async {
-    if (order.status.isSuccessful) {
-      // Read before `_clearPending`, which drops the record of what was bought.
-      final purchased = _pending?.lines ?? const <String, int>{};
-      final cart = _ref.read(cartProvider.notifier);
-      if (purchased.isEmpty) {
-        await cart.clear(releaseHolds: false);
-      } else {
-        await cart.removePurchased(purchased);
-      }
-      await _clearPending();
+    final pending = _pending;
+
+    // Only the order this app sent the buyer off to pay for may touch the
+    // cart. [verifyOrder] is called for any order they open from their
+    // history too, and emptying a live cart because someone looked at last
+    // month's receipt would be pure destruction.
+    if (pending == null || pending.orderId != order.id) {
       return;
     }
-    if (order.status.isFailure) {
-      await _clearPending();
+    if (!(order.status.isSuccessful || order.status.isFailure)) {
+      return;
     }
+
+    // Claim the marker before awaiting anything. A lifecycle resume and the
+    // order screen's poll can resolve the same order at the same moment, and
+    // the cart must give up its lines once rather than twice; the loser of
+    // that race now falls out at the guard above. `_clearPending` nulls
+    // `_pending` synchronously, which is what makes the claim atomic.
+    final forgotten = _clearPending();
+
+    if (order.status.isSuccessful) {
+      final cart = _ref.read(cartProvider.notifier);
+      if (pending.lines.isEmpty) {
+        await cart.clear(releaseHolds: false);
+      } else {
+        await cart.removePurchased(pending.lines);
+      }
+    }
+    await forgotten;
   }
 }
 

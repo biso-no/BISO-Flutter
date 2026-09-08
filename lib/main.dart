@@ -141,7 +141,16 @@ class BisoApp extends ConsumerWidget {
     // construct it — leaving a paid order's cart uncleared. Watching the
     // notifier (never the state) keeps every checkout transition from
     // rebuilding the whole app.
-    ref.watch(checkoutControllerProvider.notifier);
+    //
+    // Not until the session has been resolved, though. Recovery mutates the
+    // cart, and the cart is per-account: built while `authState` is still
+    // loading it would be built for nobody, discard the signed-in buyer's
+    // persisted lines as someone else's, and then persist that emptiness.
+    // Every exit from `_checkAuthState` clears `isLoading`, so this always
+    // arrives — the rebuild that follows constructs the controller.
+    if (!ref.watch(authStateProvider.select((state) => state.isLoading))) {
+      ref.watch(checkoutControllerProvider.notifier);
+    }
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);

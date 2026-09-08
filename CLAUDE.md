@@ -591,12 +591,18 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   verifies on construction as well as on resume, because a cold launch is not
   a resume: `AppLifecycleListener` reports *changes*, and the app is already
   resumed by the time the listener exists.
-- **A paid order gives up only the lines it was placed for.** The buyer can
-  leave a pending order, keep shopping, and only then have the payment resolve,
-  so `PendingCheckout` records `lineId -> quantity` at `start()` and
-  `CartNotifier.removePurchased` subtracts exactly that. Clearing the whole
-  cart would throw away items the order never contained. A marker written
-  before this existed carries no lines and falls back to clearing.
+- **A paid order gives up only the lines it was placed for, and only its own.**
+  The buyer can leave a pending order, keep shopping, and only then have the
+  payment resolve, so `PendingCheckout` records `lineId -> quantity` at
+  `start()` and `CartNotifier.removePurchased` subtracts exactly that. Clearing
+  the whole cart would throw away items the order never contained. A marker
+  written before this existed carries no lines and falls back to clearing.
+  `_applyOutcome` acts only when the order matches the pending marker —
+  `verifyOrder` also runs for any order opened from history — and claims that
+  marker synchronously, so a resume and the order screen's poll resolving
+  together debit the cart once. Recovery itself waits for `authState` to stop
+  loading: the cart is per-account, and one built for nobody would discard the
+  signed-in buyer's persisted lines and then persist that emptiness.
 - **`member_only` is who a product is for, not a blanket prohibition.** The
   buyer's own verified membership (`hasValidMembershipProvider`) decides, the
   same rule the website applies when it filters those products out of the shop

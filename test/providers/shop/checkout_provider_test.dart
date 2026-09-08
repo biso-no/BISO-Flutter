@@ -35,6 +35,18 @@ class _FakeShopApi extends ShopApiClient {
 
   @override
   Future<void> releaseReservation({String? productId}) async {}
+
+  // Without this the cart's reservation sync reaches the real client and tries
+  // to talk to the network, which hangs the test rather than failing it.
+  @override
+  Future<int> reserve({
+    required String productId,
+    required int quantity,
+    Map<String, String>? customFields,
+    Map<String, String>? customFieldLabels,
+  }) async {
+    return quantity;
+  }
 }
 
 const _hoodie = WebshopProduct(
@@ -55,15 +67,22 @@ void main() {
   /// [extraCartLines] are lines the buyer added *after* starting the order, so
   /// they are in the cart but not in the marker — the case that separates
   /// giving up the paid lines from emptying the cart.
+  ///
+  /// [cartQuantity] lets the cart hold more of the paid line than the order
+  /// bought, which is what makes a double-applied outcome visible.
   void seedInterruptedCheckout({
     Duration age = Duration.zero,
     List<CartItem> extraCartLines = const <CartItem>[],
     bool markerCarriesLines = true,
+    int cartQuantity = 2,
   }) {
     final paid = CartItem.fromProduct(product: _hoodie, quantity: 2);
     SharedPreferences.setMockInitialValues(<String, Object>{
       'shop_cart_v1': jsonEncode(
-        [paid, ...extraCartLines].map((item) => item.toJson()).toList(),
+        [
+          paid.copyWith(quantity: cartQuantity),
+          ...extraCartLines,
+        ].map((item) => item.toJson()).toList(),
       ),
       'shop_cart_v1_user': 'buyer-1',
       'shop_pending_order_id': 'order-1',
@@ -190,6 +209,43 @@ void main() {
 
       expect(api.fetched, isEmpty);
       expect(container.read(cartProvider).items, hasLength(1));
+    });
+
+    test('leaves the cart alone for an order it was not waiting on', () async {
+      // The buyer opened an old receipt from their order history. That order is
+      // paid, but it is not the one this app sent them off to pay for, and
+      // emptying a live cart over it would be pure destruction.
+      seedInterruptedCheckout();
+      final container = buildContainer(_FakeShopApi(ShopOrderStatus.paid));
+      await launch(container);
+      final controller = container.read(checkoutControllerProvider.notifier);
+      // The launch above already resolved and cleared `order-1`, so re-add a
+      // line to stand in for the cart the buyer has now.
+      await container
+          .read(cartProvider.notifier)
+          .addProduct(product: _hoodie, quantity: 2);
+
+      await controller.verifyOrder('order-from-last-month');
+
+      expect(container.read(cartProvider).items, hasLength(1));
+    });
+
+    test('debits the cart once when two resolutions race', () async {
+      // A lifecycle resume and the order screen's poll can land together.
+      seedInterruptedCheckout(cartQuantity: 3);
+      final container = buildContainer(_FakeShopApi(ShopOrderStatus.paid));
+      final controller = container.read(checkoutControllerProvider.notifier);
+      await pumpEventQueue();
+      await container.read(cartProvider.notifier).ready;
+
+      await Future.wait([
+        controller.resolvePendingCheckout(),
+        controller.resolvePendingCheckout(),
+      ]);
+
+      // Three in the cart, two of them paid for. Applying the outcome twice
+      // would take four and leave nothing.
+      expect(container.read(cartProvider).items.single.quantity, 1);
     });
 
     test('does nothing when no payment was in flight', () async {
