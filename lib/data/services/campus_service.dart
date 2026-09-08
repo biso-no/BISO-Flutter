@@ -696,7 +696,6 @@ class CampusService {
       ]);
 
       final result = CampusStats(
-        studentCount: 0,
         activeEvents: results[0],
         availableJobs: results[1],
         marketplaceItems: results[2],
