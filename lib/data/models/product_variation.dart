@@ -4,6 +4,11 @@ import 'package:equatable/equatable.dart';
 ///
 /// A product with variations prices from the selected variation rather than
 /// from the product's own `regular_price`.
+///
+/// Unverified on device: no published product currently has variations —
+/// all 26 rows in `product_variations` belong to the 5 draft products that
+/// carry them. This model is exercised only by parsing tests over real
+/// draft payloads.
 class ProductVariation extends Equatable {
   final String id;
   final String name;

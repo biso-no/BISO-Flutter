@@ -537,6 +537,12 @@ class _WebshopProductDetailScreenState
                       color: AppColors.defaultBlue,
                     ),
                   ),
+                  // The spec calls for showing member pricing only to
+                  // members, via membership_service. This shows it to
+                  // everyone: product-level `member_price`/`member_only` are
+                  // null on all 50 published products, and no migration in
+                  // this trilogy gates on membership yet. Only variations
+                  // carry a member price today, and those are draft-only.
                   if (displayMemberPrice != null) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -548,7 +554,13 @@ class _WebshopProductDetailScreenState
                     ),
                   ],
 
-                  // Variation selector
+                  // Variation selector.
+                  //
+                  // No published product currently has variations: all 26
+                  // variation rows belong to draft products. This selector,
+                  // and the variation pricing it drives, are therefore
+                  // verified only by parsing tests against real draft
+                  // payloads, never on device.
                   if (variations.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     Text(
