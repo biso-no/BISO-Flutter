@@ -1238,6 +1238,8 @@ class _PremiumWebshopProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasSale = product.hasSale;
+    final regularPrice = double.tryParse(product.price) ?? 0.0;
+    final salePrice = double.tryParse(product.salePrice) ?? 0.0;
 
     return PremiumCard(
       padding: EdgeInsets.zero,
@@ -1333,7 +1335,7 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                       children: [
                         if (hasSale) ...[
                           Text(
-                            'NOK ${product.price}',
+                            'NOK ${regularPrice.toStringAsFixed(0)}',
                             style: theme.textTheme.labelSmall?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: AppColors.stoneGray,
@@ -1343,7 +1345,7 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                           const SizedBox(width: 4),
                         ],
                         Text(
-                          'NOK ${hasSale ? product.salePrice : product.price}',
+                          'NOK ${(hasSale ? salePrice : regularPrice).toStringAsFixed(0)}',
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                             color: AppColors.charcoalBlack,

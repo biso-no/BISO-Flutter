@@ -879,9 +879,11 @@ class _WebshopProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasSale = product.hasSale;
+    final regularPrice = double.tryParse(product.price) ?? 0.0;
+    final salePrice = double.tryParse(product.salePrice) ?? 0.0;
     final priceText = hasSale
-        ? 'NOK ${product.salePrice}'
-        : 'NOK ${product.price}';
+        ? 'NOK ${salePrice.toStringAsFixed(0)}'
+        : 'NOK ${regularPrice.toStringAsFixed(0)}';
 
     return InkWell(
       onTap: () {
@@ -952,7 +954,7 @@ class _WebshopProductCard extends StatelessWidget {
                         children: [
                           if (hasSale) ...[
                             Text(
-                              'NOK ${product.price}',
+                              'NOK ${regularPrice.toStringAsFixed(0)}',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 decoration: TextDecoration.lineThrough,

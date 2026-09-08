@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/webshop_product_model.dart';
+import '../../widgets/premium/premium_html_renderer.dart';
 
 class WebshopProductDetailScreen extends StatefulWidget {
   final WebshopProduct product;
@@ -278,7 +278,8 @@ class _WebshopProductDetailScreenState extends State<WebshopProductDetailScreen>
                 const SizedBox(height: 24),
 
                 // Description
-                if (product.description != null && product.description!.isNotEmpty) ...[
+                if (product.htmlDescription != null &&
+                    product.htmlDescription!.isNotEmpty) ...[
                   Text(
                     'Description',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -297,70 +298,21 @@ class _WebshopProductDetailScreenState extends State<WebshopProductDetailScreen>
                         color: AppColors.gray100,
                       ),
                     ),
-                    child: Text(
-                      _stripHtmlTags(product.description!),
+                    child: product.htmlDescription!.toFullHtml(
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppColors.charcoalBlack.withValues(alpha: 0.8),
                         height: 1.5,
                       ),
+                      fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 24),
                 ],
-
-                // Shop Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () => _openInWebshop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.defaultBlue,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.shopping_cart_outlined, size: 24),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Shop on BISO.no',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.open_in_new, size: 20),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 32),
               ]),
             ),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _openInWebshop() async {
-    if (widget.product.url != null && widget.product.url!.isNotEmpty) {
-      final uri = Uri.parse(widget.product.url!);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    }
-  }
-
-  String _stripHtmlTags(String htmlString) {
-    final RegExp exp = RegExp(r"<[^>]*>");
-    return htmlString.replaceAll(exp, '').trim();
   }
 }
