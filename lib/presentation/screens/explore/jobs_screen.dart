@@ -243,6 +243,21 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   visibleCount: _jobs.length,
                 );
 
+                // Covers both "no open roles on this campus" (Trondheim has
+                // none today) and a failed fetch: the catch in _fetchPage
+                // logs and clears the list, so the two are indistinguishable
+                // from the state this screen keeps. The copy is honest for
+                // either, and pull-to-refresh below is unreachable when the
+                // list is empty, so the subtitle points at the two things
+                // that do work: waiting, and switching campus.
+                if (_jobs.isEmpty) {
+                  return _EmptyState(
+                    icon: Icons.work_off,
+                    title: l10n.noItemsFoundMessage,
+                    subtitle: l10n.checkBackLaterOrSwitchCampusMessage,
+                  );
+                }
+
                 return RefreshIndicator(
                   onRefresh: _reload,
                   child: ListView.separated(
@@ -463,6 +478,49 @@ class _JobDetailSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 64, color: AppColors.onSurfaceVariant),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: theme.textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
