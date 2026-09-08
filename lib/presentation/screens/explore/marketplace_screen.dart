@@ -286,11 +286,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         );
         // Release the paging latch before dropping this page: a
         // load-more that is discarded must not leave `_isLoadingMore`
-        // latched. _resetWebshopPaging() clears it on the campus/locale/
-        // search axes, but the X-clear button and any future entry point
-        // that bypasses it would otherwise strand the trailing spinner and
-        // make _onScroll refuse to page again for the life of the screen.
-        // This method is only ever a load-more, so the release is
+        // latched, or the trailing spinner outlives the request that
+        // raised it and _onScroll refuses to page again for the life of
+        // the screen. Every axis that can invalidate a page also calls
+        // _resetWebshopPaging(), which clears the flag; this release is
+        // the guarantee that does not depend on each of them remembering
+        // to. Unlike events_screen/jobs_screen there is no `replace`
+        // case — this method is only ever a load-more — so it is
         // unconditional.
         setState(() => _isLoadingMore = false);
         return;
@@ -348,11 +350,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         );
         // Release the paging latch before dropping this page: a
         // load-more that is discarded must not leave `_isLoadingMore`
-        // latched. _resetWebshopPaging() clears it on the campus/locale/
-        // search axes, but the X-clear button and any future entry point
-        // that bypasses it would otherwise strand the trailing spinner and
-        // make _onScroll refuse to page again for the life of the screen.
-        // This method is only ever a load-more, so the release is
+        // latched, or the trailing spinner outlives the request that
+        // raised it and _onScroll refuses to page again for the life of
+        // the screen. Every axis that can invalidate a page also calls
+        // _resetWebshopPaging(), which clears the flag; this release is
+        // the guarantee that does not depend on each of them remembering
+        // to. Unlike events_screen/jobs_screen there is no `replace`
+        // case — this method is only ever a load-more — so it is
         // unconditional.
         setState(() => _isLoadingMore = false);
         return;
