@@ -71,9 +71,9 @@ void main() {
       final row = {...realJobRow}..remove('application_deadline');
       final j = JobModel.fromAppwriteRow(row);
 
-      // Must be far future, never the epoch: an open-ended job that reads as
-      // long expired is worse than one with no deadline shown at all.
-      expect(j.applicationDeadline.isAfter(DateTime.utc(2100)), isTrue);
+      // A null deadline means open-ended, not "already expired". Rendering
+      // code must omit the deadline line entirely rather than inventing one.
+      expect(j.applicationDeadline, isNull);
     });
 
     test('tolerates unparseable metadata without throwing', () {
@@ -126,34 +126,11 @@ void main() {
         title: a.title,
         description: a.description,
         shortDescription: a.shortDescription,
-        department: a.department,
         departmentId: a.departmentId,
-        departmentLogo: a.departmentLogo,
         campusId: a.campusId,
         tags: const ['Different'],
-        type: a.type,
-        category: a.category,
-        requirements: a.requirements,
-        responsibilities: a.responsibilities,
-        skills: a.skills,
-        salary: a.salary,
-        timeCommitment: a.timeCommitment,
-        startDate: a.startDate,
-        url: a.url,
-        endDate: a.endDate,
-        applicationDeadline: a.applicationDeadline,
-        applicationMethod: a.applicationMethod,
-        applicationUrl: a.applicationUrl,
-        applicationEmail: a.applicationEmail,
-        contactPersonName: a.contactPersonName,
-        contactPersonEmail: a.contactPersonEmail,
-        contactPersonPhone: a.contactPersonPhone,
-        maxApplicants: a.maxApplicants,
-        currentApplicants: a.currentApplicants,
         status: a.status,
-        isUrgent: a.isUrgent,
-        isFeatured: a.isFeatured,
-        benefits: a.benefits,
+        applicationDeadline: a.applicationDeadline,
         metadata: a.metadata,
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,
