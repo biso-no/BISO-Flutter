@@ -25,7 +25,6 @@ class JobsScreen extends ConsumerStatefulWidget {
 }
 
 class _JobsScreenState extends ConsumerState<JobsScreen> {
-  String _selectedType = 'all';
   bool _pendingAutoOpen = true;
 
   // Paging state
@@ -93,7 +92,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           'page': page,
           'page_size': _pageSize,
           'replace': replace,
-          'selected_type': _selectedType,
         },
       );
       final items = await service.listJobs(
@@ -198,8 +196,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     await _fetchPage(page: _currentPage);
   }
 
-  final List<String> _jobTypes = ['all', 'volunteer', 'paid'];
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -238,106 +234,40 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           // IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark_border)),
         ],
       ),
-      body: Column(
-        children: [
-          // Type Filter
-          Container(
-            height: 60,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _jobTypes.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final type = _jobTypes[index];
-                final isSelected = _selectedType == type;
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Builder(
+              builder: (context) {
+                _logVisibleJobsState(
+                  campusId: campusId,
+                  visibleCount: _jobs.length,
+                );
 
-                return FilterChip(
-                  label: Text(_getTypeDisplayName(type)),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    AppLogger.info(
-                      '[JOBS_SCREEN] Job type filter changed',
-                      extra: {
-                        'previous_type': _selectedType,
-                        'next_type': type,
-                        'loaded_count': _jobs.length,
-                      },
-                    );
-                    setState(() {
-                      _selectedType = type;
-                    });
-                  },
-                  backgroundColor: Colors.transparent,
-                  selectedColor: AppColors.subtleBlue,
-                  checkmarkColor: AppColors.defaultBlue,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? AppColors.defaultBlue
-                        : AppColors.onSurfaceVariant,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                  side: BorderSide(
-                    color: isSelected
-                        ? AppColors.defaultBlue
-                        : AppColors.outline,
+                return RefreshIndicator(
+                  onRefresh: _reload,
+                  child: ListView.separated(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index >= _jobs.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      final job = _jobs[index];
+                      return _JobCard(
+                        job: job,
+                        onTap: () => _showJobDetails(context, job),
+                      );
+                    },
                   ),
                 );
               },
             ),
-          ),
-
-          const Divider(height: 1),
-
-          // Jobs List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Builder(
-                    builder: (context) {
-                      final filtered = _selectedType == 'all'
-                          ? _jobs
-                          : _jobs
-                                .where((j) => j.type == _selectedType)
-                                .toList();
-                      _logVisibleJobsState(
-                        campusId: campusId,
-                        visibleCount: filtered.length,
-                      );
-
-                      return RefreshIndicator(
-                        onRefresh: _reload,
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: filtered.length + (_isLoadingMore ? 1 : 0),
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            if (index >= filtered.length) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final job = filtered[index];
-                            return _JobCard(
-                              job: job,
-                              onTap: () => _showJobDetails(context, job),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -347,7 +277,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }) {
     final key = [
       campusId,
-      _selectedType,
       _jobs.length,
       visibleCount,
       _hasMore,
@@ -358,7 +287,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 
     final extra = {
       'campus_id': campusId,
-      'selected_type': _selectedType,
       'loaded_count': _jobs.length,
       'visible_count': visibleCount,
       'has_more': _hasMore,
@@ -372,19 +300,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       );
     } else {
       AppLogger.info('[JOBS_SCREEN] Rendering visible jobs', extra: extra);
-    }
-  }
-
-  String _getTypeDisplayName(String type) {
-    switch (type) {
-      case 'all':
-        return 'All';
-      case 'volunteer':
-        return 'Volunteer';
-      case 'paid':
-        return 'Paid';
-      default:
-        return type;
     }
   }
 
@@ -426,165 +341,33 @@ class _JobCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Department Icon
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _getTypeColor(job.type).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      _getTypeIcon(job.type),
-                      color: _getTypeColor(job.type),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Job Details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: job.title.toCompactHtml(
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 2,
-                                fontSize: 16,
-                              ),
-                            ),
-                            if (job.isUrgent == true)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'URGENT',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: AppColors.error,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        Text(
-                          job.department,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getTypeColor(
-                                  job.type,
-                                ).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                _getTypeDisplayName(job.type),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: _getTypeColor(job.type),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.schedule,
-                              size: 14,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              job.timeCommitment ?? '—',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        if (job.salary != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            job.salary!,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+              job.title.toCompactHtml(
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 2,
+                fontSize: 16,
               ),
 
               const SizedBox(height: 12),
 
-              // Skills Tags
-              if (job.skills.isNotEmpty) ...[
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: job.skills.take(3).map((skill) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(skill, style: theme.textTheme.labelSmall),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 8),
-              ],
-
               // Application Deadline
               Row(
                 children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 14,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
+                  if (job.applicationDeadline != null) ...[
+                    Icon(
+                      Icons.access_time,
+                      size: 14,
                       color: AppColors.onSurfaceVariant,
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline!)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const Spacer(),
                   Text(
                     'View Details',
@@ -605,39 +388,6 @@ class _JobCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _getTypeDisplayName(String type) {
-    switch (type) {
-      case 'volunteer':
-        return 'Volunteer';
-      case 'paid':
-        return 'Paid';
-      default:
-        return type;
-    }
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type) {
-      case 'volunteer':
-        return AppColors.success;
-      case 'paid':
-        return AppColors.defaultBlue;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  IconData _getTypeIcon(String type) {
-    switch (type) {
-      case 'volunteer':
-        return Icons.volunteer_activism;
-      case 'paid':
-        return Icons.work;
-      default:
-        return Icons.work_outline;
-    }
   }
 }
 
@@ -685,88 +435,7 @@ class _JobDetailSheet extends StatelessWidget {
                   fontSize: 20,
                 ),
 
-                const SizedBox(height: 8),
-
-                Text(
-                  job.department,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColors.defaultBlue,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
                 const SizedBox(height: 16),
-
-                // Job Info Cards
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.surfaceVariantDark
-                              : AppColors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.work,
-                              size: 24,
-                              color: isDark
-                                  ? AppColors.onSurfaceVariantDark
-                                  : AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              job.type,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? AppColors.onSurfaceVariantDark
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.surfaceVariantDark
-                              : AppColors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 24,
-                              color: isDark
-                                  ? AppColors.onSurfaceVariantDark
-                                  : AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              job.department,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? AppColors.onSurfaceVariantDark
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
 
                 // Description
                 if (job.description.isNotEmpty) ...[
@@ -789,106 +458,6 @@ class _JobDetailSheet extends StatelessWidget {
                     ),
                     fontSize: 16,
                   ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Requirements
-                if (job.requirements.isNotEmpty) ...[
-                  Text(
-                    'Requirements',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...job.requirements.map(
-                    (requirement) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: AppColors.success,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              requirement,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: isDark
-                                    ? AppColors.onSurfaceVariantDark
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Contact Info
-                if (job.contactPersonEmail != null ||
-                    job.contactPersonPhone != null) ...[
-                  Text(
-                    'Contact Information',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (job.contactPersonEmail != null)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.email,
-                          size: 20,
-                          color: isDark
-                              ? AppColors.onSurfaceVariantDark
-                              : AppColors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          job.contactPersonEmail!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.onSurfaceVariantDark
-                                : AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (job.contactPersonPhone != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.phone,
-                          size: 20,
-                          color: isDark
-                              ? AppColors.onSurfaceVariantDark
-                              : AppColors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          job.contactPersonPhone!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.onSurfaceVariantDark
-                                : AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ],
             ),

@@ -1455,24 +1455,6 @@ class _PremiumJobCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Department tag
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.biLightBlue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              job.department,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.biLightBlue,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
           // Job title with HTML rendering - flexible height
           Flexible(
             child: job.title.toCompactHtml(
