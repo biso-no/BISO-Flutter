@@ -49,15 +49,26 @@ class ProductCustomField extends Equatable {
 
   /// Parses the nested `custom_fields` array, keeping only enabled entries in
   /// `sort_order` order.
+  ///
+  /// `List.sort` is documented as unstable, so entries sharing a
+  /// `sort_order` (which defaults to 0 in the Appwrite schema) are sorted
+  /// with their original list index as a tiebreaker, making the result
+  /// deterministic regardless of Dart's sort implementation.
   static List<ProductCustomField> listFrom(Object? value) {
     if (value is! List) return const <ProductCustomField>[];
-    final parsed = value
+    final indexed = value
         .whereType<Map>()
         .map((e) => ProductCustomField.fromMap(Map<String, dynamic>.from(e)))
         .where((f) => f.enabled)
+        .toList()
+        .asMap()
+        .entries
         .toList();
-    parsed.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
-    return List.unmodifiable(parsed);
+    indexed.sort((a, b) {
+      final cmp = a.value.sortOrder.compareTo(b.value.sortOrder);
+      return cmp != 0 ? cmp : a.key.compareTo(b.key);
+    });
+    return List.unmodifiable(indexed.map((e) => e.value));
   }
 
   @override

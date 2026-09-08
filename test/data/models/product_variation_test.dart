@@ -56,5 +56,93 @@ void main() {
 
       expect(list.map((v) => v.name), ['First', 'Third']);
     });
+
+    test(
+      'preserves source order for many entries sharing the same sort_order',
+      () {
+        // sort_order defaults to 0 in the Appwrite schema, so entries
+        // created without explicit ordering tie immediately. List.sort is
+        // documented as unstable, so this fixture must be large enough that
+        // an unstable sort would realistically reorder it (a two-entry tie
+        // can pass by luck) — 40 tied entries is well past the size where
+        // Dart's sort switches away from its stable small-list path.
+        const count = 40;
+        final input = List<Map<String, dynamic>>.generate(
+          count,
+          (i) => {
+            r'$id': 'tied-$i',
+            'name': 'Tied $i',
+            'sort_order': 0,
+            'enabled': true,
+          },
+        );
+
+        final list = ProductVariation.listFrom(input);
+
+        expect(
+          list.map((v) => v.name).toList(),
+          List<String>.generate(count, (i) => 'Tied $i'),
+        );
+      },
+    );
+
+    test(
+      'breaks ties by source order while keeping overall ascending order',
+      () {
+        // Interleave a large block of entries tied at sort_order 5 with
+        // entries at distinct sort_order values (1, 2, 8, 9), scattered
+        // among the tied block rather than only at the edges. This proves
+        // two things at once: ties resolve to source order, and the
+        // distinct-valued entries still land in correct ascending position.
+        const tieCount = 40;
+        final input = <Map<String, dynamic>>[
+          {r'$id': 'high-b', 'name': 'High-B', 'sort_order': 9, 'enabled': true},
+        ];
+        for (var i = 0; i < tieCount; i++) {
+          input.add({
+            r'$id': 'tied-$i',
+            'name': 'Tied $i',
+            'sort_order': 5,
+            'enabled': true,
+          });
+          if (i == 0) {
+            input.add({
+              r'$id': 'low-a',
+              'name': 'Low-A',
+              'sort_order': 1,
+              'enabled': true,
+            });
+          }
+          if (i == 1) {
+            input.add({
+              r'$id': 'high-a',
+              'name': 'High-A',
+              'sort_order': 8,
+              'enabled': true,
+            });
+          }
+          if (i == 2) {
+            input.add({
+              r'$id': 'low-b',
+              'name': 'Low-B',
+              'sort_order': 2,
+              'enabled': true,
+            });
+          }
+        }
+
+        final list = ProductVariation.listFrom(input);
+
+        final expected = [
+          'Low-A',
+          'Low-B',
+          ...List<String>.generate(tieCount, (i) => 'Tied $i'),
+          'High-A',
+          'High-B',
+        ];
+
+        expect(list.map((v) => v.name).toList(), expected);
+      },
+    );
   });
 }
