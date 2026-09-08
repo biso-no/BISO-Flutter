@@ -4,6 +4,7 @@ import 'package:biso/data/models/cart_item.dart';
 import 'package:biso/data/models/product_custom_field.dart';
 import 'package:biso/data/models/webshop_product_model.dart';
 import 'package:biso/presentation/screens/explore/webshop_product_detail_screen.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/data/services/shop_api_client.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter/material.dart';
@@ -168,6 +169,7 @@ void main() {
       WebshopProduct product, {
       String? userId,
       ShopApiClient? api,
+      bool isMember = false,
     }) {
       return tester.pumpWidget(
         ProviderScope(
@@ -175,6 +177,7 @@ void main() {
             // Pin the identity rather than standing up the whole
             // authentication stack (which would try to reach Appwrite).
             cartUserIdProvider.overrideWithValue(userId),
+            hasValidMembershipProvider.overrideWithValue(isMember),
             if (api != null) shopApiClientProvider.overrideWithValue(api),
           ],
           child: MaterialApp(
@@ -405,16 +408,18 @@ void main() {
       },
     );
 
-    testWidgets('refuses to add a members-only product', (tester) async {
-      final product = WebshopProduct(
-        id: 'p5',
-        images: const [],
-        title: 'Members product',
-        regularPrice: 20,
-        memberOnly: true,
-      );
+    const membersProduct = WebshopProduct(
+      id: 'p5',
+      images: [],
+      title: 'Members product',
+      regularPrice: 20,
+      memberOnly: true,
+    );
 
-      await pumpScreen(tester, product);
+    testWidgets('refuses a members-only product to a non-member', (
+      tester,
+    ) async {
+      await pumpScreen(tester, membersProduct);
       await tester.pumpAndSettle();
 
       final button = tester.widget<FilledButton>(
@@ -422,6 +427,21 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
+
+    testWidgets(
+      'offers a members-only product to a verified member — the flag is who '
+      'it is for, not a blanket prohibition',
+      (tester) async {
+        await pumpScreen(tester, membersProduct, isMember: true);
+        await tester.pumpAndSettle();
+
+        expect(find.widgetWithText(FilledButton, 'Members only'), findsNothing);
+        final button = tester.widget<FilledButton>(
+          find.widgetWithText(FilledButton, 'Add to cart'),
+        );
+        expect(button.onPressed, isNotNull);
+      },
+    );
   });
 }
 

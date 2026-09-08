@@ -9,6 +9,7 @@ import '../../../data/models/product_custom_field.dart';
 import '../../../data/models/product_variation.dart';
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/services/webshop_service.dart';
+import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/shop/cart_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
@@ -742,11 +743,16 @@ class _WebshopProductDetailScreenState
 
   /// The buy bar.
   ///
-  /// `member_only` products are the one case where the app refuses the add
-  /// outright: the server would reject the checkout anyway, and it is kinder
-  /// to say so on the product than after the buyer has filled in a form.
-  /// Everything else — stock, purchase limits, the member discount — is left
-  /// to the server, which is the only place that can judge it correctly.
+  /// A `member_only` product is offered to members and refused to everyone
+  /// else, which is the website's rule — it filters those products out of the
+  /// shop for non-members entirely. The app shows them with the reason instead
+  /// of hiding them, since a product page can be reached by deep link.
+  ///
+  /// Membership comes from the buyer's own verified state, not from the
+  /// product: gating on the flag alone would refuse the product to the very
+  /// people it exists for. Everything else — stock, purchase limits, the
+  /// member discount — is left to the server, which is the only place that can
+  /// judge it correctly.
   Widget _buildPurchaseBar({
     required WebshopProduct product,
     required double displayPrice,
@@ -754,7 +760,8 @@ class _WebshopProductDetailScreenState
     required ThemeData theme,
   }) {
     final soldOut = product.stock != null && product.stock! <= 0;
-    final memberOnly = product.memberOnly;
+    final blockedAsNonMember =
+        product.memberOnly && !ref.watch(hasValidMembershipProvider);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -794,7 +801,7 @@ class _WebshopProductDetailScreenState
             const SizedBox(width: 16),
             Expanded(
               child: FilledButton.icon(
-                onPressed: soldOut || memberOnly || _addingToCart
+                onPressed: soldOut || blockedAsNonMember || _addingToCart
                     ? null
                     : _handleAddToCart,
                 icon: _addingToCart
@@ -807,7 +814,7 @@ class _WebshopProductDetailScreenState
                 label: Text(
                   soldOut
                       ? 'Sold out'
-                      : memberOnly
+                      : blockedAsNonMember
                       ? 'Members only'
                       : 'Add to cart',
                 ),

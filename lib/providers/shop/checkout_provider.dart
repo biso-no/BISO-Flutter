@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +66,19 @@ class PendingCheckout {
   final String orderId;
   final DateTime startedAt;
 
-  const PendingCheckout({required this.orderId, required this.startedAt});
+  /// What the order was placed for, as `lineId -> quantity`.
+  ///
+  /// Recorded because the cart can move on while the payment is in flight: the
+  /// buyer can leave a pending order, keep shopping, and only then have the
+  /// payment land. Knowing what was actually bought is what lets the cart give
+  /// up those lines and no others.
+  final Map<String, int> lines;
+
+  const PendingCheckout({
+    required this.orderId,
+    required this.startedAt,
+    this.lines = const <String, int>{},
+  });
 
   /// Payment sessions do not stay payable forever, and a marker older than
   /// this is far more likely to be an abandoned attempt than one in flight.
@@ -92,6 +105,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
 
   static const String _pendingOrderKey = 'shop_pending_order_id';
   static const String _pendingStartedKey = 'shop_pending_order_started_at';
+  static const String _pendingLinesKey = 'shop_pending_order_lines';
 
   PendingCheckout? _pending;
 
@@ -112,6 +126,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       _pending = PendingCheckout(
         orderId: orderId,
         startedAt: DateTime.fromMillisecondsSinceEpoch(startedAt),
+        lines: _decodeLines(prefs.getString(_pendingLinesKey)),
       );
       if (_pending!.isStale) {
         await _clearPending();
@@ -132,8 +147,34 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<void> _rememberPending(String orderId) async {
-    _pending = PendingCheckout(orderId: orderId, startedAt: DateTime.now());
+  /// A marker written before this carried its lines decodes as empty, which
+  /// falls back to clearing the whole cart — what the app did before.
+  static Map<String, int> _decodeLines(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const <String, int>{};
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return const <String, int>{};
+      }
+      return <String, int>{
+        for (final entry in decoded.entries)
+          if (entry.value is int && (entry.value as int) > 0)
+            entry.key.toString(): entry.value as int,
+      };
+    } catch (error) {
+      logPrint('💳 Failed to read pending checkout lines: $error');
+      return const <String, int>{};
+    }
+  }
+
+  Future<void> _rememberPending(String orderId, Map<String, int> lines) async {
+    _pending = PendingCheckout(
+      orderId: orderId,
+      startedAt: DateTime.now(),
+      lines: lines,
+    );
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_pendingOrderKey, orderId);
@@ -141,6 +182,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
         _pendingStartedKey,
         _pending!.startedAt.millisecondsSinceEpoch,
       );
+      await prefs.setString(_pendingLinesKey, jsonEncode(lines));
     } catch (error) {
       logPrint('💳 Failed to persist pending checkout: $error');
     }
@@ -152,6 +194,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_pendingOrderKey);
       await prefs.remove(_pendingStartedKey);
+      await prefs.remove(_pendingLinesKey);
     } catch (error) {
       logPrint('💳 Failed to clear pending checkout: $error');
     }
@@ -186,7 +229,9 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
             lastName: lastName,
             phone: phone,
           );
-      await _rememberPending(started.orderId);
+      await _rememberPending(started.orderId, {
+        for (final item in items) item.lineId: item.quantity,
+      });
       state = const AsyncValue.data(null);
       return started;
     } catch (error, stackTrace) {
@@ -231,15 +276,28 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  /// A paid order means the cart is spent: the server has already turned the
-  /// stock holds into a decrement and deleted the reservation rows, so the
-  /// cart is cleared without asking it to release holds that are gone.
+  /// A paid order gives up the lines it was placed for — and only those.
+  ///
+  /// Clearing the whole cart would be wrong: the buyer can leave a pending
+  /// order, carry on shopping, and only then have the payment resolve (the
+  /// order screen polls, and a deep link or a foreground can land at any
+  /// point), so the cart may hold items that were never part of the order.
+  /// Holds are not released either way — the server turned the purchased ones
+  /// into a stock decrement and deleted their rows, and anything still in the
+  /// cart is still wanted.
   ///
   /// A cancelled or failed order also ends the attempt, but the cart is left
   /// alone — the buyer very likely wants to try again with a different method.
   Future<void> _applyOutcome(ShopOrder order) async {
     if (order.status.isSuccessful) {
-      await _ref.read(cartProvider.notifier).clear(releaseHolds: false);
+      // Read before `_clearPending`, which drops the record of what was bought.
+      final purchased = _pending?.lines ?? const <String, int>{};
+      final cart = _ref.read(cartProvider.notifier);
+      if (purchased.isEmpty) {
+        await cart.clear(releaseHolds: false);
+      } else {
+        await cart.removePurchased(purchased);
+      }
       await _clearPending();
       return;
     }

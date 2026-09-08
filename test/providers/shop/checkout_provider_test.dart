@@ -51,15 +51,27 @@ void main() {
 
   /// A device that was evicted mid-payment: a cart, and a marker naming the
   /// order the buyer went off to pay for.
-  void seedInterruptedCheckout({Duration age = Duration.zero}) {
-    final line = CartItem.fromProduct(product: _hoodie, quantity: 2);
+  ///
+  /// [extraCartLines] are lines the buyer added *after* starting the order, so
+  /// they are in the cart but not in the marker — the case that separates
+  /// giving up the paid lines from emptying the cart.
+  void seedInterruptedCheckout({
+    Duration age = Duration.zero,
+    List<CartItem> extraCartLines = const <CartItem>[],
+    bool markerCarriesLines = true,
+  }) {
+    final paid = CartItem.fromProduct(product: _hoodie, quantity: 2);
     SharedPreferences.setMockInitialValues(<String, Object>{
-      'shop_cart_v1': jsonEncode([line.toJson()]),
+      'shop_cart_v1': jsonEncode(
+        [paid, ...extraCartLines].map((item) => item.toJson()).toList(),
+      ),
       'shop_cart_v1_user': 'buyer-1',
       'shop_pending_order_id': 'order-1',
       'shop_pending_order_started_at': DateTime.now()
           .subtract(age)
           .millisecondsSinceEpoch,
+      if (markerCarriesLines)
+        'shop_pending_order_lines': jsonEncode({paid.lineId: paid.quantity}),
     });
   }
 
@@ -105,6 +117,43 @@ void main() {
       await launch(container);
 
       expect(container.read(cartProvider).items, isEmpty);
+    });
+
+    test('keeps lines added after the order was placed', () async {
+      // The buyer left the pending order, carried on shopping, and only then
+      // did the payment resolve. The hoodie was bought; the tote was not.
+      const tote = WebshopProduct(
+        id: 'prod-2',
+        images: [],
+        slug: 'tote',
+        title: 'BISO Tote',
+        regularPrice: 50,
+        stock: 10,
+      );
+      seedInterruptedCheckout(
+        extraCartLines: [CartItem.fromProduct(product: tote)],
+      );
+      final container = buildContainer(_FakeShopApi(ShopOrderStatus.paid));
+
+      await launch(container);
+
+      final items = container.read(cartProvider).items;
+      expect(items, hasLength(1));
+      expect(items.single.productId, 'prod-2');
+    });
+
+    test('clears everything when the marker predates line tracking', () async {
+      seedInterruptedCheckout(markerCarriesLines: false);
+      final container = buildContainer(_FakeShopApi(ShopOrderStatus.paid));
+
+      await launch(container);
+
+      expect(
+        container.read(cartProvider).items,
+        isEmpty,
+        reason: 'without a record of what was bought, the old behaviour is '
+            'the safe one',
+      );
     });
 
     test('forgets the order once it is resolved', () async {

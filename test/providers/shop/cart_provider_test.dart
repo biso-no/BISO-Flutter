@@ -272,6 +272,66 @@ void main() {
     });
   });
 
+  // A payment can land long after it was started, so the cart it clears is not
+  // necessarily the cart it was placed from.
+  group('giving up the paid-for lines', () {
+    test('keeps what the buyer added after checkout started', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, variation: _small, quantity: 2);
+      final paidLine = cart.state.items.single.lineId;
+      await cart.addProduct(product: _hoodie, variation: _large);
+
+      await cart.removePurchased({paidLine: 2});
+
+      expect(cart.state.items, hasLength(1));
+      expect(cart.state.items.single.variationId, 'var-l');
+    });
+
+    test('leaves the unpaid remainder of a partially bought line', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, quantity: 3);
+      final line = cart.state.items.single.lineId;
+
+      await cart.removePurchased({line: 1});
+
+      expect(cart.state.items.single.quantity, 2);
+    });
+
+    test('empties the cart when the order was the whole cart', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, quantity: 2);
+      final line = cart.state.items.single.lineId;
+
+      await cart.removePurchased({line: 2});
+
+      expect(cart.state.items, isEmpty);
+    });
+
+    test('re-holds a product whose remainder outlived the purchase', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, quantity: 3);
+      final line = cart.state.items.single.lineId;
+      api.reserved.clear();
+
+      await cart.removePurchased({line: 1});
+
+      // The stock decrement took the whole product's hold with it, so the two
+      // still in the cart are holding nothing until this runs.
+      expect(api.reserved.last, (productId: 'prod-1', quantity: 2));
+    });
+
+    test('never releases holds — the buyer still wants what is left', () async {
+      final cart = await buildCart();
+      await cart.addProduct(product: _hoodie, quantity: 3);
+      final line = cart.state.items.single.lineId;
+      api.released.clear();
+
+      await cart.removePurchased({line: 1});
+
+      expect(api.released, isEmpty);
+    });
+  });
+
   group('persistence', () {
     test('restores the same buyer cart on the next launch', () async {
       final first = await buildCart();

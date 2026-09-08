@@ -367,6 +367,44 @@ class CartNotifier extends StateNotifier<CartState> {
     await _syncReservation(productId);
   }
 
+  /// Takes the paid-for quantities out of the cart, leaving everything else.
+  ///
+  /// A payment can resolve long after it was started — the buyer may have left
+  /// the pending order, kept shopping, and added lines that were never part of
+  /// it. Those must survive, so this subtracts what was bought rather than
+  /// emptying the cart.
+  ///
+  /// Holds are not released: the server converted the purchased ones into a
+  /// stock decrement and deleted their rows. Any product that still has lines
+  /// is re-synced instead, because that decrement took the whole product's hold
+  /// with it and the remainder is now holding nothing.
+  Future<void> removePurchased(Map<String, int> purchased) async {
+    await _ready;
+    if (purchased.isEmpty) {
+      return;
+    }
+
+    final touched = <String>{};
+    final next = <CartItem>[];
+    for (final item in state.items) {
+      final bought = purchased[item.lineId] ?? 0;
+      if (bought > 0) {
+        touched.add(item.productId);
+      }
+      final left = item.quantity - bought;
+      if (left > 0) {
+        next.add(item.copyWith(quantity: left));
+      }
+    }
+    await _commit(next);
+
+    for (final productId in touched) {
+      if (state.items.any((item) => item.productId == productId)) {
+        await _syncReservation(productId);
+      }
+    }
+  }
+
   /// Empties the cart and releases every hold.
   ///
   /// [releaseHolds] is false after a successful payment: the server has already

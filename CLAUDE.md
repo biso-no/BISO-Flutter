@@ -591,6 +591,18 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   verifies on construction as well as on resume, because a cold launch is not
   a resume: `AppLifecycleListener` reports *changes*, and the app is already
   resumed by the time the listener exists.
+- **A paid order gives up only the lines it was placed for.** The buyer can
+  leave a pending order, keep shopping, and only then have the payment resolve,
+  so `PendingCheckout` records `lineId -> quantity` at `start()` and
+  `CartNotifier.removePurchased` subtracts exactly that. Clearing the whole
+  cart would throw away items the order never contained. A marker written
+  before this existed carries no lines and falls back to clearing.
+- **`member_only` is who a product is for, not a blanket prohibition.** The
+  buyer's own verified membership (`hasValidMembershipProvider`) decides, the
+  same rule the website applies when it filters those products out of the shop
+  for non-members. Note the server does **not** enforce `member_only` at
+  checkout — on either surface — so this is presentation, not a security
+  boundary.
 - **`addProduct` reports what landed.** The stock hold is written as part of
   the add and the cart is clamped to what the server could hold — per product,
   oldest line first — so the requested configuration can be dropped while
