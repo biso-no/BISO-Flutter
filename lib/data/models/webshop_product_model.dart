@@ -1,5 +1,11 @@
 import 'package:equatable/equatable.dart';
 
+import '../../core/utils/appwrite_image.dart';
+import '../../core/utils/localized_content.dart';
+import 'content_translation.dart';
+import 'product_custom_field.dart';
+import 'product_variation.dart';
+
 class WebshopProduct extends Equatable {
   final int id;
   final String name;
@@ -13,6 +19,30 @@ class WebshopProduct extends Equatable {
   final String? description;
   final String? url;
 
+  // Appwrite-backed fields (Task 2). These temporarily carry `…Value` /
+  // `rowId` / `htmlDescription` suffixes because the legacy Woo fields above
+  // still occupy the plain names (`id`, `campusId`, `departmentId`,
+  // `description`). Task 4 renames them once the legacy fields are removed.
+  final String? rowId;
+  final String? slug;
+  final String? title;
+  final String? shortDescription;
+  final String? htmlDescription;
+  final String? category;
+  final String? campusIdValue;
+  final String? departmentIdValue;
+  final String? linkedEventId;
+  final String? inventoryMode;
+  final String? status;
+  final double regularPriceValue;
+  final double? memberPriceValue;
+  final bool memberOnly;
+  final int? stockValue;
+  final List<String> tags;
+  final List<String> imageUrls;
+  final List<ProductVariation> variations;
+  final List<ProductCustomField> customFields;
+
   const WebshopProduct({
     required this.id,
     required this.name,
@@ -25,6 +55,25 @@ class WebshopProduct extends Equatable {
     this.departmentLabel,
     this.description,
     this.url,
+    this.rowId,
+    this.slug,
+    this.title,
+    this.shortDescription,
+    this.htmlDescription,
+    this.category,
+    this.campusIdValue,
+    this.departmentIdValue,
+    this.linkedEventId,
+    this.inventoryMode,
+    this.status,
+    this.regularPriceValue = 0,
+    this.memberPriceValue,
+    this.memberOnly = false,
+    this.stockValue,
+    this.tags = const <String>[],
+    this.imageUrls = const <String>[],
+    this.variations = const <ProductVariation>[],
+    this.customFields = const <ProductCustomField>[],
   });
 
   factory WebshopProduct.fromFunctionMap(Map<String, dynamic> map) {
@@ -60,6 +109,53 @@ class WebshopProduct extends Equatable {
     );
   }
 
+  factory WebshopProduct.fromAppwriteRow(
+    Map<String, dynamic> row, {
+    String locale = 'no',
+  }) {
+    final translations = ContentTranslation.listFrom(row['translation_refs']);
+    final content = resolveLocalizedContent(translations, locale);
+
+    // `images` is the list column; `image` is the single cover. Prefer the
+    // list, fall back to the cover, so a product with only a cover still
+    // renders. Both hold either a bare file id or a complete URL.
+    var urls = appwriteImageUrls(row['images']);
+    if (urls.isEmpty) {
+      final cover = appwriteImageUrl(row['image']);
+      if (cover != null) urls = <String>[cover];
+    }
+
+    return WebshopProduct(
+      // Legacy Woo fields, still required until Task 4 removes them.
+      id: 0,
+      name: content.title,
+      images: urls,
+      price: (row['regular_price'] ?? 0).toString(),
+      salePrice: '',
+      // Appwrite-backed fields.
+      rowId: (row[r'$id'] ?? '').toString(),
+      slug: row['slug']?.toString(),
+      title: content.title,
+      shortDescription: content.shortDescription,
+      htmlDescription: content.description,
+      status: (row['status'] ?? 'published').toString(),
+      campusIdValue: (row['campus_id'] ?? '').toString(),
+      departmentIdValue: row['departmentId']?.toString(),
+      regularPriceValue: (row['regular_price'] as num?)?.toDouble() ?? 0,
+      memberPriceValue: (row['member_price'] as num?)?.toDouble(),
+      memberOnly: row['member_only'] == true,
+      category: row['category']?.toString(),
+      stockValue: (row['stock'] as num?)?.toInt(),
+      inventoryMode: row['inventory_mode']?.toString(),
+      linkedEventId: row['linked_event_id']?.toString(),
+      tags: (row['tags'] is List)
+          ? (row['tags'] as List).map((e) => e.toString()).toList(growable: false)
+          : const <String>[],
+      variations: ProductVariation.listFrom(row['variations']),
+      customFields: ProductCustomField.listFrom(row['custom_fields']),
+    );
+  }
+
   bool get hasSale => salePrice.isNotEmpty && salePrice != '0';
 
   @override
@@ -74,6 +170,25 @@ class WebshopProduct extends Equatable {
     price,
     salePrice,
     url,
+    rowId,
+    slug,
+    title,
+    shortDescription,
+    htmlDescription,
+    category,
+    campusIdValue,
+    departmentIdValue,
+    linkedEventId,
+    inventoryMode,
+    status,
+    regularPriceValue,
+    memberPriceValue,
+    memberOnly,
+    stockValue,
+    tags,
+    imageUrls,
+    variations,
+    customFields,
   ];
 
   static Map<String, dynamic> _metadataMap(dynamic value) {
