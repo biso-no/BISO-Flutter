@@ -1572,9 +1572,6 @@ class AppLocalizationsNo extends AppLocalizations {
   String get reviewYourExpenseMessage => 'Gjennomgå utgiften din';
 
   @override
-  String get saleMessage => 'SALG';
-
-  @override
   String get saveAsDraftMessage => 'Lagre som utkast';
 
   @override
