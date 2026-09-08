@@ -46,14 +46,14 @@ void main() {
     test('parses scalar columns from a real row', () {
       final p = WebshopProduct.fromAppwriteRow(realProductRow);
 
-      expect(p.rowId, 'wpprod61050');
+      expect(p.id, 'wpprod61050');
       expect(p.slug, 'co-payment-biso-sweater-trondheim-2025');
-      expect(p.campusIdValue, '3');
-      expect(p.regularPriceValue, 0);
-      expect(p.memberPriceValue, isNull);
+      expect(p.campusId, '3');
+      expect(p.regularPrice, 0);
+      expect(p.memberPrice, isNull);
       expect(p.memberOnly, isFalse);
       expect(p.inventoryMode, 'unlimited');
-      expect(p.stockValue, isNull);
+      expect(p.stock, isNull);
     });
 
     test('resolves title and description for the requested locale', () {

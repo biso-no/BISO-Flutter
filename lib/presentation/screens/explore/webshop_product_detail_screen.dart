@@ -24,9 +24,6 @@ class _WebshopProductDetailScreenState extends State<WebshopProductDetailScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final product = widget.product;
-    final hasSale = product.hasSale;
-    final regularPrice = double.tryParse(product.price) ?? 0.0;
-    final salePrice = double.tryParse(product.salePrice) ?? 0.0;
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
@@ -165,121 +162,29 @@ class _WebshopProductDetailScreenState extends State<WebshopProductDetailScreen>
               delegate: SliverChildListDelegate([
                 // Product Name
                 Text(
-                  product.name,
+                  product.title ?? '',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.charcoalBlack,
                   ),
                 ),
 
-                const SizedBox(height: 8),
-
-                // Campus & Department Info
-                if (product.campusLabel != null || product.departmentLabel != null)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      if (product.campusLabel != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.defaultBlue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.defaultBlue.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: Text(
-                            product.campusLabel!,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: AppColors.defaultBlue,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      if (product.departmentLabel != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentGold.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.defaultGold.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          child: Text(
-                            product.departmentLabel!,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: AppColors.strongGold,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
                 const SizedBox(height: 16),
 
                 // Price Section
-                Row(
-                  children: [
-                    if (hasSale) ...[
-                      Text(
-                        'NOK ${salePrice.toStringAsFixed(0)}',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.defaultBlue,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'NOK ${regularPrice.toStringAsFixed(0)}',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          decoration: TextDecoration.lineThrough,
-                          color: AppColors.charcoalBlack.withValues(alpha: 0.6),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'SALE',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ] else
-                      Text(
-                        'NOK ${regularPrice.toStringAsFixed(0)}',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.defaultBlue,
-                        ),
-                      ),
-                  ],
+                Text(
+                  'NOK ${product.regularPrice.toStringAsFixed(0)}',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.defaultBlue,
+                  ),
                 ),
 
                 const SizedBox(height: 24),
 
                 // Description
-                if (product.htmlDescription != null &&
-                    product.htmlDescription!.isNotEmpty) ...[
+                if (product.description != null &&
+                    product.description!.isNotEmpty) ...[
                   Text(
                     'Description',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -298,7 +203,7 @@ class _WebshopProductDetailScreenState extends State<WebshopProductDetailScreen>
                         color: AppColors.gray100,
                       ),
                     ),
-                    child: product.htmlDescription!.toFullHtml(
+                    child: product.description!.toFullHtml(
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppColors.charcoalBlack.withValues(alpha: 0.8),
                         height: 1.5,

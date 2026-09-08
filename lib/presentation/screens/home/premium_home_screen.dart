@@ -231,7 +231,7 @@ class PremiumHomePage extends ConsumerWidget {
               'duration_ms': stopwatch.elapsedMilliseconds,
               'sample_ids': products
                   .take(3)
-                  .map((product) => product.rowId)
+                  .map((product) => product.id)
                   .toList(),
             },
           );
@@ -1237,16 +1237,13 @@ class _PremiumWebshopProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasSale = product.hasSale;
-    final regularPrice = double.tryParse(product.price) ?? 0.0;
-    final salePrice = double.tryParse(product.salePrice) ?? 0.0;
 
     return PremiumCard(
       padding: EdgeInsets.zero,
       onTap: () {
         context.pushNamed(
           'webshop-product-detail',
-          pathParameters: {'productId': product.rowId ?? ''},
+          pathParameters: {'productId': product.id},
           extra: product,
         );
       },
@@ -1333,19 +1330,8 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (hasSale) ...[
-                          Text(
-                            'NOK ${regularPrice.toStringAsFixed(0)}',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.stoneGray,
-                              decoration: TextDecoration.lineThrough,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
                         Text(
-                          'NOK ${(hasSale ? salePrice : regularPrice).toStringAsFixed(0)}',
+                          'NOK ${product.regularPrice.toStringAsFixed(0)}',
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                             color: AppColors.charcoalBlack,
@@ -1355,32 +1341,6 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // Sale badge
-                if (hasSale)
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        AppLocalizations.of(context)!.saleMessage,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -1392,26 +1352,13 @@ class _PremiumWebshopProductCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  product.name,
+                  product.title ?? '',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-
-                const SizedBox(height: 8),
-
-                if (product.campusLabel != null)
-                  Text(
-                    product.campusLabel!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.biLightBlue,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
               ],
             ),
           ),

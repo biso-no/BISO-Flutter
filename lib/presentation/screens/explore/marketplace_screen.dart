@@ -110,7 +110,7 @@ final webshopProductsProvider = FutureProvider.autoDispose
             'duration_ms': stopwatch.elapsedMilliseconds,
             'sample_ids': products
                 .take(3)
-                .map((product) => product.rowId)
+                .map((product) => product.id)
                 .toList(),
           },
         );
@@ -878,18 +878,13 @@ class _WebshopProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasSale = product.hasSale;
-    final regularPrice = double.tryParse(product.price) ?? 0.0;
-    final salePrice = double.tryParse(product.salePrice) ?? 0.0;
-    final priceText = hasSale
-        ? 'NOK ${salePrice.toStringAsFixed(0)}'
-        : 'NOK ${regularPrice.toStringAsFixed(0)}';
+    final priceText = 'NOK ${product.regularPrice.toStringAsFixed(0)}';
 
     return InkWell(
       onTap: () {
         context.pushNamed(
           'webshop-product-detail',
-          pathParameters: {'productId': product.rowId ?? ''},
+          pathParameters: {'productId': product.id},
           extra: product,
         );
       },
@@ -952,17 +947,6 @@ class _WebshopProductCard extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
-                          if (hasSale) ...[
-                            Text(
-                              'NOK ${regularPrice.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                decoration: TextDecoration.lineThrough,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
                           Text(
                             priceText,
                             style: const TextStyle(
@@ -974,29 +958,6 @@ class _WebshopProductCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (hasSale)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'SALE',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -1009,7 +970,7 @@ class _WebshopProductCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        product.name,
+                        product.title ?? '',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -1017,18 +978,6 @@ class _WebshopProductCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (product.campusLabel != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        product.campusLabel!,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                   ],
                 ),
               ),
