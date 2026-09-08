@@ -1,13 +1,26 @@
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
+
+import '../../core/utils/localized_content.dart';
+import 'content_translation.dart';
+
+/// Stands in for "no application deadline" while [JobModel.applicationDeadline]
+/// is still non-nullable. Far future, never the epoch: an open-ended job must
+/// not read as long expired. Task 4 makes the field nullable and removes this.
+final _noDeadlineSentinel = DateTime.utc(9999, 12, 31);
 
 class JobModel extends Equatable {
   final String id;
+  final String? slug;
   final String title;
   final String description;
+  final String? shortDescription;
   final String department;
   final String departmentId;
   final String? departmentLogo;
   final String campusId;
+  final List<String> tags;
   final String type; // 'volunteer', 'paid', 'part_time', 'full_time'
   final String
   category; // 'event_help', 'marketing', 'tech', 'administration', etc.
@@ -38,12 +51,15 @@ class JobModel extends Equatable {
 
   const JobModel({
     required this.id,
+    this.slug,
     required this.title,
     required this.description,
+    this.shortDescription,
     required this.department,
     required this.departmentId,
     this.departmentLogo,
     required this.campusId,
+    this.tags = const [],
     this.type = 'volunteer',
     required this.category,
     this.requirements = const [],
@@ -71,6 +87,65 @@ class JobModel extends Equatable {
     this.createdAt,
     this.updatedAt,
   });
+
+  factory JobModel.fromAppwriteRow(
+    Map<String, dynamic> row, {
+    String locale = 'no',
+  }) {
+    final translations = ContentTranslation.listFrom(row['translations']);
+    final content = resolveLocalizedContent(translations, locale);
+
+    Map<String, dynamic> metadata = const {};
+    final rawMetadata = row['metadata'];
+    if (rawMetadata is String && rawMetadata.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawMetadata);
+        if (decoded is Map) metadata = Map<String, dynamic>.from(decoded);
+      } catch (_) {
+        // Malformed metadata must not sink the whole row.
+        metadata = const {};
+      }
+    }
+
+    final rawTags = metadata['tags'];
+    final tags = rawTags is List
+        ? rawTags.map((e) => e.toString()).toList(growable: false)
+        : const <String>[];
+
+    DateTime? parseDate(Object? v) {
+      final s = v?.toString();
+      if (s == null || s.isEmpty) return null;
+      return DateTime.tryParse(s);
+    }
+
+    // A missing deadline means "open-ended", NOT "expired". This is the
+    // opposite of the events case, so the epoch sentinel used there would be
+    // exactly wrong here — it would render an open-ended job as long expired.
+    // Use a far-future sentinel until Task 4 makes the field nullable.
+    final deadline = parseDate(row['application_deadline']);
+
+    return JobModel(
+      id: (row[r'$id'] ?? '').toString(),
+      slug: row['slug']?.toString(),
+      title: content.title,
+      description: content.description,
+      shortDescription: content.shortDescription,
+      campusId: (row['campus_id'] ?? '').toString(),
+      tags: tags,
+      status: (row['status'] ?? 'published').toString(),
+      applicationDeadline: deadline ?? _noDeadlineSentinel,
+      metadata: metadata,
+      // No Appwrite column; removed in Task 4.
+      department: '',
+      departmentId: (row['department_id'] ?? '').toString(),
+      category: '',
+      startDate: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      url: '',
+      contactPersonName: '',
+      createdAt: parseDate(row[r'$createdAt']),
+      updatedAt: parseDate(row[r'$updatedAt']),
+    );
+  }
 
   // Create from the Appwrite Function jobs payload (WordPress-backed)
   factory JobModel.fromFunctionJob(
@@ -339,12 +414,15 @@ class JobModel extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    slug,
     title,
     description,
+    shortDescription,
     department,
     departmentId,
     departmentLogo,
     campusId,
+    tags,
     type,
     category,
     requirements,
