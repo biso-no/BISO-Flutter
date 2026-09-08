@@ -1,15 +1,17 @@
 import 'package:biso/data/models/product_custom_field.dart';
 import 'package:biso/data/models/webshop_product_model.dart';
 import 'package:biso/presentation/screens/explore/webshop_product_detail_screen.dart';
+import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Review finding 1: required-field validation on the webshop product
 /// detail screen must block even when the offending field lies below the
 /// fold of a lazily-built `SliverList` and has therefore never registered
 /// with the enclosing `Form`. `Form.validate()` alone cannot catch this
-/// (it only iterates *registered* fields), so `_handleContinue` also checks
+/// (it only iterates *registered* fields), so `_handleAddToCart` also checks
 /// [firstMissingRequiredCustomField] directly against the screen's
 /// collected controller/select state, independent of what has been built.
 ///
@@ -20,7 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// (a `SliverList` only skips building genuinely off-screen children), so a
 /// small number of widget tests below drive the actual screen with a
 /// shrunk viewport to force that condition, and assert on the resulting
-/// `_handleContinue` behavior (which is otherwise private and not
+/// `_handleAddToCart` behavior (which is otherwise private and not
 /// independently callable without building the screen).
 void main() {
   group('firstMissingRequiredCustomField', () {
@@ -150,10 +152,21 @@ void main() {
     });
   });
 
-  group('WebshopProductDetailScreen Continue button (widget)', () {
+  group('WebshopProductDetailScreen add-to-cart button (widget)', () {
+    setUp(() {
+      // The cart persists to SharedPreferences; give it an in-memory store so
+      // the screen's cart badge builds without a platform channel.
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+    });
+
     Future<void> pumpScreen(WidgetTester tester, WebshopProduct product) {
       return tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            // Pin a signed-out identity rather than standing up the whole
+            // authentication stack (which would try to reach Appwrite).
+            cartUserIdProvider.overrideWithValue(null),
+          ],
           child: MaterialApp(
             home: WebshopProductDetailScreen(product: product),
           ),
@@ -162,7 +175,7 @@ void main() {
     }
 
     testWidgets(
-      'blocks Continue and never shows the checkout snackbar when a '
+      'blocks the add and never puts anything in the cart when a '
       'required field below the fold is blank, without the user scrolling '
       'first',
       (tester) async {
@@ -208,13 +221,13 @@ void main() {
         // genuinely never been built.
         expect(find.textContaining('Shirt size'), findsNothing);
 
-        await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Add to cart'));
         await tester.pumpAndSettle();
 
         // The bug: Form.validate() reports true for an unregistered field,
-        // so the old code fell straight through to this snackbar. It must
-        // not appear.
-        expect(find.text('Checkout is coming soon'), findsNothing);
+        // so the old code fell straight through past the gate. Nothing may
+        // reach the cart.
+        expect(find.textContaining('added to your cart'), findsNothing);
 
         // A clear message naming the *label* (never the fieldKey) is shown,
         // and the fix's scroll logic has brought the field itself into the
@@ -274,8 +287,8 @@ void main() {
     );
 
     testWidgets(
-      'renders with no Continue bar for a product with no custom fields, '
-      'unchanged from before this fix',
+      'offers a product with no custom fields for purchase — every published '
+      'product is buyable, not only those carrying a form',
       (tester) async {
         final product = WebshopProduct(
           id: 'p3',
@@ -287,8 +300,47 @@ void main() {
         await pumpScreen(tester, product);
         await tester.pumpAndSettle();
 
-        expect(find.widgetWithText(FilledButton, 'Continue'), findsNothing);
+        final button = tester.widget<FilledButton>(
+          find.widgetWithText(FilledButton, 'Add to cart'),
+        );
+        expect(button.onPressed, isNotNull);
       },
     );
+
+    testWidgets('refuses to add a sold-out product', (tester) async {
+      final product = WebshopProduct(
+        id: 'p4',
+        images: const [],
+        title: 'Gone product',
+        regularPrice: 20,
+        stock: 0,
+      );
+
+      await pumpScreen(tester, product);
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Sold out'),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('refuses to add a members-only product', (tester) async {
+      final product = WebshopProduct(
+        id: 'p5',
+        images: const [],
+        title: 'Members product',
+        regularPrice: 20,
+        memberOnly: true,
+      );
+
+      await pumpScreen(tester, product);
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Members only'),
+      );
+      expect(button.onPressed, isNull);
+    });
   });
 }

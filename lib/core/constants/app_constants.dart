@@ -21,6 +21,8 @@ class AppConstants {
   static const String chatMessagesCollectionId = 'chat_messages';
   static const String chatParticipantsCollectionId = 'chat_participants';
   static const String chatRoomsCollectionId = 'chat_rooms';
+  static const String webshopProductsCollectionId = 'webshop_products';
+  static const String ordersCollectionId = 'orders';
 
   // API Service
   static const String apiBaseUrl = 'https://api.biso.no';

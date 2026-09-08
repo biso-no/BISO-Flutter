@@ -27,6 +27,10 @@ import 'presentation/screens/explore/marketplace_screen.dart' as market;
 import 'presentation/screens/explore/sell_product_screen.dart';
 import 'presentation/screens/explore/product_detail_screen.dart';
 import 'presentation/screens/explore/webshop_product_detail_screen.dart';
+import 'presentation/screens/shop/cart_screen.dart';
+import 'presentation/screens/shop/checkout_screen.dart';
+import 'presentation/screens/shop/order_screen.dart';
+import 'presentation/screens/shop/orders_screen.dart';
 import 'data/models/webshop_product_model.dart';
 import 'presentation/screens/explore/jobs_screen.dart';
 import 'presentation/screens/explore/expenses_screen.dart';
@@ -248,6 +252,33 @@ final _router = GoRouter(
                   builder: (context, state) => ProductDetailScreen(
                     productId: state.pathParameters['productId']!,
                   ),
+                ),
+                GoRoute(
+                  path: '/cart',
+                  name: 'shop-cart',
+                  builder: (context, state) => const CartScreen(),
+                ),
+                GoRoute(
+                  path: '/checkout',
+                  name: 'shop-checkout',
+                  builder: (context, state) => const CheckoutScreen(),
+                ),
+                // The buyer is sent here before leaving for the payment
+                // provider, and the return deep link lands here too — so
+                // there is always somewhere to come back to, whether they
+                // finish, cancel, or just switch away mid-payment.
+                GoRoute(
+                  path: '/order/:orderId',
+                  name: 'shop-order',
+                  builder: (context, state) => OrderScreen(
+                    orderId: state.pathParameters['orderId']!,
+                    initialStatus: state.uri.queryParameters['status'],
+                  ),
+                ),
+                GoRoute(
+                  path: '/orders',
+                  name: 'shop-orders',
+                  builder: (context, state) => const OrdersScreen(),
                 ),
                 GoRoute(
                   path: '/webshop/:productId',

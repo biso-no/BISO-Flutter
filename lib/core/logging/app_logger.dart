@@ -57,6 +57,21 @@ class AppLogger {
 
   // MARK: - Logging Methods
 
+  /// Whether [initialize] has completed.
+  ///
+  /// A log call before it would otherwise throw a `LateInitializationError`
+  /// from `_talker` — which would turn "we failed to log something" into a
+  /// crash, in exactly the situations (early startup, a widget test, a
+  /// failure on a background isolate) where the log matters most. Every entry
+  /// point below falls back to `debugPrint` instead.
+  static bool get isInitialized => _initialized;
+
+  static void _fallback(String level, String message) {
+    if (kDebugMode) {
+      debugPrint('[$level] $message (logger not initialized)');
+    }
+  }
+
   /// Log debug information (disabled in production)
   static void debug(
     String message, {
@@ -65,6 +80,7 @@ class AppLogger {
     StackTrace? stackTrace,
   }) {
     if (!kDebugMode) return;
+    if (!_initialized) return _fallback('DEBUG', message);
     _talker.debug(message, _buildLogData(extra, error, stackTrace));
   }
 
@@ -75,6 +91,7 @@ class AppLogger {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!_initialized) return _fallback('INFO', message);
     _talker.info(message, _buildLogData(extra, error, stackTrace));
   }
 
@@ -85,6 +102,7 @@ class AppLogger {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!_initialized) return _fallback('WARNING', message);
     _talker.warning(message, _buildLogData(extra, error, stackTrace));
   }
 
@@ -95,6 +113,7 @@ class AppLogger {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!_initialized) return _fallback('ERROR', message);
     _talker.error(message, _buildLogData(extra, error, stackTrace));
   }
 
@@ -105,6 +124,7 @@ class AppLogger {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (!_initialized) return _fallback('FATAL', message);
     _talker.critical(message, _buildLogData(extra, error, stackTrace));
   }
 

@@ -562,6 +562,33 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Campus-Specific**: Filtered by selected campus
 - **Location**: `lib/presentation/screens/explore/marketplace_screen.dart`
 
+#### 🛒 Webshop Checkout & Payments
+- **Cart**: local, per-account and persisted (`shop_cart_v1` in SharedPreferences).
+  A line is a *configuration* — product + variation + the buyer's custom-field
+  answers — so two sizes of one hoodie are two lines. Mirrored into
+  `cart_reservations` through `PUT/DELETE /api/shop/cart` so stock is held the
+  same way the website holds it (best effort; overselling is prevented by the
+  checkout route and the atomic stock decrement, not by the hold).
+- **Pricing is never computed in the app**: `POST /api/payment/checkout/quote`
+  runs the same trusted pipeline the checkout route runs and returns the
+  amounts, so the price shown is the price charged. Checkout rejects a total
+  that disagrees with its own, which is why guessing is not an option — the
+  member discount depends on a 24SO membership lookup the app cannot perform.
+- **Payment providers are asked for, not assumed**: `GET /api/payment/providers`
+  reports each provider's kill switch *and* whether its credentials are
+  configured. `payment_settings` is not readable by end users, so only the
+  server can answer this. Only `available` providers are offered.
+- **Return handling**: checkout is started with `client: "app"`, so
+  `/api/checkout/return` on the website — after it reconciles the payment and
+  posts the invoice — deep-links to `biso://shop/order?orderId=…&status=…`.
+  The deep link is the fast path only; the order screen also verifies on
+  resume and polls while pending, and revenue settlement never depends on the
+  app (the provider webhook and the reconciliation cron cover it).
+- **Location**: `lib/providers/shop/`, `lib/data/services/shop_api_client.dart`,
+  `lib/data/services/order_service.dart`, `lib/presentation/screens/shop/`
+- **Routes**: `/explore/products/cart`, `/explore/products/checkout`,
+  `/explore/products/order/:orderId`, `/explore/products/orders`
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions
 - **Job Details**: Requirements, descriptions, and application info
