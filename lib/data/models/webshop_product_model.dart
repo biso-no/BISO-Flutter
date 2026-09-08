@@ -39,7 +39,6 @@ class WebshopProduct extends Equatable {
   final bool memberOnly;
   final int? stockValue;
   final List<String> tags;
-  final List<String> imageUrls;
   final List<ProductVariation> variations;
   final List<ProductCustomField> customFields;
 
@@ -71,7 +70,6 @@ class WebshopProduct extends Equatable {
     this.memberOnly = false,
     this.stockValue,
     this.tags = const <String>[],
-    this.imageUrls = const <String>[],
     this.variations = const <ProductVariation>[],
     this.customFields = const <ProductCustomField>[],
   });
@@ -186,7 +184,6 @@ class WebshopProduct extends Equatable {
     memberOnly,
     stockValue,
     tags,
-    imageUrls,
     variations,
     customFields,
   ];
