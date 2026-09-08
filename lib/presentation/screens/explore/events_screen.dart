@@ -36,7 +36,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
-  String? _lastVisibleEventsLogKey;
+  String? _lastEventsLogKey;
 
   @override
   void initState() {
@@ -292,10 +292,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : Builder(
                     builder: (context) {
-                      _logVisibleEventsState(
-                        campusId: campusId,
-                        visibleCount: _events.length,
-                      );
+                      _logEventsState(campusId: campusId);
 
                       // The empty state is rendered inside the
                       // RefreshIndicator (via a CustomScrollView so it fills
@@ -434,38 +431,33 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     await _reload();
   }
 
-  void _logVisibleEventsState({
-    required String? campusId,
-    required int visibleCount,
-  }) {
+  void _logEventsState({required String? campusId}) {
     final search = ref.read(eventsSearchTermProvider);
     final key = [
       campusId,
       search,
       _events.length,
-      visibleCount,
       _hasMore,
       _isLoadingMore,
     ].join('|');
-    if (_lastVisibleEventsLogKey == key) return;
-    _lastVisibleEventsLogKey = key;
+    if (_lastEventsLogKey == key) return;
+    _lastEventsLogKey = key;
 
     final extra = {
       'campus_id': campusId,
       'search': search,
       'loaded_count': _events.length,
-      'visible_count': visibleCount,
       'has_more': _hasMore,
       'is_loading_more': _isLoadingMore,
     };
 
-    if (visibleCount == 0) {
+    if (_events.isEmpty) {
       AppLogger.warning(
-        '[EVENTS_SCREEN] No visible events after filters',
+        '[EVENTS_SCREEN] No events loaded for campus',
         extra: extra,
       );
     } else {
-      AppLogger.info('[EVENTS_SCREEN] Rendering visible events', extra: extra);
+      AppLogger.info('[EVENTS_SCREEN] Rendering loaded events', extra: extra);
     }
   }
 }
