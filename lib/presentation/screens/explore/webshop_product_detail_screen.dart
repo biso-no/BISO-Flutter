@@ -522,30 +522,35 @@ class _WebshopProductDetailScreenState
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: FilledButton.icon(
-            onPressed: _handleContinue,
-            icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Continue'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.defaultBlue,
-            ),
-          ),
-        ),
-      ),
+      // Only products with a custom-field form have anything for the
+      // "Continue" action to validate — the other 43 live products render
+      // with no bottom bar, exactly as they did before this form existed.
+      bottomNavigationBar: product.customFields.isNotEmpty
+          ? Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : AppColors.surface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: FilledButton.icon(
+                  onPressed: _handleContinue,
+                  icon: const Icon(Icons.arrow_forward_rounded),
+                  label: const Text('Continue'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppColors.defaultBlue,
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 
