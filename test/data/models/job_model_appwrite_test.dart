@@ -81,13 +81,92 @@ void main() {
       expect(JobModel.fromAppwriteRow(row).tags, isEmpty);
     });
 
-    test('two jobs differing only in a new field are not equal', () {
+    test('two jobs differing only in slug are not equal', () {
+      // Only the `slug` row key changes; fromAppwriteRow maps it 1:1 onto
+      // JobModel.slug with no other field derived from it, so this isolates
+      // slug alone.
       final a = JobModel.fromAppwriteRow(realJobRow);
       final b = JobModel.fromAppwriteRow({
         ...realJobRow,
-        'metadata': '{"tags":["Different"]}',
+        'slug': 'a-different-slug',
       });
       expect(a, isNot(equals(b)));
+    });
+
+    test('two jobs differing only in shortDescription are not equal', () {
+      // Only the nested translation's `short_description` changes; `title`
+      // and `description` on the same translation stay identical, so
+      // resolveLocalizedContent yields the same title/description and only
+      // shortDescription differs.
+      final originalTranslation =
+          (realJobRow['translations'] as List).first as Map<String, dynamic>;
+      final a = JobModel.fromAppwriteRow(realJobRow);
+      final b = JobModel.fromAppwriteRow({
+        ...realJobRow,
+        'translations': [
+          {
+            ...originalTranslation,
+            'short_description': 'A different short description',
+          },
+        ],
+      });
+      expect(a, isNot(equals(b)));
+    });
+
+    test('two jobs differing only in tags are not equal', () {
+      // tags is derived from the `metadata` JSON string, so any row change
+      // that varies tags necessarily varies the `metadata` field too and
+      // cannot isolate tags on its own. Instead, build the second instance
+      // via the constructor directly, copying every field from `a` except
+      // tags (metadata included, unchanged) so only tags varies.
+      final a = JobModel.fromAppwriteRow(realJobRow);
+      final b = JobModel(
+        id: a.id,
+        slug: a.slug,
+        title: a.title,
+        description: a.description,
+        shortDescription: a.shortDescription,
+        department: a.department,
+        departmentId: a.departmentId,
+        departmentLogo: a.departmentLogo,
+        campusId: a.campusId,
+        tags: const ['Different'],
+        type: a.type,
+        category: a.category,
+        requirements: a.requirements,
+        responsibilities: a.responsibilities,
+        skills: a.skills,
+        salary: a.salary,
+        timeCommitment: a.timeCommitment,
+        startDate: a.startDate,
+        url: a.url,
+        endDate: a.endDate,
+        applicationDeadline: a.applicationDeadline,
+        applicationMethod: a.applicationMethod,
+        applicationUrl: a.applicationUrl,
+        applicationEmail: a.applicationEmail,
+        contactPersonName: a.contactPersonName,
+        contactPersonEmail: a.contactPersonEmail,
+        contactPersonPhone: a.contactPersonPhone,
+        maxApplicants: a.maxApplicants,
+        currentApplicants: a.currentApplicants,
+        status: a.status,
+        isUrgent: a.isUrgent,
+        isFeatured: a.isFeatured,
+        benefits: a.benefits,
+        metadata: a.metadata,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+      );
+      expect(a.metadata, equals(b.metadata));
+      expect(a, isNot(equals(b)));
+    });
+
+    test('two jobs built from identical input are equal', () {
+      final a = JobModel.fromAppwriteRow(realJobRow);
+      final b = JobModel.fromAppwriteRow(realJobRow);
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
     });
   });
 }
