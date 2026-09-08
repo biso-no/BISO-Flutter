@@ -263,39 +263,50 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                 // none today) and a failed fetch: the catch in _fetchPage
                 // logs and clears the list, so the two are indistinguishable
                 // from the state this screen keeps. The copy is honest for
-                // either, and pull-to-refresh below is unreachable when the
-                // list is empty, so the subtitle points at the two things
-                // that do work: waiting, and switching campus.
-                if (_jobs.isEmpty) {
-                  return _EmptyState(
-                    icon: Icons.work_off,
-                    title: l10n.noItemsFoundMessage,
-                    subtitle: l10n.checkBackLaterOrSwitchCampusMessage,
-                  );
-                }
-
+                // either, and the empty state is rendered inside the
+                // RefreshIndicator below (via a CustomScrollView so it fills
+                // the viewport and stays scrollable) so pull-to-refresh is
+                // still reachable — exactly when a user staring at an empty
+                // campus would want it.
                 return RefreshIndicator(
                   onRefresh: _reload,
-                  child: ListView.separated(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      if (index >= _jobs.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      final job = _jobs[index];
-                      return _JobCard(
-                        job: job,
-                        onTap: () => _showJobDetails(context, job),
-                      );
-                    },
-                  ),
+                  child: _jobs.isEmpty
+                      ? CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          slivers: [
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(
+                                icon: Icons.work_off,
+                                title: l10n.noItemsFoundMessage,
+                                subtitle:
+                                    l10n.checkBackLaterOrSwitchCampusMessage,
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            if (index >= _jobs.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            final job = _jobs[index];
+                            return _JobCard(
+                              job: job,
+                              onTap: () => _showJobDetails(context, job),
+                            );
+                          },
+                        ),
                 );
               },
             ),

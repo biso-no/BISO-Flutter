@@ -249,41 +249,54 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                         visibleCount: _events.length,
                       );
 
-                      if (_events.isEmpty) {
-                        return _EmptyState(
-                          icon: Icons.event_busy,
-                          title: 'No Events Found',
-                          subtitle:
-                              'There are no events matching your criteria.',
-                        );
-                      }
-
+                      // The empty state is rendered inside the
+                      // RefreshIndicator (via a CustomScrollView so it fills
+                      // the viewport and stays scrollable) so a user looking
+                      // at an empty campus can still pull to refresh.
                       return RefreshIndicator(
                         onRefresh: _reload,
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _events.length + (_isLoadingMore ? 1 : 0),
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            if (index >= _events.length) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final event = _events[index];
-                            return _EventCard(
-                              event: event,
-                              onTap: () {
-                                _showEventDetails(context, event);
-                              },
-                            );
-                          },
-                        ),
+                        child: _events.isEmpty
+                            ? CustomScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  SliverFillRemaining(
+                                    hasScrollBody: false,
+                                    child: _EmptyState(
+                                      icon: Icons.event_busy,
+                                      title: 'No Events Found',
+                                      subtitle:
+                                          'There are no events matching your criteria.',
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : ListView.separated(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.all(16),
+                                itemCount:
+                                    _events.length + (_isLoadingMore ? 1 : 0),
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  if (index >= _events.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+                                  final event = _events[index];
+                                  return _EventCard(
+                                    event: event,
+                                    onTap: () {
+                                      _showEventDetails(context, event);
+                                    },
+                                  );
+                                },
+                              ),
                       );
                     },
                   ),
