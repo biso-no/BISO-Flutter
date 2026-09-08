@@ -36,6 +36,10 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
+  // Extends the campus-only tracking above: the locale is baked into every
+  // fetched page's title/description (see JobService.listJobs), so a
+  // locale change is a load-key change exactly like a campus change is.
+  String? _loadedForLocale;
   String? _lastJobsLogKey;
 
   @override
@@ -60,17 +64,20 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
-  Future<void> _ensureInitialLoad(String? campusId) async {
-    if (_loadedForCampusId == campusId) return;
+  Future<void> _ensureInitialLoad(String? campusId, String locale) async {
+    if (_loadedForCampusId == campusId && _loadedForLocale == locale) return;
     AppLogger.info(
       '[JOBS_SCREEN] Initial load requested',
       extra: {
         'campus_id': campusId,
         'previous_campus_id': _loadedForCampusId,
+        'locale': locale,
+        'previous_locale': _loadedForLocale,
         'existing_count': _jobs.length,
       },
     );
     _loadedForCampusId = campusId;
+    _loadedForLocale = locale;
     _isLoading = true;
     _isLoadingMore = false;
     _jobs.clear();
@@ -104,9 +111,13 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       );
       stopwatch.stop();
 
-      // The campus may have changed while this request was in flight (the
-      // user switched campus mid-fetch). A page fetched for the old campus
-      // must never be appended to the newly reset list for the new one.
+      // The campus or locale may have changed while this request was in
+      // flight (the user switched campus, or the locale changed mid-fetch
+      // — either because the saved preference finished loading
+      // asynchronously or the user switched language while this screen was
+      // mounted). A page fetched for the old campus/locale must never be
+      // appended to the newly reset list for the new one — otherwise the
+      // list can end up mixing languages page to page.
       //
       // Check `mounted` before touching `ref` at all: after dispose,
       // ConsumerStatefulElement.read throws StateError (not just a debug
@@ -114,22 +125,26 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       // dropping silently.
       if (!mounted) return;
       final currentCampusId = ref.read(filterCampusProvider).id;
-      if (currentCampusId != campusId) {
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampusId != campusId || currentLocale != locale) {
         AppLogger.info(
-          '[JOBS_SCREEN] Dropping stale jobs page (campus changed)',
+          '[JOBS_SCREEN] Dropping stale jobs page (campus/locale changed)',
           extra: {
             'requested_campus_id': campusId,
             'current_campus_id': currentCampusId,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
             'page': page,
           },
         );
         // Release the paging latch before dropping this page: a
         // load-more that is discarded must not leave `_isLoadingMore`
-        // latched. Only the campus axis resets it (_ensureInitialLoad),
-        // so any entry point that changes the query without going
-        // through it — as the search axis already does on
-        // events_screen — would strand the trailing spinner and make
-        // _onScroll refuse to page again for the life of the screen.
+        // latched. The campus and locale axes reset it via
+        // _ensureInitialLoad (build() calls it whenever campus or locale
+        // changes, so a replacement page-1 fetch is always queued) — so
+        // any entry point that changes the query without going through it
+        // would strand the trailing spinner and make _onScroll refuse to
+        // page again for the life of the screen.
         if (!replace) {
           setState(() => _isLoadingMore = false);
         }
@@ -194,26 +209,31 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
         },
       );
       if (!mounted) return;
-      // A late failure belongs to whichever campus this fetch was for. If
-      // the user has since switched campus, disabling paging now would
-      // kill it for a campus that never failed.
+      // A late failure belongs to whichever campus/locale this fetch was
+      // for. If the user has since switched campus or locale, disabling
+      // paging now would kill it for a query that never failed.
       final currentCampusId = ref.read(filterCampusProvider).id;
-      if (currentCampusId != campusId) {
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampusId != campusId || currentLocale != locale) {
         AppLogger.info(
-          '[JOBS_SCREEN] Dropping stale jobs page failure (campus changed)',
+          '[JOBS_SCREEN] Dropping stale jobs page failure '
+          '(campus/locale changed)',
           extra: {
             'requested_campus_id': campusId,
             'current_campus_id': currentCampusId,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
             'page': page,
           },
         );
         // Release the paging latch before dropping this page: a
         // load-more that is discarded must not leave `_isLoadingMore`
-        // latched. Only the campus axis resets it (_ensureInitialLoad),
-        // so any entry point that changes the query without going
-        // through it — as the search axis already does on
-        // events_screen — would strand the trailing spinner and make
-        // _onScroll refuse to page again for the life of the screen.
+        // latched. The campus and locale axes reset it via
+        // _ensureInitialLoad (build() calls it whenever campus or locale
+        // changes, so a replacement page-1 fetch is always queued) — so
+        // any entry point that changes the query without going through it
+        // would strand the trailing spinner and make _onScroll refuse to
+        // page again for the life of the screen.
         if (!replace) {
           setState(() => _isLoadingMore = false);
         }
@@ -256,11 +276,17 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final campusId = ref.watch(filterCampusProvider).id;
+    // Watched (not read) so that a locale change — including the saved
+    // preference finishing its async load — triggers this build and
+    // _ensureInitialLoad below, replacing page one instead of leaving
+    // already-loaded titles/descriptions in the old language while later
+    // pages fetch in the new one.
+    final locale = ref.watch(localeProvider).languageCode;
     final isCampusReady =
         ref.watch(campusInitializedProvider) && campusId.isNotEmpty;
-    // Ensure initial load for current campus
+    // Ensure initial load for current campus/locale
     if (isCampusReady) {
-      _ensureInitialLoad(campusId);
+      _ensureInitialLoad(campusId, locale);
     } else {
       AppLogger.debug(
         '[JOBS_SCREEN] Waiting for campus before loading jobs',
