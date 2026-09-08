@@ -8,9 +8,11 @@ import 'appwrite_service.dart';
 class WebshopService {
   static const String collectionId = 'webshop_products';
 
-  /// The relations every webshop products read selects, list/count and
-  /// by-id alike: nested relations are only returned when explicitly
-  /// selected, so a new relation must be added here to reach both reads.
+  /// The relations every webshop products read selects, list and by-id
+  /// alike: nested relations are only returned when explicitly selected, so
+  /// a new relation must be added here to reach both reads. The count read
+  /// intentionally selects only `$id` to avoid fetching whole rows and their
+  /// expanded relations just to read one integer.
   static const List<String> _productSelect = [
     '*',
     'translation_refs.*',
@@ -112,12 +114,13 @@ class WebshopService {
 
   /// Builds the query list for a by-id webshop product read.
   ///
-  /// Shares [_productSelect] with [buildProductQueries]: a relation added to
-  /// one and not the other would leave the by-id read silently missing it.
+  /// Shares [_productSelect] and [_productFilters] with [buildProductQueries]
+  /// and [buildProductCountQueries]: a relation or filter added to one and
+  /// not the other would leave reads silently missing it.
   static List<String> buildProductByIdQueries(String id) {
     return [
       Query.equal(r'$id', id),
-      Query.equal('status', 'published'),
+      ..._productFilters(),
       Query.select(_productSelect),
       Query.limit(1),
     ];
