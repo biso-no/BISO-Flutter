@@ -17,15 +17,11 @@ class WebshopService {
   static List<String> _productFilters({
     String? campusId,
     String? search,
-    String? category,
   }) {
     final queries = <String>[Query.equal('status', 'published')];
 
     if (campusId != null && campusId.isNotEmpty) {
       queries.add(Query.equal('campus_id', campusId));
-    }
-    if (category != null && category.isNotEmpty) {
-      queries.add(Query.equal('category', category));
     }
 
     final term = search?.trim() ?? '';
@@ -42,10 +38,9 @@ class WebshopService {
     int limit = 20,
     int offset = 0,
     String? search,
-    String? category,
   }) {
     return [
-      ..._productFilters(campusId: campusId, search: search, category: category),
+      ..._productFilters(campusId: campusId, search: search),
       // Nested relations are only returned when explicitly selected.
       Query.select([
         '*',
@@ -83,7 +78,6 @@ class WebshopService {
     int limit = 20,
     int offset = 0,
     String? search,
-    String? category,
   }) async {
     final response = await db.listRows(
       databaseId: AppConstants.databaseId,
@@ -93,7 +87,6 @@ class WebshopService {
         limit: limit,
         offset: offset,
         search: search,
-        category: category,
       ),
     );
 
