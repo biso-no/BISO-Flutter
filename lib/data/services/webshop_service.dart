@@ -8,6 +8,16 @@ import 'appwrite_service.dart';
 class WebshopService {
   static const String collectionId = 'webshop_products';
 
+  /// The relations every webshop products read selects, list/count and
+  /// by-id alike: nested relations are only returned when explicitly
+  /// selected, so a new relation must be added here to reach both reads.
+  static const List<String> _productSelect = [
+    '*',
+    'translation_refs.*',
+    'variations.*',
+    'custom_fields.*',
+  ];
+
   /// The filter clauses every webshop products read shares, list and count
   /// alike.
   ///
@@ -42,12 +52,7 @@ class WebshopService {
     return [
       ..._productFilters(campusId: campusId, search: search),
       // Nested relations are only returned when explicitly selected.
-      Query.select([
-        '*',
-        'translation_refs.*',
-        'variations.*',
-        'custom_fields.*',
-      ]),
+      Query.select(_productSelect),
       Query.orderDesc(r'$createdAt'),
       Query.limit(limit),
       Query.offset(offset),
@@ -105,22 +110,25 @@ class WebshopService {
     return response.total;
   }
 
+  /// Builds the query list for a by-id webshop product read.
+  ///
+  /// Shares [_productSelect] with [buildProductQueries]: a relation added to
+  /// one and not the other would leave the by-id read silently missing it.
+  static List<String> buildProductByIdQueries(String id) {
+    return [
+      Query.equal(r'$id', id),
+      Query.equal('status', 'published'),
+      Query.select(_productSelect),
+      Query.limit(1),
+    ];
+  }
+
   /// Reads a single published webshop product by its Appwrite row id.
   Future<WebshopProduct?> getProductById(String id, {String locale = 'no'}) async {
     final response = await db.listRows(
       databaseId: AppConstants.databaseId,
       tableId: collectionId,
-      queries: [
-        Query.equal(r'$id', id),
-        Query.equal('status', 'published'),
-        Query.select([
-          '*',
-          'translation_refs.*',
-          'variations.*',
-          'custom_fields.*',
-        ]),
-        Query.limit(1),
-      ],
+      queries: buildProductByIdQueries(id),
     );
     if (response.rows.isEmpty) return null;
     return WebshopProduct.fromAppwriteRow(

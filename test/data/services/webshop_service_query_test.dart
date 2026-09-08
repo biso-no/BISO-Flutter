@@ -94,4 +94,20 @@ void main() {
       expect(q, hasQuery('equal', containing: ['campus_id', '"3"']));
     });
   });
+
+  group('WebshopService.buildProductByIdQueries', () {
+    test('selects translations, variations and custom fields, like the list read', () {
+      final q = WebshopService.buildProductByIdQueries('product-1');
+      expect(q, hasQuery('select', containing: ['translation_refs.*']));
+      expect(q, hasQuery('select', containing: ['variations.*']));
+      expect(q, hasQuery('select', containing: ['custom_fields.*']));
+      expect(q, hasQuery('select', containing: ['"*"']));
+    });
+
+    test('filters to the requested id and published status', () {
+      final q = WebshopService.buildProductByIdQueries('product-1');
+      expect(q, hasQuery('equal', containing: [r'$id', 'product-1']));
+      expect(q, hasQuery('equal', containing: ['status', 'published']));
+    });
+  });
 }
