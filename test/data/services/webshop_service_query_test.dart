@@ -64,6 +64,15 @@ void main() {
       );
     });
 
+    test('orders descending by \$createdAt, newest product first', () {
+      final q = WebshopService.buildProductQueries();
+      expect(q, hasQuery('orderDesc', containing: [r'$createdAt']));
+      // orderAsc would put the oldest product at the top of the list. More
+      // than cosmetics: the list pages by offset, so without one stable
+      // order the pages would duplicate and skip items.
+      expect(q.any((s) => s.contains('"method":"orderAsc"')), isFalse);
+    });
+
     test('applies the requested limit and offset', () {
       final q = WebshopService.buildProductQueries(limit: 37, offset: 40);
       expect(q, hasQuery('limit', containing: ['37']));

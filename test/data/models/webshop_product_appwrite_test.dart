@@ -49,6 +49,11 @@ void main() {
       expect(p.id, 'wpprod61050');
       expect(p.slug, 'co-payment-biso-sweater-trondheim-2025');
       expect(p.campusId, '3');
+      // `webshop_products` really does use camelCase `departmentId`, unlike
+      // the snake_case `department_id` on `events` and `jobs`. Asserted so
+      // that "harmonising" the key here fails loudly instead of silently
+      // nulling the field.
+      expect(p.departmentId, '11');
       expect(p.regularPrice, 0);
       expect(p.memberPrice, isNull);
       expect(p.memberOnly, isFalse);
@@ -83,6 +88,44 @@ void main() {
         'images': [url],
       });
       expect(p.images.single, url);
+    });
+
+    // Live data has published products carrying a cover in `image` and
+    // nothing in `images`; the fallback decides whether those render their
+    // picture or a grey placeholder.
+    test('falls back to the cover when the images list is empty', () {
+      final p = WebshopProduct.fromAppwriteRow({
+        ...realProductRow,
+        'images': <String>[],
+        'image': 'coveronlyfileid01',
+      });
+      expect(
+        p.images,
+        [
+          contains('/storage/buckets/media/files/coveronlyfileid01/view'),
+        ],
+      );
+    });
+
+    test('falls back to the cover when the images list is absent', () {
+      final row = {...realProductRow, 'image': 'coveronlyfileid02'}
+        ..remove('images');
+      final p = WebshopProduct.fromAppwriteRow(row);
+      expect(
+        p.images,
+        [
+          contains('/storage/buckets/media/files/coveronlyfileid02/view'),
+        ],
+      );
+    });
+
+    test('leaves images empty when neither the list nor the cover is set', () {
+      final p = WebshopProduct.fromAppwriteRow({
+        ...realProductRow,
+        'images': <String>[],
+        'image': null,
+      });
+      expect(p.images, isEmpty);
     });
 
     test('orders custom fields by sort_order regardless of payload order', () {
