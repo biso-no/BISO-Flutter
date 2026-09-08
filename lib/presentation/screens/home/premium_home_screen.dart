@@ -209,17 +209,16 @@ class PremiumHomePage extends ConsumerWidget {
         campusId,
       ) async {
         final service = ref.watch(_webshopServiceProvider);
+        final locale = ref.watch(localeProvider).languageCode;
         final stopwatch = Stopwatch()..start();
         AppLogger.info(
           '[HOME] Loading latest webshop products',
           extra: {'section': 'webshop', 'campus_id': campusId, 'limit': 6},
         );
-        // productsSource routing: woocommerce (default) always goes through
-        // api.biso.no/api/wc-products; appwrite source will be wired in turborepo.
         try {
-          final products = await service.listWebshopProducts(
+          final products = await service.listProducts(
             campusId: campusId,
-            departmentId: null,
+            locale: locale,
             limit: 6,
           );
           stopwatch.stop();
@@ -232,7 +231,7 @@ class PremiumHomePage extends ConsumerWidget {
               'duration_ms': stopwatch.elapsedMilliseconds,
               'sample_ids': products
                   .take(3)
-                  .map((product) => product.id.toString())
+                  .map((product) => product.rowId)
                   .toList(),
             },
           );
@@ -1245,7 +1244,7 @@ class _PremiumWebshopProductCard extends StatelessWidget {
       onTap: () {
         context.pushNamed(
           'webshop-product-detail',
-          pathParameters: {'productId': product.id.toString()},
+          pathParameters: {'productId': product.rowId ?? ''},
           extra: product,
         );
       },

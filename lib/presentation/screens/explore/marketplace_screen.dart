@@ -13,6 +13,7 @@ import '../../../data/services/webshop_service.dart';
 import '../../../data/services/feature_flag_service.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 
 final _productServiceProvider = Provider<ProductService>(
   (ref) => ProductService(),
@@ -87,43 +88,33 @@ final productsProvider = FutureProvider.autoDispose
 final webshopProductsProvider = FutureProvider.autoDispose
     .family<List<WebshopProduct>, _WebshopQuery>((ref, query) async {
       final service = ref.watch(_webshopServiceProvider);
+      final locale = ref.watch(localeProvider).languageCode;
       final stopwatch = Stopwatch()..start();
       AppLogger.info(
         '[MARKETPLACE_SCREEN] Loading webshop products',
         extra: query.toLogMap(),
       );
       try {
-        final products = await service.listWebshopProducts(
+        final products = await service.listProducts(
           campusId: query.campusId,
-          campusName: query.campusName,
-          departmentId: query.departmentId,
+          locale: locale,
           limit: 20,
-          page: 1,
+          search: query.search,
         );
-        final filtered = query.search == null || query.search!.isEmpty
-            ? products
-            : products
-                  .where(
-                    (p) => p.name.toLowerCase().contains(
-                      query.search!.toLowerCase(),
-                    ),
-                  )
-                  .toList(growable: false);
         stopwatch.stop();
         AppLogger.info(
           '[MARKETPLACE_SCREEN] Webshop products loaded',
           extra: {
             ...query.toLogMap(),
-            'raw_count': products.length,
-            'filtered_count': filtered.length,
+            'count': products.length,
             'duration_ms': stopwatch.elapsedMilliseconds,
-            'sample_ids': filtered
+            'sample_ids': products
                 .take(3)
-                .map((product) => product.id.toString())
+                .map((product) => product.rowId)
                 .toList(),
           },
         );
-        return filtered;
+        return products;
       } catch (error, stackTrace) {
         stopwatch.stop();
         AppLogger.error(
@@ -231,21 +222,24 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     try {
       final service = ref.read(_webshopServiceProvider);
       final campus = ref.read(filterCampusProvider);
+      final locale = ref.read(localeProvider).languageCode;
+      final offset = (_currentPage - 1) * _pageSize;
       AppLogger.info(
         '[MARKETPLACE_SCREEN] Loading more webshop products',
         extra: {
           'campus_name': campus.name,
           'page': _currentPage,
+          'offset': offset,
           'page_size': _pageSize,
           'current_count': _webshopAccumulated.length,
         },
       );
-      final next = await service.listWebshopProducts(
+      final next = await service.listProducts(
         campusId: campus.id,
-        campusName: campus.name,
-        departmentId: null,
+        locale: locale,
         limit: _pageSize,
-        page: _currentPage,
+        offset: offset,
+        search: _search,
       );
       stopwatch.stop();
       setState(() {
@@ -893,7 +887,7 @@ class _WebshopProductCard extends StatelessWidget {
       onTap: () {
         context.pushNamed(
           'webshop-product-detail',
-          pathParameters: {'productId': product.id.toString()},
+          pathParameters: {'productId': product.rowId ?? ''},
           extra: product,
         );
       },
