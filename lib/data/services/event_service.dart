@@ -139,11 +139,3 @@ class EventService {
     return response.total;
   }
 }
-
-class EventException implements Exception {
-  final String message;
-  EventException(this.message);
-
-  @override
-  String toString() => message;
-}
