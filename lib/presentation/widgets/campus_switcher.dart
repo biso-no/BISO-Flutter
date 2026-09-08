@@ -511,6 +511,12 @@ class _CampusCard extends StatelessWidget {
                           value: campus.stats.activeEvents.toString(),
                           label: 'Events',
                         ),
+                        const SizedBox(width: 16),
+                        _StatBadge(
+                          icon: Icons.work,
+                          value: campus.stats.availableJobs.toString(),
+                          label: 'Jobs',
+                        ),
                         const Spacer(),
                         if (campus.weather != null)
                           Row(
