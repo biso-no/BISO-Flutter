@@ -108,16 +108,26 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       );
       stopwatch.stop();
 
-      // The campus may have changed while this request was in flight (the
-      // user switched campus mid-fetch). A page fetched for the old campus
-      // must never be appended to the newly reset list for the new one.
+      // The campus or search term may have changed while this request was
+      // in flight (the user switched campus, or edited the search, mid-
+      // fetch). A page fetched for the old campus/search must never be
+      // appended to the newly reset list for the new one.
+      //
+      // Check `mounted` before touching `ref` at all: after dispose,
+      // ConsumerStatefulElement.read throws StateError (not just a debug
+      // assert), so reading providers here first would crash instead of
+      // dropping silently.
+      if (!mounted) return;
       final currentCampusId = ref.read(filterCampusProvider).id;
-      if (!mounted || currentCampusId != campusId) {
+      final currentSearch = ref.read(eventsSearchTermProvider);
+      if (currentCampusId != campusId || currentSearch != searchTerm) {
         AppLogger.info(
-          '[EVENTS_SCREEN] Dropping stale events page (campus changed)',
+          '[EVENTS_SCREEN] Dropping stale events page (campus/search changed)',
           extra: {
             'requested_campus_id': campusId,
             'current_campus_id': currentCampusId,
+            'requested_search': searchTerm,
+            'current_search': currentSearch,
             'page': page,
           },
         );
@@ -166,13 +176,31 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           'duration_ms': stopwatch.elapsedMilliseconds,
         },
       );
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isLoadingMore = false;
-          _hasMore = false;
-        });
+      if (!mounted) return;
+      // A late failure belongs to whichever campus/search this fetch was
+      // for. If the user has since switched campus (or search), disabling
+      // paging now would kill it for a campus that never failed.
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      final currentSearch = ref.read(eventsSearchTermProvider);
+      if (currentCampusId != campusId || currentSearch != searchTerm) {
+        AppLogger.info(
+          '[EVENTS_SCREEN] Dropping stale events page failure '
+          '(campus/search changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'requested_search': searchTerm,
+            'current_search': currentSearch,
+            'page': page,
+          },
+        );
+        return;
       }
+      setState(() {
+        _isLoading = false;
+        _isLoadingMore = false;
+        _hasMore = false;
+      });
     }
   }
 

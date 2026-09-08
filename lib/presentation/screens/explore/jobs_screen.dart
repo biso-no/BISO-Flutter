@@ -107,8 +107,14 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       // The campus may have changed while this request was in flight (the
       // user switched campus mid-fetch). A page fetched for the old campus
       // must never be appended to the newly reset list for the new one.
+      //
+      // Check `mounted` before touching `ref` at all: after dispose,
+      // ConsumerStatefulElement.read throws StateError (not just a debug
+      // assert), so reading providers here first would crash instead of
+      // dropping silently.
+      if (!mounted) return;
       final currentCampusId = ref.read(filterCampusProvider).id;
-      if (!mounted || currentCampusId != campusId) {
+      if (currentCampusId != campusId) {
         AppLogger.info(
           '[JOBS_SCREEN] Dropping stale jobs page (campus changed)',
           extra: {
@@ -177,13 +183,27 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           'duration_ms': stopwatch.elapsedMilliseconds,
         },
       );
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isLoadingMore = false;
-          _hasMore = false;
-        });
+      if (!mounted) return;
+      // A late failure belongs to whichever campus this fetch was for. If
+      // the user has since switched campus, disabling paging now would
+      // kill it for a campus that never failed.
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      if (currentCampusId != campusId) {
+        AppLogger.info(
+          '[JOBS_SCREEN] Dropping stale jobs page failure (campus changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'page': page,
+          },
+        );
+        return;
       }
+      setState(() {
+        _isLoading = false;
+        _isLoadingMore = false;
+        _hasMore = false;
+      });
     }
   }
 

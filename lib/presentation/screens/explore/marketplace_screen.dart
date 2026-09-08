@@ -224,10 +224,15 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     setState(() => _isLoadingMore = true);
     _currentPage += 1;
     final stopwatch = Stopwatch()..start();
+    // Captured before the await so the request and its later staleness
+    // check agree on which query this fetch was for, even though `_search`
+    // is a mutable field that `_onSearchChanged` can reassign while this is
+    // in flight.
+    final campus = ref.read(filterCampusProvider);
+    final locale = ref.read(localeProvider).languageCode;
+    final search = _search;
     try {
       final service = ref.read(_webshopServiceProvider);
-      final campus = ref.read(filterCampusProvider);
-      final locale = ref.read(localeProvider).languageCode;
       final offset = (_currentPage - 1) * _pageSize;
       AppLogger.info(
         '[MARKETPLACE_SCREEN] Loading more webshop products',
@@ -244,29 +249,38 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         locale: locale,
         limit: _pageSize,
         offset: offset,
-        search: _search,
+        search: search,
       );
       stopwatch.stop();
 
-      // The campus or locale may have changed while this request was in
-      // flight. Unlike events/jobs, the webshop provider itself
+      // The campus, locale, or search may have changed while this request
+      // was in flight. Unlike events/jobs, the webshop provider itself
       // ref.watches locale (so a locale change already refetches page 1
-      // under a new family key) — but this paging method still reads both
-      // via ref.read, so a page fetched for the old campus/locale must
-      // never be appended to the accumulator for the new one.
+      // under a new family key) — but this paging method still reads
+      // campus/locale via ref.read and search via the `_search` field, so a
+      // page fetched for the old campus/locale/search must never be
+      // appended to the accumulator for the new one.
+      //
+      // Check `mounted` before touching `ref` at all: after dispose,
+      // ConsumerStatefulElement.read throws StateError (not just a debug
+      // assert), so reading providers here first would crash instead of
+      // dropping silently.
+      if (!mounted) return;
       final currentCampus = ref.read(filterCampusProvider);
       final currentLocale = ref.read(localeProvider).languageCode;
-      if (!mounted ||
-          currentCampus.id != campus.id ||
-          currentLocale != locale) {
+      if (currentCampus.id != campus.id ||
+          currentLocale != locale ||
+          _search != search) {
         AppLogger.info(
           '[MARKETPLACE_SCREEN] Dropping stale webshop page '
-          '(campus/locale changed)',
+          '(campus/locale/search changed)',
           extra: {
             'requested_campus_id': campus.id,
             'current_campus_id': currentCampus.id,
             'requested_locale': locale,
             'current_locale': currentLocale,
+            'requested_search': search,
+            'current_search': _search,
             'page': _currentPage,
           },
         );
@@ -301,6 +315,30 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           'duration_ms': stopwatch.elapsedMilliseconds,
         },
       );
+      if (!mounted) return;
+      // A late failure belongs to whichever campus/locale/search this
+      // fetch was for. If the user has since switched away, disabling
+      // paging now would kill it for a campus/search that never failed.
+      final currentCampus = ref.read(filterCampusProvider);
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampus.id != campus.id ||
+          currentLocale != locale ||
+          _search != search) {
+        AppLogger.info(
+          '[MARKETPLACE_SCREEN] Dropping stale webshop page failure '
+          '(campus/locale/search changed)',
+          extra: {
+            'requested_campus_id': campus.id,
+            'current_campus_id': currentCampus.id,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'requested_search': search,
+            'current_search': _search,
+            'page': _currentPage,
+          },
+        );
+        return;
+      }
       setState(() {
         _isLoadingMore = false;
         _hasMore = false;
