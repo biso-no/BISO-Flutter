@@ -507,13 +507,6 @@ class _CampusCard extends StatelessWidget {
                     Row(
                       children: [
                         _StatBadge(
-                          icon: Icons.people,
-                          value:
-                              '${(campus.stats.studentCount / 1000).toStringAsFixed(1)}k',
-                          label: 'Students',
-                        ),
-                        const SizedBox(width: 16),
-                        _StatBadge(
                           icon: Icons.event,
                           value: campus.stats.activeEvents.toString(),
                           label: 'Events',

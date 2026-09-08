@@ -131,6 +131,9 @@ class CampusService {
         'total_documents': results.total,
       });
 
+      final eventService = EventService();
+      final jobService = JobService();
+
       final futures = results.rows.map((doc) async {
         final campusDoc = doc.data;
         final String id = campusDoc['\$id']?.toString() ?? '';
@@ -149,6 +152,12 @@ class CampusService {
             ? await _getWeatherForCampusName(name)
             : null;
 
+        final stats = await _getSwitcherStats(
+          eventService: eventService,
+          jobService: jobService,
+          campusId: id,
+        );
+
         return CampusModel(
           id: id,
           name: name,
@@ -157,7 +166,7 @@ class CampusService {
           imageUrl: '',
           heroImageUrl: '',
           weather: weather,
-          stats: const CampusStats(),
+          stats: stats,
           metadata: const {},
         );
       }).toList(growable: false);
@@ -537,6 +546,50 @@ class CampusService {
       });
       return [];
     }
+  }
+
+  // Lightweight stats for the campus switcher: real event/job counts only.
+  // Each counter degrades to 0 independently on failure so one failing
+  // count never blanks the whole switcher (mirrors _getCampusStats below).
+  Future<CampusStats> _getSwitcherStats({
+    required EventService eventService,
+    required JobService jobService,
+    required String campusId,
+  }) async {
+    Future<int> fetchEvents() async {
+      try {
+        return await eventService.countEvents(
+          campusId: campusId,
+          includePast: false,
+        );
+      } catch (e) {
+        logError('CampusService._getSwitcherStats: events count failed', error: e, context: {
+          'campus_id': campusId,
+        });
+        return 0;
+      }
+    }
+
+    Future<int> fetchJobs() async {
+      try {
+        return await jobService.countJobs(
+          campusId: campusId,
+          includeExpired: false,
+        );
+      } catch (e) {
+        logError('CampusService._getSwitcherStats: jobs count failed', error: e, context: {
+          'campus_id': campusId,
+        });
+        return 0;
+      }
+    }
+
+    final results = await Future.wait<int>([fetchEvents(), fetchJobs()]);
+
+    return CampusStats(
+      activeEvents: results[0],
+      availableJobs: results[1],
+    );
   }
 
   Future<CampusStats> _getCampusStats(String campusId) async {
