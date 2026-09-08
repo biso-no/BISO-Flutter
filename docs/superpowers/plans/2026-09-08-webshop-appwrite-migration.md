@@ -409,7 +409,7 @@ Additive. The existing WooCommerce fields (`id` as `int`, `name`, `price` as `St
 **Interfaces:**
 - Consumes: `ContentTranslation.listFrom`, `resolveLocalizedContent`, `appwriteImageUrl`, `appwriteImageUrls` (shared layer); `ProductVariation`, `ProductCustomField` (Task 1).
 - Produces: `factory WebshopProduct.fromAppwriteRow(Map<String, dynamic> row, {String locale = 'no'})`, plus new fields:
-  `final String? rowId, slug, title, shortDescription, htmlDescription, category, campusIdValue, departmentIdValue, linkedEventId, inventoryMode, status; final double regularPriceValue; final double? memberPriceValue; final bool memberOnly; final int? stockValue; final List<String> tags, imageUrls; final List<ProductVariation> variations; final List<ProductCustomField> customFields;`
+  `final String? rowId, slug, title, shortDescription, htmlDescription, category, campusIdValue, departmentIdValue, linkedEventId, inventoryMode, status; final double regularPriceValue; final double? memberPriceValue; final bool memberOnly; final int? stockValue; final List<String> tags; final List<ProductVariation> variations; final List<ProductCustomField> customFields;`
 
 The existing `images` field is reused rather than duplicated — the Woo model already holds a `List<String> images`, and the factory fills it with normalized URLs. The awkward `…Value` / `…Id` suffixes exist only because the legacy Woo fields occupy those plain names. **Task 4 renames them to the plain names** once the legacy fields are gone.
 
