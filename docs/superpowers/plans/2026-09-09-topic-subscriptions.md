@@ -2093,10 +2093,21 @@ class _NotificationTopicsPromptState
       debugPrint('NotificationTopicsPrompt: could not save intent: $e');
     }
 
-    await service.requestPermission();
-    await service.reconcile(campusId: campusId);
-
-    if (mounted) Navigator.of(context).pop();
+    // The sheet closes whatever happens here. Intent is already stored, and the
+    // launch reconciler retries on the next start — whereas leaving `_saving`
+    // true on a throw would strand the student behind a sheet that is
+    // deliberately non-dismissible, with no way out but killing the app.
+    try {
+      await service.requestPermission();
+      await service.reconcile(campusId: campusId);
+    } catch (e) {
+      debugPrint('NotificationTopicsPrompt: could not subscribe now: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   @override
@@ -2153,11 +2164,32 @@ class _NotificationTopicsPromptState
   }
 }
 
+/// True while a prompt is being decided on or displayed.
+///
+/// `BisoApp` rebuilds whenever the launch reconciler transitions, which happens
+/// on the same auth change that makes the prompt eligible and again when the
+/// network work finishes — routinely while the sheet is still open. The stored
+/// marker is not written until the student taps Continue, so it cannot prevent
+/// a second, stacked, non-dismissible sheet on its own. This flag is claimed
+/// synchronously, before the first await, so two rebuilds in one turn cannot
+/// both get past it.
+bool _promptInFlight = false;
+
 /// Show the prompt if this student has not answered it yet.
 ///
-/// Safe to call on every build — it checks the stored marker first and does
-/// nothing for anyone who has already chosen.
+/// Safe to call on every build — it checks the in-flight flag and the stored
+/// marker, and does nothing for anyone who has already chosen.
 Future<void> maybeShowTopicsPrompt(BuildContext context, WidgetRef ref) async {
+  if (_promptInFlight) return;
+  _promptInFlight = true;
+  try {
+    await _showTopicsPrompt(context, ref);
+  } finally {
+    _promptInFlight = false;
+  }
+}
+
+Future<void> _showTopicsPrompt(BuildContext context, WidgetRef ref) async {
   final service = ref.read(notificationServiceProvider);
   if (await service.hasAnsweredTopicPrompt()) return;
   if (!context.mounted) return;
