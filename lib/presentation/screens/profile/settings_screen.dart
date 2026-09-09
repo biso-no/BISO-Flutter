@@ -628,10 +628,21 @@ class _NotificationSettingsTab extends ConsumerWidget {
                       title: topic.label,
                       subtitle: _topicSubtitle(topic),
                       isEnabled: intent[topic.id] ?? false,
-                      onChanged: (value) {
-                        ref
+                      onChanged: (value) async {
+                        final ok = await ref
                             .read(topicIntentProvider.notifier)
                             .setTopic(topic.id, value);
+                        if (!(ok || context.mounted)) return;
+                        if (!ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Could not update ${topic.label} notifications. '
+                                'Check your connection and try again.',
+                              ),
+                            ),
+                          );
+                        }
                       },
                       selectedCampus: selectedCampus,
                     ),
@@ -645,9 +656,20 @@ class _NotificationSettingsTab extends ConsumerWidget {
             ),
             error: (error, _) => Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                'Could not load your notification settings. Pull to retry.',
-                style: theme.textTheme.bodyMedium,
+              child: Column(
+                children: [
+                  Text(
+                    'Could not load your notification settings.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () =>
+                        ref.read(topicIntentProvider.notifier).refresh(),
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
             ),
           ),

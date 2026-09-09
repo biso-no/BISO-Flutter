@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:appwrite/appwrite.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/app_notification_model.dart';
@@ -110,8 +111,9 @@ final notificationPreferencesProvider =
 /// The student's topic intent, and the only UI entry point for changing it.
 ///
 /// Every change writes intent first, then reconciles this device's Appwrite
-/// subscriptions to match. A failed reconcile surfaces as an error state rather
-/// than leaving a switch asserting a subscription that does not exist.
+/// subscriptions to match. A failed reconcile reverts the optimistic update
+/// and reports failure to the caller, rather than surfacing an error state
+/// that would hide every switch (see [setTopic]).
 class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   TopicIntentNotifier(this._service, this._campusId)
     : super(const AsyncValue.loading()) {
@@ -123,15 +125,27 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
   Future<void> _load() async {
     try {
-      state = AsyncValue.data(await _service.loadTopicIntent());
+      final intent = await _service.loadTopicIntent();
+      if (mounted) state = AsyncValue.data(intent);
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      debugPrint('TopicIntentNotifier load failed: $error');
+      if (mounted) state = AsyncValue.error(error, stackTrace);
     }
   }
 
-  Future<void> setTopic(String topicId, bool enabled) async {
+  /// Returns true when the change was saved and this device reconciled.
+  ///
+  /// A failure reverts the switch and returns false; the caller tells the
+  /// student. The state stays `AsyncValue.data` throughout — deliberately.
+  /// Riverpod flushes at most one notification per event-loop turn, so
+  /// assigning `data(current)` and then `error(...)` would render only the
+  /// error: the revert would never be seen, and the whole card would be
+  /// replaced by an error message that hides all four switches. Since this
+  /// provider is not autoDispose, nothing short of an app restart would bring
+  /// them back.
+  Future<bool> setTopic(String topicId, bool enabled) async {
     final current = state.value;
-    if (current == null) return;
+    if (current == null) return false;
 
     final updated = <String, bool>{...current, topicId: enabled};
     // Optimistic, so the switch responds immediately.
@@ -139,10 +153,13 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     try {
       await _service.saveTopicIntent(updated);
       await _service.reconcile(campusId: _campusId);
-    } catch (error, stackTrace) {
-      // Put the switch back rather than leave the UI claiming something untrue.
-      state = AsyncValue.data(current);
-      state = AsyncValue.error(error, stackTrace);
+      return true;
+    } catch (error) {
+      debugPrint('TopicIntentNotifier.setTopic($topicId) failed: $error');
+      // The sole terminal state, so the revert is what the student actually
+      // sees: the switch goes back and the card stays usable.
+      if (mounted) state = AsyncValue.data(current);
+      return false;
     }
   }
 
