@@ -8,9 +8,11 @@ import 'package:permission_handler/permission_handler.dart'
 import 'package:appwrite/appwrite.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/notification_topics.dart';
 import 'appwrite_service.dart';
 import 'deep_link_service.dart';
 import 'device_subscription_store.dart';
+import 'topic_reconciler.dart';
 
 /// Reads the stored topic flags out of an Appwrite prefs value.
 ///
@@ -50,6 +52,15 @@ Map<String, String> decodeTopicSubscriberIds(Object? value) {
 /// Not `'fcm'`. The project has no provider by that name, and passing it is why
 /// push targets were never created.
 const String kFcmProviderId = 'push';
+
+/// Per-user intent: which logical topics this student wants. Campus-free.
+const String kTopicIntentPrefKey = 'notification_topics';
+
+/// Marks the first-run prompt as answered. Its absence is what triggers it.
+const String kTopicIntentSetAtPrefKey = 'notification_topics_set_at';
+
+/// The pre-migration key, still read once to carry old choices forward.
+const String kLegacyTopicSubscriptionsPrefKey = 'topic_subscriptions';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -280,6 +291,128 @@ class NotificationService {
     }
     await _store.writeTargetId(targetId);
     _pushTargetId = targetId;
+  }
+
+  /// The student's topic intent, migrating a pre-existing legacy map if that is
+  /// all the account has.
+  Future<Map<String, bool>> loadTopicIntent() async {
+    try {
+      final prefs = await _account.getPrefs();
+      final stored = decodeTopicSubscriptions(prefs.data[kTopicIntentPrefKey]);
+      if (stored != null) {
+        return <String, bool>{...kDefaultTopicIntent, ...stored}
+          ..removeWhere((key, _) => !kDefaultTopicIntent.containsKey(key));
+      }
+      return migrateLegacyIntent(
+        decodeTopicSubscriptions(prefs.data[kLegacyTopicSubscriptionsPrefKey]),
+      );
+    } catch (e) {
+      debugPrint('loadTopicIntent failed: $e');
+      return Map<String, bool>.from(kDefaultTopicIntent);
+    }
+  }
+
+  /// Persist intent and mark the prompt answered.
+  ///
+  /// Written before the OS permission request and regardless of its outcome: a
+  /// student who declines the system dialog has still expressed a preference,
+  /// and it takes effect if they enable notifications later.
+  Future<void> saveTopicIntent(Map<String, bool> intent) async {
+    final prefs = await _account.getPrefs();
+    final updated = Map<String, dynamic>.from(prefs.data);
+    updated[kTopicIntentPrefKey] = intent;
+    updated[kTopicIntentSetAtPrefKey] = DateTime.now().toIso8601String();
+    await _account.updatePrefs(prefs: updated);
+  }
+
+  /// Whether this student has already been asked to pick topics.
+  ///
+  /// A legacy `topic_subscriptions` map counts as answered — they chose once
+  /// already, under the old names, and should not be re-prompted just because
+  /// the storage changed.
+  Future<bool> hasAnsweredTopicPrompt() async {
+    try {
+      final prefs = await _account.getPrefs();
+      if (prefs.data[kTopicIntentSetAtPrefKey] != null) return true;
+      return decodeTopicSubscriptions(
+            prefs.data[kLegacyTopicSubscriptionsPrefKey],
+          ) !=
+          null;
+    } catch (e) {
+      debugPrint('hasAnsweredTopicPrompt failed: $e');
+      // Fail closed: do not interrupt a student because a read failed.
+      return true;
+    }
+  }
+
+  /// Bring this device's Appwrite subscriptions in line with the student's
+  /// intent for [campusId].
+  ///
+  /// Idempotent by construction — it diffs desired against observed rather than
+  /// replaying toggles — so it is safe to call on every launch, and two devices
+  /// on one account reconcile independently without coordinating.
+  Future<void> reconcile({required String? campusId}) async {
+    if (!await areNotificationsEnabled()) {
+      debugPrint('reconcile: notifications not permitted; intent kept for later');
+      return;
+    }
+
+    final token = _fcmToken ?? await _firebaseMessaging.getToken();
+    if (token == null) {
+      debugPrint('reconcile: no FCM token; skipping');
+      return;
+    }
+    _fcmToken = token;
+
+    final targetId = await resolvePushTarget(token);
+    if (targetId == null) {
+      debugPrint('reconcile: no push target; skipping subscription changes');
+      return;
+    }
+
+    final intent = await loadTopicIntent();
+    final desired = appwriteTopicIdsFor(intent: intent, campusId: campusId);
+    final current = await _store.readSubscriberIds();
+    final diff = computeTopicDiff(desired: desired, current: current);
+    if (diff.isEmpty) return;
+
+    final updated = Map<String, String>.from(current);
+
+    for (final topicId in diff.toCreate) {
+      try {
+        final subscriber = await _messaging.createSubscriber(
+          topicId: topicId,
+          subscriberId: ID.unique(),
+          targetId: targetId,
+        );
+        updated[topicId] = subscriber.$id;
+      } on AppwriteException catch (e) {
+        // Best-effort per topic: one failure must not abort the rest. The next
+        // reconcile retries, because the diff recomputes from observed state.
+        debugPrint('reconcile: subscribe to $topicId failed (${e.code}) ${e.message}');
+      }
+    }
+
+    for (final topicId in diff.toDelete) {
+      final subscriberId = updated[topicId];
+      if (subscriberId == null) continue;
+      try {
+        await _messaging.deleteSubscriber(
+          topicId: topicId,
+          subscriberId: subscriberId,
+        );
+        updated.remove(topicId);
+      } on AppwriteException catch (e) {
+        if (e.code == 404) {
+          // Already gone server-side; stop tracking it.
+          updated.remove(topicId);
+          continue;
+        }
+        debugPrint('reconcile: unsubscribe from $topicId failed (${e.code}) ${e.message}');
+      }
+    }
+
+    await _store.writeSubscriberIds(updated);
   }
 
   /// Update chat notification preference in Appwrite
