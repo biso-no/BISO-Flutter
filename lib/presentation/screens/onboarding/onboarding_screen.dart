@@ -140,6 +140,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authStateProvider);
+
     return Scaffold(
       appBar: AppBar(
         leading: _currentStep > 0
@@ -190,6 +192,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           setState(() => _selectedCampusId = campusId);
                         },
                         onNext: _completeOnboarding,
+                        isLoading: authState.isLoading,
                       ),
                     ],
                   ),
@@ -428,12 +431,14 @@ class _CampusSelectionStep extends StatelessWidget {
   final String? selectedCampusId;
   final Function(String) onCampusSelected;
   final VoidCallback onNext;
+  final bool isLoading;
 
   const _CampusSelectionStep({
     required this.campuses,
     required this.selectedCampusId,
     required this.onCampusSelected,
     required this.onNext,
+    required this.isLoading,
   });
 
   @override
@@ -536,8 +541,21 @@ class _CampusSelectionStep extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 20), // Extra padding for keyboard
             child: ElevatedButton(
-              onPressed: selectedCampusId != null ? onNext : null,
-              child: Text(l10n.completeSetupMessage),
+              onPressed: (selectedCampusId != null && !isLoading)
+                  ? onNext
+                  : null,
+              child: isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
+                      ),
+                    )
+                  : Text(l10n.completeSetupMessage),
             ),
           ),
         ],
