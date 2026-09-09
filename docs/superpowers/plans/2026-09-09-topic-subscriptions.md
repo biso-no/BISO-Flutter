@@ -24,6 +24,7 @@
 - **Never swallow an Appwrite error into a generic string.** Every `catch` logs the actual exception (code and message). The bug this plan fixes hid for months behind a generic `debugPrint`.
 - **Dart tests use hand-written fakes**, not mockito/mocktail — neither is a dependency. Subclass the Appwrite service and override the method, following `test/data/services/notification_service_retry_test.dart`.
 - **Run Flutter tests with** `flutter test <path>` from `/Users/markus/Documents/dev/BISO-Flutter`.
+- **Never reformat a config file.** The two `appwrite.config.json` files use different indent widths - Flutter's is 4 spaces, Sites' is 2. Any script that rewrites one must detect and preserve its existing width, or a 21-line change lands as a 10,000-line diff. Verify with `git diff --stat` before committing: the insertion count should be within a few lines of what you actually added.
 - **Rollout order is load-bearing.** Task 1 *adds* topics; Task 12 *removes* the old ones, and only after Tasks 10–11 have shipped. Removing them earlier breaks live event pushes.
 
 ## File Structure
@@ -91,9 +92,26 @@ Run this from `/Users/markus/Documents/dev/BISO-Flutter`. It preserves the exist
 
 ```bash
 python3 - <<'PY'
-import json, collections
+import json, collections, re
+
+def load(path):
+    """Load the config, remembering its existing indent width.
+
+    The two repos' configs are not formatted the same way - Flutter's uses 4
+    spaces, Sites' uses 2 - and rewriting one with the other's width reformats
+    every line of a 10,000-line file, burying a 21-line change. Preserve it.
+    """
+    text = open(path).read()
+    m = re.search(r'^( +)"', text, re.M)
+    indent = len(m.group(1)) if m else 2
+    return json.load(open(path), object_pairs_hook=collections.OrderedDict), indent
+
+def save(path, d, indent):
+    json.dump(d, open(path, 'w'), indent=indent, ensure_ascii=False)
+    open(path, 'a').write('\n')
+
 p = 'appwrite.config.json'
-d = json.load(open(p), object_pairs_hook=collections.OrderedDict)
+d, indent = load(p)
 CAMPUS = [('oslo','Oslo'),('bergen','Bergen'),('trondheim','Trondheim'),
           ('stavanger','Stavanger'),('national','National')]
 LOGICAL = [('news','News'),('events','Events'),('jobs','Jobs'),('shop','Shop')]
@@ -109,8 +127,7 @@ if 'general' not in existing:
     added.append({'$id': 'general', 'name': 'Important announcements',
                   'subscribe': ['users']})
 d['topics'] = list(d.get('topics', [])) + added
-json.dump(d, open(p,'w'), indent=4, ensure_ascii=False)
-open(p,'a').write('\n')
+save(p, d, indent)
 print(f'added {len(added)} topics; total {len(d["topics"])}')
 PY
 ```
@@ -121,9 +138,26 @@ Expected output: `added 21 topics; total 26`
 
 ```bash
 cd /Users/markus/Documents/dev/BISO-Sites && python3 - <<'PY'
-import json, collections
+import json, collections, re
+
+def load(path):
+    """Load the config, remembering its existing indent width.
+
+    The two repos' configs are not formatted the same way - Flutter's uses 4
+    spaces, Sites' uses 2 - and rewriting one with the other's width reformats
+    every line of a 10,000-line file, burying a 21-line change. Preserve it.
+    """
+    text = open(path).read()
+    m = re.search(r'^( +)"', text, re.M)
+    indent = len(m.group(1)) if m else 2
+    return json.load(open(path), object_pairs_hook=collections.OrderedDict), indent
+
+def save(path, d, indent):
+    json.dump(d, open(path, 'w'), indent=indent, ensure_ascii=False)
+    open(path, 'a').write('\n')
+
 p = 'packages/api/appwrite.config.json'
-d = json.load(open(p), object_pairs_hook=collections.OrderedDict)
+d, indent = load(p)
 CAMPUS = [('oslo','Oslo'),('bergen','Bergen'),('trondheim','Trondheim'),
           ('stavanger','Stavanger'),('national','National')]
 LOGICAL = [('news','News'),('events','Events'),('jobs','Jobs'),('shop','Shop')]
@@ -139,8 +173,7 @@ if 'general' not in existing:
     added.append({'$id': 'general', 'name': 'Important announcements',
                   'subscribe': ['users']})
 d['topics'] = list(d.get('topics', [])) + added
-json.dump(d, open(p,'w'), indent=4, ensure_ascii=False)
-open(p,'a').write('\n')
+save(p, d, indent)
 print(f'added {len(added)} topics; total {len(d["topics"])}')
 PY
 ```
@@ -2684,15 +2717,31 @@ Note the admin composer's `TOPIC_OPTIONS` in `announcement-studio-editor.tsx` **
 
 ```bash
 python3 - <<'PY'
-import json, collections
+import json, collections, re
+
+def load(path):
+    """Load the config, remembering its existing indent width.
+
+    The two repos' configs are not formatted the same way - Flutter's uses 4
+    spaces, Sites' uses 2 - and rewriting one with the other's width reformats
+    every line of a 10,000-line file, burying a 21-line change. Preserve it.
+    """
+    text = open(path).read()
+    m = re.search(r'^( +)"', text, re.M)
+    indent = len(m.group(1)) if m else 2
+    return json.load(open(path), object_pairs_hook=collections.OrderedDict), indent
+
+def save(path, d, indent):
+    json.dump(d, open(path, 'w'), indent=indent, ensure_ascii=False)
+    open(path, 'a').write('\n')
+
 LEGACY = {'news', 'events', 'expenses', 'orders', 'jobs'}
 for p in ['/Users/markus/Documents/dev/BISO-Flutter/appwrite.config.json',
           '/Users/markus/Documents/dev/BISO-Sites/packages/api/appwrite.config.json']:
-    d = json.load(open(p), object_pairs_hook=collections.OrderedDict)
+    d, indent = load(p)
     before = len(d['topics'])
     d['topics'] = [t for t in d['topics'] if t['$id'] not in LEGACY]
-    json.dump(d, open(p,'w'), indent=4, ensure_ascii=False)
-    open(p,'a').write('\n')
+    save(p, d, indent)
     print(f'{p}: {before} -> {len(d["topics"])}')
 PY
 ```
