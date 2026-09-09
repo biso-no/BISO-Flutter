@@ -37,10 +37,40 @@ require File.expand_path(
 # Google ML Kit workaround for Apple Silicon + iOS 26+ simulators.
 # IMPORTANT: this must be loaded BEFORE post_install calls
 # mlkit_apple_silicon_simulator_patch().
-require File.expand_path(
-  '.symlinks/plugins/google_mlkit_commons/ios/scripts/apple_silicon_simulator',
-  __dir__
-)
+#
+# The plugin is located through .flutter-plugins-dependencies rather than
+# through .symlinks/, because .symlinks/ is only (re)created by
+# flutter_install_all_ios_pods further down this file. On a fresh clone it does
+# not exist yet, and after a plugin version bump it still points at the old
+# version — either way this require would load nothing (or the wrong thing) and
+# `pod install` would die here with a LoadError, long before the symlinks that
+# would have fixed it are written.
+def mlkit_commons_script
+  manifest = File.expand_path('../.flutter-plugins-dependencies', __dir__)
+  root = nil
+  if File.exist?(manifest)
+    require 'json'
+    entry = (JSON.parse(File.read(manifest)).dig('plugins', 'ios') || [])
+            .find { |plugin| plugin['name'] == 'google_mlkit_commons' }
+    root = entry['path'] if entry
+  end
+  root ||= File.expand_path('.symlinks/plugins/google_mlkit_commons', __dir__)
+  File.join(root, 'ios', 'scripts', 'apple_silicon_simulator')
+end
+
+mlkit_script = mlkit_commons_script
+
+if File.exist?("#{mlkit_script}.rb")
+  require mlkit_script
+else
+  # Never leave `pod install` broken over an optional workaround: without the
+  # patch, ML Kit still excludes arm64 from simulator builds, so device builds
+  # keep working and only Apple Silicon simulators are affected.
+  Pod::UI.warn '[ml_kit] Apple Silicon simulator patch not found; run ' \
+               '`flutter pub get` first. Simulator builds may fail to find a ' \
+               'destination.'
+  def mlkit_apple_silicon_simulator_patch(installer); end
+end
 
 flutter_ios_podfile_setup
 
