@@ -47,11 +47,17 @@ Map<String, String> decodeTopicSubscriberIds(Object? value) {
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-  NotificationService._internal();
+  NotificationService._internal() : _account = account;
+
+  /// Builds a throwaway instance against a caller-supplied [Account], so the
+  /// preference-loading paths can be driven without a network or a signed-in
+  /// user. Production code goes through the [NotificationService] singleton.
+  @visibleForTesting
+  NotificationService.withAccount(this._account);
 
   static final FirebaseMessaging _firebaseMessaging =
       FirebaseMessaging.instance;
-  static final Account _account = account;
+  final Account _account;
   static final Messaging _messaging = messaging;
 
   String? _fcmToken;
@@ -344,7 +350,6 @@ class NotificationService {
 
   /// Load topic subscriptions from user preferences
   Future<void> _loadTopicSubscriptions() async {
-    _topicSubscriptionsLoaded = true;
     try {
       final prefs = await _account.getPrefs();
       final subscriptions = decodeTopicSubscriptions(
@@ -369,7 +374,12 @@ class NotificationService {
         });
         await _saveTopicSubscriptions();
       }
-      
+
+      // Marked only once the read actually succeeded. Setting this up front
+      // would turn a transient failure — no network at launch, say — into a
+      // permanent one: the opt-outs would stay unloaded for the rest of the
+      // session with no further attempt to fetch them.
+      _topicSubscriptionsLoaded = true;
       debugPrint('Loaded topic subscriptions: $_topicSubscriptions');
     } catch (e) {
       debugPrint('Failed to load topic subscriptions: $e');
