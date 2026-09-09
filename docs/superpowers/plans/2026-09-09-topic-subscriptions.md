@@ -1747,8 +1747,8 @@ Append to `lib/providers/notification/notification_provider.dart`:
 /// The student's topic intent, and the only UI entry point for changing it.
 ///
 /// Every change writes intent first, then reconciles this device's Appwrite
-/// subscriptions to match. A failed reconcile surfaces as an error state rather
-/// than leaving a switch asserting a subscription that does not exist.
+/// subscriptions to match. A failure reverts the switch rather than leaving it
+/// asserting a subscription that does not exist; the caller reports it.
 class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   TopicIntentNotifier(this._service, this._campusId)
     : super(const AsyncValue.loading()) {
@@ -1873,17 +1873,15 @@ topicIntentAsync.when(
               final ok = await ref
                   .read(topicIntentProvider.notifier)
                   .setTopic(topic.id, value);
-              if (!(ok || context.mounted)) return;
-              if (!ok) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Could not update ${topic.label} notifications. '
-                      'Check your connection and try again.',
-                    ),
+              if (ok || !context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Could not update ${topic.label} notifications. '
+                    'Check your connection and try again.',
                   ),
-                );
-              }
+                ),
+              );
             },
             selectedCampus: selectedCampus,
           ),
