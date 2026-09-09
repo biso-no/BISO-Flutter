@@ -7048,7 +7048,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 1e+19
+                    "max": 1.0e+19
                 },
                 {
                     "key": "currency",
@@ -9193,7 +9193,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 1e+19
+                    "max": 1.0e+19
                 },
                 {
                     "key": "discount_total",
@@ -9202,7 +9202,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 1e+19
+                    "max": 1.0e+19
                 },
                 {
                     "key": "total",
@@ -9211,7 +9211,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 1e+19
+                    "max": 1.0e+19
                 },
                 {
                     "key": "currency",
@@ -10446,8 +10446,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -1e+19,
-                    "max": 1e+19
+                    "min": -1.0e+19,
+                    "max": 1.0e+19
                 },
                 {
                     "key": "quantity",
@@ -11268,149 +11268,107 @@
         {
             "$id": "news_oslo",
             "name": "News — Oslo",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "news_bergen",
             "name": "News — Bergen",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "news_trondheim",
             "name": "News — Trondheim",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "news_stavanger",
             "name": "News — Stavanger",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "news_national",
             "name": "News — National",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "events_oslo",
             "name": "Events — Oslo",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "events_bergen",
             "name": "Events — Bergen",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "events_trondheim",
             "name": "Events — Trondheim",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "events_stavanger",
             "name": "Events — Stavanger",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "events_national",
             "name": "Events — National",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "jobs_oslo",
             "name": "Jobs — Oslo",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "jobs_bergen",
             "name": "Jobs — Bergen",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "jobs_trondheim",
             "name": "Jobs — Trondheim",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "jobs_stavanger",
             "name": "Jobs — Stavanger",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "jobs_national",
             "name": "Jobs — National",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "shop_oslo",
             "name": "Shop — Oslo",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "shop_bergen",
             "name": "Shop — Bergen",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "shop_trondheim",
             "name": "Shop — Trondheim",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "shop_stavanger",
             "name": "Shop — Stavanger",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "shop_national",
             "name": "Shop — National",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         },
         {
             "$id": "general",
             "name": "Important announcements",
-            "subscribe": [
-                "users"
-            ]
+            "subscribe": ["users"]
         }
     ]
 }
