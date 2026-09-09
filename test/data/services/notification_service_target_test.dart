@@ -229,6 +229,36 @@ void main() {
     },
   );
 
+  test(
+    'keeps subscriber ids when a non-404 update failure falls through to '
+    'create, create 409s, and get() re-adopts the same stored target id - '
+    'this is the path that actually reaches _adoptTarget with previousId '
+    '== targetId; the update-success shortcut above never calls '
+    '_adoptTarget at all, so it cannot prove this guard works',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'push_target_id': 'stored-target',
+        'topic_subscriber_ids': '{"news_oslo":"sub-1"}',
+      });
+      final account = _FakeAccount()
+        ..updateThrows = AppwriteException('server error', 500)
+        ..createThrows = AppwriteException('target exists', 409)
+        ..existingTargets = [
+          _target(id: 'stored-target', identifier: 'token-3'),
+        ];
+
+      final resolved = await NotificationService.withAccount(
+        account,
+      ).resolvePushTarget('token-3');
+
+      expect(resolved, 'stored-target');
+      expect(
+        await DeviceSubscriptionStore().readSubscriberIds(),
+        {'news_oslo': 'sub-1'},
+      );
+    },
+  );
+
   test('returns null on a non-409 create failure without calling get', () async {
     final account = _FakeAccount()
       ..createThrows = AppwriteException('offline', 500);
