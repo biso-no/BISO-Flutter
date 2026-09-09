@@ -168,7 +168,13 @@ class BisoGlassCard extends StatelessWidget {
           ],
         ),
         clipBehavior: clipBehavior,
-        child: child,
+        // The decoration above paints the card, which puts a coloured
+        // DecoratedBox between any Material-backed child and the nearest
+        // Material ancestor — so an interactive ListTile in here would paint
+        // its highlight and ink splashes *behind* the card and be invisible.
+        // A transparent Material makes this card the ink surface without
+        // drawing anything of its own.
+        child: Material(type: MaterialType.transparency, child: child),
       );
     }
 
