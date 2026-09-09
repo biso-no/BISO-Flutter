@@ -2217,7 +2217,9 @@ In `lib/presentation/screens/onboarding/onboarding_screen.dart`:
 1. Delete the entire `_NotificationPreferencesStep` class and its `_NotificationPreferencesStepState` (lines 555 to the end of the file).
 2. Remove `_NotificationPreferencesStep(...)` from the `PageView` children (around line 196).
 3. Change the step count from 3 to 2: `if (_currentStep < 2)` becomes `if (_currentStep < 1)`; `'${_currentStep + 1} / 3'` becomes `'${_currentStep + 1} / 2'`; `(_currentStep + 1) / 3` becomes `(_currentStep + 1) / 2`.
-4. Move the `onComplete: _completeOnboarding` callback onto `_CampusSelectionStep`, which is now the final step. Check its constructor: if it takes `onNext`, pass `_completeOnboarding` there instead and confirm the button label reads as a completion rather than "Next".
+4. Move the `onComplete: _completeOnboarding` callback onto `_CampusSelectionStep`, which is now the final step. It takes a required `VoidCallback onNext`, so pass `_completeOnboarding` there, and confirm the button label reads as a completion rather than "Next".
+
+5. **Carry the loading guard across with it.** The deleted step's button was `onPressed: widget.isLoading ? null : widget.onComplete` and showed a spinner while saving; `_CampusSelectionStep`'s is only `selectedCampusId != null ? onNext : null`. Moving the callback without the guard leaves the final button live during the async `createProfile`, so a double-tap creates two profiles. Add a `final bool isLoading;` field to `_CampusSelectionStep`, pass `authState.isLoading` from the parent (which already watches it), and gate the button on it with the same spinner treatment the deleted step used.
 
 - [ ] **Step 5: Verify it analyzes**
 
