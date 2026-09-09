@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 
 import 'appwrite_service.dart';
 import 'deep_link_service.dart';
+import 'device_subscription_store.dart';
 
 /// Reads the stored topic flags out of an Appwrite prefs value.
 ///
@@ -44,6 +45,12 @@ Map<String, String> decodeTopicSubscriberIds(Object? value) {
   };
 }
 
+/// The Appwrite Messaging provider `$id` for FCM push.
+///
+/// Not `'fcm'`. The project has no provider by that name, and passing it is why
+/// push targets were never created.
+const String kFcmProviderId = 'push';
+
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -58,6 +65,7 @@ class NotificationService {
   static final FirebaseMessaging _firebaseMessaging =
       FirebaseMessaging.instance;
   final Account _account;
+  final DeviceSubscriptionStore _store = DeviceSubscriptionStore();
   static final Messaging _messaging = messaging;
 
   String? _fcmToken;
@@ -128,7 +136,7 @@ class NotificationService {
       // Listen for token refresh
       _firebaseMessaging.onTokenRefresh.listen((newToken) {
         _fcmToken = newToken;
-        _createPushTarget(newToken);
+        resolvePushTarget(newToken);
       });
 
       return _fcmToken;
@@ -169,7 +177,7 @@ class NotificationService {
       );
 
       if (isGranted && _fcmToken != null) {
-        await _createPushTarget(_fcmToken!);
+        await resolvePushTarget(_fcmToken!);
         await _loadTopicSubscriptions();
       }
 
@@ -192,48 +200,86 @@ class NotificationService {
     }
   }
 
-  /// Create push target in Appwrite
-  Future<void> _createPushTarget(String token) async {
+  /// Establish this device's Appwrite push target for [token] and return its id.
+  ///
+  /// Ordered so the common case is a single call. The 409 branch is the one
+  /// that matters: Appwrite rejects a second target for an identifier it
+  /// already holds, which happens on every launch after the first. The old code
+  /// swallowed that and left `_pushTargetId` null, so every later
+  /// `subscribeToTopic` returned early and topic subscription could never work.
+  Future<String?> resolvePushTarget(String token) async {
+    final storedId = await _store.readTargetId();
+    if (storedId != null) {
+      try {
+        final target = await _account.updatePushTarget(
+          targetId: storedId,
+          identifier: token,
+        );
+        _pushTargetId = target.$id;
+        return target.$id;
+      } on AppwriteException catch (e) {
+        // The target was deleted server-side, or the id is stale. Fall through
+        // and create a fresh one.
+        debugPrint(
+          'resolvePushTarget: update of $storedId failed '
+          '(${e.code}) ${e.message}; creating a new target',
+        );
+      }
+    }
+
     try {
-      // First try to create the push target
       final target = await _account.createPushTarget(
         targetId: ID.unique(),
         identifier: token,
-        providerId: 'fcm',
+        providerId: kFcmProviderId,
       );
-      
-      _pushTargetId = target.$id;
-      debugPrint('Push target created successfully: $_pushTargetId');
-
-      // Also store in user preferences for reference
-      await _updateTokenInAppwrite(token);
-    } catch (e) {
-      debugPrint('Failed to create push target: $e');
-      // Fallback to storing in preferences only
-      await _updateTokenInAppwrite(token);
+      await _adoptTarget(target.$id, storedId);
+      return target.$id;
+    } on AppwriteException catch (e) {
+      if (e.code != 409) {
+        debugPrint(
+          'resolvePushTarget: create failed (${e.code}) ${e.message}',
+        );
+        return null;
+      }
     }
+
+    // 409: a target already holds this token. Find and adopt it.
+    try {
+      final user = await _account.get();
+      for (final target in user.targets) {
+        if (target.identifier == token) {
+          await _adoptTarget(target.$id, storedId);
+          return target.$id;
+        }
+      }
+      debugPrint(
+        'resolvePushTarget: got 409 but no target matches this token; '
+        'push is unavailable on this device',
+      );
+    } on AppwriteException catch (e) {
+      debugPrint(
+        'resolvePushTarget: could not read targets after 409 '
+        '(${e.code}) ${e.message}',
+      );
+    }
+    return null;
   }
 
-  /// Store FCM token in Appwrite user preferences (backup method)
-  Future<void> _updateTokenInAppwrite(String token) async {
-    try {
-      // Get current user preferences
-      final prefs = await _account.getPrefs();
-
-      // Update with new FCM token
-      final updatedPrefs = Map<String, dynamic>.from(prefs.data);
-      updatedPrefs['fcm_token'] = token;
-      updatedPrefs['fcm_token_updated_at'] = DateTime.now().toIso8601String();
-      if (_pushTargetId != null) {
-        updatedPrefs['push_target_id'] = _pushTargetId;
-      }
-
-      // Save updated preferences
-      await _account.updatePrefs(prefs: updatedPrefs);
-      debugPrint('FCM token stored in Appwrite preferences');
-    } catch (e) {
-      debugPrint('Failed to store FCM token in Appwrite: $e');
+  /// Record [targetId] as this device's target, forgetting the stored
+  /// subscriber ids if it replaces a different one.
+  ///
+  /// A subscriber belongs to a *target*. When the target changes identity the
+  /// old subscribers are attached to something that no longer exists — but the
+  /// stored map would still claim those topics are covered, so the next
+  /// reconcile would compute an empty diff and the device would go silently
+  /// unsubscribed. Clearing forces them to be recreated against the new target.
+  Future<void> _adoptTarget(String targetId, String? previousId) async {
+    if (previousId != null && previousId != targetId) {
+      await _store.writeSubscriberIds(const <String, String>{});
     }
+    await _store.writeTargetId(targetId);
+    _pushTargetId = targetId;
   }
 
   /// Update chat notification preference in Appwrite
