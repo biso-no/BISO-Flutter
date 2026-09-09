@@ -741,29 +741,47 @@ class NotificationService {
     }
   }
 
-  /// Remove FCM token (on logout)
+  /// Detach this device on logout.
+  ///
+  /// Order matters: the subscriber and target deletions need the session, so
+  /// they must happen before it is destroyed. Without this the Appwrite-side
+  /// subscriptions survive and the device keeps receiving pushes for an account
+  /// that is no longer signed in.
+  ///
+  /// Intent is deliberately left in account preferences — it is per-user, and
+  /// the next login reconciles from it.
   Future<void> clearToken() async {
+    final subscriberIds = await _store.readSubscriberIds();
+    for (final entry in subscriberIds.entries) {
+      try {
+        await _messaging.deleteSubscriber(
+          topicId: entry.key,
+          subscriberId: entry.value,
+        );
+      } on AppwriteException catch (e) {
+        debugPrint('clearToken: could not remove ${entry.key} (${e.code}) ${e.message}');
+      }
+    }
+
+    final targetId = await _store.readTargetId();
+    if (targetId != null) {
+      try {
+        await _account.deletePushTarget(targetId: targetId);
+      } on AppwriteException catch (e) {
+        debugPrint('clearToken: could not delete target (${e.code}) ${e.message}');
+      }
+    }
+
+    await _store.clear();
+    _pushTargetId = null;
+    _topicSubscriptions.clear();
+    _topicSubscriberIds.clear();
+
     try {
       await _firebaseMessaging.deleteToken();
       _fcmToken = null;
-      _pushTargetId = null;
-      _topicSubscriptions.clear();
-      _topicSubscriberIds.clear();
-
-      // Remove from Appwrite preferences
-      final prefs = await _account.getPrefs();
-      final updatedPrefs = Map<String, dynamic>.from(prefs.data);
-      updatedPrefs.remove('fcm_token');
-      updatedPrefs.remove('fcm_token_updated_at');
-      updatedPrefs.remove('push_target_id');
-      updatedPrefs.remove('topic_subscriptions');
-      updatedPrefs.remove('topic_subscriber_ids');
-      updatedPrefs.remove('topic_subscriptions_updated_at');
-
-      await _account.updatePrefs(prefs: updatedPrefs);
-      debugPrint('FCM token and push target cleared');
     } catch (e) {
-      debugPrint('Failed to clear FCM token: $e');
+      debugPrint('clearToken: could not delete the FCM token: $e');
     }
   }
 }
