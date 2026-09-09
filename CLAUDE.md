@@ -562,6 +562,66 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Campus-Specific**: Filtered by selected campus
 - **Location**: `lib/presentation/screens/explore/marketplace_screen.dart`
 
+#### 🛒 Webshop Checkout & Payments
+- **Cart**: local, per-account and persisted (`shop_cart_v1` in SharedPreferences).
+  A line is a *configuration* — product + variation + the buyer's custom-field
+  answers — so two sizes of one hoodie are two lines. Mirrored into
+  `cart_reservations` through `PUT/DELETE /api/shop/cart` so stock is held the
+  same way the website holds it (best effort; overselling is prevented by the
+  checkout route and the atomic stock decrement, not by the hold).
+- **Pricing is never computed in the app**: `POST /api/payment/checkout/quote`
+  runs the same trusted pipeline the checkout route runs and returns the
+  amounts, so the price shown is the price charged. Checkout rejects a total
+  that disagrees with its own, which is why guessing is not an option — the
+  member discount depends on a 24SO membership lookup the app cannot perform.
+- **Payment providers are asked for, not assumed**: `GET /api/payment/providers`
+  reports each provider's kill switch *and* whether its credentials are
+  configured. `payment_settings` is not readable by end users, so only the
+  server can answer this. Only `available` providers are offered.
+- **Return handling**: checkout is started with `client: "app"`, so
+  `/api/checkout/return` on the website — after it reconciles the payment and
+  posts the invoice — deep-links to `biso://shop/order?orderId=…&status=…`.
+  The deep link is the fast path only; the order screen also verifies on
+  resume and polls while pending, and revenue settlement never depends on the
+  app (the provider webhook and the reconciliation cron cover it).
+- **Recovering an interrupted payment**: the buyer leaves the app to pay, so
+  the app can be evicted while they are gone. `CheckoutController` persists a
+  marker naming the order and is constructed in `BisoApp.build`, not lazily by
+  a shop screen — a cold launch straight to Home must still resolve it. It
+  verifies on construction as well as on resume, because a cold launch is not
+  a resume: `AppLifecycleListener` reports *changes*, and the app is already
+  resumed by the time the listener exists.
+- **A paid order gives up only the lines it was placed for, and only its own.**
+  The buyer can leave a pending order, keep shopping, and only then have the
+  payment resolve, so `PendingCheckout` records `lineId -> quantity` at
+  `start()` and `CartNotifier.removePurchased` subtracts exactly that. Clearing
+  the whole cart would throw away items the order never contained. A marker
+  written before this existed carries no lines and falls back to clearing.
+  `_applyOutcome` acts only when the order matches the pending marker —
+  `verifyOrder` also runs for any order opened from history — and claims that
+  marker synchronously, so a resume and the order screen's poll resolving
+  together debit the cart once. Recovery itself waits for `authState` to stop
+  loading: the cart is per-account, and one built for nobody would discard the
+  signed-in buyer's persisted lines and then persist that emptiness.
+- **`member_only` is who a product is for, not a blanket prohibition.** The
+  buyer's own verified membership (`hasValidMembershipProvider`) decides, the
+  same rule the website applies when it filters those products out of the shop
+  for non-members. Note the server does **not** enforce `member_only` at
+  checkout — on either surface — so this is presentation, not a security
+  boundary.
+- **`addProduct` reports what landed.** The stock hold is written as part of
+  the add and the cart is clamped to what the server could hold — per product,
+  oldest line first — so the requested configuration can be dropped while
+  another variation of the same product survives. The cart therefore cannot be
+  used to judge an add; `CartAddResult` is the answer. For the same reason
+  `CartNotifier.ready` exists: the cart is built lazily, and a checkout
+  resolved at launch must not have its `clear()` undone by the restore landing
+  afterwards.
+- **Location**: `lib/providers/shop/`, `lib/data/services/shop_api_client.dart`,
+  `lib/data/services/order_service.dart`, `lib/presentation/screens/shop/`
+- **Routes**: `/explore/products/cart`, `/explore/products/checkout`,
+  `/explore/products/order/:orderId`, `/explore/products/orders`
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions
 - **Job Details**: Requirements, descriptions, and application info

@@ -14,6 +14,7 @@ import '../../../data/services/feature_flag_service.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
+import '../../widgets/shop/cart_icon_button.dart';
 
 final _productServiceProvider = Provider<ProductService>(
   (ref) => ProductService(),
@@ -551,6 +552,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                   ? 'Show all products'
                   : 'Show favorites only',
             ),
+          // The webshop is the only mode that sells through the BISO cart;
+          // marketplace listings are student-to-student and settled between
+          // the two of them.
+          if (effectiveMode == _ShopMode.webshop)
+            const CartIconButton(color: AppColors.charcoalBlack),
         ],
       ),
       body: Column(

@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/currency.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/product_custom_field.dart';
 import '../../../data/models/product_variation.dart';
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/services/webshop_service.dart';
+import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/shop/cart_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+import '../../widgets/shop/cart_icon_button.dart';
 
 /// Product detail screen for a webshop item.
 ///
@@ -76,7 +81,7 @@ class _WebshopProductDetailScreenState
   final _formKey = GlobalKey<FormState>();
 
   /// Scrolls a below-the-fold custom field into view when it blocks
-  /// [_handleContinue]; see `_revealCustomField`.
+  /// [_handleAddToCart]; see `_revealCustomField`.
   final _scrollController = ScrollController();
 
   /// Text/textarea/number/email controllers, keyed by `fieldKey`.
@@ -90,10 +95,14 @@ class _WebshopProductDetailScreenState
   /// never been built (see `firstMissingRequiredCustomField`).
   final Map<String, GlobalKey> _customFieldKeys = {};
 
-  /// Collected custom-field values, keyed by `fieldKey`. This is populated
-  /// once validation passes and is kept in screen state only — nothing here
-  /// is submitted anywhere. Order/checkout submission is out of scope.
-  final Map<String, dynamic> _customFieldValues = {};
+  /// Collected custom-field values, keyed by `fieldKey`. Populated once
+  /// validation passes, then carried onto the cart line — the answers are
+  /// part of what makes one line distinct from another line of the same
+  /// product, and they end up on the order as `order_item_field_answers`.
+  final Map<String, String> _customFieldValues = {};
+
+  /// True while the add-to-cart write (and its stock hold) is in flight.
+  bool _addingToCart = false;
 
   @override
   void initState() {
@@ -250,8 +259,15 @@ class _WebshopProductDetailScreenState
         });
   }
 
-  void _handleContinue() {
+  /// Validates the buyer's answers and, when they pass, puts the configured
+  /// product in the cart.
+  ///
+  /// A "configuration" is the product plus the chosen variation plus these
+  /// answers — the cart keys lines on exactly that, so adding a Large after a
+  /// Small gives two lines rather than a quantity of two.
+  Future<void> _handleAddToCart() async {
     final product = _product;
+    if (product == null || _addingToCart) return;
 
     // Always run this first so any *currently built* field still paints its
     // own inline error, per the review's explicit instruction to keep this
@@ -260,9 +276,7 @@ class _WebshopProductDetailScreenState
 
     // Authoritative gate: checked directly against the collected state, so
     // it blocks regardless of scroll position/registration (Finding 1).
-    final missingField = product == null
-        ? null
-        : _firstMissingRequiredField(product);
+    final missingField = _firstMissingRequiredField(product);
     if (missingField != null) {
       _revealCustomField(missingField);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -273,20 +287,59 @@ class _WebshopProductDetailScreenState
 
     if (!isFormValid) return;
 
-    if (product != null) {
-      for (final field in product.customFields) {
-        _customFieldValues[field.fieldKey] = field.type == 'select'
-            ? _selectValues[field.fieldKey]
-            : _textControllers[field.fieldKey]?.text.trim();
+    _customFieldValues.clear();
+    for (final field in product.customFields) {
+      final value = field.type == 'select'
+          ? _selectValues[field.fieldKey]
+          : _textControllers[field.fieldKey]?.text.trim();
+      if (value != null && value.isNotEmpty) {
+        _customFieldValues[field.fieldKey] = value;
       }
     }
 
-    // Orders/checkout are out of scope for this migration. Values are kept
-    // in `_customFieldValues`, keyed by fieldKey, ready for a future
-    // checkout flow — nothing is submitted here.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Checkout is coming soon')),
-    );
+    setState(() => _addingToCart = true);
+    try {
+      final notifier = ref.read(cartProvider.notifier);
+      final result = await notifier.addProduct(
+        product: product,
+        variation: _selectedVariation,
+        customFields: _customFieldValues,
+        customFieldDefinitions: product.customFields,
+      );
+      if (!mounted) return;
+
+      // Adding can still come back empty-handed, or short: the stock hold is
+      // written during `addProduct`, and a rejection there removes the line
+      // again rather than throwing. Trust the result rather than the cart —
+      // the cart cannot answer this, because another size of the same product
+      // left standing after a clamp is indistinguishable from success.
+      if (result.isRejected) {
+        final reason =
+            ref.read(cartProvider).error ??
+            'This item could not be added right now.';
+        notifier.clearError();
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(reason)));
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.isPartial
+                ? 'Only ${result.added} left — that is what we added to your cart'
+                : '${product.title ?? 'Item'} added to your cart',
+          ),
+          action: SnackBarAction(
+            label: 'View cart',
+            onPressed: () => context.push('/explore/products/cart'),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _addingToCart = false);
+    }
   }
 
   Widget _buildBackButton(bool isDark) {
@@ -402,7 +455,7 @@ class _WebshopProductDetailScreenState
         // `Form.build()` only re-validates every registered field when the
         // form has *both* seen interaction *and* already has a stored error
         // on some field — i.e. only after a failed `validate()` call (from
-        // `_handleContinue`), not on every keystroke. Chosen over moving
+        // `_handleAddToCart`), not on every keystroke. Chosen over moving
         // `autovalidateMode` onto each individual `FormField` because it is
         // a single change at the `Form` itself, keeping the fix inside
         // "Form wiring" without touching `_buildCustomField`'s widgets.
@@ -425,6 +478,13 @@ class _WebshopProductDetailScreenState
                 ),
               ),
               centerTitle: true,
+              actions: [
+                CartIconButton(
+                  color: isDark
+                      ? AppColors.onSurfaceDark
+                      : AppColors.onSurface,
+                ),
+              ],
             ),
 
             // Product Images
@@ -672,35 +732,101 @@ class _WebshopProductDetailScreenState
           ],
         ),
       ),
-      // Only products with a custom-field form have anything for the
-      // "Continue" action to validate — the other 43 live products render
-      // with no bottom bar, exactly as they did before this form existed.
-      bottomNavigationBar: product.customFields.isNotEmpty
-          ? Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : AppColors.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: FilledButton.icon(
-                  onPressed: _handleContinue,
-                  icon: const Icon(Icons.arrow_forward_rounded),
-                  label: const Text('Continue'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppColors.defaultBlue,
+      bottomNavigationBar: _buildPurchaseBar(
+        product: product,
+        displayPrice: displayPrice,
+        isDark: isDark,
+        theme: theme,
+      ),
+    );
+  }
+
+  /// The buy bar.
+  ///
+  /// A `member_only` product is offered to members and refused to everyone
+  /// else, which is the website's rule — it filters those products out of the
+  /// shop for non-members entirely. The app shows them with the reason instead
+  /// of hiding them, since a product page can be reached by deep link.
+  ///
+  /// Membership comes from the buyer's own verified state, not from the
+  /// product: gating on the flag alone would refuse the product to the very
+  /// people it exists for. Everything else — stock, purchase limits, the
+  /// member discount — is left to the server, which is the only place that can
+  /// judge it correctly.
+  Widget _buildPurchaseBar({
+    required WebshopProduct product,
+    required double displayPrice,
+    required bool isDark,
+    required ThemeData theme,
+  }) {
+    final soldOut = product.stock != null && product.stock! <= 0;
+    final blockedAsNonMember =
+        product.memberOnly && !ref.watch(hasValidMembershipProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  formatNok(displayPrice),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+                Text(
+                  soldOut ? 'Sold out' : 'Incl. VAT',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: soldOut
+                        ? AppColors.error
+                        : AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: soldOut || blockedAsNonMember || _addingToCart
+                    ? null
+                    : _handleAddToCart,
+                icon: _addingToCart
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_shopping_cart_rounded),
+                label: Text(
+                  soldOut
+                      ? 'Sold out'
+                      : blockedAsNonMember
+                      ? 'Members only'
+                      : 'Add to cart',
+                ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: AppColors.defaultBlue,
+                ),
               ),
-            )
-          : null,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -339,6 +339,11 @@ class ProfileScreen extends ConsumerWidget {
                         },
                       ),
                       _ProfileActionTile(
+                        icon: Icons.shopping_bag_outlined,
+                        label: 'Your Orders',
+                        onTap: () => context.push('/explore/products/orders'),
+                      ),
+                      _ProfileActionTile(
                         icon: Icons.payment_outlined,
                         label: 'Payment Information',
                         onTap: () => Navigator.push(

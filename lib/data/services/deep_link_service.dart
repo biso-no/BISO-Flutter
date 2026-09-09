@@ -61,6 +61,9 @@ class DeepLinkService {
         case 'product':
           _handleProductDeepLink(uri);
           break;
+        case 'shop':
+          _handleShopDeepLink(uri);
+          break;
         case 'job':
           _handleJobDeepLink(uri);
           break;
@@ -127,6 +130,9 @@ class DeepLinkService {
         } else {
           _go('/explore/products');
         }
+        break;
+      case 'shop':
+        _handleShopUniversalLink(uri, appSegments);
         break;
       case 'jobs':
       case 'volunteer':
@@ -217,6 +223,62 @@ class DeepLinkService {
     } else {
       logPrint('🔴 Missing event ID in deep link');
     }
+  }
+
+  /// Handles the post-payment return from Vipps or Stripe.
+  ///
+  /// `/api/checkout/return` on the website reconciles the payment and books
+  /// the revenue, then bounces an app checkout here as
+  /// `biso://shop/order?orderId=…&status=…`. The status is only a first
+  /// impression — the order screen verifies with the server itself, because a
+  /// deep link can be dropped by the browser or arrive before the provider has
+  /// finished settling.
+  void _handleShopDeepLink(Uri uri) {
+    final path = uri.path;
+    final orderId = uri.queryParameters['orderId'];
+
+    logPrint('🔗 Shop deep link - path: $path order: $orderId');
+
+    if (path == '/order' || path == '/orders') {
+      if (orderId != null && orderId.isNotEmpty) {
+        _go(_orderRoute(orderId, uri.queryParameters['status']));
+      } else {
+        _go('/explore/products/orders');
+      }
+      return;
+    }
+    if (path == '/cart') {
+      _go('/explore/products/cart');
+      return;
+    }
+    _go('/explore/products');
+  }
+
+  /// The same destinations over `https://biso.no/app/shop/...`, so a link
+  /// shared outside the app opens the same place.
+  void _handleShopUniversalLink(Uri uri, List<String> segments) {
+    final orderId = uri.queryParameters['orderId'];
+    if (segments.length >= 2 && segments[1] == 'order') {
+      final id = segments.length >= 3 ? segments[2] : orderId;
+      if (id != null && id.isNotEmpty) {
+        _go(_orderRoute(id, uri.queryParameters['status']));
+        return;
+      }
+      _go('/explore/products/orders');
+      return;
+    }
+    if (segments.length >= 2 && segments[1] == 'cart') {
+      _go('/explore/products/cart');
+      return;
+    }
+    _go('/explore/products');
+  }
+
+  String _orderRoute(String orderId, String? status) {
+    final base = '/explore/products/order/${Uri.encodeComponent(orderId)}';
+    return status == null || status.isEmpty
+        ? base
+        : '$base?status=${Uri.encodeComponent(status)}';
   }
 
   /// Handle product deep links

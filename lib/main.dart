@@ -27,6 +27,10 @@ import 'presentation/screens/explore/marketplace_screen.dart' as market;
 import 'presentation/screens/explore/sell_product_screen.dart';
 import 'presentation/screens/explore/product_detail_screen.dart';
 import 'presentation/screens/explore/webshop_product_detail_screen.dart';
+import 'presentation/screens/shop/cart_screen.dart';
+import 'presentation/screens/shop/checkout_screen.dart';
+import 'presentation/screens/shop/order_screen.dart';
+import 'presentation/screens/shop/orders_screen.dart';
 import 'data/models/webshop_product_model.dart';
 import 'presentation/screens/explore/jobs_screen.dart';
 import 'presentation/screens/explore/expenses_screen.dart';
@@ -50,6 +54,7 @@ import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
 import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
+import 'providers/shop/checkout_provider.dart';
 
 // Background message handler for Firebase
 @pragma('vm:entry-point')
@@ -130,6 +135,22 @@ class BisoApp extends ConsumerWidget {
     // Start feature flag resolution at launch so shop routes do not decide
     // their initial mode from a screen-local loading state.
     ref.watch(market.marketplaceFeatureEnabledProvider);
+    // Build the checkout controller at launch rather than on first visit to a
+    // shop screen. It is what restores and resolves a payment completed while
+    // the app was evicted, and a cold launch to Home would otherwise never
+    // construct it — leaving a paid order's cart uncleared. Watching the
+    // notifier (never the state) keeps every checkout transition from
+    // rebuilding the whole app.
+    //
+    // Not until the session has been resolved, though. Recovery mutates the
+    // cart, and the cart is per-account: built while `authState` is still
+    // loading it would be built for nobody, discard the signed-in buyer's
+    // persisted lines as someone else's, and then persist that emptiness.
+    // Every exit from `_checkAuthState` clears `isLoading`, so this always
+    // arrives — the rebuild that follows constructs the controller.
+    if (!ref.watch(authStateProvider.select((state) => state.isLoading))) {
+      ref.watch(checkoutControllerProvider.notifier);
+    }
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);
@@ -161,6 +182,74 @@ class BisoApp extends ConsumerWidget {
       },
     );
   }
+}
+
+/// The sub-routes of `/explore/products`.
+///
+/// Extracted so the ordering rule below can be tested: it is invisible at the
+/// call site and breaks the whole cart flow when violated.
+@visibleForTesting
+List<RouteBase> productRoutes() {
+  return [
+                GoRoute(
+                  path: '/new',
+                  name: 'product-new',
+                  builder: (context, state) => const SellProductScreen(),
+                ),
+                // Every static single-segment route below MUST stay above
+                // `/:productId`: go_router takes the first matching sibling,
+                // so a wildcard placed first swallows `/cart`, `/checkout`
+                // and `/orders` and renders a product detail screen for a
+                // product called "cart".
+                GoRoute(
+                  path: '/cart',
+                  name: 'shop-cart',
+                  builder: (context, state) => const CartScreen(),
+                ),
+                GoRoute(
+                  path: '/checkout',
+                  name: 'shop-checkout',
+                  builder: (context, state) => const CheckoutScreen(),
+                ),
+                // The buyer is sent here before leaving for the payment
+                // provider, and the return deep link lands here too — so
+                // there is always somewhere to come back to, whether they
+                // finish, cancel, or just switch away mid-payment.
+                GoRoute(
+                  path: '/order/:orderId',
+                  name: 'shop-order',
+                  builder: (context, state) => OrderScreen(
+                    orderId: state.pathParameters['orderId']!,
+                    initialStatus: state.uri.queryParameters['status'],
+                  ),
+                ),
+                GoRoute(
+                  path: '/orders',
+                  name: 'shop-orders',
+                  builder: (context, state) => const OrdersScreen(),
+                ),
+                GoRoute(
+                  path: '/:productId',
+                  name: 'product-detail',
+                  builder: (context, state) => ProductDetailScreen(
+                    productId: state.pathParameters['productId']!,
+                  ),
+                ),
+                GoRoute(
+                  path: '/webshop/:productId',
+                  name: 'webshop-product-detail',
+                  builder: (context, state) {
+                    final product = state.extra as WebshopProduct?;
+                    // Callers that only have the id (e.g. showcase CTA deep
+                    // links) omit `extra`; the screen fetches the product
+                    // itself in that case.
+                    return WebshopProductDetailScreen(
+                      product: product,
+                      productId: state.pathParameters['productId'],
+                    );
+                  },
+                ),
+  ];
 }
 
 // Create router as a static instance to prevent rebuilding
@@ -237,32 +326,7 @@ final _router = GoRouter(
               name: 'products',
               builder: (context, state) => const market.MarketplaceScreen(),
               routes: [
-                GoRoute(
-                  path: '/new',
-                  name: 'product-new',
-                  builder: (context, state) => const SellProductScreen(),
-                ),
-                GoRoute(
-                  path: '/:productId',
-                  name: 'product-detail',
-                  builder: (context, state) => ProductDetailScreen(
-                    productId: state.pathParameters['productId']!,
-                  ),
-                ),
-                GoRoute(
-                  path: '/webshop/:productId',
-                  name: 'webshop-product-detail',
-                  builder: (context, state) {
-                    final product = state.extra as WebshopProduct?;
-                    // Callers that only have the id (e.g. showcase CTA deep
-                    // links) omit `extra`; the screen fetches the product
-                    // itself in that case.
-                    return WebshopProductDetailScreen(
-                      product: product,
-                      productId: state.pathParameters['productId'],
-                    );
-                  },
-                ),
+              ...productRoutes(),
               ],
             ),
             GoRoute(
