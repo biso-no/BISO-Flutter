@@ -2982,8 +2982,6 @@ legacy entries are formatted differently in each). Any insertion means the file
 was reformatted; do not commit.
 
 
-Expected: both report `26 -> 21`.
-
 - [ ] **Step 3: Verify the final topic set**
 
 ```bash
