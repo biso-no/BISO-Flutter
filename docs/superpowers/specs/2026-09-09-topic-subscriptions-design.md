@@ -154,7 +154,14 @@ jobs_oslo    jobs_bergen    jobs_trondheim    jobs_stavanger    jobs_national
 shop_oslo    shop_bergen    shop_trondheim    shop_stavanger    shop_national
 ```
 
-All carry `subscribe: ["users"]`.
+Plus one non-campus-scoped topic, `general`, for service announcements that must reach
+everyone (see section J). Twenty-one topics total. All carry `subscribe: ["users"]`.
+
+`general` is the one topic a user does not choose: `reconcile()` subscribes every device to
+it unconditionally. It exists so a true broadcast has exactly one topic to target, which
+avoids both the "broadcast reaches only events subscribers" bug described in section J and
+the question of whether Appwrite de-duplicates a target that appears in several topics of
+one message. Students who want nothing can still turn notifications off at the OS level.
 
 **These ids are internal.** No user ever sees one. The UI offers exactly four choices —
 News, Events, Jobs, Shop — and the system derives the campus half from the profile's
@@ -359,6 +366,27 @@ reference topics this spec deletes, and deleting a topic removes its subscribers
 All of this must run **before** the session is destroyed — afterwards the calls are
 unauthorized. Intent stays in account prefs; the next login re-reconciles from it.
 
+### J. Existing send paths that must migrate
+
+Deleting the current topics breaks two live paths in `apps/admin`. Both must move in this
+spec — leaving them pointed at a deleted topic would make event pushes and every broadcast
+fail *silently*, because `dispatchAnnouncement` catches and logs push errors without
+surfacing them. That is precisely the failure mode this spec exists to remove.
+
+1. **`EVENTS_PUSH_TOPIC_ID = "events"`** (`_actions/events.ts:14`) — the topic
+   `sendEventAnnouncement` writes into `announcement.audience_value` on event publish.
+   Becomes derived: `events_<slug for the event's campus_id>`, using the shared mapping.
+
+2. **`DEFAULT_BROADCAST_TOPIC = "events"`** (`lib/announcements/send.ts:30`) — the topic used
+   for `audience_type: "broadcast"`. Becomes `general`.
+
+Note that (2) is not merely a rename: a "broadcast" today reaches only students subscribed
+to *events*, which has been wrong independently of this work. Pointing it at `general`, which
+every device holds, makes the audience match the name.
+
+The admin composer's own stale `TOPIC_OPTIONS` list stays in spec 2, which rewrites that UI
+wholesale. Only these two server-side constants move now, because only they would break.
+
 ## Error handling
 
 The governing principle is that **a failure must not look like a success**, which is
@@ -413,8 +441,14 @@ is replaced wholesale:
 ]
 ```
 
-The five current topics (`news`, `events`, `expenses`, `orders`, `jobs`) are removed. See
-assumption 14.
+...plus the single `general` topic:
+
+```jsonc
+{ "$id": "general", "name": "Important announcements", "subscribe": ["users"] }
+```
+
+Twenty-one in total. The five current topics (`news`, `events`, `expenses`, `orders`,
+`jobs`) are removed. See assumption 14.
 
 **No table changes.** `announcements` gains its `email` column in spec 2, not here.
 
@@ -424,7 +458,8 @@ Deliberately deferred, to keep this spec reviewable:
 
 - Email as a channel, and subscribing email targets to topics (spec 2).
 - The admin composer's topic picker, which shares the same stale `TOPIC_OPTIONS` bug — spec 2
-  rewrites it against the taxonomy this spec establishes.
+  rewrites it against the taxonomy this spec establishes. Only the two server-side constants
+  in section J move now, because only they would break outright.
 - Publish-triggered announcements for news, jobs and shop products (spec 2).
 - All personal notifications, including expense status and the Finago booking poller (spec 3).
 - Segment audiences, still disabled as "Phase 2" in the composer.
