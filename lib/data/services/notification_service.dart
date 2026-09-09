@@ -11,6 +11,39 @@ import 'package:go_router/go_router.dart';
 import 'appwrite_service.dart';
 import 'deep_link_service.dart';
 
+/// Reads the stored topic flags out of an Appwrite prefs value.
+///
+/// Returns `null` when nothing is stored, which is the caller's signal to apply
+/// the defaults. Appwrite serialises preferences as JSON from a PHP backend,
+/// where an empty map round-trips as `[]` rather than `{}` — so an account that
+/// has never saved these prefs reads back a `List`, and a plain cast to `Map`
+/// throws. An empty value carries no preferences either way, so it is reported
+/// the same as an absent one.
+///
+/// Extracted as a top-level, `@visibleForTesting` function (rather than kept
+/// inline in the service) because [NotificationService] is a singleton over a
+/// global Appwrite `Account`, and the decoding is the part worth testing.
+@visibleForTesting
+Map<String, bool>? decodeTopicSubscriptions(Object? value) {
+  if (value is! Map || value.isEmpty) return null;
+  return <String, bool>{
+    for (final entry in value.entries)
+      if (entry.value is bool) entry.key.toString(): entry.value as bool,
+  };
+}
+
+/// Reads the stored `topicId -> Appwrite subscriber $id` map out of a prefs
+/// value, tolerating the same empty-list shape described on
+/// [decodeTopicSubscriptions].
+@visibleForTesting
+Map<String, String> decodeTopicSubscriberIds(Object? value) {
+  if (value is! Map) return const <String, String>{};
+  return <String, String>{
+    for (final entry in value.entries)
+      if (entry.value is String) entry.key.toString(): entry.value as String,
+  };
+}
+
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -314,22 +347,18 @@ class NotificationService {
     _topicSubscriptionsLoaded = true;
     try {
       final prefs = await _account.getPrefs();
-      final subscriptions = prefs.data['topic_subscriptions'] as Map<String, dynamic>?;
-      final subscriberIds =
-          prefs.data['topic_subscriber_ids'] as Map<String, dynamic>?;
+      final subscriptions = decodeTopicSubscriptions(
+        prefs.data['topic_subscriptions'],
+      );
 
-      if (subscriberIds != null) {
-        _topicSubscriberIds.clear();
-        subscriberIds.forEach((key, value) {
-          if (value is String) _topicSubscriberIds[key] = value;
-        });
-      }
+      _topicSubscriberIds
+        ..clear()
+        ..addAll(decodeTopicSubscriberIds(prefs.data['topic_subscriber_ids']));
 
       if (subscriptions != null) {
-        _topicSubscriptions.clear();
-        subscriptions.forEach((key, value) {
-          _topicSubscriptions[key] = value as bool;
-        });
+        _topicSubscriptions
+          ..clear()
+          ..addAll(subscriptions);
       } else {
         // Set default subscriptions
         _topicSubscriptions.addAll({
