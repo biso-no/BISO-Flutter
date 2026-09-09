@@ -1565,9 +1565,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reviewYourExpenseMessage => 'Review your expense';
 
   @override
-  String get saleMessage => 'SALE';
-
-  @override
   String get saveAsDraftMessage => 'Save as Draft';
 
   @override

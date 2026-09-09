@@ -9,38 +9,15 @@ import '../../../data/models/event_model.dart';
 import '../../../data/services/event_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/event/your_trip_card.dart';
+import '../../widgets/premium/premium_html_renderer.dart';
 
 // Provider for EventService
 final eventServiceProvider = Provider<EventService>((ref) => EventService());
 
 // Search term for events (server-backed)
 final eventsSearchTermProvider = StateProvider<String?>((ref) => null);
-
-// Provider for events list
-final eventsProvider = FutureProvider.family<List<EventModel>, String?>((
-  ref,
-  campusId,
-) {
-  final service = ref.watch(eventServiceProvider);
-  final searchTerm = ref.watch(eventsSearchTermProvider);
-  AppLogger.info(
-    '[EVENTS_SCREEN] Provider load requested',
-    extra: {
-      'campus_id': campusId,
-      'limit': 50,
-      'include_past': false,
-      'search': searchTerm,
-    },
-  );
-  // Use function-backed fetch with pagination params; initial page 1
-  return service.getWordPressEvents(
-    campusId: campusId,
-    limit: 50,
-    includePast: false,
-    search: searchTerm,
-  );
-});
 
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
@@ -50,8 +27,6 @@ class EventsScreen extends ConsumerStatefulWidget {
 }
 
 class _EventsScreenState extends ConsumerState<EventsScreen> {
-  final TextEditingController _searchController = TextEditingController();
-
   // Paging state
   final ScrollController _scrollController = ScrollController();
   final List<EventModel> _events = [];
@@ -61,7 +36,11 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
-  String? _lastVisibleEventsLogKey;
+  // Extends the campus-only tracking above: the locale is baked into every
+  // fetched page's title/description (see EventService.listEvents), so a
+  // locale change is a load-key change exactly like a campus change is.
+  String? _loadedForLocale;
+  String? _lastEventsLogKey;
 
   @override
   void initState() {
@@ -73,7 +52,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -86,18 +64,22 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     }
   }
 
-  Future<void> _ensureInitialLoad(String? campusId) async {
-    if (_loadedForCampusId == campusId) return;
+  Future<void> _ensureInitialLoad(String? campusId, String locale) async {
+    if (_loadedForCampusId == campusId && _loadedForLocale == locale) return;
     AppLogger.info(
       '[EVENTS_SCREEN] Initial load requested',
       extra: {
         'campus_id': campusId,
         'previous_campus_id': _loadedForCampusId,
+        'locale': locale,
+        'previous_locale': _loadedForLocale,
         'existing_count': _events.length,
       },
     );
     _loadedForCampusId = campusId;
+    _loadedForLocale = locale;
     _isLoading = true;
+    _isLoadingMore = false;
     _events.clear();
     _currentPage = 1;
     _hasMore = true;
@@ -109,6 +91,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     final campusId = ref.read(filterCampusProvider).id;
     final service = ref.read(eventServiceProvider);
     final searchTerm = ref.read(eventsSearchTermProvider);
+    final locale = ref.read(localeProvider).languageCode;
     final stopwatch = Stopwatch()..start();
     try {
       AppLogger.info(
@@ -122,28 +105,76 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           'include_past': false,
         },
       );
-      final items = await service.getFunctionEvents(
+      final items = await service.listEvents(
         campusId: campusId,
+        locale: locale,
         limit: _pageSize,
-        page: page,
+        offset: (page - 1) * _pageSize,
         includePast: false,
         search: searchTerm,
       );
       stopwatch.stop();
-      if (mounted) {
-        setState(() {
-          if (replace) {
-            _events
-              ..clear()
-              ..addAll(items);
-            _isLoading = false;
-          } else {
-            _events.addAll(items);
-            _isLoadingMore = false;
-          }
-          _hasMore = items.length >= _pageSize;
-        });
+
+      // The campus, search term, or locale may have changed while this
+      // request was in flight (the user switched campus, edited the
+      // search, or the locale changed mid-fetch — either because the saved
+      // preference finished loading asynchronously or the user switched
+      // language while this screen was mounted). A page fetched for the
+      // old campus/search/locale must never be appended to the newly reset
+      // list for the new one — otherwise the list can end up mixing
+      // languages page to page.
+      //
+      // Check `mounted` before touching `ref` at all: after dispose,
+      // ConsumerStatefulElement.read throws StateError (not just a debug
+      // assert), so reading providers here first would crash instead of
+      // dropping silently.
+      if (!mounted) return;
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      final currentSearch = ref.read(eventsSearchTermProvider);
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampusId != campusId ||
+          currentSearch != searchTerm ||
+          currentLocale != locale) {
+        AppLogger.info(
+          '[EVENTS_SCREEN] Dropping stale events page '
+          '(campus/search/locale changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'requested_search': searchTerm,
+            'current_search': currentSearch,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'page': page,
+          },
+        );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched. The campus and locale axes reset it via
+        // _ensureInitialLoad (build() calls it whenever campus or locale
+        // changes, so a replacement page-1 fetch is always queued); the
+        // search axis reaches _fetchPage through _reload(), whose replace
+        // branch never touches it. A bare `return` here would therefore
+        // strand the trailing spinner and make _onScroll refuse to page
+        // again for the life of the screen.
+        if (!replace) {
+          setState(() => _isLoadingMore = false);
+        }
+        return;
       }
+
+      setState(() {
+        if (replace) {
+          _events
+            ..clear()
+            ..addAll(items);
+          _isLoading = false;
+        } else {
+          _events.addAll(items);
+          _isLoadingMore = false;
+        }
+        _hasMore = items.length >= _pageSize;
+      });
       AppLogger.info(
         '[EVENTS_SCREEN] Events page loaded',
         extra: {
@@ -174,13 +205,48 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           'duration_ms': stopwatch.elapsedMilliseconds,
         },
       );
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isLoadingMore = false;
-          _hasMore = false;
-        });
+      if (!mounted) return;
+      // A late failure belongs to whichever campus/search/locale this fetch
+      // was for. If the user has since switched campus, search, or locale,
+      // disabling paging now would kill it for a query that never failed.
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      final currentSearch = ref.read(eventsSearchTermProvider);
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampusId != campusId ||
+          currentSearch != searchTerm ||
+          currentLocale != locale) {
+        AppLogger.info(
+          '[EVENTS_SCREEN] Dropping stale events page failure '
+          '(campus/search/locale changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'requested_search': searchTerm,
+            'current_search': currentSearch,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'page': page,
+          },
+        );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched. The campus and locale axes reset it via
+        // _ensureInitialLoad (build() calls it whenever campus or locale
+        // changes, so a replacement page-1 fetch is always queued); the
+        // search axis reaches _fetchPage through _reload(), whose replace
+        // branch never touches it. A bare `return` here would therefore
+        // strand the trailing spinner and make _onScroll refuse to page
+        // again for the life of the screen.
+        if (!replace) {
+          setState(() => _isLoadingMore = false);
+        }
+        return;
       }
+      setState(() {
+        _isLoading = false;
+        _isLoadingMore = false;
+        _hasMore = false;
+      });
     }
   }
 
@@ -215,10 +281,16 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final campusId = ref.watch(filterCampusProvider).id;
+    // Watched (not read) so that a locale change — including the saved
+    // preference finishing its async load — triggers this build and
+    // _ensureInitialLoad below, replacing page one instead of leaving
+    // already-loaded titles/descriptions in the old language while later
+    // pages fetch in the new one.
+    final locale = ref.watch(localeProvider).languageCode;
     final isCampusReady =
         ref.watch(campusInitializedProvider) && campusId.isNotEmpty;
     if (isCampusReady) {
-      _ensureInitialLoad(campusId);
+      _ensureInitialLoad(campusId, locale);
     } else {
       AppLogger.debug(
         '[EVENTS_SCREEN] Waiting for campus before loading events',
@@ -252,48 +324,56 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : Builder(
                     builder: (context) {
-                      final filteredEvents = _applyClientSearch(_events);
-                      _logVisibleEventsState(
-                        campusId: campusId,
-                        visibleCount: filteredEvents.length,
-                      );
+                      _logEventsState(campusId: campusId);
 
-                      if (filteredEvents.isEmpty) {
-                        return _EmptyState(
-                          icon: Icons.event_busy,
-                          title: 'No Events Found',
-                          subtitle:
-                              'There are no events matching your criteria.',
-                        );
-                      }
-
+                      // The empty state is rendered inside the
+                      // RefreshIndicator (via a CustomScrollView so it fills
+                      // the viewport and stays scrollable) so a user looking
+                      // at an empty campus can still pull to refresh.
                       return RefreshIndicator(
                         onRefresh: _reload,
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
-                          itemCount:
-                              filteredEvents.length + (_isLoadingMore ? 1 : 0),
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            if (index >= filteredEvents.length) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final event = filteredEvents[index];
-                            return _EventCard(
-                              event: event,
-                              onTap: () {
-                                _showEventDetails(context, event);
-                              },
-                            );
-                          },
-                        ),
+                        child: _events.isEmpty
+                            ? CustomScrollView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: [
+                                  SliverFillRemaining(
+                                    hasScrollBody: false,
+                                    child: _EmptyState(
+                                      icon: Icons.event_busy,
+                                      title: 'No Events Found',
+                                      subtitle:
+                                          'There are no events matching your criteria.',
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : ListView.separated(
+                                controller: _scrollController,
+                                padding: const EdgeInsets.all(16),
+                                itemCount:
+                                    _events.length + (_isLoadingMore ? 1 : 0),
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  if (index >= _events.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    );
+                                  }
+                                  final event = _events[index];
+                                  return _EventCard(
+                                    event: event,
+                                    onTap: () {
+                                      _showEventDetails(context, event);
+                                    },
+                                  );
+                                },
+                              ),
                       );
                     },
                   ),
@@ -301,16 +381,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
         ],
       ),
     );
-  }
-
-  List<EventModel> _applyClientSearch(List<EventModel> events) {
-    final searchQuery = _searchController.text.toLowerCase();
-    if (searchQuery.isEmpty) return events;
-    return events.where((event) {
-      return event.title.toLowerCase().contains(searchQuery) ||
-          event.description.toLowerCase().contains(searchQuery) ||
-          event.organizerName.toLowerCase().contains(searchQuery);
-    }).toList();
   }
 
   void _showEventDetails(BuildContext context, EventModel event) {
@@ -333,9 +403,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   Future<void> _promptSearch(BuildContext context) async {
     final current = ref.read(eventsSearchTermProvider);
-    final controller = TextEditingController(
-      text: current ?? _searchController.text,
-    );
+    final controller = TextEditingController(text: current ?? '');
     final result = await showDialog<String?>(
       context: context,
       builder: (context) {
@@ -376,14 +444,12 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       // clear search
       AppLogger.info('[EVENTS_SCREEN] Search cleared');
       ref.read(eventsSearchTermProvider.notifier).state = null;
-      _searchController.text = '';
     } else if (trimmed.length >= 2) {
       AppLogger.info(
         '[EVENTS_SCREEN] Search applied',
         extra: {'search': trimmed},
       );
       ref.read(eventsSearchTermProvider.notifier).state = trimmed;
-      _searchController.text = trimmed; // keep local for client-side refine
     } else {
       if (mounted) {
         ScaffoldMessenger.of(this.context).showSnackBar(
@@ -397,39 +463,64 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     await _reload();
   }
 
-  void _logVisibleEventsState({
-    required String? campusId,
-    required int visibleCount,
-  }) {
+  void _logEventsState({required String? campusId}) {
     final search = ref.read(eventsSearchTermProvider);
     final key = [
       campusId,
       search,
       _events.length,
-      visibleCount,
       _hasMore,
       _isLoadingMore,
     ].join('|');
-    if (_lastVisibleEventsLogKey == key) return;
-    _lastVisibleEventsLogKey = key;
+    if (_lastEventsLogKey == key) return;
+    _lastEventsLogKey = key;
 
     final extra = {
       'campus_id': campusId,
       'search': search,
       'loaded_count': _events.length,
-      'visible_count': visibleCount,
       'has_more': _hasMore,
       'is_loading_more': _isLoadingMore,
     };
 
-    if (visibleCount == 0) {
+    if (_events.isEmpty) {
       AppLogger.warning(
-        '[EVENTS_SCREEN] No visible events after filters',
+        '[EVENTS_SCREEN] No events loaded for campus',
         extra: extra,
       );
     } else {
-      AppLogger.info('[EVENTS_SCREEN] Rendering visible events', extra: extra);
+      AppLogger.info('[EVENTS_SCREEN] Rendering loaded events', extra: extra);
     }
+  }
+}
+
+/// What the status badge actually communicates to a reader.
+///
+/// Derived from the event's dates, NOT from the Appwrite `status` column:
+/// `status` is the editorial enum `draft`/`published`/`cancelled`, and every
+/// row that reaches this screen is `published` (see
+/// [EventService.buildEventQueries]), so a status-derived badge would print
+/// the constant string "published". `cancelled` is a real enum value and is
+/// still honoured.
+enum _EventLifecycle { cancelled, upcoming, ongoing, completed }
+
+_EventLifecycle _lifecycleOf(EventModel event) {
+  if (event.isCancelled) return _EventLifecycle.cancelled;
+  if (event.isOngoing) return _EventLifecycle.ongoing;
+  if (event.isCompleted) return _EventLifecycle.completed;
+  return _EventLifecycle.upcoming;
+}
+
+String _lifecycleLabel(_EventLifecycle lifecycle, AppLocalizations l10n) {
+  switch (lifecycle) {
+    case _EventLifecycle.cancelled:
+      return l10n.cancelledMessage;
+    case _EventLifecycle.ongoing:
+      return l10n.liveMessage;
+    case _EventLifecycle.completed:
+      return l10n.endedMessage;
+    case _EventLifecycle.upcoming:
+      return l10n.upcomingMessage;
   }
 }
 
@@ -439,9 +530,42 @@ class _EventCard extends StatelessWidget {
 
   const _EventCard({required this.event, required this.onTap});
 
+  /// Chips shown on the card: the single `category`, if any, followed by
+  /// `tags` — the schema-backed replacement for the old multi-value
+  /// `categories` list.
+  ///
+  /// `category` is a raw lowercase enum token (`social`, `career`, `workshop`,
+  /// `talk`, `party`, `sport`, `academic`, `trip`), so it is capitalised for
+  /// display. Tags are author-written and are shown verbatim. A tag that
+  /// merely repeats the category is dropped case-insensitively — otherwise
+  /// `career` + `Career` burn two of the three visible slots on one value.
+  List<String> get _chipLabels {
+    final labels = <String>[];
+    final seen = <String>{};
+
+    void add(String label) {
+      final trimmed = label.trim();
+      if (trimmed.isEmpty) return;
+      if (!seen.add(trimmed.toLowerCase())) return;
+      labels.add(trimmed);
+    }
+
+    final category = event.category?.trim() ?? '';
+    if (category.isNotEmpty) {
+      add(
+        category[0].toUpperCase() + category.substring(1).toLowerCase(),
+      );
+    }
+    event.tags.forEach(add);
+
+    return labels;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    final lifecycle = _lifecycleOf(event);
 
     return Card(
       child: InkWell(
@@ -495,14 +619,16 @@ class _EventCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        const SizedBox(height: 4),
-
-                        Text(
-                          event.organizerName,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
+                        if (event.contactName != null &&
+                            event.contactName!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            event.contactName!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
                           ),
-                        ),
+                        ],
 
                         const SizedBox(height: 8),
 
@@ -515,9 +641,20 @@ class _EventCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
+                              // Appwrite returns start_date with an explicit
+                              // UTC offset (e.g. "...T10:00:00.000+00:00"),
+                              // so DateTime.parse produces a DateTime with
+                              // isUtc == true. DateFormat renders the
+                              // object's own (UTC) fields, so without
+                              // .toLocal() this silently shows the event
+                              // 1-2 hours early for a Norway-based user.
+                              // Display-only: do not add toLocal() to the
+                              // isUpcoming/isOngoing/isCompleted comparisons
+                              // in event_model.dart — those compare absolute
+                              // instants and are already correct.
                               DateFormat(
                                 'MMM dd, HH:mm',
-                              ).format(event.startDate),
+                              ).format(event.startDate.toLocal()),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: AppColors.onSurfaceVariant,
                               ),
@@ -525,28 +662,30 @@ class _EventCard extends StatelessWidget {
                           ],
                         ),
 
-                        const SizedBox(height: 4),
-
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 14,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                event.venue,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceVariant,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                        if (event.location != null &&
+                            event.location!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                size: 14,
+                                color: AppColors.onSurfaceVariant,
                               ),
-                            ),
-                          ],
-                        ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  event.location!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -558,15 +697,13 @@ class _EventCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(
-                        event.status,
-                      ).withValues(alpha: 0.1),
+                      color: _getStatusColor(lifecycle).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _getStatusText(event.status),
+                      _lifecycleLabel(lifecycle, l10n),
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: _getStatusColor(event.status),
+                        color: _getStatusColor(lifecycle),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -574,12 +711,12 @@ class _EventCard extends StatelessWidget {
                 ],
               ),
 
-              if (event.categories.isNotEmpty) ...[
+              if (_chipLabels.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: event.categories.take(3).map((category) {
+                  children: _chipLabels.take(3).map((label) {
                     return Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -589,7 +726,7 @@ class _EventCard extends StatelessWidget {
                         color: AppColors.gray200,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(category, style: theme.textTheme.labelSmall),
+                      child: Text(label, style: theme.textTheme.labelSmall),
                     );
                   }).toList(),
                 ),
@@ -612,33 +749,16 @@ class _EventCard extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'upcoming':
+  Color _getStatusColor(_EventLifecycle lifecycle) {
+    switch (lifecycle) {
+      case _EventLifecycle.upcoming:
         return AppColors.accentBlue;
-      case 'ongoing':
+      case _EventLifecycle.ongoing:
         return AppColors.success;
-      case 'completed':
+      case _EventLifecycle.completed:
         return AppColors.onSurfaceVariant;
-      case 'cancelled':
+      case _EventLifecycle.cancelled:
         return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'upcoming':
-        return 'Upcoming';
-      case 'ongoing':
-        return 'Live';
-      case 'completed':
-        return 'Ended';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
     }
   }
 }
@@ -653,51 +773,44 @@ class _EventDetailSheet extends StatelessWidget {
   });
 
   String _formatEventDate(DateTime startDate, DateTime? endDate) {
+    // Appwrite's start_date/end_date parse as UTC DateTimes (isUtc == true).
+    // Convert to the device's local time zone before formatting — and
+    // before the same-day comparison below, so a start/end pair that spans
+    // midnight only in UTC (or only locally) is judged by the calendar day
+    // actually shown to the user. This is display-only: it must not be
+    // backported to any comparison that decides event lifecycle/filtering.
+    final localStart = startDate.toLocal();
+    final localEnd = endDate?.toLocal();
     final formatter = DateFormat('EEEE, MMM dd, yyyy • HH:mm');
-    final formattedStartDate = formatter.format(startDate);
-    if (endDate != null &&
-        startDate.day == endDate.day &&
-        startDate.month == endDate.month &&
-        startDate.year == endDate.year) {
-      return '$formattedStartDate - ${DateFormat('HH:mm').format(endDate)}';
+    final formattedStartDate = formatter.format(localStart);
+    if (localEnd != null &&
+        localStart.day == localEnd.day &&
+        localStart.month == localEnd.month &&
+        localStart.year == localEnd.year) {
+      return '$formattedStartDate - ${DateFormat('HH:mm').format(localEnd)}';
     }
     return formattedStartDate;
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'upcoming':
+  Color _getStatusColor(_EventLifecycle lifecycle) {
+    switch (lifecycle) {
+      case _EventLifecycle.upcoming:
         return AppColors.accentBlue;
-      case 'ongoing':
+      case _EventLifecycle.ongoing:
         return AppColors.success;
-      case 'completed':
+      case _EventLifecycle.completed:
         return AppColors.gray400;
-      case 'cancelled':
+      case _EventLifecycle.cancelled:
         return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'upcoming':
-        return 'Upcoming';
-      case 'ongoing':
-        return 'Live';
-      case 'completed':
-        return 'Ended';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return status;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final isDark = theme.brightness == Brightness.dark;
+    final lifecycle = _lifecycleOf(event);
 
     return Container(
       decoration: BoxDecoration(
@@ -756,30 +869,31 @@ class _EventDetailSheet extends StatelessWidget {
                   ],
                 ),
 
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on,
-                      size: 20,
-                      color: isDark
-                          ? AppColors.onSurfaceVariantDark
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        event.venue,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isDark
-                              ? AppColors.onSurfaceVariantDark
-                              : AppColors.onSurfaceVariant,
+                if (event.location != null && event.location!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 20,
+                        color: isDark
+                            ? AppColors.onSurfaceVariantDark
+                            : AppColors.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          event.location!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: isDark
+                                ? AppColors.onSurfaceVariantDark
+                                : AppColors.onSurfaceVariant,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
 
                 const SizedBox(height: 16),
 
@@ -790,17 +904,17 @@ class _EventDetailSheet extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(event.status).withValues(alpha: 0.1),
+                    color: _getStatusColor(lifecycle).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _getStatusColor(event.status),
+                      color: _getStatusColor(lifecycle),
                       width: 1,
                     ),
                   ),
                   child: Text(
-                    _getStatusText(event.status),
+                    _lifecycleLabel(lifecycle, l10n),
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: _getStatusColor(event.status),
+                      color: _getStatusColor(lifecycle),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -824,27 +938,31 @@ class _EventDetailSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    event.description,
+                  // `content_translations.description` is HTML — render it,
+                  // don't print the tags. Same helper jobs_screen uses.
+                  event.description.toFullHtml(
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.5,
                       color: isDark
                           ? AppColors.onSurfaceVariantDark
                           : AppColors.onSurfaceVariant,
                     ),
+                    fontSize: 16,
                   ),
                   const SizedBox(height: 24),
                 ],
 
                 // Organizer Info
-                Text(
-                  'Organized by ${event.organizerName}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isDark
-                        ? AppColors.onSurfaceVariantDark
-                        : AppColors.onSurfaceVariant,
+                if (event.contactName != null &&
+                    event.contactName!.isNotEmpty)
+                  Text(
+                    'Organized by ${event.contactName}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: isDark
+                          ? AppColors.onSurfaceVariantDark
+                          : AppColors.onSurfaceVariant,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

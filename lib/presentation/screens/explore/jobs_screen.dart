@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/models/job_model.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
@@ -24,7 +25,6 @@ class JobsScreen extends ConsumerStatefulWidget {
 }
 
 class _JobsScreenState extends ConsumerState<JobsScreen> {
-  String _selectedType = 'all';
   bool _pendingAutoOpen = true;
 
   // Paging state
@@ -36,7 +36,11 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   int _currentPage = 1;
   static const int _pageSize = 20;
   String? _loadedForCampusId;
-  String? _lastVisibleJobsLogKey;
+  // Extends the campus-only tracking above: the locale is baked into every
+  // fetched page's title/description (see JobService.listJobs), so a
+  // locale change is a load-key change exactly like a campus change is.
+  String? _loadedForLocale;
+  String? _lastJobsLogKey;
 
   @override
   void initState() {
@@ -60,18 +64,22 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     }
   }
 
-  Future<void> _ensureInitialLoad(String? campusId) async {
-    if (_loadedForCampusId == campusId && _jobs.isNotEmpty) return;
+  Future<void> _ensureInitialLoad(String? campusId, String locale) async {
+    if (_loadedForCampusId == campusId && _loadedForLocale == locale) return;
     AppLogger.info(
       '[JOBS_SCREEN] Initial load requested',
       extra: {
         'campus_id': campusId,
         'previous_campus_id': _loadedForCampusId,
+        'locale': locale,
+        'previous_locale': _loadedForLocale,
         'existing_count': _jobs.length,
       },
     );
     _loadedForCampusId = campusId;
+    _loadedForLocale = locale;
     _isLoading = true;
+    _isLoadingMore = false;
     _jobs.clear();
     _currentPage = 1;
     _hasMore = true;
@@ -82,6 +90,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   Future<void> _fetchPage({required int page, bool replace = false}) async {
     final campusId = ref.read(filterCampusProvider).id;
     final service = ref.read(_jobServiceProvider);
+    final locale = ref.read(localeProvider).languageCode;
     final stopwatch = Stopwatch()..start();
     try {
       AppLogger.info(
@@ -91,30 +100,69 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           'page': page,
           'page_size': _pageSize,
           'replace': replace,
-          'selected_type': _selectedType,
         },
       );
-      final items = await service.getLatestJobs(
+      final items = await service.listJobs(
         campusId: campusId,
+        locale: locale,
         limit: _pageSize,
-        page: page,
+        offset: (page - 1) * _pageSize,
         includeExpired: false,
       );
       stopwatch.stop();
-      if (mounted) {
-        setState(() {
-          if (replace) {
-            _jobs
-              ..clear()
-              ..addAll(items);
-            _isLoading = false;
-          } else {
-            _jobs.addAll(items);
-            _isLoadingMore = false;
-          }
-          _hasMore = items.length >= _pageSize;
-        });
+
+      // The campus or locale may have changed while this request was in
+      // flight (the user switched campus, or the locale changed mid-fetch
+      // — either because the saved preference finished loading
+      // asynchronously or the user switched language while this screen was
+      // mounted). A page fetched for the old campus/locale must never be
+      // appended to the newly reset list for the new one — otherwise the
+      // list can end up mixing languages page to page.
+      //
+      // Check `mounted` before touching `ref` at all: after dispose,
+      // ConsumerStatefulElement.read throws StateError (not just a debug
+      // assert), so reading providers here first would crash instead of
+      // dropping silently.
+      if (!mounted) return;
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampusId != campusId || currentLocale != locale) {
+        AppLogger.info(
+          '[JOBS_SCREEN] Dropping stale jobs page (campus/locale changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'page': page,
+          },
+        );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched. The campus and locale axes reset it via
+        // _ensureInitialLoad (build() calls it whenever campus or locale
+        // changes, so a replacement page-1 fetch is always queued) — so
+        // any entry point that changes the query without going through it
+        // would strand the trailing spinner and make _onScroll refuse to
+        // page again for the life of the screen.
+        if (!replace) {
+          setState(() => _isLoadingMore = false);
+        }
+        return;
       }
+
+      setState(() {
+        if (replace) {
+          _jobs
+            ..clear()
+            ..addAll(items);
+          _isLoading = false;
+        } else {
+          _jobs.addAll(items);
+          _isLoadingMore = false;
+        }
+        _hasMore = items.length >= _pageSize;
+      });
       AppLogger.info(
         '[JOBS_SCREEN] Jobs page loaded',
         extra: {
@@ -160,13 +208,42 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           'duration_ms': stopwatch.elapsedMilliseconds,
         },
       );
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isLoadingMore = false;
-          _hasMore = false;
-        });
+      if (!mounted) return;
+      // A late failure belongs to whichever campus/locale this fetch was
+      // for. If the user has since switched campus or locale, disabling
+      // paging now would kill it for a query that never failed.
+      final currentCampusId = ref.read(filterCampusProvider).id;
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampusId != campusId || currentLocale != locale) {
+        AppLogger.info(
+          '[JOBS_SCREEN] Dropping stale jobs page failure '
+          '(campus/locale changed)',
+          extra: {
+            'requested_campus_id': campusId,
+            'current_campus_id': currentCampusId,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'page': page,
+          },
+        );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched. The campus and locale axes reset it via
+        // _ensureInitialLoad (build() calls it whenever campus or locale
+        // changes, so a replacement page-1 fetch is always queued) — so
+        // any entry point that changes the query without going through it
+        // would strand the trailing spinner and make _onScroll refuse to
+        // page again for the life of the screen.
+        if (!replace) {
+          setState(() => _isLoadingMore = false);
+        }
+        return;
       }
+      setState(() {
+        _isLoading = false;
+        _isLoadingMore = false;
+        _hasMore = false;
+      });
     }
   }
 
@@ -195,17 +272,21 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     await _fetchPage(page: _currentPage);
   }
 
-  final List<String> _jobTypes = ['all', 'volunteer', 'paid'];
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final campusId = ref.watch(filterCampusProvider).id;
+    // Watched (not read) so that a locale change — including the saved
+    // preference finishing its async load — triggers this build and
+    // _ensureInitialLoad below, replacing page one instead of leaving
+    // already-loaded titles/descriptions in the old language while later
+    // pages fetch in the new one.
+    final locale = ref.watch(localeProvider).languageCode;
     final isCampusReady =
         ref.watch(campusInitializedProvider) && campusId.isNotEmpty;
-    // Ensure initial load for current campus
+    // Ensure initial load for current campus/locale
     if (isCampusReady) {
-      _ensureInitialLoad(campusId);
+      _ensureInitialLoad(campusId, locale);
     } else {
       AppLogger.debug(
         '[JOBS_SCREEN] Waiting for campus before loading jobs',
@@ -235,86 +316,46 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           // IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark_border)),
         ],
       ),
-      body: Column(
-        children: [
-          // Type Filter
-          Container(
-            height: 60,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _jobTypes.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final type = _jobTypes[index];
-                final isSelected = _selectedType == type;
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Builder(
+              builder: (context) {
+                _logJobsState(campusId: campusId);
 
-                return FilterChip(
-                  label: Text(_getTypeDisplayName(type)),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    AppLogger.info(
-                      '[JOBS_SCREEN] Job type filter changed',
-                      extra: {
-                        'previous_type': _selectedType,
-                        'next_type': type,
-                        'loaded_count': _jobs.length,
-                      },
-                    );
-                    setState(() {
-                      _selectedType = type;
-                    });
-                  },
-                  backgroundColor: Colors.transparent,
-                  selectedColor: AppColors.subtleBlue,
-                  checkmarkColor: AppColors.defaultBlue,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? AppColors.defaultBlue
-                        : AppColors.onSurfaceVariant,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                  side: BorderSide(
-                    color: isSelected
-                        ? AppColors.defaultBlue
-                        : AppColors.outline,
-                  ),
-                );
-              },
-            ),
-          ),
-
-          const Divider(height: 1),
-
-          // Jobs List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Builder(
-                    builder: (context) {
-                      final filtered = _selectedType == 'all'
-                          ? _jobs
-                          : _jobs
-                                .where((j) => j.type == _selectedType)
-                                .toList();
-                      _logVisibleJobsState(
-                        campusId: campusId,
-                        visibleCount: filtered.length,
-                      );
-
-                      return RefreshIndicator(
-                        onRefresh: _reload,
-                        child: ListView.separated(
+                // Covers both "no open roles on this campus" (Trondheim has
+                // none today) and a failed fetch: the catch in _fetchPage
+                // logs and clears the list, so the two are indistinguishable
+                // from the state this screen keeps. The copy is honest for
+                // either, and the empty state is rendered inside the
+                // RefreshIndicator below (via a CustomScrollView so it fills
+                // the viewport and stays scrollable) so pull-to-refresh is
+                // still reachable — exactly when a user staring at an empty
+                // campus would want it.
+                return RefreshIndicator(
+                  onRefresh: _reload,
+                  child: _jobs.isEmpty
+                      ? CustomScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          slivers: [
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: _EmptyState(
+                                icon: Icons.work_off,
+                                title: l10n.noItemsFoundMessage,
+                                subtitle:
+                                    l10n.checkBackLaterOrSwitchCampusMessage,
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
                           controller: _scrollController,
                           padding: const EdgeInsets.all(16),
-                          itemCount: filtered.length + (_isLoadingMore ? 1 : 0),
+                          itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
                           separatorBuilder: (context, index) =>
                               const SizedBox(height: 12),
                           itemBuilder: (context, index) {
-                            if (index >= filtered.length) {
+                            if (index >= _jobs.length) {
                               return const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 16),
                                 child: Center(
@@ -322,66 +363,35 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                                 ),
                               );
                             }
-                            final job = filtered[index];
+                            final job = _jobs[index];
                             return _JobCard(
                               job: job,
                               onTap: () => _showJobDetails(context, job),
                             );
                           },
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+                );
+              },
+            ),
     );
   }
 
-  void _logVisibleJobsState({
-    required String? campusId,
-    required int visibleCount,
-  }) {
-    final key = [
-      campusId,
-      _selectedType,
-      _jobs.length,
-      visibleCount,
-      _hasMore,
-      _isLoadingMore,
-    ].join('|');
-    if (_lastVisibleJobsLogKey == key) return;
-    _lastVisibleJobsLogKey = key;
+  void _logJobsState({required String? campusId}) {
+    final key = [campusId, _jobs.length, _hasMore, _isLoadingMore].join('|');
+    if (_lastJobsLogKey == key) return;
+    _lastJobsLogKey = key;
 
     final extra = {
       'campus_id': campusId,
-      'selected_type': _selectedType,
       'loaded_count': _jobs.length,
-      'visible_count': visibleCount,
       'has_more': _hasMore,
       'is_loading_more': _isLoadingMore,
     };
 
-    if (visibleCount == 0) {
-      AppLogger.warning(
-        '[JOBS_SCREEN] No visible jobs after filters',
-        extra: extra,
-      );
+    if (_jobs.isEmpty) {
+      AppLogger.warning('[JOBS_SCREEN] No jobs loaded for campus', extra: extra);
     } else {
-      AppLogger.info('[JOBS_SCREEN] Rendering visible jobs', extra: extra);
-    }
-  }
-
-  String _getTypeDisplayName(String type) {
-    switch (type) {
-      case 'all':
-        return 'All';
-      case 'volunteer':
-        return 'Volunteer';
-      case 'paid':
-        return 'Paid';
-      default:
-        return type;
+      AppLogger.info('[JOBS_SCREEN] Rendering loaded jobs', extra: extra);
     }
   }
 
@@ -410,9 +420,31 @@ class _JobCard extends StatelessWidget {
 
   const _JobCard({required this.job, required this.onTap});
 
+  /// Chips shown on the card: `tags`, de-duplicated case-insensitively so a
+  /// repeated tag doesn't burn two of the three visible slots. Same pattern
+  /// as `_EventCard._chipLabels` in events_screen.dart; jobs have no
+  /// `category` field, so there is nothing to prepend ahead of the tags.
+  List<String> get _chipLabels {
+    final labels = <String>[];
+    final seen = <String>{};
+
+    void add(String label) {
+      final trimmed = label.trim();
+      if (trimmed.isEmpty) return;
+      if (!seen.add(trimmed.toLowerCase())) return;
+      labels.add(trimmed);
+    }
+
+    job.tags.forEach(add);
+
+    return labels;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final shortDescription = job.shortDescription?.trim() ?? '';
+    final chipLabels = _chipLabels;
 
     return Card(
       child: InkWell(
@@ -423,165 +455,78 @@ class _JobCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Department Icon
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: _getTypeColor(job.type).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      _getTypeIcon(job.type),
-                      color: _getTypeColor(job.type),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Job Details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: job.title.toCompactHtml(
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 2,
-                                fontSize: 16,
-                              ),
-                            ),
-                            if (job.isUrgent == true)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'URGENT',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: AppColors.error,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        Text(
-                          job.department,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getTypeColor(
-                                  job.type,
-                                ).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                _getTypeDisplayName(job.type),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: _getTypeColor(job.type),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.schedule,
-                              size: 14,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              job.timeCommitment ?? '—',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        if (job.salary != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            job.salary!,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+              job.title.toCompactHtml(
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 2,
+                fontSize: 16,
               ),
 
-              const SizedBox(height: 12),
+              // shortDescription is plain text (unlike title/description,
+              // which are HTML) — render it as a plain Text, not through
+              // toCompactHtml. Style matches the home job card's description
+              // treatment (_PremiumJobCard in premium_home_screen.dart).
+              if (shortDescription.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  shortDescription,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.stoneGray,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
 
-              // Skills Tags
-              if (job.skills.isNotEmpty) ...[
+              if (chipLabels.isNotEmpty) ...[
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
-                  children: job.skills.take(3).map((skill) {
+                  children: chipLabels.take(3).map((label) {
                     return Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
+                        color: AppColors.gray200,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(skill, style: theme.textTheme.labelSmall),
+                      child: Text(label, style: theme.textTheme.labelSmall),
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 8),
               ],
+
+              const SizedBox(height: 12),
 
               // Application Deadline
               Row(
                 children: [
-                  Icon(
-                    Icons.access_time,
-                    size: 14,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
+                  if (job.applicationDeadline != null) ...[
+                    Icon(
+                      Icons.access_time,
+                      size: 14,
                       color: AppColors.onSurfaceVariant,
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    Text(
+                      // job.applicationDeadline parses from an Appwrite
+                      // UTC-offset timestamp, so it carries isUtc == true.
+                      // DateFormat renders the object's own (UTC) fields, so
+                      // without .toLocal() the deadline silently displays
+                      // 1-2 hours early for a Norway-based user. Display
+                      // only — do not add toLocal() to any deadline
+                      // comparison used for filtering/expiry.
+                      'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline!.toLocal())}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const Spacer(),
                   Text(
                     'View Details',
@@ -602,39 +547,6 @@ class _JobCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _getTypeDisplayName(String type) {
-    switch (type) {
-      case 'volunteer':
-        return 'Volunteer';
-      case 'paid':
-        return 'Paid';
-      default:
-        return type;
-    }
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type) {
-      case 'volunteer':
-        return AppColors.success;
-      case 'paid':
-        return AppColors.defaultBlue;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  IconData _getTypeIcon(String type) {
-    switch (type) {
-      case 'volunteer':
-        return Icons.volunteer_activism;
-      case 'paid':
-        return Icons.work;
-      default:
-        return Icons.work_outline;
-    }
   }
 }
 
@@ -682,88 +594,7 @@ class _JobDetailSheet extends StatelessWidget {
                   fontSize: 20,
                 ),
 
-                const SizedBox(height: 8),
-
-                Text(
-                  job.department,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: AppColors.defaultBlue,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
                 const SizedBox(height: 16),
-
-                // Job Info Cards
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.surfaceVariantDark
-                              : AppColors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.work,
-                              size: 24,
-                              color: isDark
-                                  ? AppColors.onSurfaceVariantDark
-                                  : AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              job.type,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? AppColors.onSurfaceVariantDark
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.surfaceVariantDark
-                              : AppColors.surfaceVariant,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 24,
-                              color: isDark
-                                  ? AppColors.onSurfaceVariantDark
-                                  : AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              job.department,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: isDark
-                                    ? AppColors.onSurfaceVariantDark
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
 
                 // Description
                 if (job.description.isNotEmpty) ...[
@@ -786,111 +617,54 @@ class _JobDetailSheet extends StatelessWidget {
                     ),
                     fontSize: 16,
                   ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Requirements
-                if (job.requirements.isNotEmpty) ...[
-                  Text(
-                    'Requirements',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...job.requirements.map(
-                    (requirement) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: AppColors.success,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              requirement,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: isDark
-                                    ? AppColors.onSurfaceVariantDark
-                                    : AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Contact Info
-                if (job.contactPersonEmail != null ||
-                    job.contactPersonPhone != null) ...[
-                  Text(
-                    'Contact Information',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (job.contactPersonEmail != null)
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.email,
-                          size: 20,
-                          color: isDark
-                              ? AppColors.onSurfaceVariantDark
-                              : AppColors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          job.contactPersonEmail!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.onSurfaceVariantDark
-                                : AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (job.contactPersonPhone != null) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.phone,
-                          size: 20,
-                          color: isDark
-                              ? AppColors.onSurfaceVariantDark
-                              : AppColors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          job.contactPersonPhone!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.onSurfaceVariantDark
-                                : AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 64, color: AppColors.onSurfaceVariant),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: theme.textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

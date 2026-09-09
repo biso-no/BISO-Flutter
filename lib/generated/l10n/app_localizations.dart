@@ -2908,12 +2908,6 @@ abstract class AppLocalizations {
   /// **'Review your expense'**
   String get reviewYourExpenseMessage;
 
-  /// Auto-extracted string (used in 2 files)
-  ///
-  /// In en, this message translates to:
-  /// **'SALE'**
-  String get saleMessage;
-
   /// Auto-extracted string
   ///
   /// In en, this message translates to:

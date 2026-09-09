@@ -10,6 +10,7 @@ import '../../../core/theme/premium_theme.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
 import '../../../presentation/widgets/premium/premium_components.dart';
 import '../../../presentation/widgets/premium/premium_layouts.dart';
 import '../../../presentation/widgets/premium/premium_navigation.dart';
@@ -17,11 +18,10 @@ import '../../../presentation/widgets/premium/premium_html_renderer.dart';
 import '../../../presentation/widgets/dynamic_hero_carousel.dart';
 
 import '../../../providers/large_event/large_event_provider.dart';
-import '../../../providers/config/app_config_provider.dart';
-import '../../../data/models/app_config.dart';
 import '../../../data/services/event_service.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/services/webshop_service.dart';
+import '../../../data/models/campus_model.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/job_model.dart';
 import '../../../data/models/webshop_product_model.dart';
@@ -154,26 +154,25 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestEventsProvider =
       FutureProvider.family<List<EventModel>, String>((ref, campusId) async {
         final service = ref.watch(_eventServiceProvider);
-        final config = await ref.watch(appConfigProvider.future);
+        final locale = ref.watch(localeProvider).languageCode;
         final stopwatch = Stopwatch()..start();
         AppLogger.info(
           '[HOME] Loading latest events',
           extra: {
             'section': 'events',
             'campus_id': campusId,
-            'source': config.eventsSource.name,
+            'source': 'appwrite',
             'limit': 6,
           },
         );
 
         try {
-          final events = config.eventsSource == ContentSource.appwrite
-              ? await service.getAppwriteEvents(campusId: campusId, limit: 6)
-              : await service.getWordPressEvents(
-                  campusId: campusId,
-                  limit: 6,
-                  includePast: false,
-                );
+          final events = await service.listEvents(
+            campusId: campusId,
+            locale: locale,
+            limit: 6,
+            includePast: false,
+          );
 
           stopwatch.stop();
           AppLogger.info(
@@ -181,7 +180,7 @@ class PremiumHomePage extends ConsumerWidget {
             extra: {
               'section': 'events',
               'campus_id': campusId,
-              'source': config.eventsSource.name,
+              'source': 'appwrite',
               'count': events.length,
               'duration_ms': stopwatch.elapsedMilliseconds,
               'sample_ids': events.take(3).map((event) => event.id).toList(),
@@ -197,7 +196,7 @@ class PremiumHomePage extends ConsumerWidget {
             extra: {
               'section': 'events',
               'campus_id': campusId,
-              'source': config.eventsSource.name,
+              'source': 'appwrite',
               'duration_ms': stopwatch.elapsedMilliseconds,
             },
           );
@@ -211,17 +210,16 @@ class PremiumHomePage extends ConsumerWidget {
         campusId,
       ) async {
         final service = ref.watch(_webshopServiceProvider);
+        final locale = ref.watch(localeProvider).languageCode;
         final stopwatch = Stopwatch()..start();
         AppLogger.info(
           '[HOME] Loading latest webshop products',
           extra: {'section': 'webshop', 'campus_id': campusId, 'limit': 6},
         );
-        // productsSource routing: woocommerce (default) always goes through
-        // api.biso.no/api/wc-products; appwrite source will be wired in turborepo.
         try {
-          final products = await service.listWebshopProducts(
+          final products = await service.listProducts(
             campusId: campusId,
-            departmentId: null,
+            locale: locale,
             limit: 6,
           );
           stopwatch.stop();
@@ -234,7 +232,7 @@ class PremiumHomePage extends ConsumerWidget {
               'duration_ms': stopwatch.elapsedMilliseconds,
               'sample_ids': products
                   .take(3)
-                  .map((product) => product.id.toString())
+                  .map((product) => product.id)
                   .toList(),
             },
           );
@@ -258,6 +256,7 @@ class PremiumHomePage extends ConsumerWidget {
   static final _latestJobsProvider =
       FutureProvider.family<List<JobModel>, String>((ref, campusId) async {
         final service = ref.watch(_jobServiceProvider);
+        final locale = ref.watch(localeProvider).languageCode;
         final stopwatch = Stopwatch()..start();
         AppLogger.info(
           '[HOME] Loading latest jobs',
@@ -265,17 +264,14 @@ class PremiumHomePage extends ConsumerWidget {
             'section': 'jobs',
             'campus_id': campusId,
             'limit': 6,
-            'page': 1,
             'include_expired': false,
           },
         );
-        // jobsSource routing: job_service already auto-falls-back to Appwrite
-        // when api.biso.no is unavailable, so no explicit branch needed here.
         try {
-          final jobs = await service.getLatestJobs(
+          final jobs = await service.listJobs(
             campusId: campusId,
+            locale: locale,
             limit: 6,
-            page: 1,
             includeExpired: false,
           );
           stopwatch.stop();
@@ -516,9 +512,9 @@ class PremiumHomePage extends ConsumerWidget {
 // === CAMPUS SWITCHER MODAL ===
 
 class _CampusSwitcherModal extends StatelessWidget {
-  final dynamic selectedCampus;
-  final List<dynamic> allCampuses;
-  final Function(dynamic) onCampusSelected;
+  final CampusModel selectedCampus;
+  final List<CampusModel> allCampuses;
+  final ValueChanged<CampusModel> onCampusSelected;
 
   const _CampusSwitcherModal({
     required this.selectedCampus,
@@ -614,7 +610,7 @@ class _CampusSwitcherModal extends StatelessWidget {
 // === CAMPUS MODAL CARD ===
 
 class _CampusModalCard extends StatelessWidget {
-  final dynamic campus;
+  final CampusModel campus;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -690,7 +686,14 @@ class _CampusModalCard extends StatelessWidget {
                     children: [
                       const SizedBox(width: 16),
                       Text(
-                        '${campus.stats.activeEvents} events',
+                        '${campus.stats.activeEvents} event${campus.stats.activeEvents == 1 ? '' : 's'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        '${campus.stats.availableJobs} job${campus.stats.availableJobs == 1 ? '' : 's'}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -818,7 +821,7 @@ class _PremiumStatItem extends StatelessWidget {
 // ignore: unused_element
 class _PremiumQuickActions extends StatelessWidget {
   final dynamic authState;
-  final dynamic campus;
+  final CampusModel campus;
   final AppLocalizations l10n;
 
   const _PremiumQuickActions({
@@ -1165,33 +1168,36 @@ class _PremiumEventCard extends StatelessWidget {
 
                 const SizedBox(height: 8),
 
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: AppColors.stoneGray,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        event.venue,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.stoneGray,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                if (event.location != null && event.location!.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 16,
+                        color: AppColors.stoneGray,
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          event.location!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.stoneGray,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
 
-                if (event.organizerName.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                if (event.contactName != null &&
+                    event.contactName!.isNotEmpty) ...[
                   Text(
                     AppLocalizations.of(
                       context,
-                    )!.byOrganizerNameMessage(event.organizerName),
+                    )!.byOrganizerNameMessage(event.contactName!),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.biLightBlue,
                       fontWeight: FontWeight.w500,
@@ -1239,14 +1245,13 @@ class _PremiumWebshopProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasSale = product.hasSale;
 
     return PremiumCard(
       padding: EdgeInsets.zero,
       onTap: () {
         context.pushNamed(
           'webshop-product-detail',
-          pathParameters: {'productId': product.id.toString()},
+          pathParameters: {'productId': product.id},
           extra: product,
         );
       },
@@ -1330,57 +1335,15 @@ class _PremiumWebshopProductCard extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (hasSale) ...[
-                          Text(
-                            'NOK ${product.price}',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.stoneGray,
-                              decoration: TextDecoration.lineThrough,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          'NOK ${hasSale ? product.salePrice : product.price}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.charcoalBlack,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'NOK ${product.regularPrice.toStringAsFixed(0)}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.charcoalBlack,
+                      ),
                     ),
                   ),
                 ),
-
-                // Sale badge
-                if (hasSale)
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        AppLocalizations.of(context)!.saleMessage,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -1388,31 +1351,13 @@ class _PremiumWebshopProductCard extends StatelessWidget {
           // Content
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                const SizedBox(height: 8),
-
-                if (product.campusLabel != null)
-                  Text(
-                    product.campusLabel!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.biLightBlue,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
+            child: Text(
+              product.title ?? '',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1456,24 +1401,6 @@ class _PremiumJobCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Department tag
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.biLightBlue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              job.department,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.biLightBlue,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
           // Job title with HTML rendering - flexible height
           Flexible(
             child: job.title.toCompactHtml(
@@ -1500,8 +1427,6 @@ class _PremiumJobCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
-
-          const SizedBox(height: 8),
 
           const SizedBox(height: 12),
 

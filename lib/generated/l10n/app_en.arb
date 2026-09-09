@@ -2036,10 +2036,6 @@
   "@reviewYourExpenseMessage": {
     "description": "Auto-extracted string"
   },
-  "saleMessage": "SALE",
-  "@saleMessage": {
-    "description": "Auto-extracted string (used in 2 files)"
-  },
   "saveAsDraftMessage": "Save as Draft",
   "@saveAsDraftMessage": {
     "description": "Auto-extracted string"

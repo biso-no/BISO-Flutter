@@ -219,14 +219,12 @@ class WeatherData extends Equatable {
 }
 
 class CampusStats extends Equatable {
-  final int studentCount;
   final int activeEvents;
   final int availableJobs;
   final int marketplaceItems;
   final int departmentsCount;
 
   const CampusStats({
-    this.studentCount = 0,
     this.activeEvents = 0,
     this.availableJobs = 0,
     this.marketplaceItems = 0,
@@ -235,7 +233,6 @@ class CampusStats extends Equatable {
 
   factory CampusStats.fromMap(Map<String, dynamic> map) {
     return CampusStats(
-      studentCount: map['student_count'] ?? 0,
       activeEvents: map['active_events'] ?? 0,
       availableJobs: map['available_jobs'] ?? 0,
       marketplaceItems: map['marketplace_items'] ?? 0,
@@ -245,7 +242,6 @@ class CampusStats extends Equatable {
 
   Map<String, dynamic> toMap() {
     return {
-      'student_count': studentCount,
       'active_events': activeEvents,
       'available_jobs': availableJobs,
       'marketplace_items': marketplaceItems,
@@ -255,7 +251,6 @@ class CampusStats extends Equatable {
 
   @override
   List<Object?> get props => [
-    studentCount,
     activeEvents,
     availableJobs,
     marketplaceItems,

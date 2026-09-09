@@ -1,7 +1,7 @@
 name: biso
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.1.1+83
+version: 2.2.0+84
 
 environment:
   sdk: ^3.8.1
@@ -31,7 +31,7 @@ dependencies:
   url_launcher: ^6.3.2
   equatable: ^2.0.8
   crypto: ^3.0.7
-  google_mlkit_text_recognition: ^0.15.1
+  google_mlkit_text_recognition: ^0.17.1
   syncfusion_flutter_pdf: ^30.2.7
   printing: ^5.14.3
   flutter_client_sse:
@@ -48,7 +48,7 @@ dependencies:
   qr_flutter: ^4.1.0
   flutter_appauth: ^9.0.1
   app_links: ^6.4.1
-  appwrite: ^22.0.0
+  appwrite: ^26.1.0
   liquid_glass_widgets: ^0.10.7
 
 dev_dependencies:
@@ -80,6 +80,9 @@ flutter_icons:
   image_path: "assets/logo.png"
   
 dependency_overrides:
+  # flutter_html 3.0.0 imports package:html/src/query_selector.dart directly;
+  # html 0.15.7 removed the top-level matches(). Pin until flutter_html is fixed.
+  html: 0.15.6
   dart_style: ^3.0.0
   meta: ^1.17.0
   vector_math: ^2.3.0

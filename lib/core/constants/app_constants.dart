@@ -21,21 +21,15 @@ class AppConstants {
   static const String chatMessagesCollectionId = 'chat_messages';
   static const String chatParticipantsCollectionId = 'chat_participants';
   static const String chatRoomsCollectionId = 'chat_rooms';
+  static const String webshopProductsCollectionId = 'webshop_products';
+  static const String ordersCollectionId = 'orders';
 
   // API Service
   static const String apiBaseUrl = 'https://api.biso.no';
-  static const String apiUrl = 'https://api.biso.no/api'; // For backward compatibility
   static const String publicAssistantEndpoint = '/api/public-assistant';
   // Appwrite Functions (IDs)
   static const String fnParseReceiptId = 'fn_parse_receipt';
   static const String fnSummarizeExpenseId = 'fn_summarize_expense';
-  static const String fnFetchEventsId = 'fetch_events';
-  static const String fnFetchJobsId = 'fetch_jobs';
-  static const String fnSyncWebshopProductsId = 'sync_webshop_products';
-
-  // External APIs
-  static const String wordPressEventsApi =
-      'https://biso.no/wp-json/biso/v1/events';
 
   // Email Domains
   static const List<String> allowedEmailDomains = ['bi.no', 'biso.no'];

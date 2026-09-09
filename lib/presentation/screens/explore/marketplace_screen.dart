@@ -13,6 +13,8 @@ import '../../../data/services/webshop_service.dart';
 import '../../../data/services/feature_flag_service.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/ui/locale_provider.dart';
+import '../../widgets/shop/cart_icon_button.dart';
 
 final _productServiceProvider = Provider<ProductService>(
   (ref) => ProductService(),
@@ -87,43 +89,33 @@ final productsProvider = FutureProvider.autoDispose
 final webshopProductsProvider = FutureProvider.autoDispose
     .family<List<WebshopProduct>, _WebshopQuery>((ref, query) async {
       final service = ref.watch(_webshopServiceProvider);
+      final locale = ref.watch(localeProvider).languageCode;
       final stopwatch = Stopwatch()..start();
       AppLogger.info(
         '[MARKETPLACE_SCREEN] Loading webshop products',
         extra: query.toLogMap(),
       );
       try {
-        final products = await service.listWebshopProducts(
+        final products = await service.listProducts(
           campusId: query.campusId,
-          campusName: query.campusName,
-          departmentId: query.departmentId,
+          locale: locale,
           limit: 20,
-          page: 1,
+          search: query.search,
         );
-        final filtered = query.search == null || query.search!.isEmpty
-            ? products
-            : products
-                  .where(
-                    (p) => p.name.toLowerCase().contains(
-                      query.search!.toLowerCase(),
-                    ),
-                  )
-                  .toList(growable: false);
         stopwatch.stop();
         AppLogger.info(
           '[MARKETPLACE_SCREEN] Webshop products loaded',
           extra: {
             ...query.toLogMap(),
-            'raw_count': products.length,
-            'filtered_count': filtered.length,
+            'count': products.length,
             'duration_ms': stopwatch.elapsedMilliseconds,
-            'sample_ids': filtered
+            'sample_ids': products
                 .take(3)
-                .map((product) => product.id.toString())
+                .map((product) => product.id)
                 .toList(),
           },
         );
-        return filtered;
+        return products;
       } catch (error, stackTrace) {
         stopwatch.stop();
         AppLogger.error(
@@ -161,6 +153,10 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   bool _isLoadingMore = false;
   bool _hasMore = true;
   final List<WebshopProduct> _webshopAccumulated = [];
+  // Which query the accumulated webshop pages belong to. Mirrors
+  // `_loadedForCampusId` in events_screen/jobs_screen.
+  String? _webshopLoadedForCampusId;
+  String? _webshopLoadedForLocale;
   String? _lastProductsUiLogKey;
 
   final List<String> _categories = [
@@ -211,6 +207,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     );
     _currentPage = 1;
     _hasMore = true;
+    _isLoadingMore = false;
     _webshopAccumulated.clear();
   }
 
@@ -228,26 +225,80 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     setState(() => _isLoadingMore = true);
     _currentPage += 1;
     final stopwatch = Stopwatch()..start();
+    // Captured before the await so the request and its later staleness
+    // check agree on which query this fetch was for, even though `_search`
+    // is a mutable field that `_onSearchChanged` can reassign while this is
+    // in flight.
+    final campus = ref.read(filterCampusProvider);
+    final locale = ref.read(localeProvider).languageCode;
+    final search = _search;
     try {
       final service = ref.read(_webshopServiceProvider);
-      final campus = ref.read(filterCampusProvider);
+      final offset = (_currentPage - 1) * _pageSize;
       AppLogger.info(
         '[MARKETPLACE_SCREEN] Loading more webshop products',
         extra: {
           'campus_name': campus.name,
           'page': _currentPage,
+          'offset': offset,
           'page_size': _pageSize,
           'current_count': _webshopAccumulated.length,
         },
       );
-      final next = await service.listWebshopProducts(
+      final next = await service.listProducts(
         campusId: campus.id,
-        campusName: campus.name,
-        departmentId: null,
+        locale: locale,
         limit: _pageSize,
-        page: _currentPage,
+        offset: offset,
+        search: search,
       );
       stopwatch.stop();
+
+      // The campus, locale, or search may have changed while this request
+      // was in flight. Unlike events/jobs, the webshop provider itself
+      // ref.watches locale (so a locale change already refetches page 1
+      // under a new family key) — but this paging method still reads
+      // campus/locale via ref.read and search via the `_search` field, so a
+      // page fetched for the old campus/locale/search must never be
+      // appended to the accumulator for the new one.
+      //
+      // Check `mounted` before touching `ref` at all: after dispose,
+      // ConsumerStatefulElement.read throws StateError (not just a debug
+      // assert), so reading providers here first would crash instead of
+      // dropping silently.
+      if (!mounted) return;
+      final currentCampus = ref.read(filterCampusProvider);
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampus.id != campus.id ||
+          currentLocale != locale ||
+          _search != search) {
+        AppLogger.info(
+          '[MARKETPLACE_SCREEN] Dropping stale webshop page '
+          '(campus/locale/search changed)',
+          extra: {
+            'requested_campus_id': campus.id,
+            'current_campus_id': currentCampus.id,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'requested_search': search,
+            'current_search': _search,
+            'page': _currentPage,
+          },
+        );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched, or the trailing spinner outlives the request that
+        // raised it and _onScroll refuses to page again for the life of
+        // the screen. Every axis that can invalidate a page also calls
+        // _resetWebshopPaging(), which clears the flag; this release is
+        // the guarantee that does not depend on each of them remembering
+        // to. Unlike events_screen/jobs_screen there is no `replace`
+        // case — this method is only ever a load-more — so it is
+        // unconditional.
+        setState(() => _isLoadingMore = false);
+        return;
+      }
+
       setState(() {
         _webshopAccumulated.addAll(next);
         _isLoadingMore = false;
@@ -276,6 +327,41 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           'duration_ms': stopwatch.elapsedMilliseconds,
         },
       );
+      if (!mounted) return;
+      // A late failure belongs to whichever campus/locale/search this
+      // fetch was for. If the user has since switched away, disabling
+      // paging now would kill it for a campus/search that never failed.
+      final currentCampus = ref.read(filterCampusProvider);
+      final currentLocale = ref.read(localeProvider).languageCode;
+      if (currentCampus.id != campus.id ||
+          currentLocale != locale ||
+          _search != search) {
+        AppLogger.info(
+          '[MARKETPLACE_SCREEN] Dropping stale webshop page failure '
+          '(campus/locale/search changed)',
+          extra: {
+            'requested_campus_id': campus.id,
+            'current_campus_id': currentCampus.id,
+            'requested_locale': locale,
+            'current_locale': currentLocale,
+            'requested_search': search,
+            'current_search': _search,
+            'page': _currentPage,
+          },
+        );
+        // Release the paging latch before dropping this page: a
+        // load-more that is discarded must not leave `_isLoadingMore`
+        // latched, or the trailing spinner outlives the request that
+        // raised it and _onScroll refuses to page again for the life of
+        // the screen. Every axis that can invalidate a page also calls
+        // _resetWebshopPaging(), which clears the flag; this release is
+        // the guarantee that does not depend on each of them remembering
+        // to. Unlike events_screen/jobs_screen there is no `replace`
+        // case — this method is only ever a load-more — so it is
+        // unconditional.
+        setState(() => _isLoadingMore = false);
+        return;
+      }
       setState(() {
         _isLoadingMore = false;
         _hasMore = false;
@@ -283,7 +369,40 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     }
   }
 
-  List<WebshopProduct> _computeWebshopList(List<WebshopProduct> firstPage) {
+  /// Folds the provider's page 1 into the accumulated webshop list.
+  ///
+  /// The accumulator belongs to one campus/locale pair. When either changes
+  /// the provider family refetches, and the accumulated pages are no longer
+  /// the answer to the current query: keeping them would leave the previous
+  /// campus's products on screen and make the next [_loadMoreWebshop] request
+  /// the new campus at the old offset, skipping items. So the paging state is
+  /// reset first, exactly as `_ensureInitialLoad` does in
+  /// events_screen/jobs_screen. A search change is deliberately not part
+  /// of that check: it resets the paging state at each of its sources —
+  /// [_onSearchChanged] when the field is typed in, and the field's clear
+  /// button for the X — so it always arrives in the empty-accumulator
+  /// branch below.
+  List<WebshopProduct> _computeWebshopList(
+    List<WebshopProduct> firstPage, {
+    required String campusId,
+    required String locale,
+  }) {
+    if (_webshopLoadedForCampusId != campusId ||
+        _webshopLoadedForLocale != locale) {
+      AppLogger.info(
+        '[MARKETPLACE_SCREEN] Webshop query changed; restarting paging',
+        extra: {
+          'previous_campus_id': _webshopLoadedForCampusId,
+          'campus_id': campusId,
+          'previous_locale': _webshopLoadedForLocale,
+          'locale': locale,
+          'discarded_count': _webshopAccumulated.length,
+        },
+      );
+      _webshopLoadedForCampusId = campusId;
+      _webshopLoadedForLocale = locale;
+      _resetWebshopPaging();
+    }
     if (_webshopAccumulated.isEmpty) {
       // initialize with first page
       _webshopAccumulated.addAll(firstPage);
@@ -296,6 +415,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final campus = ref.watch(filterCampusProvider);
+    // The webshop provider resolves translations for this locale, so it is
+    // part of the identity of the accumulated pages.
+    final locale = ref.watch(localeProvider).languageCode;
     final isCampusReady =
         ref.watch(campusInitializedProvider) && campus.id.isNotEmpty;
     final auth = ref.watch(authStateProvider);
@@ -430,6 +552,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                   ? 'Show all products'
                   : 'Show favorites only',
             ),
+          // The webshop is the only mode that sells through the BISO cart;
+          // marketplace listings are student-to-student and settled between
+          // the two of them.
+          if (effectiveMode == _ShopMode.webshop)
+            const CartIconButton(color: AppColors.charcoalBlack),
         ],
       ),
       body: Column(
@@ -515,8 +642,25 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                               'mode': effectiveMode.name,
                             },
                           );
+                          // A debounce started by the last keystroke would
+                          // otherwise fire ~500ms from now and resurrect the
+                          // search the user just cleared.
+                          _debounceTimer?.cancel();
+                          // TextEditingController.clear() does not fire
+                          // onChanged, so _onSearchChanged — the only other
+                          // place that resets paging on a search change —
+                          // never runs for this path. Without the reset
+                          // here, _computeWebshopList finds a non-empty
+                          // accumulator and keeps serving the previous
+                          // search's products even though the provider has
+                          // refetched under the new key, and _currentPage
+                          // stays advanced from the load-more this clear
+                          // just invalidated.
                           _searchController.clear();
-                          setState(() => _search = null);
+                          setState(() {
+                            _search = null;
+                            _resetWebshopPaging();
+                          });
                         },
                         icon: const Icon(
                           Icons.clear,
@@ -606,7 +750,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                 .when(
                   data: (products) {
                     final visibleProducts = effectiveMode == _ShopMode.webshop
-                        ? _computeWebshopList(products as List<WebshopProduct>)
+                        ? _computeWebshopList(
+                            products as List<WebshopProduct>,
+                            campusId: campus.id,
+                            locale: locale,
+                          )
                         : products;
                     _logProductsUiState(
                       mode: effectiveMode,
@@ -660,6 +808,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                             itemCount: (effectiveMode == _ShopMode.webshop)
                                 ? _computeWebshopList(
                                         products as List<WebshopProduct>,
+                                        campusId: campus.id,
+                                        locale: locale,
                                       ).length +
                                       (_isLoadingMore ? 1 : 0)
                                 : products.length,
@@ -671,6 +821,8 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                               } else {
                                 final list = _computeWebshopList(
                                   products as List<WebshopProduct>,
+                                  campusId: campus.id,
+                                  locale: locale,
                                 );
                                 if (index >= list.length) {
                                   return const Padding(
@@ -884,16 +1036,13 @@ class _WebshopProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasSale = product.hasSale;
-    final priceText = hasSale
-        ? 'NOK ${product.salePrice}'
-        : 'NOK ${product.price}';
+    final priceText = 'NOK ${product.regularPrice.toStringAsFixed(0)}';
 
     return InkWell(
       onTap: () {
         context.pushNamed(
           'webshop-product-detail',
-          pathParameters: {'productId': product.id.toString()},
+          pathParameters: {'productId': product.id},
           extra: product,
         );
       },
@@ -954,53 +1103,15 @@ class _WebshopProductCard extends StatelessWidget {
                         color: Colors.black.withValues(alpha: 0.6),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Row(
-                        children: [
-                          if (hasSale) ...[
-                            Text(
-                              'NOK ${product.price}',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                decoration: TextDecoration.lineThrough,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          Text(
-                            priceText,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        priceText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
-                  if (hasSale)
-                    Positioned(
-                      top: 10,
-                      left: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'SALE',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -1013,7 +1124,7 @@ class _WebshopProductCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        product.name,
+                        product.title ?? '',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -1021,18 +1132,6 @@ class _WebshopProductCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (product.campusLabel != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        product.campusLabel!,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                   ],
                 ),
               ),
