@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../providers/auth/auth_provider.dart';
 import '../../providers/notification/notification_provider.dart';
 
 class NotificationPermissionDialog extends ConsumerWidget {
@@ -91,11 +92,17 @@ class NotificationPermissionDialog extends ConsumerWidget {
                 // Enable chat notifications and default topic subscriptions
                 final notifier = ref.read(notificationPreferencesProvider.notifier);
                 await notifier.updateChatNotifications(true);
-                
-                // Enable default topic subscriptions
-                await notifier.updateTopicSubscription('events', true);
-                await notifier.updateTopicSubscription('products', true);
-                await notifier.updateTopicSubscription('jobs', true);
+
+                // `products` was never a real topic, and `events`/`jobs` are
+                // replaced by campus-scoped ids later in this plan. Also,
+                // force-enabling three content topics here silently overrode
+                // a choice the student may have already made elsewhere —
+                // reconciling applies their recorded intent instead.
+                await ref
+                    .read(notificationServiceProvider)
+                    .reconcile(
+                      campusId: ref.read(authStateProvider).user?.campusId,
+                    );
 
                 if (context.mounted) {
                   Navigator.of(context).pop(true);

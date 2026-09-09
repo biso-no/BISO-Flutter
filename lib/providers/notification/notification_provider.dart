@@ -51,8 +51,10 @@ class NotificationPreferencesNotifier
       final chatEnabled = await _notificationService
           .getChatNotificationPreference();
       
-      // Load topic subscriptions
-      final topicSubscriptions = _notificationService.topicSubscriptions;
+      // Await the load: reading the in-memory map directly renders hardcoded
+      // defaults over the student's saved choices on a cold start.
+      final topicSubscriptions =
+          await _notificationService.ensureTopicSubscriptionsLoaded();
       
       // Combine all preferences
       final allPreferences = {
@@ -103,6 +105,61 @@ final notificationPreferencesProvider =
     >((ref) {
       final service = ref.read(notificationServiceProvider);
       return NotificationPreferencesNotifier(service);
+    });
+
+/// The student's topic intent, and the only UI entry point for changing it.
+///
+/// Every change writes intent first, then reconciles this device's Appwrite
+/// subscriptions to match. A failed reconcile surfaces as an error state rather
+/// than leaving a switch asserting a subscription that does not exist.
+class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
+  TopicIntentNotifier(this._service, this._campusId)
+    : super(const AsyncValue.loading()) {
+    _load();
+  }
+
+  final NotificationService _service;
+  final String? _campusId;
+
+  Future<void> _load() async {
+    try {
+      state = AsyncValue.data(await _service.loadTopicIntent());
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  Future<void> setTopic(String topicId, bool enabled) async {
+    final current = state.value;
+    if (current == null) return;
+
+    final updated = <String, bool>{...current, topicId: enabled};
+    // Optimistic, so the switch responds immediately.
+    state = AsyncValue.data(updated);
+    try {
+      await _service.saveTopicIntent(updated);
+      await _service.reconcile(campusId: _campusId);
+    } catch (error, stackTrace) {
+      // Put the switch back rather than leave the UI claiming something untrue.
+      state = AsyncValue.data(current);
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  Future<void> refresh() => _load();
+}
+
+/// Rebuilds when the signed-in student or their home campus changes, so a
+/// campus move resubscribes this device.
+final topicIntentProvider =
+    StateNotifierProvider<TopicIntentNotifier, AsyncValue<Map<String, bool>>>((
+      ref,
+    ) {
+      final service = ref.watch(notificationServiceProvider);
+      final campusId = ref.watch(
+        authStateProvider.select((state) => state.user?.campusId),
+      );
+      return TopicIntentNotifier(service, campusId);
     });
 
 // ---------------------------------------------------------------------------
