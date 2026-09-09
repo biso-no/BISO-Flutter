@@ -43,6 +43,7 @@ import 'presentation/screens/ai_chat/ai_chat_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/announcement_detail_screen.dart';
+import 'presentation/widgets/notification_topics_prompt.dart';
 import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
@@ -54,6 +55,7 @@ import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
 import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
+import 'providers/notification/notification_provider.dart';
 import 'providers/shop/checkout_provider.dart';
 
 // Background message handler for Firebase
@@ -151,6 +153,28 @@ class BisoApp extends ConsumerWidget {
     if (!ref.watch(authStateProvider.select((state) => state.isLoading))) {
       ref.watch(checkoutControllerProvider.notifier);
     }
+
+    // Ask a signed-in student which topics they want, once. Gated the same way
+    // as the checkout controller: not until the session has resolved, and only
+    // once a profile exists so it never lands on top of onboarding.
+    final promptEligible = ref.watch(
+      authStateProvider.select(
+        (state) =>
+            !state.isLoading && state.isAuthenticated && !state.needsOnboarding,
+      ),
+    );
+    if (promptEligible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = navigatorKey.currentContext;
+        if (context != null) {
+          maybeShowTopicsPrompt(context, ref);
+        }
+      });
+    }
+
+    // Reconcile this device's subscriptions at launch, and again whenever the
+    // student or their campus changes. Nothing else covers a returning user.
+    ref.watch(topicReconcileProvider);
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);

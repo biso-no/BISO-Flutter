@@ -346,3 +346,29 @@ final announcementDetailProvider =
         userId: userId,
       );
     });
+
+/// Keeps this device's Appwrite subscriptions in step with the signed-in
+/// student and their home campus.
+///
+/// This is what makes `reconcile()` run at all for a returning student: the
+/// prompt only fires once, and the settings screen only fires when a switch is
+/// touched. Watching the campus as well means a student who transfers stops
+/// receiving their old campus's notifications, which nothing else would
+/// trigger.
+///
+/// Reconciliation is idempotent, so re-running it on every auth or campus
+/// change is free when nothing has actually changed.
+final topicReconcileProvider = FutureProvider<void>((ref) async {
+  final (ready, campusId) = ref.watch(
+    authStateProvider.select(
+      (state) => (
+        !state.isLoading && state.isAuthenticated,
+        state.user?.campusId,
+      ),
+    ),
+  );
+  if (!ready) return;
+  await ref
+      .read(notificationServiceProvider)
+      .reconcile(campusId: campusId);
+});
