@@ -1760,15 +1760,27 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
   Future<void> _load() async {
     try {
-      state = AsyncValue.data(await _service.loadTopicIntent());
+      final intent = await _service.loadTopicIntent();
+      if (mounted) state = AsyncValue.data(intent);
     } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
+      debugPrint('TopicIntentNotifier load failed: $error');
+      if (mounted) state = AsyncValue.error(error, stackTrace);
     }
   }
 
-  Future<void> setTopic(String topicId, bool enabled) async {
+  /// Returns true when the change was saved and this device reconciled.
+  ///
+  /// A failure reverts the switch and returns false; the caller tells the
+  /// student. The state stays `AsyncValue.data` throughout — deliberately.
+  /// Riverpod flushes at most one notification per event-loop turn, so
+  /// assigning `data(current)` and then `error(...)` would render only the
+  /// error: the revert would never be seen, and the whole card would be
+  /// replaced by an error message that hides all four switches. Since this
+  /// provider is not autoDispose, nothing short of an app restart would bring
+  /// them back.
+  Future<bool> setTopic(String topicId, bool enabled) async {
     final current = state.value;
-    if (current == null) return;
+    if (current == null) return false;
 
     final updated = <String, bool>{...current, topicId: enabled};
     // Optimistic, so the switch responds immediately.
@@ -1776,10 +1788,13 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     try {
       await _service.saveTopicIntent(updated);
       await _service.reconcile(campusId: _campusId);
-    } catch (error, stackTrace) {
-      // Put the switch back rather than leave the UI claiming something untrue.
-      state = AsyncValue.data(current);
-      state = AsyncValue.error(error, stackTrace);
+      return true;
+    } catch (error) {
+      debugPrint('TopicIntentNotifier.setTopic($topicId) failed: $error');
+      // The sole terminal state, so the revert is what the student actually
+      // sees: the switch goes back and the card stays usable.
+      if (mounted) state = AsyncValue.data(current);
+      return false;
     }
   }
 
@@ -1854,8 +1869,21 @@ topicIntentAsync.when(
             title: topic.label,
             subtitle: _topicSubtitle(topic),
             isEnabled: intent[topic.id] ?? false,
-            onChanged: (value) {
-              ref.read(topicIntentProvider.notifier).setTopic(topic.id, value);
+            onChanged: (value) async {
+              final ok = await ref
+                  .read(topicIntentProvider.notifier)
+                  .setTopic(topic.id, value);
+              if (!(ok || context.mounted)) return;
+              if (!ok) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Could not update ${topic.label} notifications. '
+                      'Check your connection and try again.',
+                    ),
+                  ),
+                );
+              }
             },
             selectedCampus: selectedCampus,
           ),
@@ -1869,9 +1897,20 @@ topicIntentAsync.when(
   ),
   error: (error, _) => Padding(
     padding: const EdgeInsets.all(16),
-    child: Text(
-      'Could not load your notification settings. Pull to retry.',
-      style: theme.textTheme.bodyMedium,
+    child: Column(
+      children: [
+        Text(
+          'Could not load your notification settings.',
+          style: theme.textTheme.bodyMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: () =>
+              ref.read(topicIntentProvider.notifier).refresh(),
+          child: const Text('Retry'),
+        ),
+      ],
     ),
   ),
 ),
@@ -1920,6 +1959,14 @@ Padding(
 ```
 
 If `AppColors.purple9` does not exist, check `lib/core/constants/app_colors.dart` and substitute the nearest defined purple; do not invent a constant.
+
+**Why `setTopic` returns a bool rather than moving the provider into an error
+state:** Riverpod flushes at most one notification per event-loop turn, so
+writing `data(current)` and then `error(...)` renders only the error — the
+revert is never seen. The card would be replaced wholesale by an error message
+hiding all four switches, and because this provider is not `autoDispose`, only
+an app restart would restore them. Keeping the state as `data` means the revert
+is what the student actually observes, and the snackbar carries the failure.
 
 - [ ] **Step 4: Verify it analyzes and the app builds**
 
