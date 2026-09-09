@@ -24,7 +24,7 @@
 - **Never swallow an Appwrite error into a generic string.** Every `catch` logs the actual exception (code and message). The bug this plan fixes hid for months behind a generic `debugPrint`.
 - **Dart tests use hand-written fakes**, not mockito/mocktail — neither is a dependency. Subclass the Appwrite service and override the method, following `test/data/services/notification_service_retry_test.dart`.
 - **Run Flutter tests with** `flutter test <path>` from `/Users/markus/Documents/dev/BISO-Flutter`.
-- **Never reformat a config file.** The two `appwrite.config.json` files use different indent widths - Flutter's is 4 spaces, Sites' is 2. Any script that rewrites one must detect and preserve its existing width, or a 21-line change lands as a 10,000-line diff. Verify with `git diff --stat` before committing: the insertion count should be within a few lines of what you actually added.
+- **Never re-serialise a config file.** Neither `appwrite.config.json` survives a JSON round-trip: the Sites one is Biome-formatted (short arrays stay on one line, and it uses 2-space indent to Flutter's 4), and the Flutter one holds float literals like `1.0e+19` that Python rewrites as `1e+19`. Both differences are invisible to JSON and both bury a 105-line change in a five-figure diff. Edit the topics array as text (Tasks 1 and 12 carry the tool). Always check `git diff --stat` before committing: an add must show zero deletions, a removal zero insertions.
 - **Rollout order is load-bearing.** Task 1 *adds* topics; Task 12 *removes* the old ones, and only after Tasks 10–11 have shipped. Removing them earlier breaks live event pushes.
 
 ## File Structure
@@ -86,99 +86,188 @@ Purely additive. The five existing topics stay for now so nothing breaks mid-rol
 - Consumes: nothing.
 - Produces: 21 Appwrite topic ids — `general`, and `{news,events,jobs,shop}_{oslo,bergen,trondheim,stavanger,national}`. Every later task depends on these existing.
 
-- [ ] **Step 1: Write the new topics array into the Flutter config**
+- [ ] **Step 1: Write the topics editor**
 
-Run this from `/Users/markus/Documents/dev/BISO-Flutter`. It preserves the existing five and appends the new twenty-one.
-
-```bash
-python3 - <<'PY'
-import json, collections, re
-
-def load(path):
-    """Load the config, remembering its existing indent width.
-
-    The two repos' configs are not formatted the same way - Flutter's uses 4
-    spaces, Sites' uses 2 - and rewriting one with the other's width reformats
-    every line of a 10,000-line file, burying a 21-line change. Preserve it.
-    """
-    text = open(path).read()
-    m = re.search(r'^( +)"', text, re.M)
-    indent = len(m.group(1)) if m else 2
-    return json.load(open(path), object_pairs_hook=collections.OrderedDict), indent
-
-def save(path, d, indent):
-    json.dump(d, open(path, 'w'), indent=indent, ensure_ascii=False)
-    open(path, 'a').write('\n')
-
-p = 'appwrite.config.json'
-d, indent = load(p)
-CAMPUS = [('oslo','Oslo'),('bergen','Bergen'),('trondheim','Trondheim'),
-          ('stavanger','Stavanger'),('national','National')]
-LOGICAL = [('news','News'),('events','Events'),('jobs','Jobs'),('shop','Shop')]
-existing = {t['$id'] for t in d.get('topics', [])}
-added = []
-for lid, llabel in LOGICAL:
-    for cslug, clabel in CAMPUS:
-        tid = f'{lid}_{cslug}'
-        if tid not in existing:
-            added.append({'$id': tid, 'name': f'{llabel} — {clabel}',
-                          'subscribe': ['users']})
-if 'general' not in existing:
-    added.append({'$id': 'general', 'name': 'Important announcements',
-                  'subscribe': ['users']})
-d['topics'] = list(d.get('topics', [])) + added
-save(p, d, indent)
-print(f'added {len(added)} topics; total {len(d["topics"])}')
-PY
-```
-
-Expected output: `added 21 topics; total 26`
-
-- [ ] **Step 2: Apply the identical change to the Sites config**
+The two configs are formatted differently and neither survives a JSON
+round-trip: the Sites config is Biome-formatted (short arrays stay on one
+line) and the Flutter config contains float literals (`1.0e+19`) that
+Python renormalises to `1e+19`. Both differences are invisible to JSON but
+turn a 105-line addition into a five-figure diff. This script edits the
+topics array as text, so every byte outside it is untouched by construction,
+and it refuses to write anything that does not parse as JSON.
 
 ```bash
-cd /Users/markus/Documents/dev/BISO-Sites && python3 - <<'PY'
-import json, collections, re
+mkdir -p /Users/markus/Documents/dev/BISO-Flutter/.superpowers/sdd/2026-09-09-topic-subscriptions
+cat > /Users/markus/Documents/dev/BISO-Flutter/.superpowers/sdd/2026-09-09-topic-subscriptions/topics_edit.py <<'TOPICS_EDIT_EOF'
+"""Add or remove Appwrite topics by editing the config TEXT, never re-serialising it.
 
-def load(path):
-    """Load the config, remembering its existing indent width.
+Round-tripping these configs through json.dump rewrites unrelated content: it
+expands Biome's single-line arrays in the Sites config, and renormalises float
+literals (1.0e+19 -> 1e+19) in the Flutter one. Both are invisible to JSON
+semantics and both bury the real change in a 10,000-line diff. Editing text
+directly leaves every byte outside the topics array untouched by construction.
 
-    The two repos' configs are not formatted the same way - Flutter's uses 4
-    spaces, Sites' uses 2 - and rewriting one with the other's width reformats
-    every line of a 10,000-line file, burying a 21-line change. Preserve it.
-    """
-    text = open(path).read()
-    m = re.search(r'^( +)"', text, re.M)
-    indent = len(m.group(1)) if m else 2
-    return json.load(open(path), object_pairs_hook=collections.OrderedDict), indent
+Usage:  topics_edit.py add    CONFIG
+        topics_edit.py remove CONFIG
+"""
+import json
+import re
+import sys
 
-def save(path, d, indent):
-    json.dump(d, open(path, 'w'), indent=indent, ensure_ascii=False)
-    open(path, 'a').write('\n')
+CAMPUS = [('oslo', 'Oslo'), ('bergen', 'Bergen'), ('trondheim', 'Trondheim'),
+          ('stavanger', 'Stavanger'), ('national', 'National')]
+LOGICAL = [('news', 'News'), ('events', 'Events'), ('jobs', 'Jobs'), ('shop', 'Shop')]
+LEGACY = ['news', 'events', 'expenses', 'orders', 'jobs']
 
-p = 'packages/api/appwrite.config.json'
-d, indent = load(p)
-CAMPUS = [('oslo','Oslo'),('bergen','Bergen'),('trondheim','Trondheim'),
-          ('stavanger','Stavanger'),('national','National')]
-LOGICAL = [('news','News'),('events','Events'),('jobs','Jobs'),('shop','Shop')]
-existing = {t['$id'] for t in d.get('topics', [])}
-added = []
-for lid, llabel in LOGICAL:
-    for cslug, clabel in CAMPUS:
-        tid = f'{lid}_{cslug}'
-        if tid not in existing:
-            added.append({'$id': tid, 'name': f'{llabel} — {clabel}',
-                          'subscribe': ['users']})
-if 'general' not in existing:
-    added.append({'$id': 'general', 'name': 'Important announcements',
-                  'subscribe': ['users']})
-d['topics'] = list(d.get('topics', [])) + added
-save(p, d, indent)
-print(f'added {len(added)} topics; total {len(d["topics"])}')
-PY
+
+def find_topics_array(text):
+    """Return (index of '[', index of matching ']') for the topics array."""
+    m = re.search(r'"topics"\s*:\s*\[', text)
+    if not m:
+        raise SystemExit('no "topics" array found')
+    start = m.end() - 1
+    depth, i, in_str, esc = 0, start, False, False
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == '[':
+            depth += 1
+        elif ch == ']':
+            depth -= 1
+            if depth == 0:
+                return start, i
+        i += 1
+    raise SystemExit('unterminated "topics" array')
+
+
+def split_objects(body):
+    """Split an array body into its top-level object texts, in order."""
+    objs, depth, i, obj_start, in_str, esc = [], 0, 0, None, False, False
+    while i < len(body):
+        ch = body[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == '{':
+            if depth == 0:
+                obj_start = i
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                objs.append((obj_start, i + 1, body[obj_start:i + 1]))
+        i += 1
+    return objs
+
+
+def write(path, text):
+    json.loads(text)  # refuse to write anything that is not valid JSON
+    open(path, 'w').write(text)
+
+
+def do_add(path, text, start, end):
+    body = text[start + 1:end]
+    existing = {t['$id'] for t in json.loads(text[start:end + 1])}
+
+    wanted = [(f'{lid}_{cs}', f'{ll} — {cl}')
+              for lid, ll in LOGICAL for cs, cl in CAMPUS]
+    wanted.append(('general', 'Important announcements'))
+    added = [(tid, name) for tid, name in wanted if tid not in existing]
+    if not added:
+        print(f'{path}: nothing to add; total {len(existing)}')
+        return
+
+    obj_indent = (re.search(r'\n(\s+)\{', body) or [None, '  '])[1]
+    key_m = re.search(r'\n(\s+)"\$id"', body)
+    key_indent = key_m.group(1) if key_m else obj_indent + '  '
+    close_indent = re.search(r'(\s*)$', body).group(1).lstrip('\n')
+
+    chunks = [
+        f'{obj_indent}{{\n'
+        f'{key_indent}"$id": "{tid}",\n'
+        f'{key_indent}"name": "{name}",\n'
+        f'{key_indent}"subscribe": ["users"]\n'
+        f'{obj_indent}}}'
+        for tid, name in added
+    ]
+    stripped = body.rstrip()
+    joined = ',\n'.join(chunks)
+    new_body = (f'{stripped},\n{joined}\n{close_indent}' if stripped.endswith('}')
+                else f'\n{joined}\n{close_indent}')
+
+    write(path, text[:start + 1] + new_body + text[end:])
+    print(f'{path}: added {len(added)} topics; total {len(existing) + len(added)}')
+
+
+def do_remove(path, text, start, end):
+    body = text[start + 1:end]
+    objs = split_objects(body)
+    keep = []
+    removed = []
+    for s, e, obj_text in objs:
+        tid = json.loads(obj_text)['$id']
+        (removed if tid in LEGACY else keep).append((tid, obj_text))
+    if not removed:
+        print(f'{path}: nothing to remove; total {len(keep)}')
+        return
+
+    obj_indent = (re.search(r'\n(\s+)\{', body) or [None, '  '])[1]
+    close_indent = re.search(r'(\s*)$', body).group(1).lstrip('\n')
+    # split_objects returns each object starting at its '{', without the
+    # leading whitespace, so re-apply the array's own indent to every one.
+    joined = ',\n'.join(obj_indent + t for _, t in keep)
+    new_body = f'\n{joined}\n{close_indent}' if keep else ''
+
+    write(path, text[:start + 1] + new_body + text[end:])
+    print(f'{path}: removed {len(removed)} topics ({", ".join(t for t, _ in removed)}); '
+          f'total {len(keep)}')
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3 or sys.argv[1] not in ('add', 'remove'):
+        raise SystemExit(__doc__)
+    op, cfg = sys.argv[1], sys.argv[2]
+    txt = open(cfg).read()
+    s, e = find_topics_array(txt)
+    (do_add if op == 'add' else do_remove)(cfg, txt, s, e)
+TOPICS_EDIT_EOF
+echo written
 ```
 
-Expected output: `added 21 topics; total 26`
+- [ ] **Step 2: Add the topics to both configs**
+
+```bash
+WS=/Users/markus/Documents/dev/BISO-Flutter/.superpowers/sdd/2026-09-09-topic-subscriptions
+python3 "$WS/topics_edit.py" add /Users/markus/Documents/dev/BISO-Flutter/appwrite.config.json
+python3 "$WS/topics_edit.py" add /Users/markus/Documents/dev/BISO-Sites/packages/api/appwrite.config.json
+```
+
+Expected output — one line per file, each ending `added 21 topics; total 26`.
+
+Then confirm each change is purely additive. **Both** commands must report
+insertions in the low hundreds and **zero deletions**; anything else means the
+file was reformatted and must not be committed:
+
+```bash
+git -C /Users/markus/Documents/dev/BISO-Flutter diff --stat -- appwrite.config.json
+git -C /Users/markus/Documents/dev/BISO-Sites diff --stat -- packages/api/appwrite.config.json
+```
+
+Expected: roughly `105 insertions(+)` on each, with no deletions.
 
 - [ ] **Step 3: Verify both configs are still valid JSON and agree**
 
@@ -2713,38 +2802,185 @@ Expected: no matches. Any hit here is a consumer that will break — fix it befo
 
 Note the admin composer's `TOPIC_OPTIONS` in `announcement-studio-editor.tsx` **will** still list the old ids. That is expected and owned by spec 2. Confirm with the user that no admin will hand-send to a topic between this task and spec 2 shipping; if that is a risk, do Task 12 after spec 2 instead.
 
-- [ ] **Step 2: Remove the five legacy topics from both configs**
+- [ ] **Step 2: Write the topics editor**
+
+Same tool as Task 1, re-created here so this task stands alone. It edits the
+topics array as text rather than re-serialising the file, because neither
+config survives a JSON round-trip without a five-figure reformat.
 
 ```bash
-python3 - <<'PY'
-import json, collections, re
+mkdir -p /Users/markus/Documents/dev/BISO-Flutter/.superpowers/sdd/2026-09-09-topic-subscriptions
+cat > /Users/markus/Documents/dev/BISO-Flutter/.superpowers/sdd/2026-09-09-topic-subscriptions/topics_edit.py <<'TOPICS_EDIT_EOF'
+"""Add or remove Appwrite topics by editing the config TEXT, never re-serialising it.
 
-def load(path):
-    """Load the config, remembering its existing indent width.
+Round-tripping these configs through json.dump rewrites unrelated content: it
+expands Biome's single-line arrays in the Sites config, and renormalises float
+literals (1.0e+19 -> 1e+19) in the Flutter one. Both are invisible to JSON
+semantics and both bury the real change in a 10,000-line diff. Editing text
+directly leaves every byte outside the topics array untouched by construction.
 
-    The two repos' configs are not formatted the same way - Flutter's uses 4
-    spaces, Sites' uses 2 - and rewriting one with the other's width reformats
-    every line of a 10,000-line file, burying a 21-line change. Preserve it.
-    """
-    text = open(path).read()
-    m = re.search(r'^( +)"', text, re.M)
-    indent = len(m.group(1)) if m else 2
-    return json.load(open(path), object_pairs_hook=collections.OrderedDict), indent
+Usage:  topics_edit.py add    CONFIG
+        topics_edit.py remove CONFIG
+"""
+import json
+import re
+import sys
 
-def save(path, d, indent):
-    json.dump(d, open(path, 'w'), indent=indent, ensure_ascii=False)
-    open(path, 'a').write('\n')
+CAMPUS = [('oslo', 'Oslo'), ('bergen', 'Bergen'), ('trondheim', 'Trondheim'),
+          ('stavanger', 'Stavanger'), ('national', 'National')]
+LOGICAL = [('news', 'News'), ('events', 'Events'), ('jobs', 'Jobs'), ('shop', 'Shop')]
+LEGACY = ['news', 'events', 'expenses', 'orders', 'jobs']
 
-LEGACY = {'news', 'events', 'expenses', 'orders', 'jobs'}
-for p in ['/Users/markus/Documents/dev/BISO-Flutter/appwrite.config.json',
-          '/Users/markus/Documents/dev/BISO-Sites/packages/api/appwrite.config.json']:
-    d, indent = load(p)
-    before = len(d['topics'])
-    d['topics'] = [t for t in d['topics'] if t['$id'] not in LEGACY]
-    save(p, d, indent)
-    print(f'{p}: {before} -> {len(d["topics"])}')
-PY
+
+def find_topics_array(text):
+    """Return (index of '[', index of matching ']') for the topics array."""
+    m = re.search(r'"topics"\s*:\s*\[', text)
+    if not m:
+        raise SystemExit('no "topics" array found')
+    start = m.end() - 1
+    depth, i, in_str, esc = 0, start, False, False
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == '[':
+            depth += 1
+        elif ch == ']':
+            depth -= 1
+            if depth == 0:
+                return start, i
+        i += 1
+    raise SystemExit('unterminated "topics" array')
+
+
+def split_objects(body):
+    """Split an array body into its top-level object texts, in order."""
+    objs, depth, i, obj_start, in_str, esc = [], 0, 0, None, False, False
+    while i < len(body):
+        ch = body[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == '{':
+            if depth == 0:
+                obj_start = i
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                objs.append((obj_start, i + 1, body[obj_start:i + 1]))
+        i += 1
+    return objs
+
+
+def write(path, text):
+    json.loads(text)  # refuse to write anything that is not valid JSON
+    open(path, 'w').write(text)
+
+
+def do_add(path, text, start, end):
+    body = text[start + 1:end]
+    existing = {t['$id'] for t in json.loads(text[start:end + 1])}
+
+    wanted = [(f'{lid}_{cs}', f'{ll} — {cl}')
+              for lid, ll in LOGICAL for cs, cl in CAMPUS]
+    wanted.append(('general', 'Important announcements'))
+    added = [(tid, name) for tid, name in wanted if tid not in existing]
+    if not added:
+        print(f'{path}: nothing to add; total {len(existing)}')
+        return
+
+    obj_indent = (re.search(r'\n(\s+)\{', body) or [None, '  '])[1]
+    key_m = re.search(r'\n(\s+)"\$id"', body)
+    key_indent = key_m.group(1) if key_m else obj_indent + '  '
+    close_indent = re.search(r'(\s*)$', body).group(1).lstrip('\n')
+
+    chunks = [
+        f'{obj_indent}{{\n'
+        f'{key_indent}"$id": "{tid}",\n'
+        f'{key_indent}"name": "{name}",\n'
+        f'{key_indent}"subscribe": ["users"]\n'
+        f'{obj_indent}}}'
+        for tid, name in added
+    ]
+    stripped = body.rstrip()
+    joined = ',\n'.join(chunks)
+    new_body = (f'{stripped},\n{joined}\n{close_indent}' if stripped.endswith('}')
+                else f'\n{joined}\n{close_indent}')
+
+    write(path, text[:start + 1] + new_body + text[end:])
+    print(f'{path}: added {len(added)} topics; total {len(existing) + len(added)}')
+
+
+def do_remove(path, text, start, end):
+    body = text[start + 1:end]
+    objs = split_objects(body)
+    keep = []
+    removed = []
+    for s, e, obj_text in objs:
+        tid = json.loads(obj_text)['$id']
+        (removed if tid in LEGACY else keep).append((tid, obj_text))
+    if not removed:
+        print(f'{path}: nothing to remove; total {len(keep)}')
+        return
+
+    obj_indent = (re.search(r'\n(\s+)\{', body) or [None, '  '])[1]
+    close_indent = re.search(r'(\s*)$', body).group(1).lstrip('\n')
+    # split_objects returns each object starting at its '{', without the
+    # leading whitespace, so re-apply the array's own indent to every one.
+    joined = ',\n'.join(obj_indent + t for _, t in keep)
+    new_body = f'\n{joined}\n{close_indent}' if keep else ''
+
+    write(path, text[:start + 1] + new_body + text[end:])
+    print(f'{path}: removed {len(removed)} topics ({", ".join(t for t, _ in removed)}); '
+          f'total {len(keep)}')
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3 or sys.argv[1] not in ('add', 'remove'):
+        raise SystemExit(__doc__)
+    op, cfg = sys.argv[1], sys.argv[2]
+    txt = open(cfg).read()
+    s, e = find_topics_array(txt)
+    (do_add if op == 'add' else do_remove)(cfg, txt, s, e)
+TOPICS_EDIT_EOF
+echo written
 ```
+
+- [ ] **Step 2b: Remove the five legacy topics from both configs**
+
+```bash
+WS=/Users/markus/Documents/dev/BISO-Flutter/.superpowers/sdd/2026-09-09-topic-subscriptions
+python3 "$WS/topics_edit.py" remove /Users/markus/Documents/dev/BISO-Flutter/appwrite.config.json
+python3 "$WS/topics_edit.py" remove /Users/markus/Documents/dev/BISO-Sites/packages/api/appwrite.config.json
+```
+
+Expected: each reports `removed 5 topics (news, events, expenses, orders, jobs); total 21`.
+
+Confirm the change is purely subtractive — **zero insertions** on both:
+
+```bash
+git -C /Users/markus/Documents/dev/BISO-Flutter diff --stat -- appwrite.config.json
+git -C /Users/markus/Documents/dev/BISO-Sites diff --stat -- packages/api/appwrite.config.json
+```
+
+Expected: deletions only (35 in Flutter, 25 in Sites — they differ because the
+legacy entries are formatted differently in each). Any insertion means the file
+was reformatted; do not commit.
+
 
 Expected: both report `26 -> 21`.
 
