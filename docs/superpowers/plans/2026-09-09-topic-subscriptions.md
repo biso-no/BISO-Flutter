@@ -2295,10 +2295,11 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `/Users/markus/Documents/dev/BISO-Flutter/lib/data/services/notification_service.dart` (`clearToken`, the last method)
+- Modify: `/Users/markus/Documents/dev/BISO-Flutter/lib/providers/auth/auth_provider.dart` (`AuthNotifier.logout`)
 
 **Interfaces:**
 - Consumes: `DeviceSubscriptionStore` (Task 4).
-- Produces: no new API; `clearToken()` gains real Appwrite-side cleanup.
+- Produces: no new API; `clearToken()` gains real Appwrite-side cleanup, and an actual caller.
 
 - [ ] **Step 1: Find every caller and confirm ordering**
 
@@ -2306,7 +2307,33 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 cd /Users/markus/Documents/dev/BISO-Flutter && grep -rn "clearToken" lib/
 ```
 
-Read each call site. `clearToken()` must run **before** the Appwrite session is deleted — afterwards `deleteSubscriber` and `deletePushTarget` are unauthorized and silently fail. If any caller deletes the session first, move the call.
+**`clearToken()` currently has no callers at all.** It is defined and never invoked, which is why signed-out devices keep receiving pushes — fixing the method alone would leave the bug exactly where it is.
+
+The sign-out path is: the profile screen's button → `AuthNotifier.signOut()` → `AuthNotifier.logout()` → `AuthService.logout()`, which calls `deleteSession`. `deleteSubscriber` and `deletePushTarget` both need the session, so the call goes in `AuthNotifier.logout()` (`lib/providers/auth/auth_provider.dart`) **before** `await _authService.logout()`:
+
+```dart
+  Future<void> logout() async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      // Before the session goes: deleting this device's subscribers and push
+      // target both require it. Best-effort — a cleanup failure must not leave
+      // the student unable to sign out.
+      await NotificationService().clearToken();
+      await _authService.logout();
+      // Clear JWT cache when user signs out
+      state = const AuthState();
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+```
+
+`NotificationService()` is a singleton factory, so no Riverpod plumbing is needed. Add the import.
+
+For "best-effort" to be true, `clearToken` must not be able to throw past its own catches — otherwise a failed cleanup would skip `_authService.logout()` and leave the student unable to sign out, which is worse than the bug being fixed. The Appwrite calls are covered by `on AppwriteException`, but the three `DeviceSubscriptionStore` calls (`readSubscriberIds`, `readTargetId`, `clear`) are not: wrap each so a storage failure cannot escape.
+
+Leave `AuthNotifier.clearSession()` alone: it is reached only from the magic-link screen after a failed verification, where the session is already unusable, so the cleanup calls would fail anyway.
 
 - [ ] **Step 2: Replace `clearToken`**
 
