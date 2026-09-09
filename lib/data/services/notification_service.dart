@@ -751,7 +751,15 @@ class NotificationService {
   /// Intent is deliberately left in account preferences — it is per-user, and
   /// the next login reconciles from it.
   Future<void> clearToken() async {
-    final subscriberIds = await _store.readSubscriberIds();
+    // Every await below is guarded — logout (see AuthNotifier.logout) treats
+    // this whole method as best-effort, so a storage or network failure here
+    // must never propagate and block the session from being deleted.
+    Map<String, String> subscriberIds = const <String, String>{};
+    try {
+      subscriberIds = await _store.readSubscriberIds();
+    } catch (e) {
+      debugPrint('clearToken: could not read subscriber ids: $e');
+    }
     for (final entry in subscriberIds.entries) {
       try {
         await _messaging.deleteSubscriber(
@@ -763,7 +771,12 @@ class NotificationService {
       }
     }
 
-    final targetId = await _store.readTargetId();
+    String? targetId;
+    try {
+      targetId = await _store.readTargetId();
+    } catch (e) {
+      debugPrint('clearToken: could not read target id: $e');
+    }
     if (targetId != null) {
       try {
         await _account.deletePushTarget(targetId: targetId);
@@ -772,7 +785,11 @@ class NotificationService {
       }
     }
 
-    await _store.clear();
+    try {
+      await _store.clear();
+    } catch (e) {
+      debugPrint('clearToken: could not clear the local subscription store: $e');
+    }
     _pushTargetId = null;
     _topicSubscriptions.clear();
     _topicSubscriberIds.clear();

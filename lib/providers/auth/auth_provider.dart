@@ -5,6 +5,7 @@ import '../../data/models/membership_model.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/membership_service.dart';
 import '../../data/services/appwrite_service.dart';
+import '../../data/services/notification_service.dart';
 
 import '../../core/logging/print_migration.dart';
 
@@ -417,6 +418,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      // Before the session goes: deleting this device's subscribers and push
+      // target both require it. Best-effort — a cleanup failure must not leave
+      // the student unable to sign out.
+      await NotificationService().clearToken();
       await _authService.logout();
       // Clear JWT cache when user signs out
       state = const AuthState();
