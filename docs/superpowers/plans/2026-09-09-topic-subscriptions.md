@@ -2910,6 +2910,16 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Do not start this task until Tasks 10 and 11 are deployed** and the Flutter build from Tasks 2–9 has shipped. Removing these earlier points live event pushes and broadcasts at topics that no longer exist, and those failures are swallowed.
 
+> **The commits are safe; the push is gated.** Editing this config changes
+> nothing by itself — the topics are only deleted when someone runs
+> `appwrite push topics`. Do not push it until the admin composer's
+> `TOPIC_OPTIONS` has been rewritten (spec 2). That list still offers
+> `events`/`products`/`jobs`, and its default is the non-empty string
+> `"events"`, so it **bypasses `DEFAULT_BROADCAST_TOPIC` entirely** — that
+> fallback only fires on an empty `audience_value`. A hand-sent topic
+> announcement would therefore target a deleted topic and fail silently, which
+> is the exact failure mode this plan exists to remove.
+
 **Files:**
 - Modify: `/Users/markus/Documents/dev/BISO-Flutter/appwrite.config.json`
 - Modify: `/Users/markus/Documents/dev/BISO-Sites/packages/api/appwrite.config.json`
