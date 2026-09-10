@@ -424,40 +424,51 @@ void main() {
     }
 
     test(
-      'merges both reads newest first and keeps only the newest topic rows '
-      'up to the fetch limit',
+      'merges the two reads, each cut to the fetch limit on its own, into the '
+      'newest rows of their union up to that limit: it must pick across both '
+      'reads rather than favour either, or split the limit between them',
       () async {
-        // Own-campus and all-campuses rows interleaved in time, with more of
-        // them together than the fetch limit allows.
+        // More rows than the fetch limit of 50 for each read, unevenly spread
+        // in time: the newest 50 of the two together are 35 all-campuses rows
+        // and 15 own-campus ones. Newer than all of them are rows for another
+        // campus, which neither read may return.
         final rows = [
-          for (var i = 0; i < 40; i++) ...[
+          for (var i = 0; i < 60; i++)
             _topicRow(
               'oslo-$i',
               campusId: '1',
               audienceValue: 'events_oslo',
               sentAt: at(2 * i),
             ),
+          for (var i = 0; i < 60; i++)
             _topicRow(
               'all-$i',
               campusId: null,
               audienceValue: 'events_national',
-              sentAt: at(2 * i + 1),
+              sentAt: at(41 + 2 * i),
             ),
-          ],
+          for (var i = 0; i < 10; i++)
+            _topicRow(
+              'bergen-$i',
+              campusId: '2',
+              audienceValue: 'events_bergen',
+              sentAt: at(200 + i),
+            ),
         ];
-        final newestFirst = [
+        final newestOfUnion = [
           for (final row
               in [...rows]..sort(
                 (a, b) =>
                     (b['sent_at'] as String).compareTo(a['sent_at'] as String),
               ))
-            row['\$id'] as String,
-        ];
+            if (row['campus_id'] != '2') row['\$id'] as String,
+        ].take(50).toList();
 
         final ids = await inboxIds(_FakeTablesDB(rows), campusId: '1');
 
-        expect(ids.length, lessThan(rows.length), reason: 'limit applied');
-        expect(ids, newestFirst.take(ids.length).toList());
+        expect(ids, hasLength(50));
+        expect(ids, newestOfUnion);
+        expect(ids.where((id) => id.startsWith('all-')), hasLength(35));
       },
     );
 
