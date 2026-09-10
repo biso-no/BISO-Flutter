@@ -11231,41 +11231,6 @@
     ],
     "topics": [
         {
-            "$id": "news",
-            "name": "News",
-            "subscribe": [
-                "users"
-            ]
-        },
-        {
-            "$id": "events",
-            "name": "Events",
-            "subscribe": [
-                "users"
-            ]
-        },
-        {
-            "$id": "expenses",
-            "name": "Expenses",
-            "subscribe": [
-                "users"
-            ]
-        },
-        {
-            "$id": "orders",
-            "name": "Orders",
-            "subscribe": [
-                "users"
-            ]
-        },
-        {
-            "$id": "jobs",
-            "name": "Jobs",
-            "subscribe": [
-                "users"
-            ]
-        },
-        {
             "$id": "news_oslo",
             "name": "News — Oslo",
             "subscribe": ["users"]
