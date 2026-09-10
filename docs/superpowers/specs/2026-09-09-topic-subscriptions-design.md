@@ -348,8 +348,21 @@ new code, when `notification_topics` is absent but `topic_subscriptions` is pres
 | `expenses` | dropped (spec 3) |
 | — | `news` defaults to `true` |
 
-Write `notification_topics` and set `notification_topics_set_at`, so a student who already
-made a choice is not re-prompted.
+Write `notification_topics` from that mapping, and use it to **pre-fill the prompt** rather
+than to skip it.
+
+An earlier draft of this spec had a legacy `topic_subscriptions` map count as "already
+answered", so migrated students would not be re-prompted. That was wrong, and it would have
+made this entire spec inert for the existing user base: `_loadTopicSubscriptions()` *writes*
+that map itself, with hardcoded defaults, whenever the key is absent — and it runs on every
+launch, because the home screen's unread badge reaches it. Essentially every existing account
+therefore carries a machine-written map nobody chose. Treating it as an answer would skip the
+prompt for all of them, so OS permission would never be requested and `reconcile()` would bail
+at its permission check. The bug this spec exists to fix would survive, silently.
+
+So `notification_topics_set_at` is the **only** marker. Every existing student is asked once,
+with their migrated choices already filled in — which is what the legacy map is actually good
+for. Nothing writes the legacy key any more; it is read once, to migrate, and then ignored.
 
 Stale `topic_subscriber_ids` in account prefs are discarded rather than cleaned up: they
 reference topics this spec deletes, and deleting a topic removes its subscribers.
