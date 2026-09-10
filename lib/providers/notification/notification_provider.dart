@@ -139,13 +139,33 @@ final notificationPreferencesProvider =
 /// provider is not autoDispose, nothing short of an app restart would bring
 /// them back.
 class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
-  TopicIntentNotifier(this._service, this._campusId)
-    : super(const AsyncValue.loading()) {
+  TopicIntentNotifier(
+    this._service,
+    this._campusId, {
+    required String? studentId,
+    required String? Function() signedInStudentId,
+  }) : _studentId = studentId,
+       _signedInStudentId = signedInStudentId,
+       super(const AsyncValue.loading()) {
     _load();
   }
 
   final NotificationService _service;
   final String? _campusId;
+
+  /// The student this notifier was built for, and so the student every save
+  /// it queues belongs to: [topicIntentProvider] builds a new notifier when
+  /// the signed-in student changes.
+  final String? _studentId;
+
+  /// Who is signed in now, asked afresh on every call - even once this
+  /// notifier has been disposed.
+  final String? Function() _signedInStudentId;
+
+  /// Whether the student this notifier's saves belong to is still the one
+  /// signed in (see [_commit]).
+  bool get _studentStillSignedIn =>
+      _studentId != null && _signedInStudentId() == _studentId;
 
   /// The student's intent as last confirmed persisted: what the server holds,
   /// as far as this notifier knows.
@@ -250,13 +270,24 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   /// one change: it holds every earlier save that succeeded, none that
   /// failed, and no tap still queued behind this one.
   ///
-  /// [topicIntentProvider] rebuilds this notifier when the campus changes, so
-  /// a commit can find it disposed by the time its save completes. The save
-  /// still counts — intent is campus-free, and genuinely the student's choice
-  /// — but nothing else happens here: no state is read or written
-  /// (StateNotifier asserts on both after dispose), and nothing reconciles a
-  /// campus that is no longer the student's. The rebuilt notifier and the
-  /// launch reconciler own the new campus. The result is then
+  /// A save belongs to the student who made it, and is written only while they
+  /// are still the one signed in: checked before the save starts, and again
+  /// once the account's preferences have been read, immediately before they
+  /// are written back (see [NotificationService.saveTopicIntent]). A commit
+  /// still queued when its student signs out and another signs in would
+  /// otherwise save through the new session - the first student's choices,
+  /// and the answered marker, in the second student's preferences, so the
+  /// second student was never asked. Such a save is dropped: nothing is
+  /// written to the preferences or to [state], nothing reconciles, and the
+  /// result is null, since nothing was saved.
+  ///
+  /// [topicIntentProvider] also rebuilds this notifier when the campus
+  /// changes, so a commit can find it disposed by the time its save completes.
+  /// For the same student the save still counts — intent is campus-free, and
+  /// genuinely the student's choice — but nothing else happens here: no state
+  /// is read or written (StateNotifier asserts on both after dispose), and
+  /// nothing reconciles a campus that is no longer the student's. The rebuilt
+  /// notifier and the launch reconciler own the new campus. The result is then
   /// [ReconcileOutcome.unavailable]: saved, but this device was not updated by
   /// this call.
   Future<ReconcileOutcome?> _commit(
@@ -266,12 +297,14 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   ) async {
     final confirmed = _confirmed;
     if (confirmed == null) return null;
+    if (!_studentStillSignedIn) return _dropSave(topicId, sequence);
 
+    final bool saved;
     try {
-      await _service.saveTopicIntent(<String, bool>{
-        ...confirmed,
-        topicId: enabled,
-      });
+      saved = await _service.saveTopicIntent(
+        <String, bool>{...confirmed, topicId: enabled},
+        onlyIf: () => _studentStillSignedIn,
+      );
     } catch (error) {
       debugPrint(
         'TopicIntentNotifier.setTopic($topicId) failed to save: $error',
@@ -291,6 +324,7 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
       }
       return null;
     }
+    if (!saved) return _dropSave(topicId, sequence);
 
     // Intent is saved from here on. Whatever reconcile() does or doesn't
     // manage on this device, the switch must not revert — the student's
@@ -303,7 +337,7 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     _confirmed = <String, bool>{...(_confirmed ?? confirmed), topicId: enabled};
     _resolveTap(topicId, sequence);
 
-    if (!mounted) return ReconcileOutcome.unavailable;
+    if (!mounted || !_studentStillSignedIn) return ReconcileOutcome.unavailable;
 
     try {
       return await _service.reconcile(campusId: _campusId);
@@ -317,6 +351,18 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
       );
       return ReconcileOutcome.unavailable;
     }
+  }
+
+  /// Gives up a save whose student is no longer the one signed in: nothing is
+  /// written to the preferences or to [state], and nothing reconciles. Null,
+  /// because nothing was saved.
+  ReconcileOutcome? _dropSave(String topicId, int sequence) {
+    debugPrint(
+      'TopicIntentNotifier.setTopic($topicId): not saved, because the student '
+      'who made the change is no longer signed in',
+    );
+    _resolveTap(topicId, sequence);
+    return null;
   }
 
   /// Forgets [topicId]'s queued tap if [sequence] is still its latest, and
@@ -336,17 +382,30 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   }
 }
 
-/// Rebuilds when the signed-in student or their home campus changes, so a
-/// campus move resubscribes this device.
+/// Rebuilds when the signed-in student or their home campus changes: a campus
+/// move resubscribes this device, and a notifier, with every save it has
+/// queued, belongs to one student (see [TopicIntentNotifier._commit]).
 final topicIntentProvider =
     StateNotifierProvider<TopicIntentNotifier, AsyncValue<Map<String, bool>>>((
       ref,
     ) {
       final service = ref.watch(notificationServiceProvider);
-      final campusId = ref.watch(
-        authStateProvider.select((state) => state.user?.campusId),
+      final (studentId, campusId) = ref.watch(
+        authStateProvider.select(
+          (state) => (state.signedInUserId, state.user?.campusId),
+        ),
       );
-      return TopicIntentNotifier(service, campusId);
+      // Asked through the container, not this ref: a save asks after the
+      // student has changed, when a ref whose dependency changed may not be
+      // used.
+      final container = ref.container;
+      return TopicIntentNotifier(
+        service,
+        campusId,
+        studentId: studentId,
+        signedInStudentId: () =>
+            container.read(authStateProvider).signedInUserId,
+      );
     });
 
 // ---------------------------------------------------------------------------

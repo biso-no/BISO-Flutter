@@ -3,28 +3,73 @@ import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
+import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/notification_service.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+const String _studentA = 'student-a';
+const String _studentB = 'student-b';
+
+models.User _user(String id) => models.User(
+  $id: id,
+  $createdAt: '',
+  $updatedAt: '',
+  name: id,
+  registration: '',
+  status: true,
+  labels: const <String>[],
+  passwordUpdate: '',
+  email: '$id@bi.no',
+  phone: '',
+  emailVerification: true,
+  phoneVerification: false,
+  mfa: false,
+  prefs: models.Preferences(data: <String, dynamic>{}),
+  targets: const <models.Target>[],
+  accessedAt: '',
+);
 
 /// The [Account] backing [_FakeNotificationService] - the server, as far as
 /// these tests are concerned.
 ///
-/// [prefs] is what the server holds. It changes only when
-/// [_FakeNotificationService.saveTopicIntent] succeeds, and is read back
-/// through the real `loadTopicIntent()` - by `TopicIntentNotifier._load()`,
-/// and by a test asking what the server has.
+/// [prefsByStudent] is what the server holds for each account, and [session]
+/// is whose account this device is signed in to: every read and every write
+/// goes to that account, as it would through Appwrite. A save lands only
+/// through the real `saveTopicIntent()`, and is read back through the real
+/// `loadTopicIntent()` - by `TopicIntentNotifier._load()`, and by a test
+/// asking what the server has.
 class _FakeAccount extends Account {
   _FakeAccount(Map<String, dynamic> prefs)
-    : prefs = Map<String, dynamic>.from(prefs),
+    : prefsByStudent = <String, Map<String, dynamic>>{
+        _studentA: Map<String, dynamic>.from(prefs),
+        _studentB: <String, dynamic>{},
+      },
       super(Client());
 
-  final Map<String, dynamic> prefs;
+  final Map<String, Map<String, dynamic>> prefsByStudent;
 
-  /// When set, the next [getPrefs] call snapshots [prefs] as they are when it
-  /// is made, then waits for this before answering - a read whose response
-  /// arrives after writes that landed while it was out.
+  /// Whose account this device's session belongs to, or null when nobody is
+  /// signed in.
+  String? session = _studentA;
+
+  /// The signed-in account's preferences.
+  Map<String, dynamic> get prefs => prefsByStudent[_signedIn()]!;
+
+  String _signedIn() {
+    final student = session;
+    if (student == null) throw AppwriteException('no session', 401);
+    return student;
+  }
+
+  /// When set, the next [getPrefs] call snapshots the preferences as they are
+  /// when it is made, then waits for this before answering - a read whose
+  /// response arrives after writes that landed while it was out, or after the
+  /// session has changed.
   Completer<void>? holdNextRead;
 
   @override
@@ -35,13 +80,21 @@ class _FakeAccount extends Account {
     if (hold != null) await hold.future;
     return models.Preferences(data: snapshot);
   }
+
+  @override
+  Future<models.User> updatePrefs({required Map prefs}) async {
+    final student = _signedIn();
+    prefsByStudent[student] = Map<String, dynamic>.from(prefs);
+    return _user(student);
+  }
 }
 
-/// A [NotificationService] whose [saveTopicIntent] and [reconcile] are
-/// controlled directly by the test, so [TopicIntentNotifier] can be exercised
-/// without a network, Firebase, or Appwrite Messaging - none of which have
-/// any test-double support in this project (no mockito/mocktail either; see
-/// the hand-written fakes throughout `test/data/services/`).
+/// A [NotificationService] whose [saveTopicIntent] can be held or made to
+/// fail before it runs for real against [_FakeAccount], and whose [reconcile]
+/// is controlled directly by the test, so [TopicIntentNotifier] can be
+/// exercised without a network, Firebase, or Appwrite Messaging - none of
+/// which have any test-double support in this project (no mockito/mocktail
+/// either; see the hand-written fakes throughout `test/data/services/`).
 class _FakeNotificationService extends NotificationService {
   _FakeNotificationService(Map<String, dynamic> seededPrefs)
     : this._(_FakeAccount(seededPrefs));
@@ -56,6 +109,8 @@ class _FakeNotificationService extends NotificationService {
   Object? saveThrows;
   int? saveThrowsOnCall;
   int saveCalls = 0;
+
+  /// The last intent a save wrote to the server.
   Map<String, bool>? lastSaved;
 
   /// Every map ever passed to [saveTopicIntent], in call order - including
@@ -70,7 +125,10 @@ class _FakeNotificationService extends NotificationService {
   List<Completer<void>>? saveGates;
 
   @override
-  Future<void> saveTopicIntent(Map<String, bool> intent) async {
+  Future<bool> saveTopicIntent(
+    Map<String, bool> intent, {
+    bool Function()? onlyIf,
+  }) async {
     final call = ++saveCalls;
     final payload = Map<String, bool>.from(intent);
     attemptedIntents.add(payload);
@@ -83,9 +141,10 @@ class _FakeNotificationService extends NotificationService {
         (saveThrowsOnCall == null || saveThrowsOnCall == call)) {
       throw failure;
     }
-    // Landed: this is now what the server holds.
-    account.prefs[kTopicIntentPrefKey] = payload;
-    lastSaved = payload;
+    // The real save, against whichever account the session belongs to.
+    final saved = await super.saveTopicIntent(payload, onlyIf: onlyIf);
+    if (saved) lastSaved = payload;
+    return saved;
   }
 
   /// Returned from the next [reconcile] call - defaults to the common case.
@@ -105,6 +164,31 @@ class _FakeNotificationService extends NotificationService {
     final failure = reconcileThrows;
     if (failure != null) throw failure;
     return reconcileResult;
+  }
+}
+
+/// Resolves the session to "nobody signed in" without a network call.
+class _FakeAuthService extends AuthService {
+  @override
+  Future<UserModel?> getCurrentUser() async => null;
+}
+
+/// An [AuthNotifier] a test signs students in to directly.
+class _TestAuthNotifier extends AuthNotifier {
+  _TestAuthNotifier() : super(_FakeAuthService());
+
+  void signIn(String studentId, {String campusId = '1'}) {
+    state = AuthState(
+      user: UserModel(
+        id: studentId,
+        name: studentId,
+        email: '$studentId@bi.no',
+        campusId: campusId,
+      ),
+      isAuthenticated: true,
+      hasProfile: true,
+      isProfileComplete: true,
+    );
   }
 }
 
@@ -138,13 +222,21 @@ void main() {
     },
   };
 
-  /// Builds a notifier and waits for its constructor-triggered seed load to
-  /// resolve, so `state.value` is populated before a test drives it.
+  /// Builds a notifier for student A and waits for its constructor-triggered
+  /// seed load to resolve, so `state.value` is populated before a test drives
+  /// it. [signedInStudentId] reports who is signed in: student A throughout,
+  /// unless a test says otherwise.
   Future<TopicIntentNotifier> buildNotifier(
     _FakeNotificationService service, {
     String? campusId = '1',
+    String? Function()? signedInStudentId,
   }) async {
-    final notifier = TopicIntentNotifier(service, campusId);
+    final notifier = TopicIntentNotifier(
+      service,
+      campusId,
+      studentId: _studentA,
+      signedInStudentId: signedInStudentId ?? () => _studentA,
+    );
     await pumpEventQueue();
     return notifier;
   }
@@ -234,7 +326,12 @@ void main() {
       // pending, so `state.value` is null at this point. Nothing yields
       // back to the event loop between construction and the assertions
       // below, so the pending load cannot race ahead of them.
-      final notifier = TopicIntentNotifier(service, '1');
+      final notifier = TopicIntentNotifier(
+        service,
+        '1',
+        studentId: _studentA,
+        signedInStudentId: () => _studentA,
+      );
 
       final result = await notifier.setTopic('events', false);
 
@@ -505,9 +602,10 @@ void main() {
 
     test(
       'commits that run after the notifier is disposed - topicIntentProvider '
-      'rebuilds it when the campus changes - complete without throwing: '
-      'their saves still count and still accumulate, but nothing touches '
-      'state and nothing reconciles the old campus',
+      'rebuilds it when the campus changes - still save for the same '
+      'student, and complete without throwing: their saves count and '
+      'accumulate, but nothing touches state and nothing reconciles the old '
+      'campus',
       () async {
         final gates = [Completer<void>(), Completer<void>(), Completer<void>()];
         final service = _FakeNotificationService(seededIntent)
@@ -577,6 +675,128 @@ void main() {
         final server = await service.loadTopicIntent();
         expect(server['news'], isFalse);
         expect(notifier.state.value, server);
+      },
+    );
+
+    test(
+      'a save still queued when its student signs out and another signs in '
+      'is dropped, not written through the new session: it put the first '
+      "student's choices, and the answered marker, into the second "
+      "student's preferences, so the second student was never asked",
+      () async {
+        final gates = [Completer<void>()];
+        final service = _FakeNotificationService(seededIntent)
+          ..saveGates = gates;
+        String? signedIn = _studentA;
+        final notifier = await buildNotifier(
+          service,
+          signedInStudentId: () => signedIn,
+        );
+
+        final news = notifier.setTopic('news', false);
+        await pumpEventQueue(); // news's save is held on its way...
+        final events = notifier.setTopic('events', false); // ...events queues.
+
+        // Student A signs out, and student B signs in on this device.
+        service.account.session = null;
+        signedIn = null;
+        service.account.session = _studentB;
+        signedIn = _studentB;
+
+        final shown = <AsyncValue<Map<String, bool>>>[];
+        final removeListener = notifier.addListener(
+          shown.add,
+          fireImmediately: false,
+        );
+        gates.single.complete();
+        final results = await Future.wait([news, events]);
+        removeListener();
+
+        expect(results, [null, null], reason: 'neither was saved');
+        expect(service.account.prefsByStudent[_studentB], isEmpty);
+        expect(service.account.prefsByStudent[_studentA], seededIntent);
+        expect(
+          service.saveCalls,
+          1,
+          reason: "events's save never started: its student had gone by then",
+        );
+        expect(service.reconcileCalls, 0);
+        expect(shown, isEmpty, reason: 'nothing was written to state either');
+      },
+    );
+
+    test(
+      'a save whose student changes while its read of the preferences is out '
+      "is not written to the new student's account: the preferences it read "
+      "and wrote back went to whichever account the session held by then",
+      () async {
+        final service = _FakeNotificationService(seededIntent);
+        String? signedIn = _studentA;
+        final notifier = await buildNotifier(
+          service,
+          signedInStudentId: () => signedIn,
+        );
+
+        final readHold = Completer<void>();
+        service.account.holdNextRead = readHold;
+        final saving = notifier.setTopic('news', false);
+        await pumpEventQueue(); // its read of A's preferences is out.
+
+        service.account.session = _studentB;
+        signedIn = _studentB;
+        readHold.complete();
+
+        expect(await saving, isNull);
+        expect(service.account.prefsByStudent[_studentB], isEmpty);
+        expect(service.account.prefsByStudent[_studentA], seededIntent);
+        expect(service.reconcileCalls, 0);
+      },
+    );
+  });
+
+  group('topicIntentProvider', () {
+    test(
+      'builds a new notifier when a different student signs in, even on the '
+      'same campus, and the first student\'s queued save does not reach the '
+      'second student\'s account: it rebuilt only when the campus changed',
+      () async {
+        final service = _FakeNotificationService(seededIntent)
+          ..saveGates = [Completer<void>()];
+        final auth = _TestAuthNotifier();
+        final container = ProviderContainer(
+          overrides: [
+            notificationServiceProvider.overrideWithValue(service),
+            authStateProvider.overrideWith((ref) => auth),
+          ],
+        );
+        addTearDown(container.dispose);
+        await pumpEventQueue(); // the auth notifier's own session check
+
+        auth.signIn(_studentA);
+        final forA = container.read(topicIntentProvider.notifier);
+        await pumpEventQueue(); // its load
+        final saving = forA.setTopic('news', false);
+        await pumpEventQueue(); // held on its way to the server
+
+        // Student B's session replaces student A's, on the same campus, with
+        // no signed-out state in between whose campus would differ.
+        service.account.session = _studentB;
+        auth.signIn(_studentB);
+        final forB = container.read(topicIntentProvider.notifier);
+        expect(forB, isNot(same(forA)));
+
+        service.saveGates!.single.complete();
+        expect(await saving, isNull);
+        expect(service.account.prefsByStudent[_studentB], isEmpty);
+
+        // Student B's own changes are saved to B's account.
+        await pumpEventQueue(); // B's notifier's load
+        expect(await forB.setTopic('jobs', false), ReconcileOutcome.applied);
+        expect(
+          await service.loadTopicIntent(),
+          containsPair('jobs', false),
+        );
+        expect(service.account.prefsByStudent[_studentA], seededIntent);
       },
     );
   });

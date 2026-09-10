@@ -80,6 +80,12 @@ class AuthState {
 
   bool get needsOnboarding => isAuthenticated && !isProfileComplete;
   bool get needsStudentId => isAuthenticated && !hasStudentId;
+
+  /// The signed-in user's id, or null when nobody is signed in.
+  ///
+  /// Not simply [user]'s id: [copyWith] cannot clear [user], so a state that
+  /// is no longer authenticated can still carry the last user.
+  String? get signedInUserId => isAuthenticated ? user?.id : null;
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {

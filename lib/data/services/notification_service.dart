@@ -549,17 +549,29 @@ class NotificationService {
     );
   }
 
-  /// Persist intent and mark the prompt answered.
+  /// Persist intent and mark the prompt answered, reporting whether it did.
   ///
   /// Written before the OS permission request and regardless of its outcome: a
   /// student who declines the system dialog has still expressed a preference,
   /// and it takes effect if they enable notifications later.
-  Future<void> saveTopicIntent(Map<String, bool> intent) async {
+  ///
+  /// [onlyIf], when given, is asked once the account's current preferences
+  /// have been read, immediately before they are written back, with nothing
+  /// awaited in between. If it reports false, nothing is written and this
+  /// returns false. It is how a save made for one student stays out of
+  /// another's account when the signed-in student changes while that read is
+  /// out (see `TopicIntentNotifier._commit`).
+  Future<bool> saveTopicIntent(
+    Map<String, bool> intent, {
+    bool Function()? onlyIf,
+  }) async {
     final prefs = await _account.getPrefs();
+    if (onlyIf != null && !onlyIf()) return false;
     final updated = Map<String, dynamic>.from(prefs.data);
     updated[kTopicIntentPrefKey] = intent;
     updated[kTopicIntentSetAtPrefKey] = DateTime.now().toIso8601String();
     await _account.updatePrefs(prefs: updated);
+    return true;
   }
 
   /// Whether this student has already been asked to pick topics.
