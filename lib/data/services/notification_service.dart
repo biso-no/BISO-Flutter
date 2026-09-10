@@ -84,6 +84,13 @@ class NotificationService {
   bool _isInitialized = false;
   final Map<String, bool> _topicSubscriptions = {};
 
+  /// The campus most recently passed to [reconcile].
+  ///
+  /// Cached so a token refresh — which Firebase fires on its own schedule,
+  /// decoupled from any UI event that would otherwise carry the campus along
+  /// — can re-run [reconcile] without a caller supplying it again.
+  String? _lastCampusId;
+
   /// Maps a topicId to the Appwrite subscriber `$id` returned by
   /// [Messaging.createSubscriber]. Needed to delete the subscriber on
   /// unsubscribe. Persisted to user preferences alongside the bool map.
@@ -147,13 +154,34 @@ class NotificationService {
       // Listen for token refresh
       _firebaseMessaging.onTokenRefresh.listen((newToken) {
         _fcmToken = newToken;
-        resolvePushTarget(newToken);
+        unawaited(_reconcileAfterTokenRefresh());
       });
 
       return _fcmToken;
     } catch (e) {
       debugPrint('Failed to get FCM token: $e');
       return null;
+    }
+  }
+
+  /// Re-run [reconcile] after a token refresh.
+  ///
+  /// `resolvePushTarget` alone is not enough here: when the previously stored
+  /// target 404s, the create path runs and `_adoptTarget` deliberately clears
+  /// this device's subscriber map (a subscriber belongs to the old target, not
+  /// the new one — see its doc comment), which would otherwise leave the
+  /// device silently unsubscribed from everything until the next cold start.
+  /// `reconcile` resolves the target *and* recreates whatever subscriptions
+  /// the clear wiped out.
+  ///
+  /// `onTokenRefresh` gives its listener no way to be awaited by a caller, so
+  /// a throw here must be caught rather than left to become an unhandled
+  /// async error.
+  Future<void> _reconcileAfterTokenRefresh() async {
+    try {
+      await reconcile(campusId: _lastCampusId);
+    } catch (e) {
+      debugPrint('onTokenRefresh: reconcile failed: $e');
     }
   }
 
@@ -327,17 +355,17 @@ class NotificationService {
 
   /// Whether this student has already been asked to pick topics.
   ///
-  /// A legacy `topic_subscriptions` map counts as answered — they chose once
-  /// already, under the old names, and should not be re-prompted just because
-  /// the storage changed.
+  /// A legacy `topic_subscriptions` map cannot count as an answer: until this
+  /// was fixed, `_loadTopicSubscriptions()` wrote that key automatically, for
+  /// every signed-in student, on essentially every launch — never because
+  /// anyone chose anything. Its mere presence therefore cannot distinguish a
+  /// student who really answered from one who was never asked, so only
+  /// [kTopicIntentSetAtPrefKey] — written exclusively by [saveTopicIntent],
+  /// which only runs from the prompt's Continue button — counts.
   Future<bool> hasAnsweredTopicPrompt() async {
     try {
       final prefs = await _account.getPrefs();
-      if (prefs.data[kTopicIntentSetAtPrefKey] != null) return true;
-      return decodeTopicSubscriptions(
-            prefs.data[kLegacyTopicSubscriptionsPrefKey],
-          ) !=
-          null;
+      return prefs.data[kTopicIntentSetAtPrefKey] != null;
     } catch (e) {
       debugPrint('hasAnsweredTopicPrompt failed: $e');
       // Fail closed: do not interrupt a student because a read failed.
@@ -352,6 +380,11 @@ class NotificationService {
   /// replaying toggles — so it is safe to call on every launch, and two devices
   /// on one account reconcile independently without coordinating.
   Future<void> reconcile({required String? campusId}) async {
+    // Cached before any early return, so a later token refresh — which has no
+    // campusId of its own to pass in — can still reconcile against the most
+    // recent one this method was actually asked to use.
+    _lastCampusId = campusId;
+
     if (!await areNotificationsEnabled()) {
       debugPrint('reconcile: notifications not permitted; intent kept for later');
       return;
@@ -544,14 +577,18 @@ class NotificationService {
           ..clear()
           ..addAll(subscriptions);
       } else {
-        // Set default subscriptions
+        // In-memory defaults only. The legacy `topic_subscriptions` key is
+        // read-only from here on — this used to call `_saveTopicSubscriptions()`,
+        // which fabricated a "chosen" map for a student who had never chosen
+        // anything, and that machine-written map was indistinguishable from a
+        // real answer to `hasAnsweredTopicPrompt()`. A genuine legacy map is
+        // instead migrated, once, by `loadTopicIntent()`.
         _topicSubscriptions.addAll({
           'events': true,
           'products': true,
           'jobs': true,
           'expenses': false,
         });
-        await _saveTopicSubscriptions();
       }
 
       // Marked only once the read actually succeeded. Setting this up front
@@ -793,6 +830,11 @@ class NotificationService {
     _pushTargetId = null;
     _topicSubscriptions.clear();
     _topicSubscriberIds.clear();
+    // Otherwise a sign-in by a different student later in the same session
+    // would see `ensureTopicSubscriptionsLoaded()` short-circuit on this flag
+    // and serve them whatever was left over in memory from the account that
+    // just signed out.
+    _topicSubscriptionsLoaded = false;
 
     try {
       await _firebaseMessaging.deleteToken();

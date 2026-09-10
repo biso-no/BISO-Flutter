@@ -54,8 +54,7 @@ class NotificationPreferencesNotifier
       
       // Await the load: reading the in-memory map directly renders hardcoded
       // defaults over the student's saved choices on a cold start.
-      final topicSubscriptions =
-          await _notificationService.ensureTopicSubscriptionsLoaded();
+      final topicSubscriptions = await _notificationService.loadTopicIntent();
       
       // Combine all preferences
       final allPreferences = {
@@ -247,12 +246,15 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
 
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final subscriptions =
-          await _notificationService.ensureTopicSubscriptionsLoaded();
+      // The inbox filters by logical topic intent (news/events/jobs/shop),
+      // not the legacy per-device `topic_subscriptions` map that
+      // `ensureTopicSubscriptionsLoaded()` reads — that map is keyed by the
+      // pre-migration topic names and would silently defeat every opt-out.
+      final topicIntent = await _notificationService.loadTopicIntent();
       final items = await _service.fetchInbox(
         userId: userId,
         locale: _locale,
-        topicSubscriptions: subscriptions,
+        topicIntent: topicIntent,
       );
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
@@ -266,12 +268,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     if (userId == null || userId.isEmpty) return;
 
     try {
-      final subscriptions =
-          await _notificationService.ensureTopicSubscriptionsLoaded();
+      final topicIntent = await _notificationService.loadTopicIntent();
       final items = await _service.fetchInbox(
         userId: userId,
         locale: _locale,
-        topicSubscriptions: subscriptions,
+        topicIntent: topicIntent,
       );
       state = state.copyWith(items: items, clearError: true);
     } catch (e) {

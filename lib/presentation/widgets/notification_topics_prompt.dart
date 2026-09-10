@@ -22,10 +22,40 @@ class NotificationTopicsPrompt extends ConsumerStatefulWidget {
 
 class _NotificationTopicsPromptState
     extends ConsumerState<NotificationTopicsPrompt> {
-  late final Map<String, bool> _intent = Map<String, bool>.from(
-    kDefaultTopicIntent,
-  );
+  Map<String, bool> _intent = Map<String, bool>.from(kDefaultTopicIntent);
+  bool _loadingIntent = true;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIntent();
+  }
+
+  /// Seed the switches from whatever this student has already chosen —
+  /// including a legacy `topic_subscriptions` map, migrated by
+  /// [NotificationService.loadTopicIntent] — instead of always starting from
+  /// [kDefaultTopicIntent]. Without this, a student with existing preferences
+  /// would see every switch reset to the defaults the first time this sheet
+  /// (now actually) shows for them.
+  ///
+  /// Falls back to the defaults on failure, and never blocks the sheet itself
+  /// from opening — it is already on screen by the time this runs.
+  Future<void> _loadIntent() async {
+    final service = ref.read(notificationServiceProvider);
+    Map<String, bool> intent;
+    try {
+      intent = await service.loadTopicIntent();
+    } catch (e) {
+      debugPrint('NotificationTopicsPrompt: could not load intent: $e');
+      intent = Map<String, bool>.from(kDefaultTopicIntent);
+    }
+    if (!mounted) return;
+    setState(() {
+      _intent = intent;
+      _loadingIntent = false;
+    });
+  }
 
   Future<void> _save() async {
     setState(() => _saving = true);
@@ -85,26 +115,33 @@ class _NotificationTopicsPromptState
               ),
             ),
             const SizedBox(height: 16),
-            for (final topic in NotificationTopic.values)
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(topic.label),
-                value: _intent[topic.id] ?? false,
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() => _intent[topic.id] = value),
+            if (_loadingIntent)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else ...[
+              for (final topic in NotificationTopic.values)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(topic.label),
+                  value: _intent[topic.id] ?? false,
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() => _intent[topic.id] = value),
+                ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Continue'),
               ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Continue'),
-            ),
+            ],
           ],
         ),
       ),

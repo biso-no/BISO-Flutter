@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
-import 'package:biso/data/services/device_subscription_store.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,12 +13,17 @@ class _FakeAccount extends Account {
   Map<String, dynamic> _prefs;
   Map<String, dynamic> get saved => _prefs;
 
+  /// How many times [updatePrefs] was called — used to assert that a read
+  /// path does *not* write, without depending on the exact shape written.
+  int updatePrefsCalls = 0;
+
   @override
   Future<models.Preferences> getPrefs() async =>
       models.Preferences(data: Map<String, dynamic>.from(_prefs));
 
   @override
   Future<models.User> updatePrefs({required Map prefs}) async {
+    updatePrefsCalls++;
     _prefs = Map<String, dynamic>.from(prefs);
     throw UnimplementedError('return value unused by the code under test');
   }
@@ -112,15 +116,69 @@ void main() {
     });
 
     test(
-      'is true for a legacy account with old preferences, so a student who '
-      'already chose is not asked again',
+      'is false for a legacy account with only an old topic_subscriptions map '
+      '- that map used to be written automatically on every launch, never '
+      'because a student chose anything, so its presence cannot be told apart '
+      'from someone who was never asked',
       () async {
         final service = NotificationService.withAccount(
           _FakeAccount(<String, dynamic>{
             'topic_subscriptions': <String, dynamic>{'events': false},
           }),
         );
-        expect(await service.hasAnsweredTopicPrompt(), isTrue);
+        expect(await service.hasAnsweredTopicPrompt(), isFalse);
+      },
+    );
+
+    test(
+      'is false even when both the legacy map and subscriber ids are present '
+      'but notification_topics_set_at is not, matching a real pre-migration '
+      'account that has never seen the new prompt',
+      () async {
+        final service = NotificationService.withAccount(
+          _FakeAccount(<String, dynamic>{
+            'topic_subscriptions': <String, dynamic>{'events': false},
+            'topic_subscriber_ids': <String, dynamic>{'events': 'sub-1'},
+          }),
+        );
+        expect(await service.hasAnsweredTopicPrompt(), isFalse);
+      },
+    );
+  });
+
+  group('_loadTopicSubscriptions (via ensureTopicSubscriptionsLoaded)', () {
+    test(
+      'does not write prefs when topic_subscriptions is absent, so the '
+      'legacy key stays read-only and cannot be mistaken for a real answer '
+      'to the first-run prompt',
+      () async {
+        final account = _FakeAccount(<String, dynamic>{});
+        final service = NotificationService.withAccount(account);
+
+        final loaded = await service.ensureTopicSubscriptionsLoaded();
+
+        expect(account.updatePrefsCalls, 0);
+        expect(loaded, {
+          'events': true,
+          'products': true,
+          'jobs': true,
+          'expenses': false,
+        });
+      },
+    );
+
+    test(
+      'still does not write prefs when a stored topic_subscriptions map is '
+      'present, either - loading must never have a side effect on prefs',
+      () async {
+        final account = _FakeAccount(<String, dynamic>{
+          'topic_subscriptions': <String, dynamic>{'events': false},
+        });
+        final service = NotificationService.withAccount(account);
+
+        await service.ensureTopicSubscriptionsLoaded();
+
+        expect(account.updatePrefsCalls, 0);
       },
     );
   });

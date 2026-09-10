@@ -1,10 +1,40 @@
 import 'dart:async';
 
 import 'package:appwrite/appwrite.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/notification_topics.dart';
 import '../models/app_notification_model.dart';
 import 'appwrite_service.dart';
+
+/// Whether a `topic` announcement addressed to Appwrite topic id
+/// [audienceValue] should appear in a student's inbox, given their logical
+/// [topicIntent] (as returned by `NotificationService.loadTopicIntent()`).
+///
+/// [audienceValue] is a campus-scoped id such as `events_oslo` or
+/// `events_national` — never the bare logical topic — except for
+/// [kGeneralTopicId], which every device holds unconditionally and so is
+/// always visible. The campus suffix is stripped to recover the logical topic
+/// ([NotificationTopic.id]) before consulting [topicIntent], because intent is
+/// per-topic, not per-campus: `events_oslo` must be hidden by the same switch
+/// that hides `events_national`. A topic absent from [topicIntent], or an
+/// audience value that matches no known topic, defaults to visible — the same
+/// default `reconcile()` applies to a topic the student has never toggled.
+///
+/// Extracted as a top-level, `@visibleForTesting` function (rather than kept
+/// as a private instance method) following the pattern
+/// `decodeTopicSubscriptions` uses in `notification_service.dart`.
+@visibleForTesting
+bool isTopicAudienceVisible(String audienceValue, Map<String, bool> topicIntent) {
+  if (audienceValue == kGeneralTopicId) return true;
+  for (final topic in NotificationTopic.values) {
+    if (audienceValue.startsWith('${topic.id}_')) {
+      return topicIntent[topic.id] != false;
+    }
+  }
+  return true;
+}
 
 /// Reads/writes the in-app notification inbox backed by the Appwrite
 /// `announcements` and `user_notifications` collections in database `app`.
@@ -32,14 +62,17 @@ class NotificationInboxService {
 
   /// Fetch the merged inbox for [userId] localized to [locale].
   ///
-  /// [topicSubscriptions] is the user's per-topic opt-in map (from
-  /// `NotificationService`). Broadcast announcements always appear; a `topic`
-  /// announcement is shown only when the user hasn't explicitly opted out of
-  /// that topic (default-show when the map is empty/unknown).
+  /// [topicIntent] is the student's logical topic intent — `news`/`events`/
+  /// `jobs`/`shop` — as returned by `NotificationService.loadTopicIntent()`.
+  /// Broadcast announcements always appear; a `topic` announcement (whose
+  /// `audience_value` is a campus-scoped Appwrite topic id, e.g. `events_oslo`)
+  /// is shown only when the student hasn't explicitly opted out of that
+  /// topic's logical intent (default-show when the topic is absent from the
+  /// map — see [isTopicAudienceVisible]).
   Future<List<AppNotification>> fetchInbox({
     required String userId,
     required String locale,
-    Map<String, bool> topicSubscriptions = const {},
+    Map<String, bool> topicIntent = const {},
   }) async {
     try {
       // 1. Targeted notifications for this user (read state + row id).
@@ -92,7 +125,7 @@ class NotificationInboxService {
       }
       for (final row in topicRows.rows) {
         // Hide topic announcements the user has opted out of.
-        if (!_isTopicVisible(row.data, topicSubscriptions)) continue;
+        if (!_isTopicVisible(row.data, topicIntent)) continue;
         announcementById[row.$id] = _rowToMap(row);
       }
 
@@ -266,15 +299,14 @@ class NotificationInboxService {
 
   /// A `topic` announcement is visible only when the user is subscribed to its
   /// topic; broadcasts (and any non-topic audience) are always visible.
-  /// Default-show when the topic isn't present in the map.
   bool _isTopicVisible(
     Map<String, dynamic> data,
-    Map<String, bool> topicSubscriptions,
+    Map<String, bool> topicIntent,
   ) {
     if (data['audience_type'] != 'topic') return true;
-    final topic = data['audience_value'] as String?;
-    if (topic == null || topic.isEmpty) return true;
-    return topicSubscriptions[topic] != false;
+    final audienceValue = data['audience_value'] as String?;
+    if (audienceValue == null || audienceValue.isEmpty) return true;
+    return isTopicAudienceVisible(audienceValue, topicIntent);
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {

@@ -632,17 +632,16 @@ class _NotificationSettingsTab extends ConsumerWidget {
                         final ok = await ref
                             .read(topicIntentProvider.notifier)
                             .setTopic(topic.id, value);
-                        if (!(ok || context.mounted)) return;
-                        if (!ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Could not update ${topic.label} notifications. '
-                                'Check your connection and try again.',
-                              ),
+                        if (ok) return;
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Could not update ${topic.label} notifications. '
+                              'Check your connection and try again.',
                             ),
-                          );
-                        }
+                          ),
+                        );
                       },
                       selectedCampus: selectedCampus,
                     ),
