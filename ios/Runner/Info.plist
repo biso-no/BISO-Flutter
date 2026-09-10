@@ -47,18 +47,19 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>We use the camera to scan QR codes and capture receipt or profile photos.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We use your photo library to select images for receipts and your profile.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We use your location once to set your closest BI campus and show relevant content.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We use your location once to set your closest BI campus and show relevant content.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location once to set your closest BI campus and show relevant content.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We use your photo library to select images for receipts and your profile.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
+		<string>processing</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
