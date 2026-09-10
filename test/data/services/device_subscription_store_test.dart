@@ -228,6 +228,29 @@ void main() {
   });
 
   test(
+    'round-trips whether a push target may exist with no id recorded, in the '
+    'store rather than in any one instance',
+    () async {
+      expect(
+        await DeviceSubscriptionStore().readUnrecordedTargetMayExist(),
+        isFalse,
+      );
+
+      await DeviceSubscriptionStore().writeUnrecordedTargetMayExist();
+      expect(
+        await DeviceSubscriptionStore().readUnrecordedTargetMayExist(),
+        isTrue,
+      );
+
+      await DeviceSubscriptionStore().clearUnrecordedTargetMayExist();
+      expect(
+        await DeviceSubscriptionStore().readUnrecordedTargetMayExist(),
+        isFalse,
+      );
+    },
+  );
+
+  test(
     'clear removes every key, a pending token invalidation included - it is '
     'only ever cleared once the device is known to be detached',
     () async {
@@ -239,12 +262,14 @@ void main() {
         targetId: 'target-1',
       );
       await store.writePendingTokenInvalidation();
+      await store.writeUnrecordedTargetMayExist();
 
       await store.clear();
 
       expect(await store.readTargetId(), isNull);
       expect(await store.readSubscriberIds(), isEmpty);
       expect(await store.readPendingTokenInvalidation(), isFalse);
+      expect(await store.readUnrecordedTargetMayExist(), isFalse);
     },
   );
 }

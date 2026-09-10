@@ -22,6 +22,10 @@ class _FakeServer {
   /// Target id -> the FCM token it is bound to.
   final Map<String, String> targets = <String, String>{};
 
+  /// Target id -> the account that created it, for every target created
+  /// through [_FakeAccount].
+  final Map<String, String> targetOwners = <String, String>{};
+
   /// Subscriber id -> the topic and target it belongs to.
   final Map<String, ({String topicId, String targetId})> subscribers =
       <String, ({String topicId, String targetId})>{};
@@ -33,6 +37,7 @@ class _FakeServer {
   /// it. Reports whether there was such a target.
   bool removeTarget(String targetId) {
     if (targets.remove(targetId) == null) return false;
+    targetOwners.remove(targetId);
     subscribers.removeWhere((_, s) => s.targetId == targetId);
     return true;
   }
@@ -50,6 +55,28 @@ models.Target _target({required String id, required String identifier}) =>
       identifier: identifier,
       expired: false,
     );
+
+models.User _user({
+  required String id,
+  required List<models.Target> targets,
+}) => models.User(
+  $id: id,
+  $createdAt: '',
+  $updatedAt: '',
+  name: id,
+  registration: '',
+  status: true,
+  labels: const <String>[],
+  passwordUpdate: '',
+  email: '$id@bi.no',
+  phone: '',
+  emailVerification: true,
+  phoneVerification: false,
+  mfa: false,
+  prefs: models.Preferences(data: <String, dynamic>{}),
+  targets: targets,
+  accessedAt: '',
+);
 
 models.Subscriber _subscriber({
   required String id,
@@ -80,12 +107,35 @@ class _FakeAccount extends Account {
     'shop': false,
   };
 
+  /// Whose account this device is signed in to: the owner of every target
+  /// [createPushTarget] creates, and the only account whose targets [get]
+  /// lists.
+  String session = 'student-a';
+
   /// When set, [deletePushTarget] throws it instead of deleting.
   AppwriteException? deleteTargetThrows;
+
+  /// When set, the next [updatePushTarget] call throws it instead of
+  /// updating, and it is cleared.
+  AppwriteException? updateTargetThrowsOnce;
+
+  /// When set, the next [createPushTarget] call throws it instead of
+  /// creating, and it is cleared.
+  AppwriteException? createTargetThrowsOnce;
 
   /// [deletePushTarget] calls, by number (counting from 1), that wait for
   /// their completer before doing anything.
   final Map<int, Completer<void>> holdDeleteTarget = <int, Completer<void>>{};
+
+  /// [updatePushTarget] calls, by number, that wait for their completer
+  /// before the server sees them.
+  final Map<int, Completer<void>> holdUpdateTarget = <int, Completer<void>>{};
+
+  /// [createPushTarget] calls, by number, that the server carries out at once
+  /// but whose answer waits for the completer: a target that exists, with
+  /// its id still on the way.
+  final Map<int, Completer<void>> holdCreateTargetResponse =
+      <int, Completer<void>>{};
 
   int deleteTargetCalls = 0;
   int updateTargetCalls = 0;
@@ -103,30 +153,67 @@ class _FakeAccount extends Account {
     }
   }
 
+  /// Rebinds a target to [identifier], refusing with a 409, as Appwrite does,
+  /// a token another target already holds.
   @override
   Future<models.Target> updatePushTarget({
     required String targetId,
     required String identifier,
   }) async {
-    updateTargetCalls++;
+    final call = ++updateTargetCalls;
+    final hold = holdUpdateTarget[call];
+    if (hold != null) await hold.future;
+    final failure = updateTargetThrowsOnce;
+    if (failure != null) {
+      updateTargetThrowsOnce = null;
+      throw failure;
+    }
     if (!server.targets.containsKey(targetId)) {
       throw AppwriteException('target not found', 404);
+    }
+    if (server.targets.entries.any(
+      (entry) => entry.key != targetId && entry.value == identifier,
+    )) {
+      throw AppwriteException('target already exists', 409);
     }
     server.targets[targetId] = identifier;
     return _target(id: targetId, identifier: identifier);
   }
 
+  /// Creates a target for [session], refusing with a 409, as Appwrite does,
+  /// a token another target already holds - whichever account it is on.
   @override
   Future<models.Target> createPushTarget({
     required String targetId,
     required String identifier,
     String? providerId,
   }) async {
-    createTargetCalls++;
+    final call = ++createTargetCalls;
+    final failure = createTargetThrowsOnce;
+    if (failure != null) {
+      createTargetThrowsOnce = null;
+      throw failure;
+    }
+    if (server.targets.containsValue(identifier)) {
+      throw AppwriteException('target already exists', 409);
+    }
     final id = server.nextId('new-target');
     server.targets[id] = identifier;
+    server.targetOwners[id] = session;
+    final response = holdCreateTargetResponse[call];
+    if (response != null) await response.future;
     return _target(id: id, identifier: identifier);
   }
+
+  @override
+  Future<models.User> get() async => _user(
+    id: session,
+    targets: [
+      for (final entry in server.targets.entries)
+        if (server.targetOwners[entry.key] == session)
+          _target(id: entry.key, identifier: entry.value),
+    ],
+  );
 
   @override
   Future<models.Preferences> getPrefs() async => models.Preferences(
@@ -271,6 +358,15 @@ class _BrokenStore extends DeviceSubscriptionStore {
 
   @override
   Future<void> writePendingTokenInvalidation() async => _fail();
+
+  @override
+  Future<bool> readUnrecordedTargetMayExist() async => _fail();
+
+  @override
+  Future<void> writeUnrecordedTargetMayExist() async => _fail();
+
+  @override
+  Future<void> clearUnrecordedTargetMayExist() async => _fail();
 
   @override
   Future<void> clear() async => _fail();
@@ -604,6 +700,262 @@ void main() {
           ReconcileOutcome.applied,
         );
         expect(logs, isNot(anyElement(startsWith(blocked))));
+      },
+    );
+  });
+
+  group('a push target created with no id recorded', () {
+    /// A device that registered before FCM rotated its token: its stored
+    /// target and subscribers exist, bound to the token it had then, and its
+    /// token is now `token-1`.
+    _FakeServer rotatedTokenDevice() =>
+        registeredDevice()..targets['target-1'] = 'token-0';
+
+    /// The server's subscribers on [targetId], by topic.
+    Map<String, String> subscribersOn(_FakeServer server, String? targetId) =>
+        <String, String>{
+          for (final entry in server.subscribers.entries)
+            if (entry.value.targetId == targetId)
+              entry.value.topicId: entry.key,
+        };
+
+    testWidgets(
+      'keeps the pending invalidation when sign-out deletes the stored target '
+      'while a target the abandoned reconcile created is unrecorded, and the '
+      'next student registers once deleteToken() succeeds: the cleanup counted '
+      'the device detached, so the created target stayed bound to the live '
+      'token on the signed-out account, and every registration by the next '
+      'student got a 409 with no target of theirs to adopt',
+      (tester) async {
+        final server = rotatedTokenDevice();
+        // Updating the stored target fails with no answer - a dropped
+        // connection, which the SDK reports without a code - so the reconcile
+        // creates a target instead. The create lands; its answer is held.
+        final account = _FakeAccount(server)
+          ..updateTargetThrowsOnce = AppwriteException(
+            'Connection reset by peer',
+          );
+        final createAnswer = account.holdCreateTargetResponse[1] =
+            Completer<void>();
+        final service = _DeviceService(account, _FakeMessaging(server))
+          ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+
+        unawaited(service.reconcile(campusId: '1'));
+        await tester.pump();
+        final unrecorded = server.targets.keys.singleWhere(
+          (id) => id != 'target-1',
+        );
+        expect(server.targets[unrecorded], service.token);
+
+        // The student signs out while that answer is out.
+        var signedOut = false;
+        unawaited(service.clearToken().then((_) => signedOut = true));
+        await tester.pump();
+        expect(signedOut, isTrue);
+        expect(
+          server.targets.keys,
+          [unrecorded],
+          reason: 'the stored target is deleted, and nothing else is',
+        );
+        expect(await store.readPendingTokenInvalidation(), isTrue);
+
+        createAnswer.complete();
+        await tester.pump();
+        expect(await store.readPendingTokenInvalidation(), isTrue);
+
+        // Student B signs in on this device, and Firebase has recovered.
+        account.session = 'student-b';
+        service.deleteTokenThrows = null;
+        ReconcileOutcome? outcome;
+        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        await tester.pump();
+
+        expect(outcome, ReconcileOutcome.applied);
+        final targetId = await store.readTargetId();
+        expect(server.targetOwners[targetId], 'student-b');
+        expect(server.targets[targetId], service.token);
+        expect(
+          server.targets[unrecorded],
+          isNot(service.token),
+          reason: 'the target left behind is bound to the invalidated token',
+        );
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'news_oslo',
+          'news_national',
+        });
+        expect(
+          await store.readSubscriberIds(),
+          subscribersOn(server, targetId),
+        );
+      },
+    );
+
+    testWidgets(
+      'keeps the pending invalidation too when nothing raced the create, but '
+      'its answer came after the run\'s bound: that target exists all the '
+      'same, with no id recorded, when a later sign-out deletes the stored one',
+      (tester) async {
+        final server = rotatedTokenDevice();
+        final account = _FakeAccount(server)
+          ..updateTargetThrowsOnce = AppwriteException(
+            'Connection reset by peer',
+          );
+        final createAnswer = account.holdCreateTargetResponse[1] =
+            Completer<void>();
+        final service = _DeviceService(account, _FakeMessaging(server))
+          ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+
+        ReconcileOutcome? outcome;
+        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        await tester.pump(kNotificationRunTimeout);
+        expect(outcome, ReconcileOutcome.unavailable);
+        createAnswer.complete(); // too late to be recorded
+        await tester.pump();
+        expect(await store.readTargetId(), 'target-1');
+        final unrecorded = server.targets.keys.singleWhere(
+          (id) => id != 'target-1',
+        );
+
+        // Later, with no run in progress, the student signs out.
+        var signedOut = false;
+        unawaited(service.clearToken().then((_) => signedOut = true));
+        await tester.pump();
+        expect(signedOut, isTrue);
+        expect(server.targets.keys, [unrecorded]);
+        expect(await store.readPendingTokenInvalidation(), isTrue);
+
+        // Firebase recovers, and this device registers again.
+        service.deleteTokenThrows = null;
+        ReconcileOutcome? next;
+        unawaited(service.reconcile(campusId: '1').then((o) => next = o));
+        await tester.pump();
+        expect(next, ReconcileOutcome.applied);
+        expect(await store.readPendingTokenInvalidation(), isFalse);
+        expect(server.targets[await store.readTargetId()], service.token);
+      },
+    );
+
+    testWidgets(
+      'keeps the pending invalidation across a restart, when the relaunched '
+      'app signs out before it has registered again: only registering adopts '
+      'the target the previous launch created, and a flag kept in memory is '
+      'gone by then',
+      (tester) async {
+        final server = rotatedTokenDevice();
+        final before = _FakeAccount(server)
+          ..updateTargetThrowsOnce = AppwriteException(
+            'Connection reset by peer',
+          );
+        final createAnswer = before.holdCreateTargetResponse[1] =
+            Completer<void>();
+        final killed = _DeviceService(before, _FakeMessaging(server));
+        unawaited(killed.reconcile(campusId: '1'));
+        await tester.pump(kNotificationRunTimeout);
+        createAnswer.complete();
+        await tester.pump();
+        final unrecorded = server.targets.keys.singleWhere(
+          (id) => id != 'target-1',
+        );
+
+        // The app is killed and launched again, with the same FCM token. Its
+        // launch reconcile is still updating the stored target - which would
+        // get a 409 and lead it to adopt the target above - when the student
+        // signs out.
+        final account = _FakeAccount(server);
+        final update = account.holdUpdateTarget[1] = Completer<void>();
+        final relaunched = _DeviceService(account, _FakeMessaging(server))
+          ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+        unawaited(relaunched.reconcile(campusId: '1'));
+        await tester.pump();
+        expect(account.updateTargetCalls, 1);
+
+        var signedOut = false;
+        unawaited(relaunched.clearToken().then((_) => signedOut = true));
+        await tester.pump();
+        expect(signedOut, isTrue);
+        expect(server.targets, {unrecorded: relaunched.token});
+        expect(await store.readPendingTokenInvalidation(), isTrue);
+        update.complete();
+        await tester.pump();
+
+        // Student B signs in, and Firebase has recovered.
+        account.session = 'student-b';
+        relaunched.deleteTokenThrows = null;
+        ReconcileOutcome? outcome;
+        unawaited(
+          relaunched.reconcile(campusId: '1').then((o) => outcome = o),
+        );
+        await tester.pump();
+        expect(outcome, ReconcileOutcome.applied);
+        final targetId = await store.readTargetId();
+        expect(server.targetOwners[targetId], 'student-b');
+        expect(server.targets[targetId], relaunched.token);
+      },
+    );
+
+    test(
+      'does not hold back a sign-out once the target this device created is '
+      'recorded: deleting it still counts the device detached though '
+      'deleteToken() failed, since only a target with no id recorded can be '
+      'left bound to the token',
+      () async {
+        final server = _FakeServer();
+        final service = _DeviceService(
+          _FakeAccount(server),
+          _FakeMessaging(server),
+        )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
+        expect(server.targets, hasLength(1));
+
+        await service.clearToken();
+
+        expect(server.targets, isEmpty);
+        expect(await store.readPendingTokenInvalidation(), isFalse);
+        expect(await store.readTargetId(), isNull);
+        expect(await store.readSubscriberIds(), isEmpty);
+      },
+    );
+
+    test(
+      'does not hold one back after a create that got no answer either, once '
+      'the stored target has been updated: no other target can hold this '
+      'device\'s token when that update succeeds, so the create left nothing '
+      'bound to it',
+      () async {
+        final server = registeredDevice();
+        final account = _FakeAccount(server)
+          ..updateTargetThrowsOnce = AppwriteException(
+            'Network is unreachable',
+          )
+          ..createTargetThrowsOnce = AppwriteException(
+            'Network is unreachable',
+          );
+        final service = _DeviceService(account, _FakeMessaging(server))
+          ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+        expect(account.createTargetCalls, 1);
+
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
+        expect(
+          account.createTargetCalls,
+          1,
+          reason: 'the stored target was updated',
+        );
+
+        await service.clearToken();
+
+        expect(server.targets, isEmpty);
+        expect(await store.readPendingTokenInvalidation(), isFalse);
       },
     );
   });

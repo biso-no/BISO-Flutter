@@ -77,7 +77,8 @@ const String kLegacyTopicSubscriptionsPrefKey = 'topic_subscriptions';
 /// the wire can land after the bound. Of what such a request did, only a
 /// subscribe or an unsubscribe can still be recorded, under guards (see
 /// `NotificationService._reconcileNow`); anything else is lost with the run
-/// (see `_QueueRun.ownsState`).
+/// (see `_QueueRun.ownsState`). A push target created that way has no id
+/// recorded, and sign-out allows for it (see `NotificationService.clearToken`).
 const Duration kNotificationRunTimeout = Duration(seconds: 30);
 
 /// How long sign-out waits for [NotificationService.clearToken] before
@@ -432,6 +433,10 @@ class NotificationService {
   /// abandoned (see `_QueueRun.ownsState`): it is checked before every request
   /// and every write, and once it reports false this returns `null` having
   /// changed nothing more. A caller outside the queue omits it.
+  ///
+  /// Before a create is sent, the device store records that a target may come
+  /// to exist with no id recorded. Recording a target that holds [token], or
+  /// updating the stored one to it, clears that record (see [clearToken]).
   Future<String?> resolvePushTarget(
     String token, {
     bool Function()? isCurrent,
@@ -447,6 +452,11 @@ class NotificationService {
           identifier: token,
         );
         if (!current()) return null;
+        // Appwrite gives no two targets one token, so any target this device
+        // created with no id recorded is bound to an older token, which no
+        // longer reaches it.
+        await _store.clearUnrecordedTargetMayExist();
+        if (!current()) return null;
         _pushTargetId = target.$id;
         return target.$id;
       } on AppwriteException catch (e) {
@@ -459,6 +469,11 @@ class NotificationService {
       }
     }
 
+    if (!current()) return null;
+    // Recorded before the request goes out, because from then on a target may
+    // exist that this device has no id for: its answer lost, or arriving after
+    // the run was abandoned or the app was killed (see [clearToken]).
+    await _store.writeUnrecordedTargetMayExist();
     if (!current()) return null;
     try {
       final target = await _account.createPushTarget(
@@ -510,9 +525,17 @@ class NotificationService {
   /// [DeviceSubscriptionStore.writeTargetId] forgets them in the same step as
   /// it records the new target, so a late subscribe cannot be recorded against
   /// the old target in between and survive into the new one.
+  ///
+  /// Once the id is written, the record that a target may exist with no id is
+  /// cleared: [targetId] holds this device's token, and Appwrite gives no
+  /// second target that token, so any other this device created is bound to
+  /// an older one, which no longer reaches it. Not before, so a target is
+  /// never unaccounted for between the two writes.
   Future<bool> _adoptTarget(String targetId, bool Function() current) async {
     if (!current()) return false;
     await _store.writeTargetId(targetId);
+    if (!current()) return false;
+    await _store.clearUnrecordedTargetMayExist();
     if (!current()) return false;
     _pushTargetId = targetId;
     return true;
@@ -788,6 +811,13 @@ class NotificationService {
 
     if (!run.ownsState) return _Settlement.stopped;
     _fcmToken = null;
+    try {
+      // Any push target this device created with no id recorded is bound to
+      // the token just invalidated.
+      await _store.clearUnrecordedTargetMayExist();
+    } catch (e) {
+      debugPrint('Could not clear the record of an unrecorded push target: $e');
+    }
 
     String? staleTargetId;
     try {
@@ -1333,15 +1363,26 @@ class NotificationService {
   /// target survives, since they would otherwise go on delivering topic pushes
   /// here. Then the FCM token is invalidated, which needs no session.
   ///
-  /// The device counts as detached once either the target deletion or the
-  /// token invalidation succeeds: a deleted target reaches nothing, and a dead
-  /// token is reached by nothing. Only then are the stored ids cleared. If
-  /// neither succeeded, the target is still bound to a live token and this
-  /// device would keep receiving the signed-out student's pushes. Nothing
-  /// Appwrite-side can be retried without their session, but the invalidation
-  /// can, so the ids are kept and a pending invalidation is recorded for
-  /// [retryPendingTokenInvalidation] and [reconcile] to retry — each before it
-  /// resolves any push target.
+  /// The device counts as detached once the token invalidation succeeds, since
+  /// a dead token is reached by nothing, or once the target deletion succeeds
+  /// and no push target this device created can be left without an id. A
+  /// deleted target reaches nothing, but only the recorded one is deleted: a
+  /// create whose answer never arrived — its run abandoned by this sign-out or
+  /// at its bound, or the app killed since — leaves a target on the live token
+  /// that nothing here can name. It would go on delivering the signed-out
+  /// student's pushes, and refuse the next student's registration with a 409
+  /// that no target of theirs matches. Whether one may exist is kept in the
+  /// device store, because it must outlive a restart: after one, only a
+  /// registration that reaches the 409 adopts such a target, and a sign-out
+  /// can come first (see
+  /// [DeviceSubscriptionStore.readUnrecordedTargetMayExist]).
+  ///
+  /// Only a detached device has its stored ids cleared. Otherwise a target may
+  /// still be bound to a live token, and this device would keep receiving the
+  /// signed-out student's pushes. Nothing Appwrite-side can be retried without
+  /// their session, but the invalidation can, so the ids are kept and a
+  /// pending invalidation is recorded for [retryPendingTokenInvalidation] and
+  /// [reconcile] to retry — each before it resolves any push target.
   ///
   /// The cleanup does not wait for a run already in progress: a reconcile, or
   /// a launch retry of a pending invalidation, is abandoned, so the cleanup
@@ -1387,6 +1428,21 @@ class NotificationService {
       await _store.writePendingTokenInvalidation();
     } catch (e) {
       debugPrint('clearToken: could not record the pending invalidation: $e');
+    }
+  }
+
+  /// Whether a push target this device created may exist with no id recorded
+  /// (see [DeviceSubscriptionStore.readUnrecordedTargetMayExist]), taken to be
+  /// so when that cannot be read.
+  Future<bool> _unrecordedTargetMayExist() async {
+    try {
+      return await _store.readUnrecordedTargetMayExist();
+    } catch (e) {
+      debugPrint(
+        'clearToken: could not read whether a push target may be unrecorded; '
+        'assuming one may be ($e)',
+      );
+      return true;
     }
   }
 
@@ -1452,8 +1508,13 @@ class NotificationService {
 
     if (!run.ownsState) return;
     if (tokenInvalidated) _fcmToken = null;
-    if (targetDeleted || tokenInvalidated) {
+    final detached =
+        tokenInvalidated ||
+        (targetDeleted && !await _unrecordedTargetMayExist());
+    if (!run.ownsState) return;
+    if (detached) {
       try {
+        // The record of an unrecorded target goes with the ids.
         await _store.clear();
       } catch (e) {
         debugPrint('clearToken: could not clear the local store: $e');
@@ -1462,8 +1523,14 @@ class NotificationService {
     }
 
     debugPrint(
-      'clearToken: neither the push target nor the FCM token could be '
-      'removed; keeping the ids and retrying the invalidation at next launch',
+      targetDeleted
+          ? 'clearToken: the push target was deleted, but one this device '
+                'created may still hold the FCM token with no id recorded, '
+                'and the token could not be removed; keeping the ids and '
+                'retrying the invalidation'
+          : 'clearToken: neither the push target nor the FCM token could be '
+                'removed; keeping the ids and retrying the invalidation at '
+                'next launch',
     );
     try {
       // Again, in case the write made as sign-out began had failed.

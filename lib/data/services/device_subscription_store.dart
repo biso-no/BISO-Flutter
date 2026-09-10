@@ -26,6 +26,7 @@ class DeviceSubscriptionStore {
   static const String _targetKey = 'push_target_id';
   static const String _subscribersKey = 'topic_subscriber_ids';
   static const String _pendingInvalidationKey = 'pending_token_invalidation';
+  static const String _unrecordedTargetKey = 'unrecorded_push_target';
 
   Future<String?> readTargetId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -119,6 +120,34 @@ class DeviceSubscriptionStore {
     await prefs.setBool(_pendingInvalidationKey, true);
   }
 
+  /// Whether this device may hold a push target it has no id for: one it
+  /// asked Appwrite to create, whose answer never arrived to be recorded.
+  ///
+  /// Written before every create request is sent, and cleared once a target
+  /// holding this device's token is recorded or updated, or the token is
+  /// invalidated: after any of those, no target this device has no id for
+  /// holds a token it still uses. Device-local, and read across launches like
+  /// the pending invalidation: the target outlives the app that asked for it,
+  /// and nothing else remembers that it may exist. See
+  /// `NotificationService.clearToken`.
+  Future<bool> readUnrecordedTargetMayExist() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_unrecordedTargetKey) ?? false;
+  }
+
+  Future<void> writeUnrecordedTargetMayExist() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_unrecordedTargetKey, true);
+  }
+
+  Future<void> clearUnrecordedTargetMayExist() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Asked on every successful registration: nothing is written when there
+    // is nothing to clear.
+    if (!prefs.containsKey(_unrecordedTargetKey)) return;
+    await prefs.remove(_unrecordedTargetKey);
+  }
+
   /// Forgets everything this store holds.
   ///
   /// Every key is removed in one synchronous step, before anything is awaited:
@@ -131,6 +160,7 @@ class DeviceSubscriptionStore {
       prefs.remove(_targetKey),
       prefs.remove(_subscribersKey),
       prefs.remove(_pendingInvalidationKey),
+      prefs.remove(_unrecordedTargetKey),
     ]);
   }
 
