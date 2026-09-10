@@ -9,23 +9,32 @@ import '../../providers/notification/notification_provider.dart';
 /// The snackbar this dialog shows once permission was just granted and
 /// [NotificationService.reconcile] has run, based on what it reported.
 ///
-/// Mirrors the vocabulary `settings_screen.dart` uses for the same three
-/// outcomes, so the app never describes one state two different ways: an
+/// Mirrors the vocabulary `settings_screen.dart` uses for the same outcomes,
+/// so the app never describes one state two different ways: an
 /// `applied`/`unavailable`/`partiallyFailed` split there becomes the same
 /// split here, just phrased for "I just granted permission" rather than "I
 /// just toggled a topic".
 ///
-/// [ReconcileOutcome.permissionDenied] cannot happen on this path — this is
-/// only ever called from the branch where permission was *just* granted, and
-/// `reconcile()` only reports `permissionDenied` when it is not. Handled
-/// explicitly (asserted, and logged so a genuine TOCTOU race is visible even
-/// in release builds) rather than silently reusing another case's message.
+/// Only [ReconcileOutcome.applied] celebrates. [ReconcileOutcome.permissionDenied]
+/// can follow a grant too: `reconcile()` reads the permission again itself,
+/// and nothing guarantees that read agrees with the grant a moment earlier.
+/// Whatever the reason, this device was not subscribed, so it gets the same
+/// message as the other outcomes that leave it that way. The disagreement is
+/// logged, but not asserted: an assert throws in debug *after* the dialog has
+/// popped, and the dialog's catch then pops a second time, closing the screen
+/// underneath it.
 ///
 /// Extracted as a top-level, `@visibleForTesting` function so each outcome's
 /// message can be tested directly (see `decodeTopicSubscriptions` for the
 /// same pattern elsewhere in this codebase).
 @visibleForTesting
 SnackBar snackBarForGrantedOutcome(ReconcileOutcome outcome) {
+  if (outcome == ReconcileOutcome.permissionDenied) {
+    debugPrint(
+      'NotificationPermissionDialog: reconcile reported permissionDenied '
+      'right after permission was granted',
+    );
+  }
   switch (outcome) {
     case ReconcileOutcome.applied:
       return const SnackBar(
@@ -38,28 +47,11 @@ SnackBar snackBarForGrantedOutcome(ReconcileOutcome outcome) {
       );
     case ReconcileOutcome.unavailable:
     case ReconcileOutcome.partiallyFailed:
+    case ReconcileOutcome.permissionDenied:
       return const SnackBar(
         content: Text(
           'Notifications are on, but this device could not be updated. '
           'It will retry next time you open the app.',
-        ),
-        backgroundColor: AppColors.defaultBlue,
-        duration: Duration(seconds: 4),
-      );
-    case ReconcileOutcome.permissionDenied:
-      assert(
-        false,
-        'reconcile() reported permissionDenied right after permission was '
-        'granted',
-      );
-      debugPrint(
-        'NotificationPermissionDialog: reconcile reported permissionDenied '
-        'right after permission was granted',
-      );
-      return const SnackBar(
-        content: Text(
-          '🎉 Notifications enabled! You\'ll stay updated on everything '
-          'happening at BI.',
         ),
         backgroundColor: AppColors.defaultBlue,
         duration: Duration(seconds: 4),
