@@ -2807,11 +2807,28 @@ Pass it to the editor, alongside the existing props:
 
 In `apps/admin/src/app/(portal)/events/[id]/_components/event-studio-editor.tsx`:
 
-Delete line 159:
+`PUSH_FOLLOWERS` has **three** uses, not two, and the third is not about push at
+all. Line 2834 renders an "Audience" summary row:
+
+```tsx
+        value: values.member_only
+          ? `Members only · ${PUSH_FOLLOWERS.toLocaleString("en-GB")} students`
+          : `All BI students · ${STUDENT_POPULATION.toLocaleString("en-GB")} students`,
+```
+
+There it stands in for a member count, paired with `STUDENT_POPULATION` — a
+separate fabricated figure this plan explicitly leaves out of scope. Deleting the
+constant outright would break that row.
+
+So rename it to say what it means there, and take it off the push path:
 
 ```ts
-const PUSH_FOLLOWERS = 4217;
+const MEMBER_POPULATION = 4217;
 ```
+
+Update line 2834 to use `MEMBER_POPULATION`. Leave the Audience row otherwise
+untouched — both of its numbers are pre-existing fabrications, out of scope here,
+and now at least honestly named.
 
 Add to `EventStudioEditorProps`:
 
@@ -2866,7 +2883,7 @@ cd /Users/markus/Documents/dev/BISO-Sites/apps/admin && bun run check-types && b
 
 Expected: no type errors, no lint errors, all tests pass.
 
-Note: `STUDENT_POPULATION = 6840` on the next line is a separate hardcoded figure used elsewhere in this editor. It is **out of scope** — do not change it, but mention it in your report so it can be scheduled.
+Note: `STUDENT_POPULATION = 6840` on the next line is a separate hardcoded figure, and after the rename `MEMBER_POPULATION` is another. Both feed the "Audience" summary row and both are **out of scope** — do not try to source real numbers for them, but mention them in your report so they can be scheduled.
 
 - [ ] **Step 8: Commit**
 
