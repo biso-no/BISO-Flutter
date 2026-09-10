@@ -147,14 +147,43 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   final NotificationService _service;
   final String? _campusId;
 
-  /// Serialises the network side of [setTopic].
+  /// The student's intent as last confirmed persisted: what the server holds,
+  /// as far as this notifier knows.
+  ///
+  /// Set by a successful load, and updated only once a save has succeeded —
+  /// never by a tap. Every save's payload is this map plus that save's one
+  /// change, and a failed save reverts its switch to this map's value. The
+  /// switches themselves ([state]) are this map with every unresolved tap in
+  /// [_queuedTaps] laid over it.
+  ///
+  /// Building payloads from the switches instead is what leaked a tap still
+  /// queued behind a save into that save: it reached the server, then its own
+  /// save failed and reverted the switch, which then showed a value the
+  /// server did not hold.
+  Map<String, bool>? _confirmed;
+
+  /// The latest tap for each topic whose commit has not resolved yet.
+  ///
+  /// A commit that fails reverts its topic's switch only while it is still
+  /// that topic's latest tap. If the student has tapped the same topic again
+  /// since, the switch shows that newer tap, and the newer tap's commit —
+  /// still queued — settles it.
+  final Map<String, ({int sequence, bool enabled})> _queuedTaps = {};
+
+  /// Numbers taps, so a commit can tell whether it is still its topic's
+  /// latest.
+  int _tapCount = 0;
+
+  /// Serialises the network side of [setTopic], and [refresh].
   ///
   /// Two quick taps each call `setTopic`, and without this, both calls'
   /// `saveTopicIntent` requests fire at once — whichever one's response
   /// arrives *last* wins on the server, even if it is the older, staler one,
   /// silently resurrecting a setting the student just turned off. Chaining
   /// each save onto this tail forces them to run one at a time, in the order
-  /// [setTopic] was called.
+  /// [setTopic] was called. A reload waits its turn the same way: its read
+  /// could otherwise answer after a save had landed, and hand [_confirmed]
+  /// the intent from before it.
   ///
   /// Every link swallows its own outcome (`.then((_) {}, onError: (_) {})`)
   /// before being stored back here, so one call's failure can never leave
@@ -165,7 +194,16 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   Future<void> _load() async {
     try {
       final intent = await _service.loadTopicIntent();
-      if (mounted) state = AsyncValue.data(intent);
+      _confirmed = intent;
+      // Taps whose commits have not resolved stay on screen: each one's
+      // commit settles its own switch, and nothing else would put back a tap
+      // that this reload had hidden.
+      if (mounted) {
+        state = AsyncValue.data(<String, bool>{
+          ...intent,
+          for (final tap in _queuedTaps.entries) tap.key: tap.value.enabled,
+        });
+      }
     } catch (error, stackTrace) {
       debugPrint('TopicIntentNotifier load failed: $error');
       if (mounted) state = AsyncValue.error(error, stackTrace);
@@ -184,59 +222,72 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   /// The optimistic switch flip happens here, synchronously, so two quick
   /// taps both respond immediately — disabling the controls while a save is
   /// in flight was rejected as a UX regression. Only the actual network
-  /// save is queued (see [_pendingSave]); [_commit] does the merging, once
+  /// save is queued (see [_pendingSave]); [_commit] builds its payload once
   /// it is this call's turn to run.
   Future<ReconcileOutcome?> setTopic(String topicId, bool enabled) {
-    final seed = state.value;
-    if (seed == null) return Future<ReconcileOutcome?>.value();
-    final previousValue = seed[topicId] ?? false;
+    final shown = state.value;
+    if (shown == null || _confirmed == null) {
+      return Future<ReconcileOutcome?>.value();
+    }
+    final sequence = ++_tapCount;
+    _queuedTaps[topicId] = (sequence: sequence, enabled: enabled);
 
     // Optimistic, so the switch responds immediately.
-    state = AsyncValue.data(<String, bool>{...seed, topicId: enabled});
+    state = AsyncValue.data(<String, bool>{...shown, topicId: enabled});
 
     final result = _pendingSave.then(
-      (_) => _commit(topicId, enabled, previousValue),
+      (_) => _commit(topicId, enabled, sequence),
     );
     _pendingSave = result.then((_) {}, onError: (_) {});
     return result;
   }
 
-  /// Runs one topic change's save + reconcile. Always executes strictly
-  /// after every previously queued change has finished, via [_pendingSave].
+  /// Runs one tap's save, then reconciles. Always executes strictly after
+  /// every previously queued commit and reload has finished, via
+  /// [_pendingSave].
   ///
-  /// Reads [state] fresh, right here, rather than trusting a snapshot
-  /// [setTopic] captured back when it was called: an earlier queued change
-  /// can fail and revert while this one is still waiting its turn (see the
-  /// catch block below), and this merge must build on that corrected value —
-  /// resolving the resurrection race in [setTopic]'s doc comment is only
-  /// half the fix if a stale merge base can still smuggle a failed change
-  /// back in through the *next* call's save.
+  /// The payload is [_confirmed] as it stands when this runs, plus this tap's
+  /// one change: it holds every earlier save that succeeded, none that
+  /// failed, and no tap still queued behind this one.
+  ///
+  /// [topicIntentProvider] rebuilds this notifier when the campus changes, so
+  /// a commit can find it disposed by the time its save completes. The save
+  /// still counts — intent is campus-free, and genuinely the student's choice
+  /// — but nothing else happens here: no state is read or written
+  /// (StateNotifier asserts on both after dispose), and nothing reconciles a
+  /// campus that is no longer the student's. The rebuilt notifier and the
+  /// launch reconciler own the new campus. The result is then
+  /// [ReconcileOutcome.unavailable]: saved, but this device was not updated by
+  /// this call.
   Future<ReconcileOutcome?> _commit(
     String topicId,
     bool enabled,
-    bool previousValue,
+    int sequence,
   ) async {
-    final base = state.value;
-    if (base == null) return null;
-    final updated = <String, bool>{...base, topicId: enabled};
+    final confirmed = _confirmed;
+    if (confirmed == null) return null;
 
     try {
-      await _service.saveTopicIntent(updated);
+      await _service.saveTopicIntent(<String, bool>{
+        ...confirmed,
+        topicId: enabled,
+      });
     } catch (error) {
       debugPrint(
         'TopicIntentNotifier.setTopic($topicId) failed to save: $error',
       );
-      // Revert only this call's own key, on top of whatever state looks
-      // like right now — not `base`, which is this same value (the
-      // optimistic flip already happened before this ran) and not `updated`
-      // — either would either no-op or stomp a different key that another,
-      // still-in-flight call has since changed.
-      if (mounted) {
-        final latest = state.value ?? base;
-        state = AsyncValue.data(<String, bool>{
-          ...latest,
-          topicId: previousValue,
-        });
+      // Back to what the server holds — unless the student has tapped this
+      // topic again since, in which case the switch shows that newer tap and
+      // its own commit, still queued, settles it.
+      final isLatestTap = _resolveTap(topicId, sequence);
+      if (isLatestTap && mounted) {
+        final shown = state.value;
+        if (shown != null) {
+          state = AsyncValue.data(<String, bool>{
+            ...shown,
+            topicId: (_confirmed ?? confirmed)[topicId] ?? false,
+          });
+        }
       }
       return null;
     }
@@ -246,18 +297,13 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     // choice is real, saved, and will be applied the next time reconcile
     // runs, so reverting it here would be a lie.
     //
-    // Merged against the latest state, exactly like the revert branch above
-    // — not written as `updated` outright, which is this call's own merge,
-    // frozen at the top of this function. A still-queued call for a
-    // *different* topic can have optimistically changed state while this
-    // call's save was in flight, and overwriting with that stale snapshot
-    // would revert the newer change until its own commit eventually runs and
-    // corrects it — a visible flicker of a switch un-toggling itself for no
-    // reason a student caused.
-    if (mounted) {
-      final latest = state.value ?? updated;
-      state = AsyncValue.data(<String, bool>{...latest, topicId: enabled});
-    }
+    // Nor is anything written back to the switches: they already show this
+    // value, or a newer tap of the same topic that is still queued. Writing
+    // this value back would flick that newer tap off until its own commit ran.
+    _confirmed = <String, bool>{...(_confirmed ?? confirmed), topicId: enabled};
+    _resolveTap(topicId, sequence);
+
+    if (!mounted) return ReconcileOutcome.unavailable;
 
     try {
       return await _service.reconcile(campusId: _campusId);
@@ -273,7 +319,21 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     }
   }
 
-  Future<void> refresh() => _load();
+  /// Forgets [topicId]'s queued tap if [sequence] is still its latest, and
+  /// reports whether it was.
+  bool _resolveTap(String topicId, int sequence) {
+    if (_queuedTaps[topicId]?.sequence != sequence) return false;
+    _queuedTaps.remove(topicId);
+    return true;
+  }
+
+  /// Reloads the intent from the server, once every save already queued has
+  /// resolved (see [_pendingSave]).
+  Future<void> refresh() {
+    final run = _pendingSave.then((_) => _load());
+    _pendingSave = run.then((_) {}, onError: (_) {});
+    return run;
+  }
 }
 
 /// Rebuilds when the signed-in student or their home campus changes, so a
