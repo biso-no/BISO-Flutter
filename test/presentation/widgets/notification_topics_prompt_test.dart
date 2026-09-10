@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
+import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/presentation/widgets/notification_topics_prompt.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -61,6 +63,13 @@ class _SaveFailingAccount extends Account {
     throw AppwriteException('offline');
   }
 }
+
+const _studentA = UserModel(id: 'student-a', name: 'A', email: 'a@bi.no');
+const _studentB = UserModel(id: 'student-b', name: 'B', email: 'b@bi.no');
+
+/// Who is signed in, for the tests that call [maybeShowTopicsPrompt]; stands
+/// in behind `currentUserProvider` so a test can switch students.
+final _signedInStudent = StateProvider<UserModel?>((ref) => null);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -361,6 +370,36 @@ void main() {
     },
   );
 
+  /// Pumps a button that calls [maybeShowTopicsPrompt], as `BisoApp.build`
+  /// does on every rebuild, and returns the container whose
+  /// [_signedInStudent] decides who is signed in.
+  Future<ProviderContainer> pumpRebuilds(
+    WidgetTester tester,
+    NotificationService service,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationServiceProvider.overrideWithValue(service),
+          currentUserProvider.overrideWith(
+            (ref) => ref.watch(_signedInStudent),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) => ElevatedButton(
+                onPressed: () => maybeShowTopicsPrompt(context, ref),
+                child: const Text('rebuild'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    return ProviderScope.containerOf(tester.element(find.text('rebuild')));
+  }
+
   testWidgets(
     '"Skip for now" persists nothing, so the student is asked again next '
     'launch - but maybeShowTopicsPrompt does not show the sheet again in '
@@ -371,23 +410,8 @@ void main() {
       // failure is what puts "Skip for now" on screen.
       final account = _ScriptedAccount(failingReads: {2});
       final service = NotificationService.withAccount(account);
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [notificationServiceProvider.overrideWithValue(service)],
-          child: MaterialApp(
-            home: Scaffold(
-              body: Consumer(
-                builder: (context, ref, _) => ElevatedButton(
-                  // What BisoApp.build does on every rebuild.
-                  onPressed: () => maybeShowTopicsPrompt(context, ref),
-                  child: const Text('rebuild'),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
+      final container = await pumpRebuilds(tester, service);
+      container.read(_signedInStudent.notifier).state = _studentA;
 
       await tester.tap(find.text('rebuild'));
       await tester.pumpAndSettle();
@@ -411,6 +435,62 @@ void main() {
         find.byType(NotificationTopicsPrompt),
         findsNothing,
         reason: 'a skip holds for the rest of the session',
+      );
+    },
+  );
+
+  testWidgets(
+    'a skip holds only for the student who skipped: whether the prompt was '
+    'answered is stored per account, but the skip silenced the prompt for '
+    'everyone, so a different student signing in on this device later in '
+    'the same session was never asked - and a later skip must not undo an '
+    "earlier student's",
+    (tester) async {
+      // Reads 1 and 3 are each student's answered check. Reads 2 and 4 are
+      // the sheet's own load, failing so that "Skip for now" is on screen.
+      final service = NotificationService.withAccount(
+        _ScriptedAccount(failingReads: {2, 4}),
+      );
+      final container = await pumpRebuilds(tester, service);
+      final signedIn = container.read(_signedInStudent.notifier);
+
+      Future<void> rebuild() async {
+        await tester.tap(find.text('rebuild'));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> skip() async {
+        await tester.tap(find.widgetWithText(TextButton, 'Skip for now'));
+        await tester.pumpAndSettle();
+      }
+
+      signedIn.state = _studentA;
+      await rebuild();
+      expect(find.byType(NotificationTopicsPrompt), findsOneWidget);
+      await skip();
+
+      await rebuild();
+      expect(
+        find.byType(NotificationTopicsPrompt),
+        findsNothing,
+        reason: 'student A skipped',
+      );
+
+      signedIn.state = _studentB;
+      await rebuild();
+      expect(
+        find.byType(NotificationTopicsPrompt),
+        findsOneWidget,
+        reason: 'student B has neither answered nor skipped',
+      );
+      await skip();
+
+      signedIn.state = _studentA;
+      await rebuild();
+      expect(
+        find.byType(NotificationTopicsPrompt),
+        findsNothing,
+        reason: "B's skip must not undo A's",
       );
     },
   );

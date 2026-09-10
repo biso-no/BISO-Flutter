@@ -107,22 +107,22 @@ class _NotificationTopicsPromptState
     _loadIntent();
   }
 
-  /// Closes the sheet without saving anything, and keeps it closed for the
-  /// rest of this session.
+  /// Closes the sheet without saving anything, and keeps it closed for this
+  /// student for the rest of this session.
   ///
   /// The "answered" marker ([NotificationService.hasAnsweredTopicPrompt]) is
   /// only ever written by a successful [NotificationService.saveTopicIntent]
   /// call, so skipping leaves it unset and the student is asked again on the
   /// next launch. Not before then: `BisoApp.build` calls
   /// [maybeShowTopicsPrompt] on every rebuild, which would bring the sheet
-  /// straight back, so skipping also sets [_skippedThisSession].
+  /// straight back, so the sheet closes with `true` and the call that opened
+  /// it records the skip for its student (see [_studentsWhoSkipped]).
   ///
   /// This is the prompt's only escape hatch when loading hangs or fails, or
   /// saving keeps failing — the sheet itself is deliberately non-dismissible
   /// and non-draggable (see [_PromptStatus]).
   void _skip() {
-    _skippedThisSession = true;
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   Future<void> _save() async {
@@ -291,20 +291,23 @@ class _NotificationTopicsPromptState
 /// both get past it.
 bool _promptInFlight = false;
 
-/// True once the student has skipped the prompt in this session.
+/// The students, by user id, who have skipped the prompt in this session.
 ///
 /// Skipping deliberately writes no marker, and `BisoApp` keeps rebuilding
 /// after the sheet closes — the launch reconciler alone transitions moments
 /// later — each time calling [maybeShowTopicsPrompt], which would show the
 /// sheet again straight away. Held in memory only, so the next launch asks
-/// again. It is not keyed to a student: anyone else who signs in on this
-/// device later in the same session is not asked until the next launch either.
-bool _skippedThisSession = false;
+/// again.
+///
+/// Per student, because whether the prompt has been answered is stored per
+/// account. A single flag for the session silenced the prompt for anyone who
+/// signed in on this device after a skip, until the next launch.
+final Set<String?> _studentsWhoSkipped = <String?>{};
 
-/// Forgets a skip, as a fresh launch would. For tests, which share one isolate
-/// - and so this flag - across every test in a file.
+/// Forgets every skip, as a fresh launch would. For tests, which share one
+/// isolate - and so this set - across every test in a file.
 @visibleForTesting
-void resetTopicsPromptSession() => _skippedThisSession = false;
+void resetTopicsPromptSession() => _studentsWhoSkipped.clear();
 
 /// Show the prompt if this student has not answered it yet, and has not
 /// skipped it this session.
@@ -312,26 +315,34 @@ void resetTopicsPromptSession() => _skippedThisSession = false;
 /// Safe to call on every build — it checks the skip, the in-flight flag and
 /// the stored marker, and does nothing for anyone who has already chosen.
 Future<void> maybeShowTopicsPrompt(BuildContext context, WidgetRef ref) async {
-  if (_skippedThisSession) return;
+  final studentId = ref.read(currentUserProvider)?.id;
+  if (_studentsWhoSkipped.contains(studentId)) return;
   if (_promptInFlight) return;
   _promptInFlight = true;
   try {
-    await _showTopicsPrompt(context, ref);
+    await _showTopicsPrompt(context, ref, studentId);
   } finally {
     _promptInFlight = false;
   }
 }
 
-Future<void> _showTopicsPrompt(BuildContext context, WidgetRef ref) async {
+/// [studentId] is who the prompt is being shown for, read before anything is
+/// awaited, so a skip is recorded for the student who was actually asked.
+Future<void> _showTopicsPrompt(
+  BuildContext context,
+  WidgetRef ref,
+  String? studentId,
+) async {
   final service = ref.read(notificationServiceProvider);
   if (await service.hasAnsweredTopicPrompt()) return;
   if (!context.mounted) return;
 
-  await showModalBottomSheet<void>(
+  final skipped = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     isDismissible: false,
     enableDrag: false,
     builder: (_) => const NotificationTopicsPrompt(),
   );
+  if (skipped == true) _studentsWhoSkipped.add(studentId);
 }
