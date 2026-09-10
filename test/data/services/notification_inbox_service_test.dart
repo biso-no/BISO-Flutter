@@ -16,30 +16,18 @@ void main() {
       },
     );
 
-    test(
-      'shows a campus-scoped announcement when the topic is on',
-      () {
-        expect(
-          isTopicAudienceVisible('events_oslo', {'events': true}),
-          isTrue,
-        );
-      },
-    );
+    test('shows a campus-scoped announcement when the topic is on', () {
+      expect(isTopicAudienceVisible('events_oslo', {'events': true}), isTrue);
+    });
 
-    test(
-      'a national-scoped announcement is governed by the same logical topic '
-      'as its campus-scoped sibling',
-      () {
-        expect(
-          isTopicAudienceVisible('news_national', {'news': false}),
-          isFalse,
-        );
-        expect(
-          isTopicAudienceVisible('news_$kNationalSlug', {'news': true}),
-          isTrue,
-        );
-      },
-    );
+    test('a national-scoped announcement is governed by the same logical topic '
+        'as its campus-scoped sibling', () {
+      expect(isTopicAudienceVisible('news_national', {'news': false}), isFalse);
+      expect(
+        isTopicAudienceVisible('news_$kNationalSlug', {'news': true}),
+        isTrue,
+      );
+    });
 
     test('the general topic is always visible regardless of intent', () {
       expect(isTopicAudienceVisible(kGeneralTopicId, {}), isTrue);
@@ -54,25 +42,19 @@ void main() {
       );
     });
 
-    test(
-      'defaults to visible for a topic absent from the intent map, matching '
-      "reconcile()'s own default-on behaviour for a topic the student has "
-      'never toggled',
-      () {
-        expect(isTopicAudienceVisible('jobs_bergen', {}), isTrue);
-      },
-    );
+    test('defaults to visible for a topic absent from the intent map, matching '
+        "reconcile()'s own default-on behaviour for a topic the student has "
+        'never toggled', () {
+      expect(isTopicAudienceVisible('jobs_bergen', {}), isTrue);
+    });
 
-    test(
-      'defaults to visible for an unrecognised audience value rather than '
-      'hiding it outright',
-      () {
-        expect(
-          isTopicAudienceVisible('mystery_topic_oslo', {'events': false}),
-          isTrue,
-        );
-      },
-    );
+    test('defaults to visible for an unrecognised audience value rather than '
+        'hiding it outright', () {
+      expect(
+        isTopicAudienceVisible('mystery_topic_oslo', {'events': false}),
+        isTrue,
+      );
+    });
 
     test('covers every logical topic, not just events', () {
       for (final topic in NotificationTopic.values) {
