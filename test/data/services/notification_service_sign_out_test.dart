@@ -4,10 +4,15 @@ import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
+import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/device_subscription_store.dart';
 import 'package:biso/data/services/notification_service.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -269,6 +274,37 @@ class _BrokenStore extends DeviceSubscriptionStore {
 
   @override
   Future<void> clear() async => _fail();
+}
+
+/// Finds nobody signed in without a network call, and cannot delete a
+/// session: a sign-out with the network down.
+class _SessionKeepingAuthService extends AuthService {
+  @override
+  Future<UserModel?> getCurrentUser() async => null;
+
+  @override
+  Future<void> logout() async => throw Exception('Network error occurred');
+}
+
+/// An [AuthNotifier] a test signs a student in to directly, whose sign-outs
+/// cannot delete the session.
+class _SessionKeepingAuthNotifier extends AuthNotifier {
+  _SessionKeepingAuthNotifier(NotificationService service)
+    : super(_SessionKeepingAuthService(), notificationService: service);
+
+  void signIn(String studentId, {required String campusId}) {
+    state = AuthState(
+      user: UserModel(
+        id: studentId,
+        name: studentId,
+        email: '$studentId@bi.no',
+        campusId: campusId,
+      ),
+      isAuthenticated: true,
+      hasProfile: true,
+      isProfileComplete: true,
+    );
+  }
 }
 
 void main() {
@@ -1058,6 +1094,63 @@ void main() {
         expect(
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
+        );
+      },
+    );
+  });
+
+  group('a sign-out whose session deletion fails', () {
+    test(
+      'leaves the student signed in, and their device registered and '
+      'subscribed again: the cleanup has already detached it by then, and '
+      'the launch reconciler brings it back only because logout() sets '
+      'isLoading and clears it again',
+      () async {
+        final server = _FakeServer();
+        final service = _DeviceService(
+          _FakeAccount(server),
+          _FakeMessaging(server),
+        );
+        final auth = _SessionKeepingAuthNotifier(service);
+        final container = ProviderContainer(
+          overrides: [
+            notificationServiceProvider.overrideWithValue(service),
+            authStateProvider.overrideWith((ref) => auth),
+          ],
+        );
+        addTearDown(container.dispose);
+        // Kept alive and rebuilt on every change, as BisoApp.build keeps it.
+        container.listen(topicReconcileProvider, (previous, next) {});
+        await pumpEventQueue(); // the auth notifier's own session check
+
+        auth.signIn('student-a', campusId: '1');
+        await pumpEventQueue();
+        final firstTarget = await store.readTargetId();
+        expect(server.targets.keys, [firstTarget]);
+
+        await auth.logout();
+        await pumpEventQueue();
+
+        expect(container.read(authStateProvider).isAuthenticated, isTrue);
+        final targetId = await store.readTargetId();
+        expect(
+          targetId,
+          allOf(isNotNull, isNot(firstTarget)),
+          reason: 'the cleanup deleted the first target',
+        );
+        expect(server.targets, {targetId: service.token});
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'news_oslo',
+          'news_national',
+        });
+        expect(
+          await store.readSubscriberIds(),
+          <String, String>{
+            for (final entry in server.subscribers.entries)
+              if (entry.value.targetId == targetId)
+                entry.value.topicId: entry.key,
+          },
         );
       },
     );

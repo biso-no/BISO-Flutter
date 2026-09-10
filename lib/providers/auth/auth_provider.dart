@@ -441,6 +441,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Clear JWT cache when user signs out
       state = const AuthState();
     } catch (e) {
+      // The session survives and the student stays signed in, but the cleanup
+      // above has detached this device. Clearing isLoading is what brings it
+      // back: topicReconcileProvider reconciles again once the state is
+      // signed in and no longer loading.
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
