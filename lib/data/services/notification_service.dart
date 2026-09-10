@@ -80,7 +80,9 @@ enum ReconcileOutcome {
   /// subscribe. Intent is saved and takes effect if they enable notifications.
   permissionDenied,
 
-  /// No FCM token, no push target, or the intent could not be read.
+  /// Nothing could be attempted on this device: the permission status could
+  /// not be read, or there is no FCM token, no push target, or no readable
+  /// intent.
   unavailable,
 
   /// Some subscribe/unsubscribe calls failed; the device is partly reconciled.
@@ -265,36 +267,61 @@ class NotificationService {
   }
 
   /// Request notification permissions from the user.
+  ///
+  /// Returns whether permission is granted, and nothing else. Subscribing this
+  /// device afterwards is best-effort: a failure there is logged, never
+  /// reported as a denial. Callers act on `false` by telling the student to
+  /// enable notifications in system settings and leaving chat notifications
+  /// off (see `settings_screen_chat_tab.dart` and
+  /// `NotificationPermissionDialog`), which is exactly wrong for a student who
+  /// has just granted permission.
   Future<bool> requestPermission() async {
+    final bool isGranted;
     try {
-      final isGranted = await requestPlatformPermission();
-
-      if (isGranted) {
-        // reconcile() resolves the push target itself and subscribes this
-        // device to the student's saved topic intent - calling it here is
-        // sufficient on its own. This used to call `_loadTopicSubscriptions()`,
-        // which only populated the obsolete in-memory legacy map and created
-        // no Appwrite subscriptions at all: a student who granted permission
-        // from anywhere but the first-run prompt (e.g. the chat settings
-        // toggle at `settings_screen_chat_tab.dart`, which calls only this
-        // method) got a push target and nothing else - no content
-        // notifications until the next launch, auth change, or campus change.
-        //
-        // Safe from recursion: reconcile() checks areNotificationsEnabled()
-        // but never calls requestPermission() itself. Uses `_lastCampusId`,
-        // the same cache the token-refresh path relies on, since this method
-        // has no campus id of its own to pass in.
-        await reconcile(campusId: _lastCampusId);
-      }
-
-      return isGranted;
+      isGranted = await requestPlatformPermission();
     } catch (e) {
       debugPrint('Failed to request notification permission: $e');
       return false;
     }
+
+    if (isGranted) {
+      // reconcile() resolves the push target itself and subscribes this
+      // device to the student's saved topic intent - calling it here is
+      // sufficient on its own. This used to call `_loadTopicSubscriptions()`,
+      // which only populated the obsolete in-memory legacy map and created
+      // no Appwrite subscriptions at all: a student who granted permission
+      // from anywhere but the first-run prompt (e.g. the chat settings
+      // toggle at `settings_screen_chat_tab.dart`, which calls only this
+      // method) got a push target and nothing else - no content
+      // notifications until the next launch, auth change, or campus change.
+      //
+      // Safe from recursion, which reconcile()'s queue would turn into a
+      // deadlock: reconcile() checks the current permission but never calls
+      // requestPermission() itself. Uses `_lastCampusId`, the same cache the
+      // token-refresh path relies on, since this method has no campus id of
+      // its own to pass in.
+      try {
+        await reconcile(campusId: _lastCampusId);
+      } catch (e) {
+        // reconcile() reports the failures it expects as a ReconcileOutcome;
+        // this is whatever else escaped it. The grant is real regardless, and
+        // the subscriptions are retried the next time reconcile() runs.
+        debugPrint(
+          'requestPermission: permission granted, but subscribing this '
+          'device threw: $e',
+        );
+      }
+    }
+
+    return isGranted;
   }
 
-  /// Check if notifications are currently enabled
+  /// Check if notifications are currently enabled.
+  ///
+  /// A status that cannot be read reports `false`, and callers depend on that:
+  /// the chat settings tab and the chat list both treat it as "not enabled
+  /// yet" and offer to request permission. [reconcile] must not guess either
+  /// way, so it calls [checkPlatformPermission] directly.
   Future<bool> areNotificationsEnabled() async {
     try {
       return await checkPlatformPermission();
@@ -513,12 +540,36 @@ class NotificationService {
 
   /// One [reconcile] run. Only ever started by [reconcile]'s queue.
   Future<ReconcileOutcome> _reconcileNow(String? campusId) async {
-    if (!await areNotificationsEnabled()) {
+    // Not areNotificationsEnabled(), which reports a check that errors as "not
+    // granted". permissionDenied tells a caller the student must go and enable
+    // notifications, and a check that could not run says nothing of the sort -
+    // the permission dialog reads this outcome straight after a grant.
+    final bool permitted;
+    try {
+      permitted = await checkPlatformPermission();
+    } catch (e) {
+      debugPrint(
+        'reconcile: could not check notification permission; skipping ($e)',
+      );
+      return ReconcileOutcome.unavailable;
+    }
+    if (!permitted) {
       debugPrint('reconcile: notifications not permitted; intent kept for later');
       return ReconcileOutcome.permissionDenied;
     }
 
-    final token = _fcmToken ?? await fetchPlatformToken();
+    // The launch fetch in initialize() can fail and leave no cached token, and
+    // Firebase then throws here too (SERVICE_NOT_AVAILABLE, no network). That
+    // is reported like a missing token rather than thrown into every caller.
+    var token = _fcmToken;
+    if (token == null) {
+      try {
+        token = await fetchPlatformToken();
+      } catch (e) {
+        debugPrint('reconcile: could not get an FCM token; skipping ($e)');
+        return ReconcileOutcome.unavailable;
+      }
+    }
     if (token == null) {
       debugPrint('reconcile: no FCM token; skipping');
       return ReconcileOutcome.unavailable;

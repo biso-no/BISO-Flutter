@@ -27,12 +27,30 @@ class _FakeNotificationService extends NotificationService {
   @override
   Future<bool> requestPlatformPermission() async => granted;
 
-  int reconcileCalls = 0;
+  /// Every campus id [reconcile] was called with, in call order.
+  final List<String?> reconcileCampusIds = <String?>[];
+  int get reconcileCalls => reconcileCampusIds.length;
+
   ReconcileOutcome reconcileResult = ReconcileOutcome.applied;
+
+  /// Thrown from [reconcile] instead of returning [reconcileResult], when set.
+  Object? reconcileThrows;
+
+  /// When true, [reconcile] runs the real implementation instead - the only
+  /// way to have it cache a campus id, as an earlier run in the session would.
+  bool delegateReconcile = false;
+
+  /// Only reached when [delegateReconcile] is set. Reporting "not granted"
+  /// ends the real run at its first step, before Firebase or Appwrite.
+  @override
+  Future<bool> checkPlatformPermission() async => false;
 
   @override
   Future<ReconcileOutcome> reconcile({required String? campusId}) async {
-    reconcileCalls++;
+    reconcileCampusIds.add(campusId);
+    if (delegateReconcile) return super.reconcile(campusId: campusId);
+    final failure = reconcileThrows;
+    if (failure != null) throw failure;
     return reconcileResult;
   }
 }
@@ -101,6 +119,30 @@ void main() {
 
         expect(result, isTrue);
         expect(service.reconcileCalls, 1);
+      },
+    );
+
+    test(
+      'reports a genuine grant as granted even when reconcile throws, and '
+      'reconciles against the campus this device was last reconciled for: '
+      'subscribing is best-effort here, and a throw from it - e.g. getToken '
+      'failing when the launch token fetch already had - used to be caught '
+      'as a failed permission request, telling a student who had just '
+      'granted permission to enable it in system settings and leaving their '
+      'chat notifications off',
+      () async {
+        final service = _FakeNotificationService()..delegateReconcile = true;
+        // Earlier in the session, the launch reconciler reconciled campus 3.
+        // requestPermission takes no campus, so that is all it has to go on.
+        await service.reconcile(campusId: '3');
+
+        service
+          ..delegateReconcile = false
+          ..reconcileThrows = Exception('getToken: SERVICE_NOT_AVAILABLE');
+        final result = await service.requestPermission();
+
+        expect(result, isTrue);
+        expect(service.reconcileCampusIds, ['3', '3']);
       },
     );
   });

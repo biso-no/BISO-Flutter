@@ -285,6 +285,71 @@ void main() {
         expect(await queued, ReconcileOutcome.applied);
       },
     );
+
+    test(
+      'reports unavailable, rather than throwing, when the FCM token cannot '
+      'be fetched - e.g. SERVICE_NOT_AVAILABLE after the launch fetch had '
+      'failed too, so no token was cached: a throw escapes into every '
+      'caller, and requestPermission() used to report it as a denial',
+      () async {
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false)),
+          _FakeMessaging(),
+        )..tokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+      },
+    );
+
+    test(
+      'reports unavailable, not permissionDenied, when the permission check '
+      'itself errors: a check that fails says nothing about the permission, '
+      'and the permission dialog reads this outcome straight after a grant',
+      () async {
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false)),
+          _FakeMessaging(),
+        )..permissionThrows = PlatformException(code: 'unavailable');
+
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+      },
+    );
+
+    test(
+      'still reports permissionDenied when the check genuinely says '
+      'permission is not granted',
+      () async {
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false)),
+          _FakeMessaging(),
+        )..permitted = false;
+
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.permissionDenied,
+        );
+      },
+    );
+
+    test(
+      'areNotificationsEnabled() still reports false, rather than throwing, '
+      'when the check errors - the chat settings tab and the chat list read '
+      'that as "not enabled" and offer to request permission',
+      () async {
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false)),
+          _FakeMessaging(),
+        )..permissionThrows = PlatformException(code: 'unavailable');
+
+        expect(await service.areNotificationsEnabled(), isFalse);
+      },
+    );
   });
 }
 
@@ -365,15 +430,30 @@ class _ReconcilingService extends NotificationService {
   _ReconcilingService(super.account, Messaging messaging)
     : super.withAccount(messaging: messaging);
 
+  /// What [checkPlatformPermission] reports, unless [permissionThrows] is set.
+  bool permitted = true;
+  Object? permissionThrows;
+
+  /// Thrown from [fetchPlatformToken] instead of returning a token, when set.
+  Object? tokenThrows;
+
   /// Thrown from the next [resolvePushTarget] call, then cleared - a failure
   /// `reconcile()` does not catch itself.
   Object? targetThrowsOnce;
 
   @override
-  Future<bool> checkPlatformPermission() async => true;
+  Future<bool> checkPlatformPermission() async {
+    final failure = permissionThrows;
+    if (failure != null) throw failure;
+    return permitted;
+  }
 
   @override
-  Future<String?> fetchPlatformToken() async => 'token-1';
+  Future<String?> fetchPlatformToken() async {
+    final failure = tokenThrows;
+    if (failure != null) throw failure;
+    return 'token-1';
+  }
 
   @override
   Future<String?> resolvePushTarget(String token) async {
