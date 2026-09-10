@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart' as models;
 import 'package:flutter/foundation.dart';
 
 import '../../core/constants/app_constants.dart';
@@ -67,9 +68,18 @@ class NotificationInboxService {
   static const String _userNotificationsTable = 'user_notifications';
   static const int _fetchLimit = 50;
 
+  /// The National campus, whose announcements concern every student.
+  static const String _nationalCampusId = '5';
+
   // Appwrite Query.equal('$id', [...]) supports a bounded list; chunk to stay
   // within reasonable request sizes.
   static const int _idChunkSize = 25;
+
+  /// [tablesDb] stands in for the shared [db] in tests.
+  NotificationInboxService({TablesDB? tablesDb}) : _tablesDbOverride = tablesDb;
+
+  final TablesDB? _tablesDbOverride;
+  TablesDB get _db => _tablesDbOverride ?? db;
 
   Realtime get _realtime => realtime;
 
@@ -99,7 +109,7 @@ class NotificationInboxService {
   }) async {
     try {
       // 1. Targeted notifications for this user (read state + row id).
-      final userRows = await db.listRows(
+      final userRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _userNotificationsTable,
         queries: [
@@ -121,7 +131,7 @@ class NotificationInboxService {
       // 2. Broadcast feed: sent announcements addressed to everyone. Query
       // broadcasts and topics separately, each with its own limit, so a busy
       // topic backlog can't push broadcasts out of the limited result set.
-      final broadcastRows = await db.listRows(
+      final broadcastRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
@@ -131,22 +141,13 @@ class NotificationInboxService {
           Query.limit(_fetchLimit),
         ],
       );
-      final topicRows = await db.listRows(
-        databaseId: AppConstants.databaseId,
-        tableId: _announcementsTable,
-        queries: [
-          Query.equal('status', 'sent'),
-          Query.equal('audience_type', 'topic'),
-          Query.orderDesc('sent_at'),
-          Query.limit(_fetchLimit),
-        ],
-      );
+      final topicRows = await _fetchTopicRows(campusId);
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
         announcementById[row.$id] = _rowToMap(row);
       }
-      for (final row in topicRows.rows) {
+      for (final row in topicRows) {
         // Hide topic announcements scoped to another campus, or opted out of.
         if (!_isTopicVisible(row.data, topicIntent, campusId: campusId)) {
           continue;
@@ -160,7 +161,7 @@ class NotificationInboxService {
           .toList();
       for (final chunk in _chunk(missingIds, _idChunkSize)) {
         if (chunk.isEmpty) continue;
-        final rows = await db.listRows(
+        final rows = await _db.listRows(
           databaseId: AppConstants.databaseId,
           tableId: _announcementsTable,
           queries: [
@@ -191,6 +192,69 @@ class NotificationInboxService {
     }
   }
 
+  /// The newest [_fetchLimit] sent `topic` announcements that can concern a
+  /// student on [campusId], newest first.
+  ///
+  /// Filtered by campus on the server, on the indexed `campus_id`, before the
+  /// limit applies. Filtering only afterwards, on the client, let other
+  /// campuses' announcements fill the limit: once they had published
+  /// [_fetchLimit] newer ones, this student's own were never fetched at all.
+  /// `audience_value` has no index and is not filtered on here; the caller
+  /// still applies [_isTopicVisible], which checks it and the opt-outs.
+  ///
+  /// Two reads, merged: one for the student's campus and National, and one
+  /// for rows with no campus, which is how an "All campuses" send is stored.
+  /// Null cannot be matched inside an `equal` list, so it gets a read, and a
+  /// limit, of its own.
+  ///
+  /// So a historical row whose `audience_value` is a bare logical topic, such
+  /// as `events`, now reaches only students on its own campus or National, or
+  /// everyone when its `campus_id` is null. It used to be fetched, and shown,
+  /// for every campus.
+  Future<List<models.Row>> _fetchTopicRows(String? campusId) async {
+    final campusIds = <String>{
+      if (campusId != null && campusId.isNotEmpty) campusId,
+      _nationalCampusId,
+    }.toList();
+
+    List<String> topicQueries(String campusFilter) => [
+      Query.equal('status', 'sent'),
+      Query.equal('audience_type', 'topic'),
+      campusFilter,
+      Query.orderDesc('sent_at'),
+      Query.limit(_fetchLimit),
+    ];
+
+    final reads = await Future.wait([
+      _db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: _announcementsTable,
+        queries: topicQueries(Query.equal('campus_id', campusIds)),
+      ),
+      _db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: _announcementsTable,
+        queries: topicQueries(Query.isNull('campus_id')),
+      ),
+    ]);
+
+    final rowsById = <String, models.Row>{
+      for (final read in reads)
+        for (final row in read.rows) row.$id: row,
+    };
+    final newestFirst = rowsById.values.toList()
+      ..sort((a, b) => _sentAt(b).compareTo(_sentAt(a)));
+    return newestFirst.take(_fetchLimit).toList();
+  }
+
+  /// When [row] was sent, for ordering. A row without a readable `sent_at`
+  /// sorts last.
+  static DateTime _sentAt(models.Row row) {
+    final value = row.data['sent_at'];
+    return (value is String ? DateTime.tryParse(value) : null) ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
   /// Fetch a single announcement by [announcementId] localized to [locale].
   ///
   /// When [userId] is provided, also looks up the matching `user_notifications`
@@ -202,7 +266,7 @@ class NotificationInboxService {
     String? userId,
   }) async {
     try {
-      final announcementRows = await db.listRows(
+      final announcementRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
@@ -221,7 +285,7 @@ class NotificationInboxService {
       String? userNotificationId;
 
       if (userId != null && userId.isNotEmpty) {
-        final userRows = await db.listRows(
+        final userRows = await _db.listRows(
           databaseId: AppConstants.databaseId,
           tableId: _userNotificationsTable,
           queries: [
@@ -264,7 +328,7 @@ class NotificationInboxService {
   }) async {
     try {
       if (notification.userNotificationId != null) {
-        await db.updateRow(
+        await _db.updateRow(
           databaseId: AppConstants.databaseId,
           tableId: _userNotificationsTable,
           rowId: notification.userNotificationId!,
@@ -273,7 +337,7 @@ class NotificationInboxService {
         return;
       }
 
-      await db.createRow(
+      await _db.createRow(
         databaseId: AppConstants.databaseId,
         tableId: _userNotificationsTable,
         rowId: ID.unique(),
