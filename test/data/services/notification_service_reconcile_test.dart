@@ -17,9 +17,18 @@ class _FakeAccount extends Account {
   /// path does *not* write, without depending on the exact shape written.
   int updatePrefsCalls = 0;
 
+  /// When true, [getPrefs] throws instead of returning [_prefs] - simulates a
+  /// network/read failure distinct from "nothing stored yet", which is
+  /// instead expressed by an empty (or absent-key) [_prefs].
+  bool shouldFail = false;
+
   @override
-  Future<models.Preferences> getPrefs() async =>
-      models.Preferences(data: Map<String, dynamic>.from(_prefs));
+  Future<models.Preferences> getPrefs() async {
+    if (shouldFail) {
+      throw AppwriteException('offline');
+    }
+    return models.Preferences(data: Map<String, dynamic>.from(_prefs));
+  }
 
   @override
   Future<models.User> updatePrefs({required Map prefs}) async {
@@ -94,6 +103,22 @@ void main() {
         expect(intent['shop'], isFalse);
         expect(intent['events'], isFalse);
         expect(intent.containsKey('expenses'), isFalse);
+      },
+    );
+
+    test(
+      'rethrows when the preferences read itself fails, instead of reporting '
+      'it the same way as "nothing saved yet" - a caller must be able to '
+      'tell the two apart, or a later toggle persists fabricated defaults '
+      'over the student\'s real saved intent',
+      () async {
+        final account = _FakeAccount(<String, dynamic>{})..shouldFail = true;
+        final service = NotificationService.withAccount(account);
+
+        expect(
+          () => service.loadTopicIntent(),
+          throwsA(isA<AppwriteException>()),
+        );
       },
     );
   });

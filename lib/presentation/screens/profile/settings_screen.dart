@@ -12,6 +12,7 @@ import '../../../providers/privacy/privacy_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../../providers/ui/theme_mode_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
+import '../../../data/services/notification_service.dart' show ReconcileOutcome;
 import '../../../data/services/validator_service.dart';
 import '../../widgets/premium/notification_tile.dart';
 import 'settings_screen_chat_tab.dart';
@@ -629,19 +630,47 @@ class _NotificationSettingsTab extends ConsumerWidget {
                       subtitle: _topicSubtitle(topic),
                       isEnabled: intent[topic.id] ?? false,
                       onChanged: (value) async {
-                        final ok = await ref
+                        final result = await ref
                             .read(topicIntentProvider.notifier)
                             .setTopic(topic.id, value);
-                        if (ok) return;
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Could not update ${topic.label} notifications. '
-                              'Check your connection and try again.',
-                            ),
-                          ),
-                        );
+                        switch (result) {
+                          case null:
+                            // The save itself failed - nothing was recorded.
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Could not update ${topic.label} notifications. '
+                                  'Check your connection and try again.',
+                                ),
+                              ),
+                            );
+                            break;
+                          case ReconcileOutcome.applied:
+                            // Saved and this device is subscribed. No snackbar.
+                            break;
+                          case ReconcileOutcome.permissionDenied:
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Saved. Turn on notifications in your device '
+                                  'settings to receive them.',
+                                ),
+                              ),
+                            );
+                            break;
+                          case ReconcileOutcome.unavailable:
+                          case ReconcileOutcome.partiallyFailed:
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Saved, but this device could not be updated. '
+                                  'It will retry next time you open the app.',
+                                ),
+                              ),
+                            );
+                            break;
+                        }
                       },
                       selectedCampus: selectedCampus,
                     ),

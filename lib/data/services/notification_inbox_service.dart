@@ -10,27 +10,48 @@ import 'appwrite_service.dart';
 
 /// Whether a `topic` announcement addressed to Appwrite topic id
 /// [audienceValue] should appear in a student's inbox, given their logical
-/// [topicIntent] (as returned by `NotificationService.loadTopicIntent()`).
+/// [topicIntent] (as returned by `NotificationService.loadTopicIntent()`) and
+/// their profile (home) campus [campusId].
 ///
 /// [audienceValue] is a campus-scoped id such as `events_oslo` or
 /// `events_national` — never the bare logical topic — except for
 /// [kGeneralTopicId], which every device holds unconditionally and so is
-/// always visible. The campus suffix is stripped to recover the logical topic
-/// ([NotificationTopic.id]) before consulting [topicIntent], because intent is
-/// per-topic, not per-campus: `events_oslo` must be hidden by the same switch
-/// that hides `events_national`. A topic absent from [topicIntent], or an
-/// audience value that matches no known topic, defaults to visible — the same
-/// default `reconcile()` applies to a topic the student has never toggled.
+/// always visible, and except for historical rows written before campus
+/// scoping existed, whose `audience_value` is a bare logical topic such as
+/// `events`.
+///
+/// Push delivery is campus-scoped: a device only ever holds a subscription
+/// for [campusId]'s own scope (via [campusSlugFor]) and the national scope —
+/// see `NotificationService.reconcile()`. The inbox must draw the same line,
+/// or a student sees announcements addressed to campuses they were never
+/// pushed to. So a value naming a *known* topic is visible only when it names
+/// this student's own scope or the national scope, and then only if they
+/// haven't opted out of that logical topic ([topicIntent]; absent from the
+/// map defaults to visible, matching `reconcile()`'s own default-on for a
+/// topic never toggled). A value naming the *same* topic but a *different*
+/// campus's scope is hidden outright — that is the bug this guards against.
+/// A value that matches no known topic at all — [kGeneralTopicId], or a
+/// pre-migration bare topic id — defaults to visible.
 ///
 /// Extracted as a top-level, `@visibleForTesting` function (rather than kept
 /// as a private instance method) following the pattern
 /// `decodeTopicSubscriptions` uses in `notification_service.dart`.
 @visibleForTesting
-bool isTopicAudienceVisible(String audienceValue, Map<String, bool> topicIntent) {
+bool isTopicAudienceVisible(
+  String audienceValue,
+  Map<String, bool> topicIntent, {
+  required String? campusId,
+}) {
   if (audienceValue == kGeneralTopicId) return true;
+  final ownSlug = campusSlugFor(campusId);
   for (final topic in NotificationTopic.values) {
-    if (audienceValue.startsWith('${topic.id}_')) {
+    if (audienceValue == '${topic.id}_$ownSlug' ||
+        audienceValue == '${topic.id}_$kNationalSlug') {
       return topicIntent[topic.id] != false;
+    }
+    if (audienceValue.startsWith('${topic.id}_')) {
+      // A known topic, but scoped to some other campus than this student's.
+      return false;
     }
   }
   return true;
@@ -62,16 +83,18 @@ class NotificationInboxService {
 
   /// Fetch the merged inbox for [userId] localized to [locale].
   ///
-  /// [topicIntent] is the student's logical topic intent — `news`/`events`/
-  /// `jobs`/`shop` — as returned by `NotificationService.loadTopicIntent()`.
-  /// Broadcast announcements always appear; a `topic` announcement (whose
-  /// `audience_value` is a campus-scoped Appwrite topic id, e.g. `events_oslo`)
-  /// is shown only when the student hasn't explicitly opted out of that
-  /// topic's logical intent (default-show when the topic is absent from the
-  /// map — see [isTopicAudienceVisible]).
+  /// [campusId] is the student's profile (home) campus. [topicIntent] is
+  /// their logical topic intent — `news`/`events`/`jobs`/`shop` — as returned
+  /// by `NotificationService.loadTopicIntent()`. Broadcast announcements
+  /// always appear; a `topic` announcement (whose `audience_value` is a
+  /// campus-scoped Appwrite topic id, e.g. `events_oslo`) is shown only when
+  /// it is scoped to this student's campus (or national) and they haven't
+  /// explicitly opted out of that topic's logical intent (default-show when
+  /// the topic is absent from the map — see [isTopicAudienceVisible]).
   Future<List<AppNotification>> fetchInbox({
     required String userId,
     required String locale,
+    required String? campusId,
     Map<String, bool> topicIntent = const {},
   }) async {
     try {
@@ -124,8 +147,10 @@ class NotificationInboxService {
         announcementById[row.$id] = _rowToMap(row);
       }
       for (final row in topicRows.rows) {
-        // Hide topic announcements the user has opted out of.
-        if (!_isTopicVisible(row.data, topicIntent)) continue;
+        // Hide topic announcements scoped to another campus, or opted out of.
+        if (!_isTopicVisible(row.data, topicIntent, campusId: campusId)) {
+          continue;
+        }
         announcementById[row.$id] = _rowToMap(row);
       }
 
@@ -297,16 +322,22 @@ class NotificationInboxService {
     return data;
   }
 
-  /// A `topic` announcement is visible only when the user is subscribed to its
-  /// topic; broadcasts (and any non-topic audience) are always visible.
+  /// A `topic` announcement is visible only when it is scoped to [campusId]
+  /// (or national) and the user hasn't opted out of its topic; broadcasts
+  /// (and any non-topic audience) are always visible.
   bool _isTopicVisible(
     Map<String, dynamic> data,
-    Map<String, bool> topicIntent,
-  ) {
+    Map<String, bool> topicIntent, {
+    required String? campusId,
+  }) {
     if (data['audience_type'] != 'topic') return true;
     final audienceValue = data['audience_value'] as String?;
     if (audienceValue == null || audienceValue.isEmpty) return true;
-    return isTopicAudienceVisible(audienceValue, topicIntent);
+    return isTopicAudienceVisible(
+      audienceValue,
+      topicIntent,
+      campusId: campusId,
+    );
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {

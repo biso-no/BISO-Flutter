@@ -47,21 +47,34 @@ class NotificationPreferencesNotifier
   Future<void> _loadPreferences() async {
     try {
       state = const AsyncValue.loading();
-      
+
       // Load chat notifications preference
       final chatEnabled = await _notificationService
           .getChatNotificationPreference();
-      
+
       // Await the load: reading the in-memory map directly renders hardcoded
       // defaults over the student's saved choices on a cold start.
-      final topicSubscriptions = await _notificationService.loadTopicIntent();
-      
+      //
+      // A failed read is caught here, separately from the block below, and
+      // must not take down `chat_notifications` above (which loaded fine) —
+      // default to empty rather than fabricating topic flags that could
+      // later be persisted over the student's real saved intent.
+      Map<String, bool> topicSubscriptions;
+      try {
+        topicSubscriptions = await _notificationService.loadTopicIntent();
+      } catch (error) {
+        debugPrint(
+          'NotificationPreferencesNotifier: loadTopicIntent failed: $error',
+        );
+        topicSubscriptions = const <String, bool>{};
+      }
+
       // Combine all preferences
       final allPreferences = {
         'chat_notifications': chatEnabled,
         ...topicSubscriptions,
       };
-      
+
       state = AsyncValue.data(allPreferences);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -110,9 +123,21 @@ final notificationPreferencesProvider =
 /// The student's topic intent, and the only UI entry point for changing it.
 ///
 /// Every change writes intent first, then reconciles this device's Appwrite
-/// subscriptions to match. A failed reconcile reverts the optimistic update
-/// and reports failure to the caller, rather than surfacing an error state
-/// that would hide every switch (see [setTopic]).
+/// subscriptions to match. The two can fail independently, and are reported
+/// differently: a failed *save* reverts the optimistic switch, because the
+/// student's choice was never actually recorded. A failed or partial
+/// *reconcile* leaves the switch as set — the intent is genuinely saved, and
+/// will be honoured next time reconcile runs — and instead reports what
+/// happened on this device via a [ReconcileOutcome] so the caller can decide
+/// whether the student needs telling (see [setTopic]).
+///
+/// The state stays `AsyncValue.data` throughout a save failure —
+/// deliberately. Riverpod flushes at most one notification per event-loop
+/// turn, so assigning `data(current)` and then `error(...)` would render only
+/// the error: the revert would never be seen, and the whole card would be
+/// replaced by an error message that hides all four switches. Since this
+/// provider is not autoDispose, nothing short of an app restart would bring
+/// them back.
 class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   TopicIntentNotifier(this._service, this._campusId)
     : super(const AsyncValue.loading()) {
@@ -132,33 +157,49 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     }
   }
 
-  /// Returns true when the change was saved and this device reconciled.
+  /// Saves [topicId]'s new [enabled] value, then reconciles this device.
   ///
-  /// A failure reverts the switch and returns false; the caller tells the
-  /// student. The state stays `AsyncValue.data` throughout — deliberately.
-  /// Riverpod flushes at most one notification per event-loop turn, so
-  /// assigning `data(current)` and then `error(...)` would render only the
-  /// error: the revert would never be seen, and the whole card would be
-  /// replaced by an error message that hides all four switches. Since this
-  /// provider is not autoDispose, nothing short of an app restart would bring
-  /// them back.
-  Future<bool> setTopic(String topicId, bool enabled) async {
+  /// Returns `null` when the save itself failed — the switch is reverted, and
+  /// the caller should tell the student nothing was recorded, exactly as
+  /// before. Otherwise the intent is genuinely saved: the switch stays as set
+  /// regardless of what follows, and the returned [ReconcileOutcome] tells
+  /// the caller what happened to *this device's* subscriptions, so it can
+  /// decide whether the student needs telling (see `settings_screen.dart`).
+  Future<ReconcileOutcome?> setTopic(String topicId, bool enabled) async {
     final current = state.value;
-    if (current == null) return false;
+    if (current == null) return null;
 
     final updated = <String, bool>{...current, topicId: enabled};
     // Optimistic, so the switch responds immediately.
     state = AsyncValue.data(updated);
+
     try {
       await _service.saveTopicIntent(updated);
-      await _service.reconcile(campusId: _campusId);
-      return true;
     } catch (error) {
-      debugPrint('TopicIntentNotifier.setTopic($topicId) failed: $error');
+      debugPrint(
+        'TopicIntentNotifier.setTopic($topicId) failed to save: $error',
+      );
       // The sole terminal state, so the revert is what the student actually
       // sees: the switch goes back and the card stays usable.
       if (mounted) state = AsyncValue.data(current);
-      return false;
+      return null;
+    }
+
+    // Intent is saved from here on. Whatever reconcile() does or doesn't
+    // manage on this device, the switch must not revert — the student's
+    // choice is real, saved, and will be applied the next time reconcile
+    // runs, so reverting it here would be a lie.
+    try {
+      return await _service.reconcile(campusId: _campusId);
+    } catch (error) {
+      // reconcile() is designed to report failure via ReconcileOutcome
+      // rather than throw; this is a last-resort net for anything
+      // unanticipated, so a stray exception still can't be mistaken for the
+      // save having failed.
+      debugPrint(
+        'TopicIntentNotifier.setTopic($topicId) reconcile failed: $error',
+      );
+      return ReconcileOutcome.unavailable;
     }
   }
 
@@ -215,6 +256,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   final NotificationService _notificationService;
   final String? _userId;
   final String _locale;
+  final String? _campusId;
 
   RealtimeSubscription? _subscription;
   StreamSubscription<void>? _foregroundSubscription;
@@ -224,9 +266,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     required NotificationService notificationService,
     required String? userId,
     required String locale,
+    required String? campusId,
   }) : _notificationService = notificationService,
        _userId = userId,
        _locale = locale,
+       _campusId = campusId,
        super(const NotificationInboxState()) {
     if (_userId != null && _userId.isNotEmpty) {
       load();
@@ -234,6 +278,26 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
       _foregroundSubscription = _notificationService.onForegroundMessage.listen(
         (_) => refresh(),
       );
+    }
+  }
+
+  /// The student's logical topic intent, or an empty map when the read
+  /// itself fails.
+  ///
+  /// Empty means "show everything" to [NotificationInboxService.fetchInbox]
+  /// (nothing to opt out of), which is the safe direction to fail in here: an
+  /// inbox that occasionally shows a topic the student muted is a nuisance, an
+  /// inbox that fails to load at all because a preferences read hiccuped is
+  /// worse. Contrast [TopicIntentNotifier], where the same failure surfaces as
+  /// an error state instead — there, a fabricated map risks being persisted
+  /// back over the student's real saved intent, which showing-too-much here
+  /// never does.
+  Future<Map<String, bool>> _loadTopicIntentOrShowAll() async {
+    try {
+      return await _notificationService.loadTopicIntent();
+    } catch (e) {
+      debugPrint('NotificationInboxNotifier: loadTopicIntent failed: $e');
+      return const <String, bool>{};
     }
   }
 
@@ -250,10 +314,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
       // not the legacy per-device `topic_subscriptions` map that
       // `ensureTopicSubscriptionsLoaded()` reads — that map is keyed by the
       // pre-migration topic names and would silently defeat every opt-out.
-      final topicIntent = await _notificationService.loadTopicIntent();
+      final topicIntent = await _loadTopicIntentOrShowAll();
       final items = await _service.fetchInbox(
         userId: userId,
         locale: _locale,
+        campusId: _campusId,
         topicIntent: topicIntent,
       );
       state = state.copyWith(items: items, isLoading: false);
@@ -268,10 +333,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     if (userId == null || userId.isEmpty) return;
 
     try {
-      final topicIntent = await _notificationService.loadTopicIntent();
+      final topicIntent = await _loadTopicIntentOrShowAll();
       final items = await _service.fetchInbox(
         userId: userId,
         locale: _locale,
+        campusId: _campusId,
         topicIntent: topicIntent,
       );
       state = state.copyWith(items: items, clearError: true);
@@ -309,7 +375,10 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   }
 }
 
-/// Inbox state provider. Rebuilds when the signed-in user or locale changes.
+/// Inbox state provider. Rebuilds when the signed-in user, their home campus,
+/// or the locale changes — a campus change must rebuild this, or a student
+/// who transfers keeps seeing their old campus's announcements alongside the
+/// new one (see [isTopicAudienceVisible]).
 final notificationInboxProvider =
     StateNotifierProvider<NotificationInboxNotifier, NotificationInboxState>((
       ref,
@@ -318,12 +387,16 @@ final notificationInboxProvider =
       final userId = ref.watch(authStateProvider).user?.id;
       final locale = ref.watch(localeProvider).languageCode;
       final notificationService = ref.watch(notificationServiceProvider);
+      final campusId = ref.watch(
+        authStateProvider.select((state) => state.user?.campusId),
+      );
 
       return NotificationInboxNotifier(
         service,
         notificationService: notificationService,
         userId: userId,
         locale: locale,
+        campusId: campusId,
       );
     });
 

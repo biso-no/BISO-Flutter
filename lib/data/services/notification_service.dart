@@ -62,6 +62,31 @@ const String kTopicIntentSetAtPrefKey = 'notification_topics_set_at';
 /// The pre-migration key, still read once to carry old choices forward.
 const String kLegacyTopicSubscriptionsPrefKey = 'topic_subscriptions';
 
+/// What a `reconcile()` run actually achieved on this device.
+///
+/// `reconcile()` used to return `void` and swallow every failure — a missing
+/// permission, a missing token, a missing push target, and every failed
+/// subscribe/unsubscribe call all looked identical to a caller: nothing
+/// thrown, nothing to see. That is precisely the shape of bug this branch
+/// exists to fix: a student toggles a switch, believes they are subscribed,
+/// and is not. This type makes each of those outcomes a distinct, reportable
+/// value instead.
+enum ReconcileOutcome {
+  /// This device's subscriptions now match the student's intent (including
+  /// the case where they already did, and there was nothing to change).
+  applied,
+
+  /// OS notification permission is not granted, so there is nothing to
+  /// subscribe. Intent is saved and takes effect if they enable notifications.
+  permissionDenied,
+
+  /// No FCM token, no push target, or the intent could not be read.
+  unavailable,
+
+  /// Some subscribe/unsubscribe calls failed; the device is partly reconciled.
+  partiallyFailed,
+}
+
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
@@ -323,21 +348,33 @@ class NotificationService {
 
   /// The student's topic intent, migrating a pre-existing legacy map if that is
   /// all the account has.
+  ///
+  /// Rethrows when the preferences read itself fails — that must never be
+  /// confused with "nothing saved yet", which is a normal state this method
+  /// handles below without throwing (an absent [kTopicIntentPrefKey] simply
+  /// falls through to [migrateLegacyIntent], which itself returns
+  /// [kDefaultTopicIntent] when there is nothing to migrate either). A caller
+  /// that cannot tell the two apart was the bug: it used to fabricate
+  /// [kDefaultTopicIntent] on a failed read, show every switch on, and then —
+  /// if the student touched one — persist that fabricated map over their real
+  /// stored intent, destroying any genuine opt-out.
   Future<Map<String, bool>> loadTopicIntent() async {
+    final Map<String, dynamic> data;
     try {
-      final prefs = await _account.getPrefs();
-      final stored = decodeTopicSubscriptions(prefs.data[kTopicIntentPrefKey]);
-      if (stored != null) {
-        return <String, bool>{...kDefaultTopicIntent, ...stored}
-          ..removeWhere((key, _) => !kDefaultTopicIntent.containsKey(key));
-      }
-      return migrateLegacyIntent(
-        decodeTopicSubscriptions(prefs.data[kLegacyTopicSubscriptionsPrefKey]),
-      );
+      data = (await _account.getPrefs()).data;
     } catch (e) {
-      debugPrint('loadTopicIntent failed: $e');
-      return Map<String, bool>.from(kDefaultTopicIntent);
+      debugPrint('loadTopicIntent: could not read preferences: $e');
+      rethrow;
     }
+
+    final stored = decodeTopicSubscriptions(data[kTopicIntentPrefKey]);
+    if (stored != null) {
+      return <String, bool>{...kDefaultTopicIntent, ...stored}
+        ..removeWhere((key, _) => !kDefaultTopicIntent.containsKey(key));
+    }
+    return migrateLegacyIntent(
+      decodeTopicSubscriptions(data[kLegacyTopicSubscriptionsPrefKey]),
+    );
   }
 
   /// Persist intent and mark the prompt answered.
@@ -374,12 +411,14 @@ class NotificationService {
   }
 
   /// Bring this device's Appwrite subscriptions in line with the student's
-  /// intent for [campusId].
+  /// intent for [campusId], reporting what actually happened via
+  /// [ReconcileOutcome] rather than swallowing every way this can come up
+  /// short.
   ///
   /// Idempotent by construction — it diffs desired against observed rather than
   /// replaying toggles — so it is safe to call on every launch, and two devices
   /// on one account reconcile independently without coordinating.
-  Future<void> reconcile({required String? campusId}) async {
+  Future<ReconcileOutcome> reconcile({required String? campusId}) async {
     // Cached before any early return, so a later token refresh — which has no
     // campusId of its own to pass in — can still reconcile against the most
     // recent one this method was actually asked to use.
@@ -387,29 +426,41 @@ class NotificationService {
 
     if (!await areNotificationsEnabled()) {
       debugPrint('reconcile: notifications not permitted; intent kept for later');
-      return;
+      return ReconcileOutcome.permissionDenied;
     }
 
     final token = _fcmToken ?? await _firebaseMessaging.getToken();
     if (token == null) {
       debugPrint('reconcile: no FCM token; skipping');
-      return;
+      return ReconcileOutcome.unavailable;
     }
     _fcmToken = token;
 
     final targetId = await resolvePushTarget(token);
     if (targetId == null) {
       debugPrint('reconcile: no push target; skipping subscription changes');
-      return;
+      return ReconcileOutcome.unavailable;
     }
 
-    final intent = await loadTopicIntent();
+    final Map<String, bool> intent;
+    try {
+      intent = await loadTopicIntent();
+    } catch (e) {
+      // Reconciling against a guessed intent is exactly the harm this type
+      // exists to prevent: it could subscribe a student to a topic they had
+      // deliberately turned off. Abort instead, and retry on the next launch,
+      // auth change, or campus change.
+      debugPrint('reconcile: could not read topic intent; aborting ($e)');
+      return ReconcileOutcome.unavailable;
+    }
+
     final desired = appwriteTopicIdsFor(intent: intent, campusId: campusId);
     final current = await _store.readSubscriberIds();
     final diff = computeTopicDiff(desired: desired, current: current);
-    if (diff.isEmpty) return;
+    if (diff.isEmpty) return ReconcileOutcome.applied;
 
     final updated = Map<String, String>.from(current);
+    var hadFailure = false;
 
     for (final topicId in diff.toCreate) {
       try {
@@ -423,6 +474,7 @@ class NotificationService {
         // Best-effort per topic: one failure must not abort the rest. The next
         // reconcile retries, because the diff recomputes from observed state.
         debugPrint('reconcile: subscribe to $topicId failed (${e.code}) ${e.message}');
+        hadFailure = true;
       }
     }
 
@@ -442,10 +494,14 @@ class NotificationService {
           continue;
         }
         debugPrint('reconcile: unsubscribe from $topicId failed (${e.code}) ${e.message}');
+        hadFailure = true;
       }
     }
 
     await _store.writeSubscriberIds(updated);
+    return hadFailure
+        ? ReconcileOutcome.partiallyFailed
+        : ReconcileOutcome.applied;
   }
 
   /// Update chat notification preference in Appwrite
