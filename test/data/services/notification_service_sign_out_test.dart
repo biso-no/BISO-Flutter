@@ -6,6 +6,7 @@ import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
 import 'package:biso/data/services/device_subscription_store.dart';
 import 'package:biso/data/services/notification_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -462,7 +463,8 @@ void main() {
 
     test(
       'is cleared, along with the stale ids, by a successful retry at launch '
-      '- before anyone signs in',
+      '- before anyone signs in. Deleting the stale target is attempted '
+      'first, and its id is dropped even though, with no session, that fails',
       () async {
         final server = registeredDevice();
         await (_DeviceService(
@@ -472,15 +474,100 @@ void main() {
         )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE')).clearToken();
         expect(await store.readPendingTokenInvalidation(), isTrue);
 
-        final account = _FakeAccount(server);
+        final account = _FakeAccount(server)
+          ..deleteTargetThrows = AppwriteException('no session', 401);
         final restarted = _DeviceService(account, _FakeMessaging(server));
         await restarted.retryPendingTokenInvalidation();
 
         expect(restarted.deleteTokenCalls, 1);
+        expect(account.deleteTargetCalls, 1, reason: 'attempted');
+        expect(server.targets, contains('target-1'), reason: 'and refused');
         expect(await store.readPendingTokenInvalidation(), isFalse);
         expect(await store.readSubscriberIds(), isEmpty);
         expect(await store.readTargetId(), isNull);
         expect(account.updateTargetCalls + account.createTargetCalls, 0);
+      },
+    );
+
+    test(
+      'deletes the push target a failed sign-out left behind, with its '
+      'subscribers, once the retried invalidation succeeds and before its id '
+      'is dropped: a student who stayed signed in after the failed sign-out '
+      'used to keep that target and its subscribers on their own account',
+      () async {
+        final server = registeredDevice();
+        final account = _FakeAccount(server)
+          ..deleteTargetThrows = AppwriteException('offline', 0);
+        final messaging = _FakeMessaging(server)
+          ..deleteThrows = AppwriteException('offline', 0);
+        final service = _DeviceService(account, messaging)
+          ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+        // Nothing of the sign-out gets through, deleting the session
+        // included, so the student stays signed in.
+        await service.clearToken();
+        expect(await store.readPendingTokenInvalidation(), isTrue);
+
+        // The network comes back, and their device reconciles again.
+        account.deleteTargetThrows = null;
+        messaging.deleteThrows = null;
+        service.deleteTokenThrows = null;
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
+
+        expect(server.targets, isNot(contains('target-1')));
+        expect(
+          server.subscribers.values.map((s) => s.targetId),
+          everyElement(isNot('target-1')),
+        );
+        final targetId = await store.readTargetId();
+        expect(server.targets.keys, [targetId]);
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'news_oslo',
+          'news_national',
+        });
+      },
+    );
+
+    test(
+      'a reconcile held back by it logs so, in words of its own: it reports '
+      'unavailable, as any reconcile that cannot run does, and without that '
+      'line a device stuck behind the marker looks no different in the logs '
+      'from one that is merely offline',
+      () async {
+        final logs = <String>[];
+        final printToConsole = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null) logs.add(message);
+        };
+        addTearDown(() => debugPrint = printToConsole);
+        const blocked = 'reconcile: blocked by a pending token invalidation';
+
+        final server = registeredDevice();
+        final service = _DeviceService(
+          _FakeAccount(server)
+            ..deleteTargetThrows = AppwriteException('offline', 0),
+          _FakeMessaging(server)
+            ..deleteThrows = AppwriteException('offline', 0),
+        )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+        await service.clearToken();
+
+        logs.clear();
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+        expect(logs, anyElement(startsWith(blocked)));
+
+        service.deleteTokenThrows = null;
+        logs.clear();
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
+        expect(logs, isNot(anyElement(startsWith(blocked))));
       },
     );
   });

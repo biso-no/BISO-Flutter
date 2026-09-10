@@ -405,7 +405,9 @@ class NotificationService {
   Future<void> deletePlatformToken() => _firebaseMessaging.deleteToken();
 
   /// Retries a token invalidation that sign-out could not complete (see
-  /// [clearToken]), dropping this device's stale ids once it succeeds.
+  /// [clearToken]). Once it succeeds, the push target the sign-out left behind
+  /// is deleted where that is still possible, and this device's stale ids are
+  /// dropped.
   ///
   /// Called by [initialize] at every launch. [reconcile] makes the same
   /// attempt before it resolves a push target, so one that fails here is
@@ -735,11 +737,19 @@ class NotificationService {
   /// same token, so this device would receive both accounts' pushes. Only
   /// invalidating the token breaks that binding without the old session, so it
   /// is retried here, on every run, until it succeeds.
-  Future<bool> _settlePendingTokenInvalidation(_QueueRun run) async {
+  ///
+  /// Once it has, the push target the sign-out left behind is deleted before
+  /// its id is dropped. The student need not have signed out at all — sign-out
+  /// leaves them signed in when their session cannot be deleted — and that
+  /// target and its subscribers would otherwise stay on their account. It is
+  /// only attempted: with no session, or on another account's target, the
+  /// deletion fails, and the id is dropped anyway, since the target is now
+  /// bound to a token that reaches nothing.
+  Future<_Settlement> _settlePendingTokenInvalidation(_QueueRun run) async {
     // A run queued before sign-out was asked for stands down: settling would
     // clear the invalidation sign-out has just recorded, and forget the ids
     // its cleanup, queued behind this run, still has to delete.
-    if (run.signOutRequested) return false;
+    if (run.signOutRequested) return _Settlement.stopped;
 
     final bool pending;
     try {
@@ -749,11 +759,11 @@ class NotificationService {
         'Could not read whether a token invalidation is pending; not '
         'resolving a push target ($e)',
       );
-      return false;
+      return _Settlement.stopped;
     }
-    if (!pending) return true;
+    if (!pending) return _Settlement.settled;
 
-    if (!run.ownsState) return false;
+    if (!run.ownsState) return _Settlement.stopped;
     try {
       await deletePlatformToken();
     } catch (e) {
@@ -761,20 +771,43 @@ class NotificationService {
         'The FCM token a sign-out left behind still cannot be invalidated; '
         'push stays unavailable on this device until it can ($e)',
       );
-      return false;
+      return _Settlement.stillPending;
     }
 
-    if (!run.ownsState) return false;
+    if (!run.ownsState) return _Settlement.stopped;
     _fcmToken = null;
+
+    String? staleTargetId;
+    try {
+      staleTargetId = await _store.readTargetId();
+    } catch (e) {
+      debugPrint('Could not read the push target a sign-out left behind: $e');
+    }
+    if (staleTargetId != null) {
+      if (!run.ownsState) return _Settlement.stopped;
+      try {
+        await _account.deletePushTarget(targetId: staleTargetId);
+        debugPrint(
+          'Deleted the push target $staleTargetId a sign-out left behind',
+        );
+      } catch (e) {
+        debugPrint(
+          'Could not delete the push target $staleTargetId a sign-out left '
+          'behind; dropping its id anyway ($e)',
+        );
+      }
+    }
+
+    if (!run.ownsState) return _Settlement.stopped;
     try {
       // The stale target id goes with the subscriber ids: updating that target
       // would bind the fresh token to the signed-out account all over again.
       await _store.clear();
     } catch (e) {
       debugPrint('Could not clear the ids a sign-out left behind: $e');
-      return false;
+      return _Settlement.stillPending;
     }
-    return true;
+    return _Settlement.settled;
   }
 
   /// One [reconcile] run. Only ever started by [reconcile]'s queue.
@@ -782,9 +815,17 @@ class NotificationService {
     _QueueRun run,
     String? campusId,
   ) async {
-    if (!await _settlePendingTokenInvalidation(run)) {
-      return ReconcileOutcome.unavailable;
+    final settlement = await _settlePendingTokenInvalidation(run);
+    if (settlement == _Settlement.stillPending) {
+      // Unavailable is all a caller hears, whatever the cause - the settings
+      // screen shows its generic message, and the launch reconciler discards
+      // it - so a device held back by the marker says so here.
+      debugPrint(
+        'reconcile: blocked by a pending token invalidation from an earlier '
+        'sign-out; this device registers no push target until it succeeds',
+      );
     }
+    if (settlement != _Settlement.settled) return ReconcileOutcome.unavailable;
 
     // Not areNotificationsEnabled(), which reports a check that errors as "not
     // granted". permissionDenied tells a caller the student must go and enable
@@ -1419,6 +1460,21 @@ class NotificationService {
       debugPrint('clearToken: could not record the pending invalidation: $e');
     }
   }
+}
+
+/// What `NotificationService._settlePendingTokenInvalidation` found.
+enum _Settlement {
+  /// No invalidation is pending, or the one pending has now been settled: the
+  /// run may resolve a push target.
+  settled,
+
+  /// An invalidation a sign-out left is still pending: this device may not
+  /// resolve a push target until it has been settled.
+  stillPending,
+
+  /// The run must go no further: it has been abandoned, it stands down for a
+  /// sign-out, or whether an invalidation is pending could not be read.
+  stopped,
 }
 
 /// One run of [NotificationService]'s queue: a reconcile, a sign-out cleanup,
