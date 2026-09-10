@@ -51,14 +51,28 @@ void main() {
     );
   });
 
-  test('clear removes both keys', () async {
+  test('round-trips a pending token invalidation', () async {
     final store = DeviceSubscriptionStore();
-    await store.writeTargetId('target-1');
-    await store.writeSubscriberIds({'news_oslo': 'sub-1'});
+    expect(await store.readPendingTokenInvalidation(), isFalse);
 
-    await store.clear();
-
-    expect(await store.readTargetId(), isNull);
-    expect(await store.readSubscriberIds(), isEmpty);
+    await store.writePendingTokenInvalidation();
+    expect(await store.readPendingTokenInvalidation(), isTrue);
   });
+
+  test(
+    'clear removes every key, a pending token invalidation included - it is '
+    'only ever cleared once the device is known to be detached',
+    () async {
+      final store = DeviceSubscriptionStore();
+      await store.writeTargetId('target-1');
+      await store.writeSubscriberIds({'news_oslo': 'sub-1'});
+      await store.writePendingTokenInvalidation();
+
+      await store.clear();
+
+      expect(await store.readTargetId(), isNull);
+      expect(await store.readSubscriberIds(), isEmpty);
+      expect(await store.readPendingTokenInvalidation(), isFalse);
+    },
+  );
 }

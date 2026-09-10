@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DeviceSubscriptionStore {
   static const String _targetKey = 'push_target_id';
   static const String _subscribersKey = 'topic_subscriber_ids';
+  static const String _pendingInvalidationKey = 'pending_token_invalidation';
 
   Future<String?> readTargetId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -55,9 +56,34 @@ class DeviceSubscriptionStore {
     await prefs.setString(_subscribersKey, jsonEncode(ids));
   }
 
+  /// Whether a sign-out left this device's FCM token still valid, and possibly
+  /// still bound to the signed-out account's push target.
+  ///
+  /// Device-local, and read on every launch: nothing else remembers that the
+  /// token must be invalidated before this device may register a push target
+  /// again. See `NotificationService.clearToken`.
+  Future<bool> readPendingTokenInvalidation() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_pendingInvalidationKey) ?? false;
+  }
+
+  Future<void> writePendingTokenInvalidation() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_pendingInvalidationKey, true);
+  }
+
+  /// Forgets everything this store holds.
+  ///
+  /// Every key is removed in one synchronous step, before anything is awaited:
+  /// a caller that checked it may still write (see `NotificationService`'s
+  /// queue) has then made the whole change, instead of leaving later removals
+  /// to land after it may have lost that right.
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_targetKey);
-    await prefs.remove(_subscribersKey);
+    await Future.wait([
+      prefs.remove(_targetKey),
+      prefs.remove(_subscribersKey),
+      prefs.remove(_pendingInvalidationKey),
+    ]);
   }
 }

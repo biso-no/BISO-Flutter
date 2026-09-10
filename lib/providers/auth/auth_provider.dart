@@ -86,7 +86,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final MembershipService _membershipService = MembershipService();
 
-  AuthNotifier(this._authService) : super(const AuthState()) {
+  /// The [NotificationService] supplied by a test, if any.
+  final NotificationService? _notificationServiceOverride;
+
+  /// Resolved on use, so constructing a notifier never builds the singleton
+  /// (and the global Appwrite client behind it) until sign-out needs it.
+  NotificationService get _notificationService =>
+      _notificationServiceOverride ?? NotificationService();
+
+  AuthNotifier(this._authService, {NotificationService? notificationService})
+    : _notificationServiceOverride = notificationService,
+      super(const AuthState()) {
     _checkAuthState();
   }
 
@@ -418,15 +428,39 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      // Before the session goes: deleting this device's subscribers and push
-      // target both require it. Best-effort — a cleanup failure must not leave
-      // the student unable to sign out.
-      await NotificationService().clearToken();
+      // Before the session goes: deleting this device's push target and
+      // subscribers both require it.
+      await _detachNotificationsForSignOut();
       await _authService.logout();
       // Clear JWT cache when user signs out
       state = const AuthState();
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+
+  /// Detaches this device from push notifications, waiting at most
+  /// [kSignOutCleanupTimeout], and never throws.
+  ///
+  /// A cleanup failure must never leave a student unable to sign out.
+  /// `clearToken` waits its turn behind any reconcile already running on this
+  /// device, and none of the requests involved has a timeout of its own, so an
+  /// unbounded wait could hang sign-out indefinitely. Stopping early is safe:
+  /// `clearToken` records the pending token invalidation before anything that
+  /// can be cut short. What still needs the session is lost with it, but the
+  /// invalidation needs none — it carries on in the background, and is retried
+  /// at the next launch if it never succeeds.
+  Future<void> _detachNotificationsForSignOut() async {
+    try {
+      await _notificationService.clearToken().timeout(
+        kSignOutCleanupTimeout,
+        onTimeout: () => logPrint(
+          '🔐 AuthProvider: notification cleanup unfinished after '
+          '${kSignOutCleanupTimeout.inSeconds}s; signing out anyway',
+        ),
+      );
+    } catch (e) {
+      logPrint('🔐 AuthProvider: notification cleanup failed ($e); signing out');
     }
   }
 

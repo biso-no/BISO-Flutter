@@ -4,6 +4,7 @@ import 'package:appwrite/appwrite.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// A stand-in `Account` - never touched, because every method
 /// [_FakeNotificationService]'s tests exercise is overridden directly below.
@@ -41,7 +42,8 @@ class _FakeNotificationService extends NotificationService {
   bool delegateReconcile = false;
 
   /// Only reached when [delegateReconcile] is set. Reporting "not granted"
-  /// ends the real run at its first step, before Firebase or Appwrite.
+  /// ends the real run straight after its read of the device store (mocked
+  /// below), before Firebase or Appwrite.
   @override
   Future<bool> checkPlatformPermission() async => false;
 
@@ -75,6 +77,8 @@ void main() {
           null,
         );
   });
+
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   group('requestPermission', () {
     test(

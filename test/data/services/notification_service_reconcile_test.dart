@@ -456,7 +456,10 @@ class _ReconcilingService extends NotificationService {
   }
 
   @override
-  Future<String?> resolvePushTarget(String token) async {
+  Future<String?> resolvePushTarget(
+    String token, {
+    bool Function()? isCurrent,
+  }) async {
     final failure = targetThrowsOnce;
     if (failure != null) {
       targetThrowsOnce = null;
