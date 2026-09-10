@@ -2807,8 +2807,8 @@ Pass it to the editor, alongside the existing props:
 
 In `apps/admin/src/app/(portal)/events/[id]/_components/event-studio-editor.tsx`:
 
-`PUSH_FOLLOWERS` has **three** uses, not two, and the third is not about push at
-all. Line 2834 renders an "Audience" summary row:
+`PUSH_FOLLOWERS` has **four** uses, not two, and the ones beyond the push toggle
+are not about push at all. Line 2834 renders an "Audience" summary row:
 
 ```tsx
         value: values.member_only
@@ -2826,9 +2826,13 @@ So rename it to say what it means there, and take it off the push path:
 const MEMBER_POPULATION = 4217;
 ```
 
-Update line 2834 to use `MEMBER_POPULATION`. Leave the Audience row otherwise
-untouched — both of its numbers are pre-existing fabrications, out of scope here,
-and now at least honestly named.
+Update line 2834 to use `MEMBER_POPULATION`, and do the same at the fourth site
+inside `EventPreviewPane` (`const audience = draft.member_only ? … : STUDENT_POPULATION;`),
+which follows the identical member-vs-all-students pattern. Leave both rows
+otherwise untouched — their numbers are pre-existing fabrications, out of scope
+here, and now at least honestly named.
+
+Search for every reference before deleting; do not trust a truncated grep.
 
 Add to `EventStudioEditorProps`:
 
