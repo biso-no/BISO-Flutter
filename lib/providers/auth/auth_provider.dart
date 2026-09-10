@@ -443,13 +443,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// [kSignOutCleanupTimeout], and never throws.
   ///
   /// A cleanup failure must never leave a student unable to sign out.
-  /// `clearToken` waits its turn behind any reconcile already running on this
-  /// device, and none of the requests involved has a timeout of its own, so an
-  /// unbounded wait could hang sign-out indefinitely. Stopping early is safe:
-  /// `clearToken` records the pending token invalidation before anything that
-  /// can be cut short. What still needs the session is lost with it, but the
-  /// invalidation needs none — it carries on in the background, and is retried
-  /// at the next launch if it never succeeds.
+  /// `clearToken` abandons a reconcile already running on this device rather
+  /// than waiting for it, but none of its own requests has a timeout, so an
+  /// unbounded wait could still hang sign-out indefinitely. Stopping early is
+  /// safe: `clearToken` records the pending token invalidation before anything
+  /// that can be cut short. What still needs the session is lost with it, but
+  /// the invalidation needs none — it carries on in the background, and is
+  /// retried at the next launch if it never succeeds.
   Future<void> _detachNotificationsForSignOut() async {
     try {
       await _notificationService.clearToken().timeout(

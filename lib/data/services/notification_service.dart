@@ -84,7 +84,10 @@ const Duration kNotificationRunTimeout = Duration(seconds: 30);
 /// deleting the session anyway.
 ///
 /// Shorter than [kNotificationRunTimeout], because a student is watching a
-/// spinner, and a normal cleanup is two or three requests. Cutting it short is
+/// spinner, and a normal cleanup is two or three requests. It starts at once:
+/// `clearToken` abandons a reconcile in progress rather than waiting up to
+/// [kNotificationRunTimeout] behind it, which would leave the cleanup to run
+/// after this bound, once the session it needs has gone. Cutting it short is
 /// covered rather than silent: `clearToken` records the pending token
 /// invalidation before anything that can be cut short, the cleanup carries on
 /// in the background, and the invalidation is retried on the next launch if it
@@ -412,7 +415,7 @@ class NotificationService {
     (run) async {
       await _settlePendingTokenInvalidation(run);
     },
-    onTimeout: () {},
+    onAbandoned: () {},
   );
 
   /// Establish this device's Appwrite push target for [token] and return its id.
@@ -590,8 +593,9 @@ class NotificationService {
   /// [clearToken] (see [_queue]): a call made while another run is in
   /// progress waits for it, then reads fresh state. Each caller still receives
   /// its own run's outcome, or its own run's error — and
-  /// [ReconcileOutcome.unavailable] if its run has not finished within
-  /// [kNotificationRunTimeout].
+  /// [ReconcileOutcome.unavailable] if its run is abandoned: not finished
+  /// within [kNotificationRunTimeout], or still in progress when [clearToken]
+  /// is called.
   Future<ReconcileOutcome> reconcile({required String? campusId}) {
     // Cached at call time, before the run is even queued, so a later token
     // refresh — which has no campusId of its own to pass in — reconciles
@@ -601,7 +605,7 @@ class NotificationService {
     return _enqueue(
       'reconcile',
       (run) => _reconcileNow(run, campusId),
-      onTimeout: () => ReconcileOutcome.unavailable,
+      onAbandoned: () => ReconcileOutcome.unavailable,
     );
   }
 
@@ -622,7 +626,8 @@ class NotificationService {
   /// Sign-out belongs in the same queue. [clearToken] reads and clears the
   /// same stored map, so a reconcile overlapping it — the launch reconciler,
   /// or one a campus change started — could write ids back after it had
-  /// cleared them, or delete around it.
+  /// cleared them, or delete around it. It does not wait for a reconcile in
+  /// progress, though: it abandons it (see [clearToken]).
   ///
   /// Each link swallows its own outcome before being stored here, so a run
   /// that throws cannot leave this future rejected and wedge every run queued
@@ -639,8 +644,10 @@ class NotificationService {
   int _signOutRequests = 0;
 
   /// Queues [body] behind every run already queued, and abandons it if it has
-  /// not finished within [kNotificationRunTimeout], completing with
-  /// [onTimeout]'s value instead so the runs behind it can start.
+  /// not finished within [kNotificationRunTimeout], or — unless
+  /// [interruptibleBySignOut] is false — when [clearToken] is called while it
+  /// is in progress. An abandoned run completes with [onAbandoned]'s value at
+  /// once, so the runs behind it can start.
   ///
   /// Abandoning a run cannot stop the request it is awaiting, which may still
   /// answer later. What stops the run acting on that answer is its
@@ -654,25 +661,69 @@ class NotificationService {
   Future<T> _enqueue<T>(
     String label,
     Future<T> Function(_QueueRun run) body, {
-    required T Function() onTimeout,
+    required T Function() onAbandoned,
+    bool interruptibleBySignOut = true,
   }) {
-    final run = _QueueRun(this);
-    final result = _queue.then((_) {
-      run.generation = ++_generation;
-      return body(run).timeout(
-        kNotificationRunTimeout,
-        onTimeout: () {
-          if (run.ownsState) _generation++;
-          debugPrint(
-            '$label: not finished after ${kNotificationRunTimeout.inSeconds}s; '
-            'abandoned so the runs queued behind it can start',
-          );
-          return onTimeout();
-        },
-      );
-    });
+    final run = _QueueRun(
+      this,
+      label,
+      interruptibleBySignOut: interruptibleBySignOut,
+    );
+    final result = _queue.then((_) => _start(run, body, onAbandoned));
     _queue = result.then((_) {}, onError: (_) {});
     return result;
+  }
+
+  /// The run that has started and has neither finished nor been abandoned, if
+  /// any: the one [clearToken] abandons.
+  _QueueRun? _running;
+
+  /// Starts [run], completing with [body]'s result — or with [onAbandoned]'s
+  /// as soon as [run] is abandoned (see [_QueueRun.abandon]), whether or not
+  /// [body] ever finishes.
+  Future<T> _start<T>(
+    _QueueRun run,
+    Future<T> Function(_QueueRun run) body,
+    T Function() onAbandoned,
+  ) {
+    run.generation = ++_generation;
+    final result = Completer<T>();
+    late final Timer bound;
+
+    // Ends this run's hold on the queue, once; reports whether this call did.
+    bool release() {
+      if (result.isCompleted) return false;
+      bound.cancel();
+      if (identical(_running, run)) _running = null;
+      return true;
+    }
+
+    run._abandon = (reason) {
+      if (!release()) return;
+      if (run.ownsState) _generation++;
+      debugPrint(
+        '${run.label}: $reason; abandoned so the runs queued behind it can '
+        'start',
+      );
+      result.complete(onAbandoned());
+    };
+    bound = Timer(
+      kNotificationRunTimeout,
+      () => run.abandon(
+        'not finished after ${kNotificationRunTimeout.inSeconds}s',
+      ),
+    );
+    _running = run;
+
+    Future<T>.sync(() => body(run)).then(
+      (value) {
+        if (release()) result.complete(value);
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (release()) result.completeError(error, stackTrace);
+      },
+    );
+    return result.future;
   }
 
   /// Settles a pending token invalidation, if a sign-out left one (see
@@ -1239,8 +1290,19 @@ class NotificationService {
   /// [retryPendingTokenInvalidation] and [reconcile] to retry — each before it
   /// resolves any push target.
   ///
-  /// That record is written when this is called, before the cleanup waits its
-  /// turn in the queue: `AuthNotifier.logout` stops waiting after
+  /// The cleanup does not wait for a run already in progress: a reconcile, or
+  /// a launch retry of a pending invalidation, is abandoned, so the cleanup
+  /// starts at once, while the session it needs is still valid. Queued behind
+  /// a reconcile it waited up to [kNotificationRunTimeout], but
+  /// `AuthNotifier.logout` stops waiting after [kSignOutCleanupTimeout] and
+  /// deletes the session, after which the push target and its subscribers can
+  /// no longer be deleted. The cleanup undoes whatever the abandoned run was
+  /// doing anyway, and the answers that run is still awaiting are handled as
+  /// any abandoned run's are (see [_reconcileNow]). Only an earlier sign-out's
+  /// cleanup is waited for.
+  ///
+  /// The pending invalidation is recorded when this is called, before the
+  /// cleanup has its turn: `AuthNotifier.logout` stops waiting after
   /// [kSignOutCleanupTimeout] and deletes the session regardless, possibly
   /// before this cleanup has even started, and the record must exist by then.
   /// It is cleared only once the device is known to be detached.
@@ -1254,11 +1316,17 @@ class NotificationService {
     // [_QueueRun.signOutRequested]).
     _signOutRequests++;
     final recorded = _recordPendingTokenInvalidation();
-    return _enqueue<void>(
+    final cleanup = _enqueue<void>(
       'clearToken',
       (run) => _clearTokenNow(run, recorded),
-      onTimeout: () {},
+      onAbandoned: () {},
+      interruptibleBySignOut: false,
     );
+    final running = _running;
+    if (running != null && running.interruptibleBySignOut) {
+      running.abandon('sign-out requested');
+    }
+    return cleanup;
   }
 
   Future<void> _recordPendingTokenInvalidation() async {
@@ -1356,28 +1424,54 @@ class NotificationService {
 /// One run of [NotificationService]'s queue: a reconcile, a sign-out cleanup,
 /// or a launch retry of a pending token invalidation.
 class _QueueRun {
-  _QueueRun(this._service) : _signOutsWhenQueued = _service._signOutRequests;
+  _QueueRun(
+    this._service,
+    this.label, {
+    required this.interruptibleBySignOut,
+  }) : _signOutsWhenQueued = _service._signOutRequests;
 
   final NotificationService _service;
+
+  /// What the run is, for logs.
+  final String label;
+
+  /// Whether [NotificationService.clearToken] abandons this run when it is in
+  /// progress. False only for a sign-out cleanup, which a later sign-out
+  /// waits for.
+  final bool interruptibleBySignOut;
+
   final int _signOutsWhenQueued;
 
-  /// Assigned by `NotificationService._enqueue` as the run starts.
+  /// Assigned by `NotificationService._start` as the run starts.
   int generation = -1;
+
+  /// Set by `NotificationService._start` as the run starts.
+  void Function(String reason)? _abandon;
+
+  /// Abandons this run: its caller receives the run's abandoned result now,
+  /// the runs queued behind it can start, and its generation is retired (see
+  /// [ownsState]). Does nothing before the run has started, or once it has
+  /// finished or been abandoned.
+  void abandon(String reason) => _abandon?.call(reason);
 
   /// Whether this run may still act: write the device store or the service's
   /// cached token and target, or start a request.
   ///
-  /// False from the moment the run is abandoned at its bound, and from then
-  /// on: a later run has taken over, and anything this one wrote could
-  /// overwrite what that run recorded. The one exception is recording the
-  /// answer to a subscribe or unsubscribe that was already on the wire, which
-  /// is guarded per topic instead (see `NotificationService._reconcileNow`).
+  /// False from the moment the run is abandoned — at its bound, or by a
+  /// sign-out — and from then on: a later run has taken over, and anything
+  /// this one wrote could overwrite what that run recorded. The one exception
+  /// is recording the answer to a subscribe or unsubscribe that was already on
+  /// the wire, which is guarded per topic instead (see
+  /// `NotificationService._reconcileNow`).
   ///
   /// A run checks it immediately before every other write. That is enough
   /// because a `SharedPreferences` write takes effect when it is called — its
   /// cache is updated synchronously — and all the store awaits before that
-  /// call is an instance the run has already loaded, which completes as a
-  /// microtask. The timer that abandons a run cannot fire in between.
+  /// call is an instance the run has already loaded, which completes within a
+  /// few microtasks. The timer that abandons a run at its bound cannot fire in
+  /// between. A sign-out can be asked for in between, but the cleanup it lets
+  /// start is queued behind this run's completion, and awaits the store itself
+  /// before reading it, so a write whose check passed has landed by then.
   bool get ownsState => _service._generation == generation;
 
   /// Whether [NotificationService.clearToken] has been called since this run

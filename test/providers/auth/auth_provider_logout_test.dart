@@ -12,22 +12,48 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Resolves the session to "nobody signed in" without a network call, and
-/// records sign-outs instead of deleting a session.
+/// records sign-outs instead of deleting a session - ending [session], when
+/// given, as deleting it would.
 class _FakeAuthService extends AuthService {
+  _FakeAuthService({this.session});
+
+  final _SessionAccount? session;
   int logoutCalls = 0;
 
   @override
   Future<UserModel?> getCurrentUser() async => null;
 
   @override
-  Future<void> logout() async => logoutCalls++;
+  Future<void> logout() async {
+    logoutCalls++;
+    session?.valid = false;
+  }
 }
 
-/// A [NotificationService] with nothing registered on this device, whose
-/// Firebase calls can be made to never answer.
+/// An [Account] whose session sign-out ends, and which deletes push targets
+/// only while that session lasts.
+class _SessionAccount extends Account {
+  _SessionAccount() : super(Client());
+
+  bool valid = true;
+
+  /// Every push target deleted, in order.
+  final List<String> deletedTargets = <String>[];
+
+  @override
+  Future deletePushTarget({required String targetId}) async {
+    if (!valid) throw AppwriteException('no session', 401);
+    deletedTargets.add(targetId);
+  }
+}
+
+/// A [NotificationService] whose Firebase calls can be made to never answer.
 class _StuckService extends NotificationService {
-  _StuckService({this.reconcileHangs = false, this.tokenDeletionHangs = false})
-    : super.withAccount(Account(Client()));
+  _StuckService({
+    this.reconcileHangs = false,
+    this.tokenDeletionHangs = false,
+    Account? account,
+  }) : super.withAccount(account ?? Account(Client()));
 
   /// Whether a reconcile never gets past its permission check.
   final bool reconcileHangs;
@@ -119,40 +145,41 @@ void main() {
     );
 
     testWidgets(
-      'records the pending token invalidation before sign-out stops waiting, '
-      'even when the cleanup has not started because a hung reconcile is '
-      'ahead of it in the queue - and the cleanup still runs afterwards',
+      'does not leave the cleanup queued behind a hung reconcile: the '
+      'reconcile is abandoned, and the push target is deleted while the '
+      'session it needs is still valid. Queued, the cleanup waited up to '
+      'kNotificationRunTimeout, sign-out deleted the session at '
+      'kSignOutCleanupTimeout, and the target could then no longer be deleted',
       (tester) async {
-        final authService = _FakeAuthService();
-        final service = _StuckService(reconcileHangs: true);
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+        });
+        final account = _SessionAccount();
+        final authService = _FakeAuthService(session: account);
+        final service = _StuckService(reconcileHangs: true, account: account);
         final notifier = AuthNotifier(
           authService,
           notificationService: service,
         );
         await tester.pump();
 
-        unawaited(service.reconcile(campusId: '1'));
+        ReconcileOutcome? outcome;
+        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
         await tester.pump();
+        expect(outcome, isNull, reason: 'the reconcile hangs');
 
         var signedOut = false;
         unawaited(notifier.logout().then((_) => signedOut = true));
-        await tester.pump(kSignOutCleanupTimeout);
+        await tester.pump(); // no time passes
 
-        expect(signedOut, isTrue);
+        expect(outcome, ReconcileOutcome.unavailable);
+        expect(signedOut, isTrue, reason: 'nothing was waited for');
+        expect(account.deletedTargets, ['target-1']);
+        expect(account.valid, isFalse, reason: 'and only then signed out');
         expect(authService.logoutCalls, 1);
-        expect(
-          await DeviceSubscriptionStore().readPendingTokenInvalidation(),
-          isTrue,
-        );
-
-        // The hung reconcile is abandoned; the cleanup then runs, invalidates
-        // the token, and settles what it recorded.
-        await tester.pump(kNotificationRunTimeout);
-        await tester.pump();
-        expect(
-          await DeviceSubscriptionStore().readPendingTokenInvalidation(),
-          isFalse,
-        );
+        final store = DeviceSubscriptionStore();
+        expect(await store.readTargetId(), isNull);
+        expect(await store.readPendingTokenInvalidation(), isFalse);
       },
     );
 

@@ -486,39 +486,48 @@ void main() {
   });
 
   group('the queue', () {
-    test(
-      'clearToken() waits behind a reconcile in flight instead of '
-      'interleaving with it: run alongside, it cleared the store while the '
-      'reconcile was still subscribing, and the reconcile then wrote its ids '
-      'back - leaving a signed-out account\'s ids on the device, and its '
-      'target and subscribers on the server',
-      () async {
+    testWidgets(
+      'clearToken() abandons a reconcile in progress and cleans up at once, '
+      'instead of queueing behind it: queued, the cleanup waited up to '
+      'kNotificationRunTimeout, while sign-out deleted the session it needs '
+      'at kSignOutCleanupTimeout. The abandoned reconcile\'s subscribe that '
+      'answers afterwards is not recorded, since the store it would record '
+      'into has been cleared',
+      (tester) async {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final hold = messaging.holdCreateRequest[1] = Completer<void>();
+        // Its first subscribe lands on the server; the answer is held.
+        final lateAnswer = messaging.holdCreateResponse[1] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
-        final reconciling = service.reconcile(campusId: '1');
-        await pumpEventQueue(); // parked on its first subscribe
+        ReconcileOutcome? outcome;
+        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        await tester.pump();
         expect(server.targets, hasLength(1));
+        expect(server.subscribers, hasLength(1));
 
-        final signingOut = service.clearToken();
-        await pumpEventQueue();
-        expect(
-          account.deleteTargetCalls,
-          0,
-          reason: 'sign-out must wait for the reconcile in flight',
-        );
+        var cleanedUp = false;
+        unawaited(service.clearToken().then((_) => cleanedUp = true));
+        await tester.pump(); // no time passes
 
-        hold.complete();
-        await Future.wait([reconciling, signingOut]);
-
+        expect(outcome, ReconcileOutcome.unavailable);
+        expect(cleanedUp, isTrue);
+        expect(account.deleteTargetCalls, 1);
         expect(server.targets, isEmpty);
         expect(server.subscribers, isEmpty);
-        expect(await store.readSubscriberIds(), isEmpty);
         expect(await store.readTargetId(), isNull);
+        expect(await store.readSubscriberIds(), isEmpty);
         expect(await store.readPendingTokenInvalidation(), isFalse);
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect(await store.readSubscriberIds(), isEmpty);
+        expect(
+          messaging.createCalls,
+          1,
+          reason: 'the abandoned reconcile sends nothing more',
+        );
       },
     );
 
@@ -539,10 +548,15 @@ void main() {
         final queued = service.reconcile(campusId: '2'); // a campus change
         final signingOut = service.clearToken();
 
-        hold.complete();
-        expect(await inFlight, ReconcileOutcome.applied);
+        expect(
+          await inFlight,
+          ReconcileOutcome.unavailable,
+          reason: 'the reconcile in progress is abandoned by the sign-out',
+        );
         expect(await queued, ReconcileOutcome.unavailable);
         await signingOut;
+        hold.complete();
+        await pumpEventQueue();
 
         expect(account.createTargetCalls, 1, reason: 'only the one in flight');
         expect(server.targets, isEmpty);
