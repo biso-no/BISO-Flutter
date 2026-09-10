@@ -20,11 +20,42 @@ class NotificationTopicsPrompt extends ConsumerStatefulWidget {
       _NotificationTopicsPromptState();
 }
 
+/// The sheet's state machine.
+///
+/// The sheet is opened with `isDismissible: false, enableDrag: false` — a
+/// student must resolve it, not brush past it — so every state that can be
+/// reached must also offer a way out. [loading] cannot itself fail, and
+/// [ready] can only be left by a save attempt, but both [loadFailed] and
+/// [saveFailed] pair their error with a "Skip for now" escape, precisely so a
+/// persistent failure can never strand the student behind a spinner with no
+/// way forward (see `_skip`).
+enum _PromptStatus {
+  /// The initial [NotificationService.loadTopicIntent] read is in flight.
+  loading,
+
+  /// That read failed. Nothing has been shown or saved yet, so the only
+  /// honest options are retrying it or skipping — never fabricated defaults,
+  /// which risk being persisted over a migrated opt-out the instant the
+  /// student taps Continue.
+  loadFailed,
+
+  /// Intent loaded successfully; the switches and Continue are live.
+  ready,
+
+  /// Continue was pressed and `saveTopicIntent` threw. The sheet stays open,
+  /// with the switches exactly as the student left them, so Continue can
+  /// retry — and Skip remains available in case the failure persists.
+  saveFailed,
+}
+
 class _NotificationTopicsPromptState
     extends ConsumerState<NotificationTopicsPrompt> {
   Map<String, bool> _intent = Map<String, bool>.from(kDefaultTopicIntent);
-  bool _loadingIntent = true;
-  bool _saving = false;
+  _PromptStatus _status = _PromptStatus.loading;
+
+  /// True while a load or save attempt is in flight, so the switches and
+  /// buttons can be disabled without needing a fifth [_PromptStatus].
+  bool _busy = false;
 
   @override
   void initState() {
@@ -39,28 +70,55 @@ class _NotificationTopicsPromptState
   /// would see every switch reset to the defaults the first time this sheet
   /// (now actually) shows for them.
   ///
-  /// Falls back to the defaults on failure, and never blocks the sheet itself
-  /// from opening — it is already on screen by the time this runs.
+  /// A failed read no longer falls back to [kDefaultTopicIntent]: showing
+  /// fabricated defaults and then letting the student tap Continue would
+  /// persist those defaults over their real migrated intent — the exact
+  /// data-loss this prompt exists to avoid. Instead it reports [loadFailed],
+  /// which offers a retry and a skip (see [_PromptStatus.loadFailed]).
   Future<void> _loadIntent() async {
     final service = ref.read(notificationServiceProvider);
-    Map<String, bool> intent;
     try {
-      intent = await service.loadTopicIntent();
+      final intent = await service.loadTopicIntent();
+      if (!mounted) return;
+      setState(() {
+        _intent = intent;
+        _status = _PromptStatus.ready;
+      });
     } catch (e) {
       debugPrint('NotificationTopicsPrompt: could not load intent: $e');
-      intent = Map<String, bool>.from(kDefaultTopicIntent);
+      if (!mounted) return;
+      setState(() => _status = _PromptStatus.loadFailed);
     }
-    if (!mounted) return;
+  }
+
+  /// Re-runs [_loadIntent] from the "Try again" button on [_PromptStatus.loadFailed].
+  ///
+  /// Distinct from [_loadIntent] itself so the initial call from [initState]
+  /// never calls [setState] before its first `await` — [_status] already
+  /// defaults to [_PromptStatus.loading], so nothing needs setting there.
+  void _retryLoad() {
     setState(() {
-      _intent = intent;
-      _loadingIntent = false;
+      _status = _PromptStatus.loading;
+      _busy = false;
     });
+    _loadIntent();
+  }
+
+  /// Closes the sheet without saving anything.
+  ///
+  /// The "answered" marker ([NotificationService.hasAnsweredTopicPrompt]) is
+  /// only ever written by a successful [NotificationService.saveTopicIntent]
+  /// call, so skipping here leaves this student exactly where they were:
+  /// they will be asked again next launch. This is the prompt's only escape
+  /// hatch when loading or saving keeps failing — the sheet itself is
+  /// deliberately non-dismissible and non-draggable (see [_PromptStatus]).
+  void _skip() {
+    Navigator.of(context).pop();
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
+    setState(() => _busy = true);
     final service = ref.read(notificationServiceProvider);
-    final campusId = ref.read(authStateProvider).user?.campusId;
 
     // Intent first, and regardless of what the OS dialog returns: declining the
     // system prompt is not the same as wanting nothing, and this choice should
@@ -69,20 +127,33 @@ class _NotificationTopicsPromptState
       await service.saveTopicIntent(_intent);
     } catch (e) {
       debugPrint('NotificationTopicsPrompt: could not save intent: $e');
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _status = _PromptStatus.saveFailed;
+        });
+      }
+      // Stop here: nothing was recorded, so there is nothing to reconcile,
+      // and the sheet must stay open (see _PromptStatus.saveFailed) rather
+      // than close as if the student's choice had been saved.
+      return;
     }
 
-    // The sheet closes whatever happens here. Intent is already stored, and the
-    // launch reconciler retries on the next start — whereas leaving `_saving`
-    // true on a throw would strand the student behind a sheet that is
-    // deliberately non-dismissible, with no way out but killing the app.
+    // The intent is genuinely stored from here on, so nothing below may
+    // prevent the sheet from closing: the sheet closes whatever happens next.
+    // The launch reconciler retries on the next start, whereas leaving the
+    // sheet open on a throw here would strand the student behind a sheet
+    // that is deliberately non-dismissible, with no way out but killing the
+    // app.
     try {
       await service.requestPermission();
+      final campusId = ref.read(authStateProvider).user?.campusId;
       await service.reconcile(campusId: campusId);
     } catch (e) {
       debugPrint('NotificationTopicsPrompt: could not subscribe now: $e');
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() => _busy = false);
         Navigator.of(context).pop();
       }
     }
@@ -115,37 +186,87 @@ class _NotificationTopicsPromptState
               ),
             ),
             const SizedBox(height: 16),
-            if (_loadingIntent)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else ...[
-              for (final topic in NotificationTopic.values)
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(topic.label),
-                  value: _intent[topic.id] ?? false,
-                  onChanged: _saving
-                      ? null
-                      : (value) => setState(() => _intent[topic.id] = value),
-                ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Continue'),
-              ),
-            ],
+            ..._buildBody(theme),
           ],
         ),
       ),
     );
+  }
+
+  List<Widget> _buildBody(ThemeData theme) {
+    switch (_status) {
+      case _PromptStatus.loading:
+        return const [
+          Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ];
+
+      case _PromptStatus.loadFailed:
+        return [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'Could not load your notification settings.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          FilledButton(
+            onPressed: _busy ? null : _retryLoad,
+            child: const Text('Try again'),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _busy ? null : _skip,
+            child: const Text('Skip for now'),
+          ),
+        ];
+
+      case _PromptStatus.ready:
+      case _PromptStatus.saveFailed:
+        final saveFailed = _status == _PromptStatus.saveFailed;
+        return [
+          if (saveFailed) ...[
+            Text(
+              'Could not save your choices. Check your connection and try '
+              'again.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.error,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          for (final topic in NotificationTopic.values)
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(topic.label),
+              value: _intent[topic.id] ?? false,
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(() => _intent[topic.id] = value),
+            ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _busy ? null : _save,
+            child: _busy
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Continue'),
+          ),
+          if (saveFailed) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _busy ? null : _skip,
+              child: const Text('Skip for now'),
+            ),
+          ],
+        ];
+    }
   }
 }
 

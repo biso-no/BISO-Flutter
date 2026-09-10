@@ -147,6 +147,21 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   final NotificationService _service;
   final String? _campusId;
 
+  /// Serialises the network side of [setTopic].
+  ///
+  /// Two quick taps each call `setTopic`, and without this, both calls'
+  /// `saveTopicIntent` requests fire at once — whichever one's response
+  /// arrives *last* wins on the server, even if it is the older, staler one,
+  /// silently resurrecting a setting the student just turned off. Chaining
+  /// each save onto this tail forces them to run one at a time, in the order
+  /// [setTopic] was called.
+  ///
+  /// Every link swallows its own outcome (`.then((_) {}, onError: (_) {})`)
+  /// before being stored back here, so one call's failure can never leave
+  /// this future permanently rejected and wedge every *later* call's save
+  /// from ever running.
+  Future<void> _pendingSave = Future<void>.value();
+
   Future<void> _load() async {
     try {
       final intent = await _service.loadTopicIntent();
@@ -165,13 +180,45 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   /// regardless of what follows, and the returned [ReconcileOutcome] tells
   /// the caller what happened to *this device's* subscriptions, so it can
   /// decide whether the student needs telling (see `settings_screen.dart`).
-  Future<ReconcileOutcome?> setTopic(String topicId, bool enabled) async {
-    final current = state.value;
-    if (current == null) return null;
+  ///
+  /// The optimistic switch flip happens here, synchronously, so two quick
+  /// taps both respond immediately — disabling the controls while a save is
+  /// in flight was rejected as a UX regression. Only the actual network
+  /// save is queued (see [_pendingSave]); [_commit] does the merging, once
+  /// it is this call's turn to run.
+  Future<ReconcileOutcome?> setTopic(String topicId, bool enabled) {
+    final seed = state.value;
+    if (seed == null) return Future<ReconcileOutcome?>.value();
+    final previousValue = seed[topicId] ?? false;
 
-    final updated = <String, bool>{...current, topicId: enabled};
     // Optimistic, so the switch responds immediately.
-    state = AsyncValue.data(updated);
+    state = AsyncValue.data(<String, bool>{...seed, topicId: enabled});
+
+    final result = _pendingSave.then(
+      (_) => _commit(topicId, enabled, previousValue),
+    );
+    _pendingSave = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  /// Runs one topic change's save + reconcile. Always executes strictly
+  /// after every previously queued change has finished, via [_pendingSave].
+  ///
+  /// Reads [state] fresh, right here, rather than trusting a snapshot
+  /// [setTopic] captured back when it was called: an earlier queued change
+  /// can fail and revert while this one is still waiting its turn (see the
+  /// catch block below), and this merge must build on that corrected value —
+  /// resolving the resurrection race in [setTopic]'s doc comment is only
+  /// half the fix if a stale merge base can still smuggle a failed change
+  /// back in through the *next* call's save.
+  Future<ReconcileOutcome?> _commit(
+    String topicId,
+    bool enabled,
+    bool previousValue,
+  ) async {
+    final base = state.value;
+    if (base == null) return null;
+    final updated = <String, bool>{...base, topicId: enabled};
 
     try {
       await _service.saveTopicIntent(updated);
@@ -179,9 +226,18 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
       debugPrint(
         'TopicIntentNotifier.setTopic($topicId) failed to save: $error',
       );
-      // The sole terminal state, so the revert is what the student actually
-      // sees: the switch goes back and the card stays usable.
-      if (mounted) state = AsyncValue.data(current);
+      // Revert only this call's own key, on top of whatever state looks
+      // like right now — not `base`, which is this same value (the
+      // optimistic flip already happened before this ran) and not `updated`
+      // — either would either no-op or stomp a different key that another,
+      // still-in-flight call has since changed.
+      if (mounted) {
+        final latest = state.value ?? base;
+        state = AsyncValue.data(<String, bool>{
+          ...latest,
+          topicId: previousValue,
+        });
+      }
       return null;
     }
 
@@ -189,6 +245,20 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     // manage on this device, the switch must not revert — the student's
     // choice is real, saved, and will be applied the next time reconcile
     // runs, so reverting it here would be a lie.
+    //
+    // Merged against the latest state, exactly like the revert branch above
+    // — not written as `updated` outright, which is this call's own merge,
+    // frozen at the top of this function. A still-queued call for a
+    // *different* topic can have optimistically changed state while this
+    // call's save was in flight, and overwriting with that stale snapshot
+    // would revert the newer change until its own commit eventually runs and
+    // corrects it — a visible flicker of a switch un-toggling itself for no
+    // reason a student caused.
+    if (mounted) {
+      final latest = state.value ?? updated;
+      state = AsyncValue.data(<String, bool>{...latest, topicId: enabled});
+    }
+
     try {
       return await _service.reconcile(campusId: _campusId);
     } catch (error) {

@@ -210,39 +210,70 @@ class NotificationService {
     }
   }
 
-  /// Request notification permissions from the user
+  /// Asks the OS, then Firebase, for notification permission, returning
+  /// whether it ended up granted (including provisional on iOS).
+  ///
+  /// Extracted from [requestPermission] purely as a test seam. This
+  /// project's tests are hand-written fakes over `Account` and
+  /// [NotificationService] itself (see `NotificationService.withAccount`);
+  /// there is no fake for the OS permission dialog or for Firebase's own
+  /// `requestPermission` call, and this file's test suite otherwise never
+  /// exercises `requestPermission` or `reconcile` directly for that reason.
+  /// Overriding this one method lets a test drive [requestPermission]'s own
+  /// logic — specifically, that a grant must subscribe this device (see the
+  /// granted branch below) — without needing either of those.
+  @visibleForTesting
+  Future<bool> requestPlatformPermission() async {
+    // First check system permission
+    final systemPermission = await permission_handler.Permission.notification
+        .request();
+    if (systemPermission != permission_handler.PermissionStatus.granted) {
+      debugPrint('System notification permission denied');
+      return false;
+    }
+
+    // Then request Firebase messaging permission
+    final settings = await _firebaseMessaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    final isGranted =
+        settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+
+    debugPrint(
+      'Firebase notification permission: ${settings.authorizationStatus}',
+    );
+    return isGranted;
+  }
+
+  /// Request notification permissions from the user.
   Future<bool> requestPermission() async {
     try {
-      // First check system permission
-      final systemPermission = await permission_handler.Permission.notification
-          .request();
-      if (systemPermission != permission_handler.PermissionStatus.granted) {
-        debugPrint('System notification permission denied');
-        return false;
-      }
+      final isGranted = await requestPlatformPermission();
 
-      // Then request Firebase messaging permission
-      final settings = await _firebaseMessaging.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
-      );
-
-      final isGranted =
-          settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
-
-      debugPrint(
-        'Firebase notification permission: ${settings.authorizationStatus}',
-      );
-
-      if (isGranted && _fcmToken != null) {
-        await resolvePushTarget(_fcmToken!);
-        await _loadTopicSubscriptions();
+      if (isGranted) {
+        // reconcile() resolves the push target itself and subscribes this
+        // device to the student's saved topic intent - calling it here is
+        // sufficient on its own. This used to call `_loadTopicSubscriptions()`,
+        // which only populated the obsolete in-memory legacy map and created
+        // no Appwrite subscriptions at all: a student who granted permission
+        // from anywhere but the first-run prompt (e.g. the chat settings
+        // toggle at `settings_screen_chat_tab.dart`, which calls only this
+        // method) got a push target and nothing else - no content
+        // notifications until the next launch, auth change, or campus change.
+        //
+        // Safe from recursion: reconcile() checks areNotificationsEnabled()
+        // but never calls requestPermission() itself. Uses `_lastCampusId`,
+        // the same cache the token-refresh path relies on, since this method
+        // has no campus id of its own to pass in.
+        await reconcile(campusId: _lastCampusId);
       }
 
       return isGranted;
