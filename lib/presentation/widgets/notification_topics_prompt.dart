@@ -24,13 +24,16 @@ class NotificationTopicsPrompt extends ConsumerStatefulWidget {
 ///
 /// The sheet is opened with `isDismissible: false, enableDrag: false` — a
 /// student must resolve it, not brush past it — so every state that can be
-/// reached must also offer a way out. [loading] cannot itself fail, and
-/// [ready] can only be left by a save attempt, but both [loadFailed] and
-/// [saveFailed] pair their error with a "Skip for now" escape, precisely so a
-/// persistent failure can never strand the student behind a spinner with no
-/// way forward (see `_skip`).
+/// reached must also offer a way out. [ready] is left by Continue, and every
+/// other state offers "Skip for now" (see `_skip`): [loadFailed] and
+/// [saveFailed] pair it with their error, so a persistent failure can never
+/// strand the student, and [loading] offers it too, because nothing here times
+/// out — a load that hangs rather than fails would otherwise leave the student
+/// behind a spinner with no way forward. (A save that hangs once Continue is
+/// pressed is still not covered, for the same lack of a timeout.)
 enum _PromptStatus {
   /// The initial [NotificationService.loadTopicIntent] read is in flight.
+  /// "Skip for now" is already offered, in case it never answers.
   loading,
 
   /// That read failed. Nothing has been shown or saved yet, so the only
@@ -104,15 +107,21 @@ class _NotificationTopicsPromptState
     _loadIntent();
   }
 
-  /// Closes the sheet without saving anything.
+  /// Closes the sheet without saving anything, and keeps it closed for the
+  /// rest of this session.
   ///
   /// The "answered" marker ([NotificationService.hasAnsweredTopicPrompt]) is
   /// only ever written by a successful [NotificationService.saveTopicIntent]
-  /// call, so skipping here leaves this student exactly where they were:
-  /// they will be asked again next launch. This is the prompt's only escape
-  /// hatch when loading or saving keeps failing — the sheet itself is
-  /// deliberately non-dismissible and non-draggable (see [_PromptStatus]).
+  /// call, so skipping leaves it unset and the student is asked again on the
+  /// next launch. Not before then: `BisoApp.build` calls
+  /// [maybeShowTopicsPrompt] on every rebuild, which would bring the sheet
+  /// straight back, so skipping also sets [_skippedThisSession].
+  ///
+  /// This is the prompt's only escape hatch when loading hangs or fails, or
+  /// saving keeps failing — the sheet itself is deliberately non-dismissible
+  /// and non-draggable (see [_PromptStatus]).
   void _skip() {
+    _skippedThisSession = true;
     Navigator.of(context).pop();
   }
 
@@ -196,11 +205,12 @@ class _NotificationTopicsPromptState
   List<Widget> _buildBody(ThemeData theme) {
     switch (_status) {
       case _PromptStatus.loading:
-        return const [
-          Padding(
+        return [
+          const Padding(
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator()),
           ),
+          TextButton(onPressed: _skip, child: const Text('Skip for now')),
         ];
 
       case _PromptStatus.loadFailed:
@@ -281,11 +291,28 @@ class _NotificationTopicsPromptState
 /// both get past it.
 bool _promptInFlight = false;
 
-/// Show the prompt if this student has not answered it yet.
+/// True once the student has skipped the prompt in this session.
 ///
-/// Safe to call on every build — it checks the in-flight flag and the stored
-/// marker, and does nothing for anyone who has already chosen.
+/// Skipping deliberately writes no marker, and `BisoApp` keeps rebuilding
+/// after the sheet closes — the launch reconciler alone transitions moments
+/// later — each time calling [maybeShowTopicsPrompt], which would show the
+/// sheet again straight away. Held in memory only, so the next launch asks
+/// again. It is not keyed to a student: anyone else who signs in on this
+/// device later in the same session is not asked until the next launch either.
+bool _skippedThisSession = false;
+
+/// Forgets a skip, as a fresh launch would. For tests, which share one isolate
+/// - and so this flag - across every test in a file.
+@visibleForTesting
+void resetTopicsPromptSession() => _skippedThisSession = false;
+
+/// Show the prompt if this student has not answered it yet, and has not
+/// skipped it this session.
+///
+/// Safe to call on every build — it checks the skip, the in-flight flag and
+/// the stored marker, and does nothing for anyone who has already chosen.
 Future<void> maybeShowTopicsPrompt(BuildContext context, WidgetRef ref) async {
+  if (_skippedThisSession) return;
   if (_promptInFlight) return;
   _promptInFlight = true;
   try {

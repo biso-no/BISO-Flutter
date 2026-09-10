@@ -83,16 +83,25 @@ void main() {
         );
   });
 
+  // Every test in this file shares one isolate, and with it the session's
+  // record of a skip - which several tests below make.
+  setUp(resetTopicsPromptSession);
+
   /// Presents [NotificationTopicsPrompt] the way `_showTopicsPrompt` actually
   /// does: as a non-dismissible, non-draggable modal bottom sheet pushed on
   /// top of a real route. Tests that drive the sheet all the way to a
   /// `Navigator.pop()` (via "Skip for now") need somewhere under it for that
   /// pop to reveal - unlike this file's other tests, which pump the prompt
   /// directly as the app's only route and never pop it.
+  ///
+  /// [settle] waits for everything to stop animating, which never happens
+  /// while the prompt is still loading: its spinner runs until the load
+  /// answers.
   Future<void> pumpPrompt(
     WidgetTester tester,
-    NotificationService service,
-  ) async {
+    NotificationService service, {
+    bool settle = true,
+  }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [notificationServiceProvider.overrideWithValue(service)],
@@ -115,7 +124,12 @@ void main() {
       ),
     );
     await tester.tap(find.text('open sheet'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+    }
   }
 
   testWidgets('seeds the switches from a migrated legacy intent instead of the '
@@ -318,6 +332,88 @@ void main() {
       expect(find.text('open sheet'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    '"Skip for now" is offered while the load is still in flight, and closes '
+    'the sheet: nothing here times out, so a load that hangs rather than '
+    'fails would otherwise strand the student behind a spinner on a sheet '
+    'they cannot dismiss',
+    (tester) async {
+      final account = _GatedFakeAccount(const <String, dynamic>{});
+      await pumpPrompt(
+        tester,
+        NotificationService.withAccount(account),
+        settle: false,
+      );
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Skip for now'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Skip for now'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NotificationTopicsPrompt), findsNothing);
+      expect(find.text('open sheet'), findsOneWidget);
+
+      // The hung load finally answers, after the sheet has gone.
+      account.release();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    '"Skip for now" persists nothing, so the student is asked again next '
+    'launch - but maybeShowTopicsPrompt does not show the sheet again in '
+    'this session: BisoApp.build calls it on every rebuild, and the launch '
+    'reconciler alone rebuilds the app moments after the sheet closes',
+    (tester) async {
+      // Read 1 is the answered check and read 2 the sheet's own load, whose
+      // failure is what puts "Skip for now" on screen.
+      final account = _ScriptedAccount(failingReads: {2});
+      final service = NotificationService.withAccount(account);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [notificationServiceProvider.overrideWithValue(service)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: Consumer(
+                builder: (context, ref, _) => ElevatedButton(
+                  // What BisoApp.build does on every rebuild.
+                  onPressed: () => maybeShowTopicsPrompt(context, ref),
+                  child: const Text('rebuild'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('rebuild'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NotificationTopicsPrompt), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Skip for now'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NotificationTopicsPrompt), findsNothing);
+
+      expect(account.updatePrefsCalls, 0, reason: 'skipping writes nothing');
+      expect(
+        await service.hasAnsweredTopicPrompt(),
+        isFalse,
+        reason: 'the answered marker stays unset, so the next launch asks '
+            'again',
+      );
+
+      await tester.tap(find.text('rebuild'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(NotificationTopicsPrompt),
+        findsNothing,
+        reason: 'a skip holds for the rest of the session',
+      );
+    },
+  );
 }
 
 /// An [Account] whose [getPrefs] always throws, standing in for a network
@@ -327,6 +423,32 @@ class _ThrowingAccount extends Account {
 
   @override
   Future<models.Preferences> getPrefs() async {
+    throw AppwriteException('offline');
+  }
+}
+
+/// An [Account] with nothing stored whose [getPrefs] fails on the call
+/// numbers in [failingReads] (1-indexed), and which counts every write - and
+/// fails it.
+class _ScriptedAccount extends Account {
+  _ScriptedAccount({required this.failingReads}) : super(Client());
+
+  final Set<int> failingReads;
+  int _getPrefsCalls = 0;
+  int updatePrefsCalls = 0;
+
+  @override
+  Future<models.Preferences> getPrefs() async {
+    _getPrefsCalls++;
+    if (failingReads.contains(_getPrefsCalls)) {
+      throw AppwriteException('offline');
+    }
+    return models.Preferences(data: const <String, dynamic>{});
+  }
+
+  @override
+  Future<models.User> updatePrefs({required Map prefs}) async {
+    updatePrefsCalls++;
     throw AppwriteException('offline');
   }
 }
