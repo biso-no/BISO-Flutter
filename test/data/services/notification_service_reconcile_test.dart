@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
+import 'package:biso/data/services/device_subscription_store.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -207,4 +209,179 @@ void main() {
       },
     );
   });
+
+  group('reconcile', () {
+    Map<String, dynamic> intentPrefs({required bool events}) =>
+        <String, dynamic>{
+          'notification_topics': <String, dynamic>{
+            'news': true,
+            'events': events,
+            'jobs': false,
+            'shop': false,
+          },
+        };
+
+    test(
+      'serialises overlapping runs, so the stored subscriber map ends up '
+      'holding every subscriber either run created: two runs that each read '
+      'the stored map, diff, and write their own result back let the last '
+      'write drop ids the other created - and since the client SDK cannot '
+      'list subscribers, a dropped id is gone for good: the device can never '
+      'unsubscribe from that topic, and every later create for it 409s',
+      () async {
+        final account = _FakeAccount(intentPrefs(events: false));
+        final hold = Completer<void>();
+        final messaging = _FakeMessaging()..holdFirstCreate = hold;
+        final service = _ReconcilingService(account, messaging);
+
+        // The launch reconciler starts first and parks on its first
+        // subscribe.
+        final launch = service.reconcile(campusId: '1');
+        await pumpEventQueue();
+
+        // Meanwhile the student turns Events on, and setTopic reconciles too.
+        account.saved['notification_topics'] = <String, dynamic>{
+          'news': true,
+          'events': true,
+          'jobs': false,
+          'shop': false,
+        };
+        final toggle = service.reconcile(campusId: '1');
+        await pumpEventQueue();
+
+        hold.complete();
+        final outcomes = await Future.wait([launch, toggle]);
+
+        expect(
+          await DeviceSubscriptionStore().readSubscriberIds(),
+          messaging.subscribers,
+          reason: 'every subscriber that exists server-side must still have '
+              'its id stored on this device',
+        );
+        expect(messaging.subscribers.keys.toSet(), {
+          'general',
+          'news_oslo',
+          'news_national',
+          'events_oslo',
+          'events_national',
+        });
+        expect(outcomes, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
+      },
+    );
+
+    test(
+      'a run that throws still hands its own caller the error, and does not '
+      'wedge the runs queued behind it',
+      () async {
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false)),
+          _FakeMessaging(),
+        )..targetThrowsOnce = StateError('storage unavailable');
+
+        final failing = service.reconcile(campusId: '1');
+        final queued = service.reconcile(campusId: '1');
+
+        await expectLater(failing, throwsStateError);
+        expect(await queued, ReconcileOutcome.applied);
+      },
+    );
+  });
+}
+
+models.Subscriber _subscriber({
+  required String id,
+  required String topicId,
+  required String targetId,
+}) => models.Subscriber(
+  $id: id,
+  $createdAt: '',
+  $updatedAt: '',
+  targetId: targetId,
+  target: models.Target(
+    $id: targetId,
+    $createdAt: '',
+    $updatedAt: '',
+    name: 'device',
+    userId: 'user-1',
+    providerId: 'push',
+    providerType: 'push',
+    identifier: 'token-1',
+    expired: false,
+  ),
+  userId: 'user-1',
+  userName: 'Test',
+  topicId: topicId,
+  providerType: 'push',
+);
+
+/// Appwrite Messaging as the server sees one device: at most one subscriber
+/// per topic, and a second create for a topic already held is rejected with a
+/// 409, as Appwrite rejects it.
+class _FakeMessaging extends Messaging {
+  _FakeMessaging() : super(Client());
+
+  /// topicId -> subscriber id, for every subscriber that exists server-side.
+  final Map<String, String> subscribers = <String, String>{};
+
+  /// When set, the first [createSubscriber] call waits for it before touching
+  /// [subscribers], holding one run mid-flight while another starts.
+  Completer<void>? holdFirstCreate;
+
+  int _createCalls = 0;
+
+  @override
+  Future<models.Subscriber> createSubscriber({
+    required String topicId,
+    required String subscriberId,
+    required String targetId,
+  }) async {
+    _createCalls++;
+    final hold = holdFirstCreate;
+    if (hold != null && _createCalls == 1) await hold.future;
+    if (subscribers.containsKey(topicId)) {
+      throw AppwriteException('subscriber already exists', 409);
+    }
+    subscribers[topicId] = subscriberId;
+    return _subscriber(id: subscriberId, topicId: topicId, targetId: targetId);
+  }
+
+  @override
+  Future deleteSubscriber({
+    required String topicId,
+    required String subscriberId,
+  }) async {
+    if (subscribers[topicId] != subscriberId) {
+      throw AppwriteException('subscriber not found', 404);
+    }
+    subscribers.remove(topicId);
+  }
+}
+
+/// Runs the real [NotificationService.reconcile] with each platform dependency
+/// stood in for: the OS permission read, the FCM token, and the push target.
+/// Messaging is [_FakeMessaging], and the subscriber map is the real
+/// [DeviceSubscriptionStore] over mocked SharedPreferences.
+class _ReconcilingService extends NotificationService {
+  _ReconcilingService(super.account, Messaging messaging)
+    : super.withAccount(messaging: messaging);
+
+  /// Thrown from the next [resolvePushTarget] call, then cleared - a failure
+  /// `reconcile()` does not catch itself.
+  Object? targetThrowsOnce;
+
+  @override
+  Future<bool> checkPlatformPermission() async => true;
+
+  @override
+  Future<String?> fetchPlatformToken() async => 'token-1';
+
+  @override
+  Future<String?> resolvePushTarget(String token) async {
+    final failure = targetThrowsOnce;
+    if (failure != null) {
+      targetThrowsOnce = null;
+      throw failure;
+    }
+    return 'target-1';
+  }
 }

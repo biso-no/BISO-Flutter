@@ -90,19 +90,30 @@ enum ReconcileOutcome {
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-  NotificationService._internal() : _account = account;
+  NotificationService._internal()
+    : _account = account,
+      _messagingOverride = null;
 
-  /// Builds a throwaway instance against a caller-supplied [Account], so the
-  /// preference-loading paths can be driven without a network or a signed-in
-  /// user. Production code goes through the [NotificationService] singleton.
+  /// Builds a throwaway instance against a caller-supplied [Account] — and,
+  /// optionally, [Messaging] — so the preference-loading and reconcile paths
+  /// can be driven without a network or a signed-in user. Production code goes
+  /// through the [NotificationService] singleton.
   @visibleForTesting
-  NotificationService.withAccount(this._account);
+  NotificationService.withAccount(this._account, {Messaging? messaging})
+    : _messagingOverride = messaging;
 
   static final FirebaseMessaging _firebaseMessaging =
       FirebaseMessaging.instance;
   final Account _account;
   final DeviceSubscriptionStore _store = DeviceSubscriptionStore();
-  static final Messaging _messaging = messaging;
+
+  /// The [Messaging] supplied to [NotificationService.withAccount], if any.
+  final Messaging? _messagingOverride;
+
+  /// Where subscribers are created and deleted: the app-wide Appwrite
+  /// [Messaging] unless a test supplied its own. Resolved on use, as the static
+  /// field this replaced was, so the singleton behaves exactly as before.
+  Messaging get _messaging => _messagingOverride ?? messaging;
 
   String? _fcmToken;
   String? _pushTargetId;
@@ -286,14 +297,32 @@ class NotificationService {
   /// Check if notifications are currently enabled
   Future<bool> areNotificationsEnabled() async {
     try {
-      final settings = await _firebaseMessaging.getNotificationSettings();
-      return settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
+      return await checkPlatformPermission();
     } catch (e) {
       debugPrint('Failed to check notification status: $e');
       return false;
     }
   }
+
+  /// Whether the OS currently grants notification permission (including
+  /// provisional on iOS). Unlike [areNotificationsEnabled], a status that
+  /// cannot be read at all is rethrown rather than reported as not granted.
+  ///
+  /// A test seam, like [requestPlatformPermission]: there is no fake for
+  /// Firebase's own settings read.
+  @visibleForTesting
+  Future<bool> checkPlatformPermission() async {
+    final settings = await _firebaseMessaging.getNotificationSettings();
+    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional;
+  }
+
+  /// This device's FCM token, straight from Firebase, which throws when it
+  /// cannot produce one (e.g. `SERVICE_NOT_AVAILABLE`).
+  ///
+  /// A test seam, like [requestPlatformPermission].
+  @visibleForTesting
+  Future<String?> fetchPlatformToken() => _firebaseMessaging.getToken();
 
   /// Establish this device's Appwrite push target for [token] and return its id.
   ///
@@ -449,18 +478,47 @@ class NotificationService {
   /// Idempotent by construction — it diffs desired against observed rather than
   /// replaying toggles — so it is safe to call on every launch, and two devices
   /// on one account reconcile independently without coordinating.
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async {
-    // Cached before any early return, so a later token refresh — which has no
-    // campusId of its own to pass in — can still reconcile against the most
-    // recent one this method was actually asked to use.
+  ///
+  /// Runs one at a time on this device (see [_reconcileQueue]): a call made
+  /// while another run is in progress waits for it, then reads fresh state.
+  /// Each caller still receives its own run's outcome, or its own run's error.
+  Future<ReconcileOutcome> reconcile({required String? campusId}) {
+    // Cached at call time, before the run is even queued, so a later token
+    // refresh — which has no campusId of its own to pass in — reconciles
+    // against the most recent campus this method was actually asked to use.
     _lastCampusId = campusId;
 
+    final run = _reconcileQueue.then((_) => _reconcileNow(campusId));
+    _reconcileQueue = run.then((_) {}, onError: (_) {});
+    return run;
+  }
+
+  /// The tail of the [reconcile] queue.
+  ///
+  /// Callers overlap: the launch reconciler on every rebuild,
+  /// `TopicIntentNotifier.setTopic`, the token-refresh listener,
+  /// [requestPermission], and the first-run prompt. Each run reads the stored
+  /// subscriber map, diffs it, and writes its own result back, so two
+  /// overlapping runs let the last write drop a subscriber id the other just
+  /// created. That subscriber then exists server-side with no local id: every
+  /// later run tries to create it again and gets a 409, and the device can
+  /// never unsubscribe from that topic. The client SDK cannot list subscribers,
+  /// so the id is unrecoverable — which is why runs must never overlap at all,
+  /// rather than being repaired afterwards.
+  ///
+  /// Each link swallows its own outcome before being stored here, so a run
+  /// that throws cannot leave this future rejected and wedge every run queued
+  /// behind it. The run's own caller still receives the error.
+  Future<void> _reconcileQueue = Future<void>.value();
+
+  /// One [reconcile] run. Only ever started by [reconcile]'s queue.
+  Future<ReconcileOutcome> _reconcileNow(String? campusId) async {
     if (!await areNotificationsEnabled()) {
       debugPrint('reconcile: notifications not permitted; intent kept for later');
       return ReconcileOutcome.permissionDenied;
     }
 
-    final token = _fcmToken ?? await _firebaseMessaging.getToken();
+    final token = _fcmToken ?? await fetchPlatformToken();
     if (token == null) {
       debugPrint('reconcile: no FCM token; skipping');
       return ReconcileOutcome.unavailable;
