@@ -441,6 +441,11 @@ class _ReconcilingService extends NotificationService {
   /// `reconcile()` does not catch itself.
   Object? targetThrowsOnce;
 
+  /// The push target every run resolves, recorded in the store as the real
+  /// [resolvePushTarget] records it: subscriber ids are only ever recorded
+  /// against the stored target.
+  static const String _targetId = 'target-1';
+
   @override
   Future<bool> checkPlatformPermission() async {
     final failure = permissionThrows;
@@ -465,6 +470,7 @@ class _ReconcilingService extends NotificationService {
       targetThrowsOnce = null;
       throw failure;
     }
-    return 'target-1';
+    await DeviceSubscriptionStore().writeTargetId(_targetId);
+    return _targetId;
   }
 }

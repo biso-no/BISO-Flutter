@@ -73,9 +73,11 @@ const String kLegacyTopicSubscriptionsPrefKey = 'topic_subscriptions';
 /// Deliberately generous. A healthy run is a handful of small requests: a
 /// first reconcile makes about a dozen, a few seconds in all even on a mobile
 /// connection, so this only cuts off a run that has stopped making progress.
-/// Cutting off one that is still progressing has a cost: a subscribe already
-/// on the wire can land after the bound, and a run past its bound may not
-/// record the id (see `_QueueRun.ownsState`).
+/// Cutting off one that is still progressing has a cost: a request already on
+/// the wire can land after the bound. Of what such a request did, only a
+/// subscribe or an unsubscribe can still be recorded, under guards (see
+/// `NotificationService._reconcileNow`); anything else is lost with the run
+/// (see `_QueueRun.ownsState`).
 const Duration kNotificationRunTimeout = Duration(seconds: 30);
 
 /// How long sign-out waits for [NotificationService.clearToken] before
@@ -459,9 +461,7 @@ class NotificationService {
         identifier: token,
         providerId: kFcmProviderId,
       );
-      return await _adoptTarget(target.$id, storedId, current)
-          ? target.$id
-          : null;
+      return await _adoptTarget(target.$id, current) ? target.$id : null;
     } on AppwriteException catch (e) {
       if (e.code != 409) {
         debugPrint(
@@ -477,9 +477,7 @@ class NotificationService {
       final user = await _account.get();
       for (final target in user.targets) {
         if (target.identifier == token) {
-          return await _adoptTarget(target.$id, storedId, current)
-              ? target.$id
-              : null;
+          return await _adoptTarget(target.$id, current) ? target.$id : null;
         }
       }
       debugPrint(
@@ -504,15 +502,10 @@ class NotificationService {
   /// stored map would still claim those topics are covered, so the next
   /// reconcile would compute an empty diff and the device would go silently
   /// unsubscribed. Clearing forces them to be recreated against the new target.
-  Future<bool> _adoptTarget(
-    String targetId,
-    String? previousId,
-    bool Function() current,
-  ) async {
-    if (previousId != null && previousId != targetId) {
-      if (!current()) return false;
-      await _store.writeSubscriberIds(const <String, String>{});
-    }
+  /// [DeviceSubscriptionStore.writeTargetId] forgets them in the same step as
+  /// it records the new target, so a late subscribe cannot be recorded against
+  /// the old target in between and survive into the new one.
+  Future<bool> _adoptTarget(String targetId, bool Function() current) async {
     if (!current()) return false;
     await _store.writeTargetId(targetId);
     if (!current()) return false;
@@ -655,7 +648,9 @@ class NotificationService {
   /// is retired, so [_QueueRun.ownsState] is false for it from then on. Every
   /// request a run starts and every write it makes is preceded by that check,
   /// so an abandoned run stops at the next one, writing nothing that could
-  /// overwrite what the runs after it recorded.
+  /// overwrite what the runs after it recorded — bar the answer to a subscribe
+  /// or unsubscribe already on the wire, which is recorded for its topic under
+  /// guards that keep it right whoever owns the store (see [_reconcileNow]).
   Future<T> _enqueue<T>(
     String label,
     Future<T> Function(_QueueRun run) body, {
@@ -812,23 +807,38 @@ class NotificationService {
     final diff = computeTopicDiff(desired: desired, current: current);
     if (diff.isEmpty) return ReconcileOutcome.applied;
 
-    final updated = Map<String, String>.from(current);
     var hadFailure = false;
 
-    // Each change is recorded as soon as it lands, not once at the end. A run
-    // abandoned at its bound may write nothing afterwards (see [_enqueue]), so
-    // a subscriber created early in a run that then hung would otherwise exist
-    // on the server with no id on this device — unrecoverably, since the
-    // client SDK cannot list subscribers.
+    // Each change is recorded for its own topic as soon as it lands - even
+    // when this run has been abandoned while the request was out. A request
+    // on the wire cannot be called back, and dropping its answer is harmful
+    // either way: a subscriber created with no id recorded can never be
+    // deleted by this device, since the client SDK cannot list subscribers,
+    // and a deleted subscriber whose id stays recorded makes every later run
+    // believe the topic is held, and report applied with nothing subscribed.
+    //
+    // These two records are the only things an abandoned run may still change
+    // (see `_QueueRun.ownsState`), and each is guarded so it is right whoever
+    // owns the store by then:
+    //
+    // - A subscriber is recorded only while the stored target is still the one
+    //   it was created on, and nothing is recorded for its topic. Once
+    //   sign-out has cleared the store, or the target has changed, it belongs
+    //   to a target this device no longer uses - possibly another account's.
+    // - A subscriber is forgotten only while its topic still maps to it.
+    //
+    // And never as a snapshot of the whole map, which would erase whatever
+    // another run recorded while this one was going.
     for (final topicId in diff.toCreate) {
       if (!run.ownsState) return ReconcileOutcome.unavailable;
+      final String subscriberId;
       try {
         final subscriber = await _messaging.createSubscriber(
           topicId: topicId,
           subscriberId: ID.unique(),
           targetId: targetId,
         );
-        updated[topicId] = subscriber.$id;
+        subscriberId = subscriber.$id;
       } on AppwriteException catch (e) {
         // Best-effort per topic: one failure must not abort the rest. The next
         // reconcile retries, because the diff recomputes from observed state.
@@ -836,12 +846,24 @@ class NotificationService {
         hadFailure = true;
         continue;
       }
+      final recorded = await _store.setSubscriberIdIfAbsent(
+        topicId,
+        subscriberId,
+        targetId: targetId,
+      );
       if (!run.ownsState) return ReconcileOutcome.unavailable;
-      await _store.writeSubscriberIds(updated);
+      if (!recorded) {
+        // Refused only if the target changed or the topic was taken since the
+        // store was read, which a run that still owns the store should never
+        // see. The subscriber would then exist with no id on this device, and
+        // that is no success.
+        debugPrint('reconcile: subscribed to $topicId, but could not record it');
+        hadFailure = true;
+      }
     }
 
     for (final topicId in diff.toDelete) {
-      final subscriberId = updated[topicId];
+      final subscriberId = current[topicId];
       if (subscriberId == null) continue;
       if (!run.ownsState) return ReconcileOutcome.unavailable;
       try {
@@ -860,9 +882,8 @@ class NotificationService {
         }
         // Already gone server-side; stop tracking it.
       }
-      updated.remove(topicId);
+      await _store.removeSubscriberIdIfMatches(topicId, subscriberId);
       if (!run.ownsState) return ReconcileOutcome.unavailable;
-      await _store.writeSubscriberIds(updated);
     }
 
     return hadFailure
@@ -1348,13 +1369,15 @@ class _QueueRun {
   ///
   /// False from the moment the run is abandoned at its bound, and from then
   /// on: a later run has taken over, and anything this one wrote could
-  /// overwrite what that run recorded.
+  /// overwrite what that run recorded. The one exception is recording the
+  /// answer to a subscribe or unsubscribe that was already on the wire, which
+  /// is guarded per topic instead (see `NotificationService._reconcileNow`).
   ///
-  /// A run checks it immediately before each write. That is enough because a
-  /// `SharedPreferences` write takes effect when it is called — its cache is
-  /// updated synchronously — and all the store awaits before that call is an
-  /// instance the run has already loaded, which completes as a microtask. The
-  /// timer that abandons a run cannot fire in between.
+  /// A run checks it immediately before every other write. That is enough
+  /// because a `SharedPreferences` write takes effect when it is called — its
+  /// cache is updated synchronously — and all the store awaits before that
+  /// call is an instance the run has already loaded, which completes as a
+  /// microtask. The timer that abandons a run cannot fire in between.
   bool get ownsState => _service._generation == generation;
 
   /// Whether [NotificationService.clearToken] has been called since this run

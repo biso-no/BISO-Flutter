@@ -22,6 +22,14 @@ class _FakeServer {
 
   int _issued = 0;
   String nextId(String prefix) => '$prefix-${++_issued}';
+
+  /// Deletes [targetId] and, as Appwrite does, every subscriber attached to
+  /// it. Reports whether there was such a target.
+  bool removeTarget(String targetId) {
+    if (targets.remove(targetId) == null) return false;
+    subscribers.removeWhere((_, s) => s.targetId == targetId);
+    return true;
+  }
 }
 
 models.Target _target({required String id, required String identifier}) =>
@@ -58,11 +66,20 @@ class _FakeAccount extends Account {
 
   final _FakeServer server;
 
+  /// The student's topic intent, as their account preferences hold it.
+  Map<String, bool> intent = const <String, bool>{
+    'news': true,
+    'events': false,
+    'jobs': false,
+    'shop': false,
+  };
+
   /// When set, [deletePushTarget] throws it instead of deleting.
   AppwriteException? deleteTargetThrows;
 
-  /// When set, [deletePushTarget] waits for it before doing anything.
-  Completer<void>? holdDeleteTarget;
+  /// [deletePushTarget] calls, by number (counting from 1), that wait for
+  /// their completer before doing anything.
+  final Map<int, Completer<void>> holdDeleteTarget = <int, Completer<void>>{};
 
   int deleteTargetCalls = 0;
   int updateTargetCalls = 0;
@@ -70,16 +87,14 @@ class _FakeAccount extends Account {
 
   @override
   Future deletePushTarget({required String targetId}) async {
-    deleteTargetCalls++;
-    final hold = holdDeleteTarget;
+    final call = ++deleteTargetCalls;
+    final hold = holdDeleteTarget[call];
     if (hold != null) await hold.future;
     final failure = deleteTargetThrows;
     if (failure != null) throw failure;
-    if (server.targets.remove(targetId) == null) {
+    if (!server.removeTarget(targetId)) {
       throw AppwriteException('target not found', 404);
     }
-    // Deleting a target kills every subscriber attached to it.
-    server.subscribers.removeWhere((_, s) => s.targetId == targetId);
   }
 
   @override
@@ -110,12 +125,7 @@ class _FakeAccount extends Account {
   @override
   Future<models.Preferences> getPrefs() async => models.Preferences(
     data: <String, dynamic>{
-      'notification_topics': <String, dynamic>{
-        'news': true,
-        'events': false,
-        'jobs': false,
-        'shop': false,
-      },
+      'notification_topics': Map<String, dynamic>.from(intent),
     },
   );
 }
@@ -125,15 +135,27 @@ class _FakeMessaging extends Messaging {
 
   final _FakeServer server;
 
-  /// When set, create call number [holdCreateCall] (counting from 1) waits
-  /// for it before touching the server, holding its run mid-flight.
-  Completer<void>? holdCreate;
-  int holdCreateCall = 1;
+  /// [createSubscriber] calls, by number (counting from 1), that wait for
+  /// their completer before the server sees them: a request still on its
+  /// way, holding its run mid-flight.
+  final Map<int, Completer<void>> holdCreateRequest = <int, Completer<void>>{};
+
+  /// [createSubscriber] calls, by number, that the server carries out at
+  /// once but whose answer waits for the completer: a subscribe that has
+  /// landed, and whose response is late.
+  final Map<int, Completer<void>> holdCreateResponse =
+      <int, Completer<void>>{};
+
+  /// [deleteSubscriber] calls, by number, that the server carries out at
+  /// once but whose answer waits for the completer.
+  final Map<int, Completer<void>> holdDeleteResponse =
+      <int, Completer<void>>{};
 
   /// When set, [deleteSubscriber] throws it instead of deleting.
   AppwriteException? deleteThrows;
 
   int createCalls = 0;
+  int deleteCalls = 0;
 
   @override
   Future<models.Subscriber> createSubscriber({
@@ -142,8 +164,8 @@ class _FakeMessaging extends Messaging {
     required String targetId,
   }) async {
     final call = ++createCalls;
-    final hold = holdCreate;
-    if (hold != null && call == holdCreateCall) await hold.future;
+    final request = holdCreateRequest[call];
+    if (request != null) await request.future;
     if (!server.targets.containsKey(targetId)) {
       throw AppwriteException('target not found', 404);
     }
@@ -155,6 +177,8 @@ class _FakeMessaging extends Messaging {
     }
     final id = server.nextId('new-sub');
     server.subscribers[id] = (topicId: topicId, targetId: targetId);
+    final response = holdCreateResponse[call];
+    if (response != null) await response.future;
     return _subscriber(id: id, topicId: topicId, targetId: targetId);
   }
 
@@ -163,12 +187,15 @@ class _FakeMessaging extends Messaging {
     required String topicId,
     required String subscriberId,
   }) async {
+    final call = ++deleteCalls;
     final failure = deleteThrows;
     if (failure != null) throw failure;
     if (server.subscribers[subscriberId]?.topicId != topicId) {
       throw AppwriteException('subscriber not found', 404);
     }
     server.subscribers.remove(subscriberId);
+    final response = holdDeleteResponse[call];
+    if (response != null) await response.future;
   }
 }
 
@@ -221,7 +248,17 @@ class _BrokenStore extends DeviceSubscriptionStore {
   Future<Map<String, String>> readSubscriberIds() async => _fail();
 
   @override
-  Future<void> writeSubscriberIds(Map<String, String> ids) async => _fail();
+  Future<bool> setSubscriberIdIfAbsent(
+    String topicId,
+    String subscriberId, {
+    required String targetId,
+  }) async => _fail();
+
+  @override
+  Future<bool> removeSubscriberIdIfMatches(
+    String topicId,
+    String subscriberId,
+  ) async => _fail();
 
   @override
   Future<bool> readPendingTokenInvalidation() async => _fail();
@@ -458,8 +495,8 @@ void main() {
       () async {
         final server = _FakeServer();
         final account = _FakeAccount(server);
-        final messaging = _FakeMessaging(server)
-          ..holdCreate = Completer<void>();
+        final messaging = _FakeMessaging(server);
+        final hold = messaging.holdCreateRequest[1] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
         final reconciling = service.reconcile(campusId: '1');
@@ -474,7 +511,7 @@ void main() {
           reason: 'sign-out must wait for the reconcile in flight',
         );
 
-        messaging.holdCreate!.complete();
+        hold.complete();
         await Future.wait([reconciling, signingOut]);
 
         expect(server.targets, isEmpty);
@@ -493,8 +530,8 @@ void main() {
       () async {
         final server = _FakeServer();
         final account = _FakeAccount(server);
-        final messaging = _FakeMessaging(server)
-          ..holdCreate = Completer<void>();
+        final messaging = _FakeMessaging(server);
+        final hold = messaging.holdCreateRequest[1] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
         final inFlight = service.reconcile(campusId: '1');
@@ -502,7 +539,7 @@ void main() {
         final queued = service.reconcile(campusId: '2'); // a campus change
         final signingOut = service.clearToken();
 
-        messaging.holdCreate!.complete();
+        hold.complete();
         expect(await inFlight, ReconcileOutcome.applied);
         expect(await queued, ReconcileOutcome.unavailable);
         await signingOut;
@@ -524,8 +561,8 @@ void main() {
       'restarted',
       (tester) async {
         final server = _FakeServer();
-        final messaging = _FakeMessaging(server)
-          ..holdCreate = Completer<void>();
+        final messaging = _FakeMessaging(server);
+        final hold = messaging.holdCreateRequest[1] = Completer<void>();
         final service = _DeviceService(_FakeAccount(server), messaging);
 
         ReconcileOutcome? hung;
@@ -542,20 +579,20 @@ void main() {
         await tester.pump();
         expect(behind, ReconcileOutcome.applied);
 
-        messaging.holdCreate!.complete();
+        hold.complete();
         await tester.pump();
       },
     );
 
     testWidgets(
-      'an abandoned reconcile that answers late writes nothing and sends '
-      'nothing more: the run after it has recorded its own ids, and the late '
-      'run\'s stale map written over them would drop ids that exist on the '
-      'server - unrecoverably, since the client SDK cannot list subscribers',
+      'an abandoned reconcile that answers late sends nothing more, and '
+      'leaves the ids the run after it recorded as they were: a stale map '
+      'written over them would drop ids that exist on the server - '
+      'unrecoverably, since the client SDK cannot list subscribers',
       (tester) async {
         final server = _FakeServer();
-        final messaging = _FakeMessaging(server)
-          ..holdCreate = Completer<void>();
+        final messaging = _FakeMessaging(server);
+        final hold = messaging.holdCreateRequest[1] = Completer<void>();
         final service = _DeviceService(_FakeAccount(server), messaging);
 
         ReconcileOutcome? behind;
@@ -570,7 +607,7 @@ void main() {
         final requestsSoFar = messaging.createCalls;
 
         // The abandoned run's first subscribe finally answers.
-        messaging.holdCreate!.complete();
+        hold.complete();
         await tester.pump();
 
         expect(await store.readSubscriberIds(), recorded);
@@ -585,9 +622,8 @@ void main() {
       'never be removed from this device',
       (tester) async {
         final server = _FakeServer();
-        final messaging = _FakeMessaging(server)
-          ..holdCreate = Completer<void>()
-          ..holdCreateCall = 2;
+        final messaging = _FakeMessaging(server);
+        final hold = messaging.holdCreateRequest[2] = Completer<void>();
         final service = _DeviceService(_FakeAccount(server), messaging);
 
         ReconcileOutcome? outcome;
@@ -599,7 +635,7 @@ void main() {
         expect(created.value.topicId, 'general');
         expect(await store.readSubscriberIds(), {'general': created.key});
 
-        messaging.holdCreate!.complete();
+        hold.complete();
         await tester.pump();
       },
     );
@@ -612,7 +648,8 @@ void main() {
       (tester) async {
         final server = registeredDevice();
         final targetDeletion = Completer<void>();
-        final account = _FakeAccount(server)..holdDeleteTarget = targetDeletion;
+        final account = _FakeAccount(server)
+          ..holdDeleteTarget[1] = targetDeletion;
         final service = _DeviceService(account, _FakeMessaging(server));
 
         var cleanedUp = false;
@@ -639,6 +676,288 @@ void main() {
         expect(service.token, tokenInUse);
         expect(await store.readSubscriberIds(), recorded);
         expect(await store.readPendingTokenInvalidation(), isFalse);
+      },
+    );
+  });
+
+  group('answers that arrive after their run was abandoned', () {
+    /// Starts a reconcile for campus 1 and pumps [elapse], returning its
+    /// outcome if it has finished by then.
+    Future<ReconcileOutcome?> reconcileFor(
+      WidgetTester tester,
+      NotificationService service, {
+      Duration elapse = Duration.zero,
+    }) async {
+      ReconcileOutcome? outcome;
+      unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+      await tester.pump(elapse);
+      return outcome;
+    }
+
+    /// The server's subscribers on this device's stored target, by topic:
+    /// exactly what the store must hold for every topic to be accounted for.
+    Future<Map<String, String>> serverSubscribersOnStoredTarget(
+      _FakeServer server,
+    ) async {
+      final targetId = await store.readTargetId();
+      return <String, String>{
+        for (final entry in server.subscribers.entries)
+          if (entry.value.targetId == targetId) entry.value.topicId: entry.key,
+      };
+    }
+
+    testWidgets(
+      'an unsubscribe that lands after its run was abandoned still forgets '
+      'that subscriber, so turning the topic back on subscribes this device '
+      'again: its id used to stay stored, and reconcile then reported applied '
+      'with nothing subscribed',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        final service = _DeviceService(account, messaging);
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        final subscribed = await store.readSubscriberIds();
+
+        // News off. Its first unsubscribe, news_oslo's, is carried out, but
+        // the answer outlasts the run's bound.
+        account.intent = {...account.intent, 'news': false};
+        final lateAnswer = messaging.holdDeleteResponse[1] = Completer<void>();
+        expect(
+          await reconcileFor(tester, service, elapse: kNotificationRunTimeout),
+          ReconcileOutcome.unavailable,
+        );
+        expect(server.subscribers, isNot(contains(subscribed['news_oslo'])));
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect(await store.readSubscriberIds(), isNot(contains('news_oslo')));
+
+        // News back on.
+        account.intent = {...account.intent, 'news': true};
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        expect(
+          await store.readSubscriberIds(),
+          await serverSubscribersOnStoredTarget(server),
+        );
+        expect(await store.readSubscriberIds(), contains('news_oslo'));
+      },
+    );
+
+    testWidgets(
+      'a subscribe that lands after its run was abandoned is still recorded '
+      'while this device keeps its target and nothing holds the topic: '
+      'dropped, the subscriber existed on the server with no id here, and '
+      'this device could never unsubscribe from it',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        // Create call 2 is news_oslo.
+        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final service = _DeviceService(account, messaging);
+
+        expect(
+          await reconcileFor(tester, service, elapse: kNotificationRunTimeout),
+          ReconcileOutcome.unavailable,
+        );
+        expect(await store.readSubscriberIds(), isNot(contains('news_oslo')));
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect((await store.readSubscriberIds()).keys, {'general', 'news_oslo'});
+        expect(
+          await store.readSubscriberIds(),
+          await serverSubscribersOnStoredTarget(server),
+        );
+
+        // So turning news off does remove it.
+        account.intent = {...account.intent, 'news': false};
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        expect(
+          (await serverSubscribersOnStoredTarget(server)).keys,
+          {'general'},
+        );
+      },
+    );
+
+    testWidgets(
+      'a subscribe that answers after sign-out has cleared the store is not '
+      'recorded: its subscriber belonged to a target this device no longer '
+      'uses, and an id for it would tell the next student\'s reconcile that '
+      'the topic was already held',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final service = _DeviceService(account, messaging);
+        await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
+
+        var signedOut = false;
+        unawaited(service.clearToken().then((_) => signedOut = true));
+        await tester.pump();
+        expect(signedOut, isTrue);
+        expect(server.targets, isEmpty);
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect(await store.readTargetId(), isNull);
+        expect(await store.readSubscriberIds(), isEmpty);
+
+        // The next student signs in, with news on too.
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'news_oslo',
+          'news_national',
+        });
+        expect(
+          await store.readSubscriberIds(),
+          await serverSubscribersOnStoredTarget(server),
+        );
+      },
+    );
+
+    testWidgets(
+      'a subscribe that answers after this device has moved to another push '
+      'target is not recorded: its subscriber is attached to the old target, '
+      'and an id for it would claim the topic is held on the new one',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final service = _DeviceService(account, messaging);
+        await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
+        final oldTarget = await store.readTargetId();
+
+        // The target is deleted on the server, so the next run creates a new
+        // one. News is off by then, so only the target stands in the late
+        // answer's way.
+        server.removeTarget(oldTarget!);
+        account.intent = {...account.intent, 'news': false};
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        final newTarget = await store.readTargetId();
+        expect(newTarget, isNot(oldTarget));
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect(await store.readTargetId(), newTarget);
+        expect((await store.readSubscriberIds()).keys, {'general'});
+        expect(
+          await store.readSubscriberIds(),
+          await serverSubscribersOnStoredTarget(server),
+        );
+      },
+    );
+
+    testWidgets(
+      'a subscribe that answers late is not recorded over an entry recorded '
+      'for its topic since: that entry is newer than the answer',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final service = _DeviceService(account, messaging);
+        await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
+        final lateSubscriber = (await serverSubscribersOnStoredTarget(
+          server,
+        ))['news_oslo'];
+
+        // That subscriber is removed on the server - by an administrator,
+        // say - and the next run subscribes this device afresh.
+        server.subscribers.remove(lateSubscriber);
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        final recorded = await store.readSubscriberIds();
+        expect(recorded['news_oslo'], allOf(isNotNull, isNot(lateSubscriber)));
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect(await store.readSubscriberIds(), recorded);
+      },
+    );
+
+    testWidgets(
+      'an unsubscribe that answers late forgets its topic only while the '
+      'stored id is still the subscriber it deleted: an entry recorded since '
+      'belongs to a live subscriber, and forgetting it would leave that '
+      'subscriber with no id on this device',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        final service = _DeviceService(account, messaging);
+        await reconcileFor(tester, service);
+        final oldTarget = await store.readTargetId();
+
+        account.intent = {...account.intent, 'news': false};
+        final lateAnswer = messaging.holdDeleteResponse[1] = Completer<void>();
+        await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
+
+        // Before that answer arrives, news_oslo gets a new subscriber: the
+        // target is deleted on the server, and with news back on the next
+        // run subscribes this device afresh on a new one.
+        server.removeTarget(oldTarget!);
+        account.intent = {...account.intent, 'news': true};
+        expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
+        final recorded = await store.readSubscriberIds();
+        expect(recorded, contains('news_oslo'));
+        expect(recorded, await serverSubscribersOnStoredTarget(server));
+
+        lateAnswer.complete();
+        await tester.pump();
+        expect(await store.readSubscriberIds(), recorded);
+      },
+    );
+
+    testWidgets(
+      'a run records each change for its own topic alone, so a late answer '
+      'recorded while that run is still going survives it: writing back its '
+      'whole snapshot of the map would erase it',
+      (tester) async {
+        final server = _FakeServer();
+        final account = _FakeAccount(server);
+        final messaging = _FakeMessaging(server);
+        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final service = _DeviceService(account, messaging);
+        await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
+
+        // The student swaps news for events. The next run subscribes to
+        // events_oslo (create call 3), then parks on events_national (4).
+        account.intent = {...account.intent, 'news': false, 'events': true};
+        final parked = messaging.holdCreateRequest[4] = Completer<void>();
+        ReconcileOutcome? outcome;
+        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        await tester.pump();
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'events_oslo',
+        });
+
+        // The abandoned run's news_oslo answer lands in between.
+        lateAnswer.complete();
+        await tester.pump();
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'events_oslo',
+          'news_oslo',
+        });
+
+        parked.complete();
+        await tester.pump();
+        expect(outcome, ReconcileOutcome.applied);
+        expect((await store.readSubscriberIds()).keys, {
+          'general',
+          'events_oslo',
+          'news_oslo',
+          'events_national',
+        });
+        expect(
+          await store.readSubscriberIds(),
+          await serverSubscribersOnStoredTarget(server),
+        );
       },
     );
   });
