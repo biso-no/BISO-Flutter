@@ -1,10 +1,62 @@
 import 'dart:async';
 
 import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/models.dart' as models;
+import 'package:flutter/foundation.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/notification_topics.dart';
 import '../models/app_notification_model.dart';
 import 'appwrite_service.dart';
+
+/// Whether a `topic` announcement addressed to Appwrite topic id
+/// [audienceValue] should appear in a student's inbox, given their logical
+/// [topicIntent] (as returned by `NotificationService.loadTopicIntent()`) and
+/// their profile (home) campus [campusId].
+///
+/// [audienceValue] is a campus-scoped id such as `events_oslo` or
+/// `events_national` — never the bare logical topic — except for
+/// [kGeneralTopicId], which every device holds unconditionally and so is
+/// always visible, and except for historical rows written before campus
+/// scoping existed, whose `audience_value` is a bare logical topic such as
+/// `events`.
+///
+/// Push delivery is campus-scoped: a device only ever holds a subscription
+/// for [campusId]'s own scope (via [campusSlugFor]) and the national scope —
+/// see `NotificationService.reconcile()`. The inbox must draw the same line,
+/// or a student sees announcements addressed to campuses they were never
+/// pushed to. So a value naming a *known* topic is visible only when it names
+/// this student's own scope or the national scope, and then only if they
+/// haven't opted out of that logical topic ([topicIntent]; absent from the
+/// map defaults to visible, matching `reconcile()`'s own default-on for a
+/// topic never toggled). A value naming the *same* topic but a *different*
+/// campus's scope is hidden outright — that is the bug this guards against.
+/// A value that matches no known topic at all — [kGeneralTopicId], or a
+/// pre-migration bare topic id — defaults to visible.
+///
+/// Extracted as a top-level, `@visibleForTesting` function (rather than kept
+/// as a private instance method) following the pattern
+/// `decodeTopicSubscriptions` uses in `notification_service.dart`.
+@visibleForTesting
+bool isTopicAudienceVisible(
+  String audienceValue,
+  Map<String, bool> topicIntent, {
+  required String? campusId,
+}) {
+  if (audienceValue == kGeneralTopicId) return true;
+  final ownSlug = campusSlugFor(campusId);
+  for (final topic in NotificationTopic.values) {
+    if (audienceValue == '${topic.id}_$ownSlug' ||
+        audienceValue == '${topic.id}_$kNationalSlug') {
+      return topicIntent[topic.id] != false;
+    }
+    if (audienceValue.startsWith('${topic.id}_')) {
+      // A known topic, but scoped to some other campus than this student's.
+      return false;
+    }
+  }
+  return true;
+}
 
 /// Reads/writes the in-app notification inbox backed by the Appwrite
 /// `announcements` and `user_notifications` collections in database `app`.
@@ -16,9 +68,18 @@ class NotificationInboxService {
   static const String _userNotificationsTable = 'user_notifications';
   static const int _fetchLimit = 50;
 
+  /// The National campus, whose announcements concern every student.
+  static const String _nationalCampusId = '5';
+
   // Appwrite Query.equal('$id', [...]) supports a bounded list; chunk to stay
   // within reasonable request sizes.
   static const int _idChunkSize = 25;
+
+  /// [tablesDb] stands in for the shared [db] in tests.
+  NotificationInboxService({TablesDB? tablesDb}) : _tablesDbOverride = tablesDb;
+
+  final TablesDB? _tablesDbOverride;
+  TablesDB get _db => _tablesDbOverride ?? db;
 
   Realtime get _realtime => realtime;
 
@@ -32,18 +93,23 @@ class NotificationInboxService {
 
   /// Fetch the merged inbox for [userId] localized to [locale].
   ///
-  /// [topicSubscriptions] is the user's per-topic opt-in map (from
-  /// `NotificationService`). Broadcast announcements always appear; a `topic`
-  /// announcement is shown only when the user hasn't explicitly opted out of
-  /// that topic (default-show when the map is empty/unknown).
+  /// [campusId] is the student's profile (home) campus. [topicIntent] is
+  /// their logical topic intent — `news`/`events`/`jobs`/`shop` — as returned
+  /// by `NotificationService.loadTopicIntent()`. Broadcast announcements
+  /// always appear; a `topic` announcement (whose `audience_value` is a
+  /// campus-scoped Appwrite topic id, e.g. `events_oslo`) is shown only when
+  /// it is scoped to this student's campus (or national) and they haven't
+  /// explicitly opted out of that topic's logical intent (default-show when
+  /// the topic is absent from the map — see [isTopicAudienceVisible]).
   Future<List<AppNotification>> fetchInbox({
     required String userId,
     required String locale,
-    Map<String, bool> topicSubscriptions = const {},
+    required String? campusId,
+    Map<String, bool> topicIntent = const {},
   }) async {
     try {
       // 1. Targeted notifications for this user (read state + row id).
-      final userRows = await db.listRows(
+      final userRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _userNotificationsTable,
         queries: [
@@ -65,7 +131,7 @@ class NotificationInboxService {
       // 2. Broadcast feed: sent announcements addressed to everyone. Query
       // broadcasts and topics separately, each with its own limit, so a busy
       // topic backlog can't push broadcasts out of the limited result set.
-      final broadcastRows = await db.listRows(
+      final broadcastRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
@@ -75,24 +141,17 @@ class NotificationInboxService {
           Query.limit(_fetchLimit),
         ],
       );
-      final topicRows = await db.listRows(
-        databaseId: AppConstants.databaseId,
-        tableId: _announcementsTable,
-        queries: [
-          Query.equal('status', 'sent'),
-          Query.equal('audience_type', 'topic'),
-          Query.orderDesc('sent_at'),
-          Query.limit(_fetchLimit),
-        ],
-      );
+      final topicRows = await _fetchTopicRows(campusId);
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
         announcementById[row.$id] = _rowToMap(row);
       }
-      for (final row in topicRows.rows) {
-        // Hide topic announcements the user has opted out of.
-        if (!_isTopicVisible(row.data, topicSubscriptions)) continue;
+      for (final row in topicRows) {
+        // Hide topic announcements scoped to another campus, or opted out of.
+        if (!_isTopicVisible(row.data, topicIntent, campusId: campusId)) {
+          continue;
+        }
         announcementById[row.$id] = _rowToMap(row);
       }
 
@@ -102,7 +161,7 @@ class NotificationInboxService {
           .toList();
       for (final chunk in _chunk(missingIds, _idChunkSize)) {
         if (chunk.isEmpty) continue;
-        final rows = await db.listRows(
+        final rows = await _db.listRows(
           databaseId: AppConstants.databaseId,
           tableId: _announcementsTable,
           queries: [
@@ -133,6 +192,69 @@ class NotificationInboxService {
     }
   }
 
+  /// The newest [_fetchLimit] sent `topic` announcements that can concern a
+  /// student on [campusId], newest first.
+  ///
+  /// Filtered by campus on the server, on the indexed `campus_id`, before the
+  /// limit applies. Filtering only afterwards, on the client, let other
+  /// campuses' announcements fill the limit: once they had published
+  /// [_fetchLimit] newer ones, this student's own were never fetched at all.
+  /// `audience_value` has no index and is not filtered on here; the caller
+  /// still applies [_isTopicVisible], which checks it and the opt-outs.
+  ///
+  /// Two reads, merged: one for the student's campus and National, and one
+  /// for rows with no campus, which is how an "All campuses" send is stored.
+  /// Null cannot be matched inside an `equal` list, so it gets a read, and a
+  /// limit, of its own.
+  ///
+  /// So a historical row whose `audience_value` is a bare logical topic, such
+  /// as `events`, now reaches only students on its own campus or National, or
+  /// everyone when its `campus_id` is null. It used to be fetched, and shown,
+  /// for every campus.
+  Future<List<models.Row>> _fetchTopicRows(String? campusId) async {
+    final campusIds = <String>{
+      if (campusId != null && campusId.isNotEmpty) campusId,
+      _nationalCampusId,
+    }.toList();
+
+    List<String> topicQueries(String campusFilter) => [
+      Query.equal('status', 'sent'),
+      Query.equal('audience_type', 'topic'),
+      campusFilter,
+      Query.orderDesc('sent_at'),
+      Query.limit(_fetchLimit),
+    ];
+
+    final reads = await Future.wait([
+      _db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: _announcementsTable,
+        queries: topicQueries(Query.equal('campus_id', campusIds)),
+      ),
+      _db.listRows(
+        databaseId: AppConstants.databaseId,
+        tableId: _announcementsTable,
+        queries: topicQueries(Query.isNull('campus_id')),
+      ),
+    ]);
+
+    final rowsById = <String, models.Row>{
+      for (final read in reads)
+        for (final row in read.rows) row.$id: row,
+    };
+    final newestFirst = rowsById.values.toList()
+      ..sort((a, b) => _sentAt(b).compareTo(_sentAt(a)));
+    return newestFirst.take(_fetchLimit).toList();
+  }
+
+  /// When [row] was sent, for ordering. A row without a readable `sent_at`
+  /// sorts last.
+  static DateTime _sentAt(models.Row row) {
+    final value = row.data['sent_at'];
+    return (value is String ? DateTime.tryParse(value) : null) ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
   /// Fetch a single announcement by [announcementId] localized to [locale].
   ///
   /// When [userId] is provided, also looks up the matching `user_notifications`
@@ -144,7 +266,7 @@ class NotificationInboxService {
     String? userId,
   }) async {
     try {
-      final announcementRows = await db.listRows(
+      final announcementRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
@@ -163,7 +285,7 @@ class NotificationInboxService {
       String? userNotificationId;
 
       if (userId != null && userId.isNotEmpty) {
-        final userRows = await db.listRows(
+        final userRows = await _db.listRows(
           databaseId: AppConstants.databaseId,
           tableId: _userNotificationsTable,
           queries: [
@@ -206,7 +328,7 @@ class NotificationInboxService {
   }) async {
     try {
       if (notification.userNotificationId != null) {
-        await db.updateRow(
+        await _db.updateRow(
           databaseId: AppConstants.databaseId,
           tableId: _userNotificationsTable,
           rowId: notification.userNotificationId!,
@@ -215,7 +337,7 @@ class NotificationInboxService {
         return;
       }
 
-      await db.createRow(
+      await _db.createRow(
         databaseId: AppConstants.databaseId,
         tableId: _userNotificationsTable,
         rowId: ID.unique(),
@@ -264,17 +386,22 @@ class NotificationInboxService {
     return data;
   }
 
-  /// A `topic` announcement is visible only when the user is subscribed to its
-  /// topic; broadcasts (and any non-topic audience) are always visible.
-  /// Default-show when the topic isn't present in the map.
+  /// A `topic` announcement is visible only when it is scoped to [campusId]
+  /// (or national) and the user hasn't opted out of its topic; broadcasts
+  /// (and any non-topic audience) are always visible.
   bool _isTopicVisible(
     Map<String, dynamic> data,
-    Map<String, bool> topicSubscriptions,
-  ) {
+    Map<String, bool> topicIntent, {
+    required String? campusId,
+  }) {
     if (data['audience_type'] != 'topic') return true;
-    final topic = data['audience_value'] as String?;
-    if (topic == null || topic.isEmpty) return true;
-    return topicSubscriptions[topic] != false;
+    final audienceValue = data['audience_value'] as String?;
+    if (audienceValue == null || audienceValue.isEmpty) return true;
+    return isTopicAudienceVisible(
+      audienceValue,
+      topicIntent,
+      campusId: campusId,
+    );
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {

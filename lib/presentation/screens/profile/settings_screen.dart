@@ -5,28 +5,17 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/notification_topics.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/privacy/privacy_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../../providers/ui/theme_mode_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
+import '../../../data/services/notification_service.dart' show ReconcileOutcome;
 import '../../../data/services/validator_service.dart';
-import '../../../data/services/feature_flag_service.dart';
 import '../../widgets/premium/notification_tile.dart';
 import 'settings_screen_chat_tab.dart';
-
-// Feature flag provider for expenses
-final _featureFlagServiceProvider = Provider<FeatureFlagService>(
-  (ref) => FeatureFlagService(),
-);
-
-final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((
-  ref,
-) async {
-  final service = ref.watch(_featureFlagServiceProvider);
-  return service.isEnabled('expenses');
-});
 
 // Settings providers
 final appSettingsProvider =
@@ -602,6 +591,10 @@ class _NotificationSettingsTab extends ConsumerWidget {
     final theme = Theme.of(context);
     final selectedCampus = ref.watch(selectedCampusProvider);
     final notificationPrefsAsync = ref.watch(notificationPreferencesProvider);
+    final topicIntentAsync = ref.watch(topicIntentProvider);
+    final homeCampusId = ref.watch(
+      authStateProvider.select((state) => state.user?.campusId),
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
@@ -618,118 +611,132 @@ class _NotificationSettingsTab extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          notificationPrefsAsync.when(
-            data: (preferences) => Card(
+          topicIntentAsync.when(
+            data: (intent) => Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
-                  buildNotificationTile(
-                    context: context,
-                    ref: ref,
-                    icon: Icons.event_outlined,
-                    iconColor: AppColors.accentBlue,
-                    title: 'Events',
-                    subtitle: 'New campus events and activities',
-                    isEnabled: preferences['events'] ?? true,
-                    onChanged: (value) {
-                      ref
-                          .read(notificationPreferencesProvider.notifier)
-                          .updateTopicSubscription('events', value);
-                    },
-                    selectedCampus: selectedCampus,
+                  for (final topic in NotificationTopic.values) ...[
+                    if (topic != NotificationTopic.values.first) buildDivider(),
+                    buildNotificationTile(
+                      context: context,
+                      ref: ref,
+                      icon: _topicIcon(topic),
+                      iconColor: _topicColor(topic),
+                      title: topic.label,
+                      subtitle: _topicSubtitle(topic),
+                      isEnabled: intent[topic.id] ?? false,
+                      onChanged: (value) async {
+                        final result = await ref
+                            .read(topicIntentProvider.notifier)
+                            .setTopic(topic.id, value);
+                        if (!context.mounted) return;
+                        switch (result) {
+                          case null:
+                            // The save itself failed - nothing was recorded.
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Could not update ${topic.label} notifications. '
+                                  'Check your connection and try again.',
+                                ),
+                              ),
+                            );
+                            break;
+                          case ReconcileOutcome.applied:
+                            // Saved and this device is subscribed. No snackbar.
+                            break;
+                          case ReconcileOutcome.permissionDenied:
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Saved. Turn on notifications in your device '
+                                  'settings to receive them.',
+                                ),
+                              ),
+                            );
+                            break;
+                          case ReconcileOutcome.unavailable:
+                          case ReconcileOutcome.partiallyFailed:
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Saved, but this device could not be updated. '
+                                  'It will retry next time you open the app.',
+                                ),
+                              ),
+                            );
+                            break;
+                        }
+                      },
+                      selectedCampus: selectedCampus,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            loading: () => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, _) => Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(
+                    'Could not load your notification settings.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
                   ),
-                  buildDivider(),
-                  buildNotificationTile(
-                    context: context,
-                    ref: ref,
-                    icon: Icons.shopping_bag_outlined,
-                    iconColor: AppColors.green9,
-                    title: 'Marketplace',
-                    subtitle: 'New products and special deals',
-                    isEnabled: preferences['products'] ?? true,
-                    onChanged: (value) {
-                      ref
-                          .read(notificationPreferencesProvider.notifier)
-                          .updateTopicSubscription('products', value);
-                    },
-                    selectedCampus: selectedCampus,
-                  ),
-                  buildDivider(),
-                  buildNotificationTile(
-                    context: context,
-                    ref: ref,
-                    icon: Icons.work_outline,
-                    iconColor: AppColors.purple9,
-                    title: 'Job Opportunities',
-                    subtitle: 'Volunteer work and job postings',
-                    isEnabled: preferences['jobs'] ?? true,
-                    onChanged: (value) {
-                      ref
-                          .read(notificationPreferencesProvider.notifier)
-                          .updateTopicSubscription('jobs', value);
-                    },
-                    selectedCampus: selectedCampus,
-                  ),
-                  // Expense feature - only show when enabled
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final expenseFlagAsync = ref.watch(
-                        expenseFeatureFlagProvider,
-                      );
-                      return expenseFlagAsync.when(
-                        data: (enabled) => enabled
-                            ? Column(
-                                children: [
-                                  buildDivider(),
-                                  buildNotificationTile(
-                                    context: context,
-                                    ref: ref,
-                                    icon: Icons.receipt_outlined,
-                                    iconColor: AppColors.orange9,
-                                    title: 'Expenses',
-                                    subtitle: 'Reimbursement status updates',
-                                    isEnabled: preferences['expenses'] ?? false,
-                                    onChanged: (value) {
-                                      ref
-                                          .read(
-                                            notificationPreferencesProvider
-                                                .notifier,
-                                          )
-                                          .updateTopicSubscription(
-                                            'expenses',
-                                            value,
-                                          );
-                                    },
-                                    selectedCampus: selectedCampus,
-                                  ),
-                                ],
-                              )
-                            : const SizedBox.shrink(),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, _) => const SizedBox.shrink(),
-                      );
-                    },
-                  ),
-                  buildDivider(),
-                  buildNotificationTile(
-                    context: context,
-                    ref: ref,
-                    icon: Icons.chat_outlined,
-                    iconColor: AppColors.defaultBlue,
-                    title: 'Chat Messages',
-                    subtitle: 'New messages and conversations',
-                    isEnabled: preferences['chat_notifications'] ?? true,
-                    onChanged: (value) {
-                      ref
-                          .read(notificationPreferencesProvider.notifier)
-                          .updateChatNotifications(value);
-                    },
-                    selectedCampus: selectedCampus,
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () =>
+                        ref.read(topicIntentProvider.notifier).refresh(),
+                    child: const Text('Retry'),
                   ),
                 ],
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 4),
+            child: Text(
+              homeCampusId == null
+                  ? 'You will receive national updates. Set your campus in your profile '
+                        'to also get campus news.'
+                  : 'You receive updates for your campus and national updates.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          notificationPrefsAsync.when(
+            data: (preferences) => Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: buildNotificationTile(
+                context: context,
+                ref: ref,
+                icon: Icons.chat_outlined,
+                iconColor: AppColors.defaultBlue,
+                title: 'Chat Messages',
+                subtitle: 'New messages and conversations',
+                isEnabled: preferences['chat_notifications'] ?? true,
+                onChanged: (value) {
+                  ref
+                      .read(notificationPreferencesProvider.notifier)
+                      .updateChatNotifications(value);
+                },
+                selectedCampus: selectedCampus,
               ),
             ),
             loading: () => const Card(
@@ -876,6 +883,27 @@ class _NotificationSettingsTab extends ConsumerWidget {
     }
   }
 }
+
+IconData _topicIcon(NotificationTopic topic) => switch (topic) {
+  NotificationTopic.news => Icons.article_outlined,
+  NotificationTopic.events => Icons.event_outlined,
+  NotificationTopic.jobs => Icons.work_outline,
+  NotificationTopic.shop => Icons.shopping_bag_outlined,
+};
+
+Color _topicColor(NotificationTopic topic) => switch (topic) {
+  NotificationTopic.news => AppColors.defaultBlue,
+  NotificationTopic.events => AppColors.accentBlue,
+  NotificationTopic.jobs => AppColors.purple9,
+  NotificationTopic.shop => AppColors.green9,
+};
+
+String _topicSubtitle(NotificationTopic topic) => switch (topic) {
+  NotificationTopic.news => 'Articles and updates from BISO',
+  NotificationTopic.events => 'New campus events and activities',
+  NotificationTopic.jobs => 'Volunteer and job opportunities',
+  NotificationTopic.shop => 'New items and offers in the BISO shop',
+};
 
 class _PrivacySettingsTab extends ConsumerWidget {
   @override

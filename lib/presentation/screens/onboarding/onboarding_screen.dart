@@ -85,7 +85,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _nextStep() {
-    if (_currentStep < 2) {
+    if (_currentStep < 1) {
       setState(() => _currentStep++);
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -150,7 +150,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 icon: const Icon(Icons.arrow_back),
               )
             : null,
-        title: Text('${_currentStep + 1} / 3'),
+        title: Text('${_currentStep + 1} / 2'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -158,7 +158,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           children: [
             // Progress indicator
             LinearProgressIndicator(
-              value: (_currentStep + 1) / 3,
+              value: (_currentStep + 1) / 2,
               backgroundColor: AppColors.gray200,
               valueColor: const AlwaysStoppedAnimation<Color>(
                 AppColors.defaultBlue,
@@ -191,10 +191,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         onCampusSelected: (campusId) {
                           setState(() => _selectedCampusId = campusId);
                         },
-                        onNext: _nextStep,
-                      ),
-                      _NotificationPreferencesStep(
-                        onComplete: _completeOnboarding,
+                        onNext: _completeOnboarding,
                         isLoading: authState.isLoading,
                       ),
                     ],
@@ -434,12 +431,14 @@ class _CampusSelectionStep extends StatelessWidget {
   final String? selectedCampusId;
   final Function(String) onCampusSelected;
   final VoidCallback onNext;
+  final bool isLoading;
 
   const _CampusSelectionStep({
     required this.campuses,
     required this.selectedCampusId,
     required this.onCampusSelected,
     required this.onNext,
+    required this.isLoading,
   });
 
   @override
@@ -542,120 +541,21 @@ class _CampusSelectionStep extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 20), // Extra padding for keyboard
             child: ElevatedButton(
-              onPressed: selectedCampusId != null ? onNext : null,
-              child: Text(l10n.continueButtonMessage),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NotificationPreferencesStep extends StatefulWidget {
-  final VoidCallback onComplete;
-  final bool isLoading;
-
-  const _NotificationPreferencesStep({
-    required this.onComplete,
-    required this.isLoading,
-  });
-
-  @override
-  State<_NotificationPreferencesStep> createState() =>
-      _NotificationPreferencesStepState();
-}
-
-class _NotificationPreferencesStepState
-    extends State<_NotificationPreferencesStep> {
-  final Map<String, bool> _preferences = {
-    'events': true,
-    'products': true,
-    'jobs': true,
-    'expenses': false,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            l10n.notificationsMessage,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: AppColors.strongBlue,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose what notifications you want to receive',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: Text(l10n.eventsMessage),
-                  subtitle: const Text('Get notified about new campus events'),
-                  value: _preferences['events']!,
-                  onChanged: (value) =>
-                      setState(() => _preferences['events'] = value),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: Text(l10n.marketplaceMessage),
-                  subtitle: const Text('New items in the marketplace'),
-                  value: _preferences['products']!,
-                  onChanged: (value) =>
-                      setState(() => _preferences['products'] = value),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: Text(l10n.jobsMessage),
-                  subtitle: const Text('Volunteer and job opportunities'),
-                  value: _preferences['jobs']!,
-                  onChanged: (value) =>
-                      setState(() => _preferences['jobs'] = value),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  title: Text(l10n.expensesMessage),
-                  subtitle: const Text('Expense reimbursement updates'),
-                  value: _preferences['expenses']!,
-                  onChanged: (value) =>
-                      setState(() => _preferences['expenses'] = value),
-                ),
-              ],
-            ),
-          ),
-
-          const Spacer(),
-
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20), // Extra padding for keyboard
-            child: ElevatedButton(
-              onPressed: widget.isLoading ? null : widget.onComplete,
-              child: widget.isLoading
+              onPressed: (selectedCampusId != null && !isLoading)
+                  ? onNext
+                  : null,
+              child: isLoading
                   ? const SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
                       ),
                     )
-                  : const Text('Complete Setup'),
+                  : Text(l10n.completeSetupMessage),
             ),
           ),
         ],
