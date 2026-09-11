@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../constants/app_colors.dart';
+import 'biso_colors.dart';
 import 'biso_chrome.dart';
 
 class BisoNavDestination {
@@ -179,6 +179,10 @@ class BisoNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final selectedFill = palette.ink.withValues(
+      alpha: theme.brightness == Brightness.dark ? 0.12 : 0.08,
+    );
     final active = destinations[currentIndex];
     final duration = media.disableAnimations
         ? Duration.zero
@@ -218,7 +222,7 @@ class BisoNavigationBar extends StatelessWidget {
                                 onPressed: onExpand,
                                 icon: Icon(
                                   active.activeIcon ?? active.icon,
-                                  color: theme.colorScheme.onSurface,
+                                  color: palette.link,
                                   size: 26,
                                 ),
                               ),
@@ -241,8 +245,7 @@ class BisoNavigationBar extends StatelessWidget {
                                           padding: const EdgeInsets.all(5),
                                           child: Material(
                                             color: currentIndex == i
-                                                ? AppColors.biLightBlue
-                                                      .withValues(alpha: 0.17)
+                                                ? selectedFill
                                                 : Colors.transparent,
                                             borderRadius: BorderRadius.circular(
                                               30,
@@ -266,12 +269,8 @@ class BisoNavigationBar extends StatelessWidget {
                                                                 .icon,
                                                       size: 23,
                                                       color: currentIndex == i
-                                                          ? theme
-                                                                .colorScheme
-                                                                .onSurface
-                                                          : theme
-                                                                .colorScheme
-                                                                .onSurfaceVariant,
+                                                          ? palette.link
+                                                          : palette.ink,
                                                     ),
                                                     const SizedBox(height: 2),
                                                     Text(
@@ -286,9 +285,9 @@ class BisoNavigationBar extends StatelessWidget {
                                                             fontSize: 11,
                                                             fontWeight:
                                                                 FontWeight.w600,
-                                                            color: theme
-                                                                .colorScheme
-                                                                .onSurface,
+                                                            color: currentIndex == i
+                                                                ? palette.link
+                                                                : palette.ink,
                                                           ),
                                                     ),
                                                   ],

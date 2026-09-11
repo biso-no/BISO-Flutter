@@ -1,3 +1,4 @@
+import 'package:biso/core/theme/biso_colors.dart';
 import 'package:biso/core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -195,4 +196,30 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('active tab uses a neutral pill with link-colored icon and label', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app(index: 1));
+    const palette = BisoPalette.light;
+    Material pillFor(String label) => tester.widget<Material>(
+      find
+          .ancestor(of: find.text(label), matching: find.byType(Material))
+          .first,
+    );
+    Icon iconFor(String label) => tester.widget<Icon>(
+      find.descendant(
+        of: find
+            .ancestor(of: find.text(label), matching: find.byType(Column))
+            .first,
+        matching: find.byType(Icon),
+      ),
+    );
+    expect(pillFor('Explore').color, palette.ink.withValues(alpha: 0.08));
+    expect(pillFor('Home').color, Colors.transparent);
+    expect(tester.widget<Text>(find.text('Explore')).style!.color, palette.link);
+    expect(tester.widget<Text>(find.text('Home')).style!.color, palette.ink);
+    expect(iconFor('Explore').color, palette.link);
+    expect(iconFor('Home').color, palette.ink);
+  });
 }
