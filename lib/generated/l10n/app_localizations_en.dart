@@ -2118,4 +2118,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noSearchResultsMessage => 'No results found';
+
+  @override
+  String get loadingMessage => 'Loading';
 }

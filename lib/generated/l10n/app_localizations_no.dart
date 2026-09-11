@@ -2124,4 +2124,7 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get noSearchResultsMessage => 'Ingen treff';
+
+  @override
+  String get loadingMessage => 'Laster inn';
 }

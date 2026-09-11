@@ -2731,5 +2731,9 @@
     "description": "Auto-extracted string"
   },
   "searchExploreMessage": "Search Explore",
-  "noSearchResultsMessage": "No results found"
+  "noSearchResultsMessage": "No results found",
+  "loadingMessage": "Loading",
+  "@loadingMessage": {
+    "description": "Accessibility label for skeleton placeholders while content loads"
+  }
 }

@@ -3920,6 +3920,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No results found'**
   String get noSearchResultsMessage;
+
+  /// Accessibility label for skeleton placeholders while content loads
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get loadingMessage;
 }
 
 class _AppLocalizationsDelegate

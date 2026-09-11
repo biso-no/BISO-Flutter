@@ -2731,5 +2731,9 @@
     "description": "Auto-extracted string"
   },
   "searchExploreMessage": "Søk i Utforsk",
-  "noSearchResultsMessage": "Ingen treff"
+  "noSearchResultsMessage": "Ingen treff",
+  "loadingMessage": "Laster inn",
+  "@loadingMessage": {
+    "description": "Accessibility label for skeleton placeholders while content loads"
+  }
 }
