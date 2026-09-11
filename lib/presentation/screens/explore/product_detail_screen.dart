@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -448,7 +449,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       ),
                       if (product.isNegotiable)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.warning.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
@@ -472,7 +476,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     children: [
                       if (product.category.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
                             borderRadius: BorderRadius.circular(20),
@@ -489,7 +496,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         const SizedBox(width: 8),
                       if (product.condition.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
                             borderRadius: BorderRadius.circular(20),
@@ -550,7 +560,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             ),
           ],
         ),
-        child: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
           child: FilledButton.icon(
             onPressed: _contactSeller,
             icon: const Icon(Icons.message),
@@ -627,7 +638,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-
   Widget _buildSellerInfo(ProductModel product, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -694,7 +704,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ),
     );
   }
-
 
   String _contactMethodLabel(String method) {
     switch (method) {

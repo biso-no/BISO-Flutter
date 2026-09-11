@@ -1,7 +1,9 @@
+import '../../widgets/home/discovery_sections.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
@@ -13,8 +15,6 @@ import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../../presentation/widgets/premium/premium_components.dart';
 import '../../../presentation/widgets/premium/premium_layouts.dart';
-import '../../../presentation/widgets/premium/premium_navigation.dart';
-import '../../../presentation/widgets/premium/premium_html_renderer.dart';
 import '../../../presentation/widgets/dynamic_hero_carousel.dart';
 
 import '../../../providers/large_event/large_event_provider.dart';
@@ -40,95 +40,41 @@ class PremiumHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<PremiumHomeScreen> createState() => _PremiumHomeScreenState();
 }
 
-class _PremiumHomeScreenState extends ConsumerState<PremiumHomeScreen>
-    with TickerProviderStateMixin {
+class _PremiumHomeScreenState extends ConsumerState<PremiumHomeScreen> {
   int _selectedIndex = 0;
-  late AnimationController _heroAnimationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _heroAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
-
-    // Start the hero animation
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _heroAnimationController.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _heroAnimationController.dispose();
-    super.dispose();
-  }
-
-  void _navigateToTab(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
+  void _navigateToTab(int index) => setState(() => _selectedIndex = index);
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final authState = ref.watch(authStateProvider);
-
+    final auth = ref.watch(authStateProvider);
     final pages = [
       PremiumHomePage(navigateToTab: _navigateToTab),
       const ExploreScreen(),
-      authState.isAuthenticated
+      auth.isAuthenticated
           ? const ProfileScreen()
           : PremiumAuthRequiredPage(
               title: l10n.profile,
               description: l10n.manageYourAccountAndPreferencesMessage,
-              icon: Icons.person_outline_rounded,
+              icon: CupertinoIcons.person_crop_circle,
               navigateToTab: _navigateToTab,
             ),
     ];
-
-    return PremiumScaffold(
-      extendBodyBehindAppBar: true,
-      hasGradientBackground: true,
-      gradientColors: const [AppColors.pearl, Colors.white],
-      body: Stack(
-        children: [
-          // Main content
-          pages[_selectedIndex],
-
-          // Floating bottom navigation
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: PremiumBottomNav(
-              currentIndex: _selectedIndex,
-              onTap: _navigateToTab,
-              floating: true,
-              items: [
-                PremiumNavItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: l10n.home,
-                ),
-                PremiumNavItem(
-                  icon: Icons.explore_outlined,
-                  activeIcon: Icons.explore_rounded,
-                  label: l10n.explore,
-                ),
-                PremiumNavItem(
-                  icon: Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
-                  label: l10n.profile,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      //floatingActionButton: const AiAssistantFab(),
+    return BisoNavigationScaffold(
+      currentIndex: _selectedIndex,
+      routeKey: '$_selectedIndex',
+      onSelected: _navigateToTab,
+      destinations: [
+        BisoNavDestination(icon: CupertinoIcons.house, label: l10n.home),
+        BisoNavDestination(
+          icon: CupertinoIcons.square_grid_2x2,
+          label: l10n.explore,
+        ),
+        BisoNavDestination(
+          icon: CupertinoIcons.person_crop_circle,
+          label: l10n.profile,
+        ),
+      ],
+      child: pages[_selectedIndex],
     );
   }
 }
@@ -366,7 +312,7 @@ class PremiumHomePage extends ConsumerWidget {
           sectionName: 'events',
           campusId: campusId,
           contentBuilder: (items) =>
-              _PremiumEventCarousel(events: items.cast<EventModel>()),
+              BisoEventCarousel(events: items.cast<EventModel>()),
           ref: ref,
           providerFamily: _latestEventsProvider,
           context: context,
@@ -380,9 +326,9 @@ class PremiumHomePage extends ConsumerWidget {
           onViewAll: () => context.go('/explore/products'),
           asyncData: webshopProductsAsync,
           sectionName: 'webshop',
-          campusId: campus.name,
+          campusId: campusId,
           contentBuilder: (items) =>
-              _PremiumWebshopCarousel(products: items.cast<WebshopProduct>()),
+              BisoWebshopCarousel(products: items.cast<WebshopProduct>()),
           ref: ref,
           providerFamily: _latestWebshopProductsProvider,
           context: context,
@@ -397,15 +343,16 @@ class PremiumHomePage extends ConsumerWidget {
           asyncData: jobsAsync,
           sectionName: 'jobs',
           campusId: campusId,
-          contentBuilder: (items) =>
-              _PremiumJobList(jobs: items.cast<JobModel>()),
+          contentBuilder: (items) => BisoJobList(jobs: items.cast<JobModel>()),
           ref: ref,
           providerFamily: _latestJobsProvider,
           context: context,
         ),
 
-        // Bottom spacing for floating nav
-        const SliverToBoxAdapter(child: SizedBox(height: 120)),
+        // Trailing scroll space lets the final row clear the floating bar.
+        SliverToBoxAdapter(
+          child: SizedBox(height: 24 + BisoNavigationInset.of(context)),
+        ),
       ],
     );
   }
@@ -432,41 +379,17 @@ class PremiumHomePage extends ConsumerWidget {
         actionText: l10n.viewAllMessage,
         onActionTap: onViewAll,
         margin: const EdgeInsets.only(top: 32, bottom: 16),
-        child: SizedBox(
-          height: 320,
-          child: asyncData.when(
-            data: (items) {
-              if (items.isEmpty) {
-                AppLogger.warning(
-                  '[HOME] Content section rendered empty',
-                  extra: {'section': sectionName, 'campus_key': campusId},
-                );
-                return _PremiumEmptyState(
+        padding: EdgeInsets.zero,
+        child: asyncData.when(
+          data: (items) => items.isEmpty
+              ? _PremiumEmptyState(
                   message: l10n.nothingHereYetCheckBackSoonMessage,
-                );
-              }
-              AppLogger.debug(
-                '[HOME] Content section rendered items',
-                extra: {
-                  'section': sectionName,
-                  'campus_key': campusId,
-                  'count': items.length,
-                },
-              );
-              return contentBuilder(items);
-            },
-            loading: () => _PremiumLoadingCarousel(),
-            error: (error, stackTrace) {
-              AppLogger.error(
-                '[HOME] Content section rendered error',
-                error: error,
-                stackTrace: stackTrace,
-                extra: {'section': sectionName, 'campus_key': campusId},
-              );
-              return _PremiumErrorState(
-                onRetry: () => ref.invalidate(providerFamily(campusId)),
-              );
-            },
+                )
+              : contentBuilder(items),
+          loading: () =>
+              SizedBox(height: 180, child: _PremiumLoadingCarousel()),
+          error: (_, _) => _PremiumErrorState(
+            onRetry: () => ref.invalidate(providerFamily(campusId)),
           ),
         ),
       ),
@@ -531,7 +454,7 @@ class _CampusSwitcherModal extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 0.75,
       padding: EdgeInsets.zero,
       borderRadius: 24,
-      quality: GlassQuality.standard,
+
       child: Column(
         children: [
           // Handle
@@ -1078,371 +1001,6 @@ class _PatternPainter extends CustomPainter {
 }
 
 // === CONTENT CAROUSELS AND GRIDS ===
-
-class _PremiumEventCarousel extends StatelessWidget {
-  final List<EventModel> events;
-
-  const _PremiumEventCarousel({required this.events});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      itemCount: events.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 16),
-      itemBuilder: (context, index) {
-        final event = events[index];
-        return SizedBox(width: 280, child: _PremiumEventCard(event: event));
-      },
-    );
-  }
-}
-
-class _PremiumEventCard extends StatelessWidget {
-  final EventModel event;
-
-  const _PremiumEventCard({required this.event});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return PremiumCard(
-      padding: EdgeInsets.zero,
-      onTap: () => context.go('/explore/events'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image placeholder with date overlay
-          Container(
-            height: 140,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-              gradient: LinearGradient(colors: AppColors.eventGradient),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${event.startDate.day}/${event.startDate.month}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.charcoalBlack,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  event.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                const SizedBox(height: 8),
-
-                if (event.location != null && event.location!.isNotEmpty) ...[
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: AppColors.stoneGray,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          event.location!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.stoneGray,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
-
-                if (event.contactName != null &&
-                    event.contactName!.isNotEmpty) ...[
-                  Text(
-                    AppLocalizations.of(
-                      context,
-                    )!.byOrganizerNameMessage(event.contactName!),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.biLightBlue,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PremiumWebshopCarousel extends StatelessWidget {
-  final List<WebshopProduct> products;
-
-  const _PremiumWebshopCarousel({required this.products});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      itemCount: products.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 16),
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return SizedBox(
-          width: 280,
-          child: _PremiumWebshopProductCard(product: product),
-        );
-      },
-    );
-  }
-}
-
-class _PremiumWebshopProductCard extends StatelessWidget {
-  final WebshopProduct product;
-
-  const _PremiumWebshopProductCard({required this.product});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return PremiumCard(
-      padding: EdgeInsets.zero,
-      onTap: () {
-        context.pushNamed(
-          'webshop-product-detail',
-          pathParameters: {'productId': product.id},
-          extra: product,
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Product image with overlay
-          Container(
-            height: 140,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-              color: AppColors.gray100,
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                    child: product.images.isNotEmpty
-                        ? Image.network(
-                            product.images.first,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Container(
-                              decoration: BoxDecoration(
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(20),
-                                ),
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.biLightBlue,
-                                    AppColors.defaultBlue,
-                                  ],
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.storefront_outlined,
-                                  color: Colors.white,
-                                  size: 48,
-                                ),
-                              ),
-                            ),
-                          )
-                        : Container(
-                            decoration: BoxDecoration(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(20),
-                              ),
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.biLightBlue,
-                                  AppColors.defaultBlue,
-                                ],
-                              ),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.storefront_outlined,
-                                color: Colors.white,
-                                size: 48,
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-
-                // Price overlay
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'NOK ${product.regularPrice.toStringAsFixed(0)}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.charcoalBlack,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              product.title ?? '',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PremiumJobList extends StatelessWidget {
-  final List<JobModel> jobs;
-
-  const _PremiumJobList({required this.jobs});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      itemCount: jobs.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 16),
-      itemBuilder: (context, index) {
-        final job = jobs[index];
-        return SizedBox(width: 260, child: _PremiumJobCard(job: job));
-      },
-    );
-  }
-}
-
-class _PremiumJobCard extends StatelessWidget {
-  final JobModel job;
-
-  const _PremiumJobCard({required this.job});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return PremiumCard(
-      onTap: () => context.go('/explore/volunteer'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Job title with HTML rendering - flexible height
-          Flexible(
-            child: job.title.toCompactHtml(
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
-              maxLines: 3,
-              fontSize: 15,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Job description preview with HTML - made more compact
-          if (job.description.isNotEmpty)
-            Flexible(
-              child: job.description.toCompactHtml(
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.stoneGray,
-                  height: 1.2,
-                ),
-                maxLines: 2,
-                fontSize: 12,
-              ),
-            ),
-
-          const SizedBox(height: 12),
-
-          // Apply button - reduced padding
-          PremiumButton(
-            text: AppLocalizations.of(context)!.learnMoreMessage,
-            isSecondary: true,
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            onPressed: () => context.go('/explore/volunteer'),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // === LOADING AND ERROR STATES ===
 

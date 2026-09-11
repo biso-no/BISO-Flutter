@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +17,7 @@ class DeparturesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Departures')),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
         child: Column(
           children: [
             Row(
@@ -67,8 +68,13 @@ class DeparturesScreen extends ConsumerWidget {
                   });
                 } else {
                   final foundEntry = groupedByName.entries.firstWhere(
-                    (e) => e.value.any((s) => s.stopPlaceId == ui.selectedStopPlaceId),
-                    orElse: () => MapEntry(groupNames.first, groupedByName[groupNames.first]!),
+                    (e) => e.value.any(
+                      (s) => s.stopPlaceId == ui.selectedStopPlaceId,
+                    ),
+                    orElse: () => MapEntry(
+                      groupNames.first,
+                      groupedByName[groupNames.first]!,
+                    ),
                   );
                   selectedGroupName = foundEntry.key;
                 }
@@ -144,6 +150,10 @@ class _DepartureBoard extends StatelessWidget {
     }
 
     return ListView.separated(
+      padding: BisoNavigationInset.padding(
+        context,
+        const EdgeInsets.only(bottom: 16),
+      ),
       itemCount: filtered.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
@@ -177,104 +187,114 @@ class _DepartureTile extends StatelessWidget {
     return Opacity(
       opacity: departed ? 0.6 : 1,
       child: Container(
-      decoration: BoxDecoration(
-        color: isMetro
-            ? AppColors.subtleBlue
-            : AppColors.outlineVariant.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor:
-                isMetro ? AppColors.defaultBlue : AppColors.stoneGray,
-            child: Icon(
-              isMetro ? Icons.subway : Icons.directions_bus,
-              color: Colors.white,
+        decoration: BoxDecoration(
+          color: isMetro
+              ? AppColors.subtleBlue
+              : AppColors.outlineVariant.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: isMetro
+                  ? AppColors.defaultBlue
+                  : AppColors.stoneGray,
+              child: Icon(
+                isMetro ? Icons.subway : Icons.directions_bus,
+                color: Colors.white,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    call.destination,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    call.lineName,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  call.destination,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  _formatTime(call.expectedDepartureTime),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  call.lineName,
-                  style: Theme.of(context).textTheme.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatTime(call.expectedDepartureTime),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 2),
-              Row(children: [
-                if (call.realtime)
-                  const Icon(Icons.wifi_tethering,
-                      size: 14, color: AppColors.defaultBlue),
-                if (call.realtime) const SizedBox(width: 4),
-                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
-              ]),
-              if (deltaMinutes != 0) const SizedBox(height: 6),
-              if (deltaMinutes != 0)
+                const SizedBox(height: 2),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDelayed
-                            ? AppColors.orange3
-                            : AppColors.green3,
-                        borderRadius: BorderRadius.circular(999),
+                    if (call.realtime)
+                      const Icon(
+                        Icons.wifi_tethering,
+                        size: 14,
+                        color: AppColors.defaultBlue,
                       ),
-                      child: Text(
-                        isDelayed
-                            ? 'Delayed +${deltaMinutes}m'
-                            : 'Early ${deltaMinutes.abs()}m',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: isDelayed
-                                  ? AppColors.orange10
-                                  : AppColors.green10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    if (call.realtime) const SizedBox(width: 4),
                     Text(
-                      'Scheduled ${_formatTime(call.aimedDepartureTime)}',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: AppColors.gray600,
-                            decoration: TextDecoration.lineThrough,
-                          ),
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),
-            ],
-          ),
-        ],
-      ),
+                if (deltaMinutes != 0) const SizedBox(height: 6),
+                if (deltaMinutes != 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDelayed
+                              ? AppColors.orange3
+                              : AppColors.green3,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          isDelayed
+                              ? 'Delayed +${deltaMinutes}m'
+                              : 'Early ${deltaMinutes.abs()}m',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: isDelayed
+                                    ? AppColors.orange10
+                                    : AppColors.green10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Scheduled ${_formatTime(call.aimedDepartureTime)}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.gray600,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

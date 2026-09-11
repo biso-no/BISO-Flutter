@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,10 +53,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         centerTitle: true,
         actions: [
           if (!cart.isEmpty)
-            TextButton(
-              onPressed: _confirmClear,
-              child: const Text('Clear'),
-            ),
+            TextButton(onPressed: _confirmClear, child: const Text('Clear')),
         ],
       ),
       body: _buildBody(cart, theme),
@@ -361,7 +359,8 @@ class _CartSummaryBar extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

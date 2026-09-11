@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,7 +19,10 @@ class ChatSettingsTab extends ConsumerWidget {
     final notificationStatus = ref.watch(notificationStatusProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+      padding: BisoNavigationInset.padding(
+        context,
+        const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

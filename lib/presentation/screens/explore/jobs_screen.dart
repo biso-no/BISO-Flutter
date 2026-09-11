@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -350,7 +351,10 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                         )
                       : ListView.separated(
                           controller: _scrollController,
-                          padding: const EdgeInsets.all(16),
+                          padding: BisoNavigationInset.padding(
+                            context,
+                            const EdgeInsets.all(16),
+                          ),
                           itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
                           separatorBuilder: (context, index) =>
                               const SizedBox(height: 12),
@@ -389,7 +393,10 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     };
 
     if (_jobs.isEmpty) {
-      AppLogger.warning('[JOBS_SCREEN] No jobs loaded for campus', extra: extra);
+      AppLogger.warning(
+        '[JOBS_SCREEN] No jobs loaded for campus',
+        extra: extra,
+      );
     } else {
       AppLogger.info('[JOBS_SCREEN] Rendering loaded jobs', extra: extra);
     }

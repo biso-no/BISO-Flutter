@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/biso_glass.dart';
 import '../../../core/theme/premium_theme.dart';
@@ -258,14 +257,13 @@ class _PremiumIconButtonState extends State<PremiumIconButton>
         widget.iconColor ?? (isDark ? AppColors.mist : AppColors.stoneGray);
 
     if (widget.isGlass) {
-      Widget button = GlassIconButton(
+      Widget button = IconButton(
         icon: Icon(widget.icon, color: iconColor, size: widget.size * 0.45),
         onPressed: widget.onPressed,
-        size: widget.size,
-        shape: GlassIconButtonShape.circle,
-        settings: BisoGlass.fixedSurfaceSettings,
-        quality: GlassQuality.standard,
-        glowColor: AppColors.accentBlue,
+        constraints: BoxConstraints.tightFor(
+          width: widget.size,
+          height: widget.size,
+        ),
       );
 
       if (widget.tooltip != null) {
@@ -506,7 +504,7 @@ class PremiumContainer extends StatelessWidget {
         margin: margin,
         padding: padding ?? const EdgeInsets.all(20),
         borderRadius: borderRadius,
-        quality: GlassQuality.standard,
+
         child: gradientColors == null
             ? child
             : DecoratedBox(

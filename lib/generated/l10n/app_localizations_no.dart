@@ -2118,4 +2118,10 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get bisoWebsiteMessage => 'BISO.no';
+
+  @override
+  String get searchExploreMessage => 'Søk i Utforsk';
+
+  @override
+  String get noSearchResultsMessage => 'Ingen treff';
 }

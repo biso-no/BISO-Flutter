@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,10 +12,7 @@ import 'campus_detail_components.dart';
 class CampusDetailScreen extends ConsumerStatefulWidget {
   final String campusId;
 
-  const CampusDetailScreen({
-    super.key,
-    required this.campusId,
-  });
+  const CampusDetailScreen({super.key, required this.campusId});
 
   @override
   ConsumerState<CampusDetailScreen> createState() => _CampusDetailScreenState();
@@ -46,9 +44,10 @@ class _CampusDetailScreenState extends ConsumerState<CampusDetailScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
     );
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
-      CurvedAnimation(parent: _scaleController, curve: Curves.easeOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _scaleController, curve: Curves.easeOut));
 
     _scrollController.addListener(_onScroll);
     
@@ -112,9 +111,7 @@ class _CampusDetailScreenState extends ConsumerState<CampusDetailScreen>
             onPressed: () => NavigationUtils.goBackSafely(context),
           ),
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       ),
       error: (error, stack) => Scaffold(
         appBar: AppBar(
@@ -188,116 +185,122 @@ class _CampusDetailScreenState extends ConsumerState<CampusDetailScreen>
         }
 
         return Scaffold(
-      body: AnimatedBuilder(
-        animation: _fadeAnimation,
-        builder: (context, child) {
-          return FadeTransition(
-            opacity: _fadeAnimation,
-            child: ScaleTransition(
-              scale: _scaleAnimation,
-              child: CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  // Premium Parallax Header
-                  CampusParallaxHeader(
-                    campus: campus,
-                    onBackPressed: () => NavigationUtils.goBackSafely(context),
-                  ),
-                  
-                  // Quick Actions
-                  SliverToBoxAdapter(
-                    child: Transform.translate(
-                      offset: const Offset(0, -30),
-                      child: CampusQuickActions(
-                        onActionTap: _navigateToExplore,
+          body: AnimatedBuilder(
+            animation: _fadeAnimation,
+            builder: (context, child) {
+              return FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    slivers: [
+                      // Premium Parallax Header
+                      CampusParallaxHeader(
+                        campus: campus,
+                        onBackPressed: () =>
+                            NavigationUtils.goBackSafely(context),
                       ),
-                    ),
+
+                      // Quick Actions
+                      SliverToBoxAdapter(
+                        child: Transform.translate(
+                          offset: const Offset(0, -30),
+                          child: CampusQuickActions(
+                            onActionTap: _navigateToExplore,
+                          ),
+                        ),
+                      ),
+
+                      // Content
+                      SliverPadding(
+                        padding: BisoNavigationInset.padding(
+                          context,
+                          const EdgeInsets.fromLTRB(24, 0, 24, 88),
+                        ),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            const SizedBox(height: 16),
+
+                            // Benefit Cards
+                            CampusBenefitCard(
+                              title: l10n.forStudentsMessage,
+                              benefits: campus.studentBenefits,
+                              icon: Icons.school_outlined,
+                              color: AppColors.defaultBlue,
+                              animationDelay: 200,
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            CampusBenefitCard(
+                              title: l10n.forBusinessMessage,
+                              benefits: campus.businessBenefits,
+                              icon: Icons.business_outlined,
+                              color: AppColors.accentBlue,
+                              animationDelay: 400,
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            CampusBenefitCard(
+                              title: l10n.careerAdvantagesMessage,
+                              benefits: campus.careerAdvantages,
+                              icon: Icons.trending_up_outlined,
+                              color: AppColors.strongGold,
+                              animationDelay: 600,
+                            ),
+
+                            const SizedBox(height: 32),
+
+                            // Department Members Showcase
+                            CampusDepartmentShowcase(
+                              campusId: campus.id,
+                              animationDelay: 800,
+                            ),
+
+                            const SizedBox(height: 32),
+
+                            // Contact Information
+                            CampusContactCard(
+                              campus: campus,
+                              animationDelay: 1000,
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ],
                   ),
-                  
-                  // Content
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        const SizedBox(height: 16),
-                        
-                        // Benefit Cards
-                        CampusBenefitCard(
-                          title: l10n.forStudentsMessage,
-                          benefits: campus.studentBenefits,
-                          icon: Icons.school_outlined,
-                          color: AppColors.defaultBlue,
-                          animationDelay: 200,
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        CampusBenefitCard(
-                          title: l10n.forBusinessMessage,
-                          benefits: campus.businessBenefits,
-                          icon: Icons.business_outlined,
-                          color: AppColors.accentBlue,
-                          animationDelay: 400,
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        CampusBenefitCard(
-                          title: l10n.careerAdvantagesMessage,
-                          benefits: campus.careerAdvantages,
-                          icon: Icons.trending_up_outlined,
-                          color: AppColors.strongGold,
-                          animationDelay: 600,
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        
-                        // Department Members Showcase
-                        CampusDepartmentShowcase(
-                          campusId: campus.id,
-                          animationDelay: 800,
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        
-                        // Contact Information
-                        CampusContactCard(
-                          campus: campus,
-                          animationDelay: 1000,
-                        ),
-                      ]),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-      
-      // Floating Header
-      floatingActionButton: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        child: _showFloatingHeader
-            ? Container(
-                key: const ValueKey('floating_header'),
-                margin: const EdgeInsets.only(bottom: 60),
-                child: FloatingActionButton.extended(
-                  onPressed: () {
-                    _scrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  backgroundColor: AppColors.defaultBlue,
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.keyboard_arrow_up),
-                  label: Text(campus.name),
                 ),
-              )
-            : const SizedBox.shrink(key: ValueKey('no_header')),
-      ),
+              );
+            },
+          ),
+
+          // Floating Header
+          floatingActionButton: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _showFloatingHeader
+                ? Container(
+                    key: const ValueKey('floating_header'),
+                    margin: EdgeInsets.only(
+                      bottom: BisoNavigationInset.of(context),
+                    ),
+                    child: FloatingActionButton.extended(
+                      onPressed: () {
+                        _scrollController.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                      backgroundColor: AppColors.defaultBlue,
+                      foregroundColor: Colors.white,
+                      icon: const Icon(Icons.keyboard_arrow_up),
+                      label: Text(campus.name),
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('no_header')),
+          ),
         );
       },
     );

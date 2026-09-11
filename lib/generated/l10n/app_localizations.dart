@@ -3908,6 +3908,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'BISO.no'**
   String get bisoWebsiteMessage;
+
+  /// No description provided for @searchExploreMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Explore'**
+  String get searchExploreMessage;
+
+  /// No description provided for @noSearchResultsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'No results found'**
+  String get noSearchResultsMessage;
 }
 
 class _AppLocalizationsDelegate

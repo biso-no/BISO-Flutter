@@ -2,424 +2,146 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_colors.dart';
 
-/// Premium BISO Theme System
-///
-/// A sophisticated, luxury design system that moves beyond Material Design
-/// to create an exclusive experience for BI Business School students.
-///
-/// Key Principles:
-/// - Warm, cozy, super premium feel
-/// - Glass morphism and elegant shadows
-/// - BI brand colors as foundation
-/// - Sophisticated typography
-/// - Subtle animations and micro-interactions
+/// BISO foundations. Keep the established API while screens adopt the refresh.
 class PremiumTheme {
-  // === CORE THEME CONFIGURATION ===
+  static final lightTheme = _theme(Brightness.light);
+  static final darkTheme = _theme(Brightness.dark);
 
-  static ThemeData lightTheme = ThemeData(
-    useMaterial3: false, // Disable Material 3 for custom design
-    brightness: Brightness.light,
-
-    // === COLOR SCHEME ===
-    colorScheme: const ColorScheme.light(
-      // Primary uses the warm light blue from BI
-      primary: AppColors.biLightBlue,
-      onPrimary: Colors.white,
-
-      // Secondary uses sophisticated navy
-      secondary: AppColors.biNavy,
-      onSecondary: Colors.white,
-
-      // Background and surfaces with warm premium tones
-      surface: AppColors.pearl,
-      onSurface: AppColors.charcoalBlack,
-      surfaceContainerHighest: AppColors.cloud,
-
-      // Error states with sophisticated reds
-      error: Color(0xFFDC2626),
-      onError: Colors.white,
-
-      // Outline uses subtle premium grays
-      outline: AppColors.mist,
-      outlineVariant: AppColors.cloud,
-    ),
-
-    // === TYPOGRAPHY SYSTEM ===
-    textTheme: _premiumTextTheme,
-
-    // === APP BAR STYLING ===
-    appBarTheme: AppBarTheme(
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
-      foregroundColor: AppColors.charcoalBlack,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
-      centerTitle: false,
-      titleTextStyle: _premiumTextTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.charcoalBlack,
-      ),
-    ),
-
-    // === CARD STYLING ===
-    cardTheme: CardThemeData(
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: AppColors.white,
-      surfaceTintColor: Colors.transparent,
-    ),
-
-    // === BUTTON STYLING ===
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
+  static ThemeData _theme(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    final ink = dark ? const Color(0xFFF1F6FA) : AppColors.biNavy;
+    final muted = dark ? const Color(0xFFABC0D0) : const Color(0xFF526579);
+    final surface = dark ? const Color(0xFF102C46) : Colors.white;
+    final paper = dark ? const Color(0xFF071B2E) : const Color(0xFFF4F7FA);
+    final line = dark ? const Color(0xFF294158) : const Color(0xFFDCE5EC);
+    final primary = dark ? AppColors.biLightBlue : AppColors.biNavy;
+    final text = _premiumTextTheme.apply(bodyColor: ink, displayColor: ink);
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.biNavy,
+      brightness: brightness,
+      primary: primary,
+      onPrimary: dark ? AppColors.biNavy : Colors.white,
+      secondary: AppColors.biLightBlue,
+      onSecondary: AppColors.biNavy,
+      surface: surface,
+      onSurface: ink,
+      onSurfaceVariant: muted,
+      outline: muted,
+      outlineVariant: line,
+      surfaceContainerHighest: dark
+          ? const Color(0xFF183750)
+          : const Color(0xFFEAF0F5),
+    );
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+    );
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: scheme,
+      fontFamily: 'MuseoSans',
+      textTheme: text,
+      scaffoldBackgroundColor: paper,
+      appBarTheme: AppBarTheme(
         elevation: 0,
-        shadowColor: Colors.transparent,
-        backgroundColor: AppColors.biLightBlue,
-        foregroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        textStyle: _premiumTextTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
+        scrolledUnderElevation: 0,
+        backgroundColor: paper,
+        foregroundColor: ink,
+        centerTitle: false,
+        systemOverlayStyle: dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+        titleTextStyle: text.titleLarge,
       ),
-    ),
-
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: AppColors.biLightBlue,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        textStyle: _premiumTextTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ),
-
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.biLightBlue,
-        side: const BorderSide(color: AppColors.biLightBlue, width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        textStyle: _premiumTextTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ),
-
-    // === INPUT STYLING ===
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: AppColors.pearl,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppColors.cloud, width: 1),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppColors.biLightBlue, width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppColors.error, width: 1),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      hintStyle: _premiumTextTheme.bodyLarge?.copyWith(color: AppColors.mist),
-      labelStyle: _premiumTextTheme.bodyMedium?.copyWith(
-        color: AppColors.stoneGray,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-
-    // === DIVIDER STYLING ===
-    dividerTheme: const DividerThemeData(
-      color: AppColors.cloud,
-      thickness: 1,
-      space: 1,
-    ),
-
-    // === CHIP STYLING ===
-    chipTheme: ChipThemeData(
-      backgroundColor: AppColors.cloud,
-      labelStyle: _premiumTextTheme.bodySmall?.copyWith(
-        color: AppColors.stoneGray,
-        fontWeight: FontWeight.w500,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    ),
-
-    // === SCAFFOLD STYLING ===
-    scaffoldBackgroundColor: AppColors.pearl,
-
-    // === BOTTOM SHEET STYLING ===
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: AppColors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      elevation: 0,
-      shadowColor: Colors.transparent,
-    ),
-
-    // === DIALOG STYLING ===
-    dialogTheme: DialogThemeData(
-      backgroundColor: AppColors.white,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      titleTextStyle: _premiumTextTheme.headlineSmall?.copyWith(
-        color: AppColors.charcoalBlack,
-        fontWeight: FontWeight.w600,
-      ),
-      contentTextStyle: _premiumTextTheme.bodyLarge?.copyWith(
-        color: AppColors.stoneGray,
-        height: 1.5,
-      ),
-    ),
-
-    // === SWITCH STYLING ===
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) {
-          return AppColors.white;
-        }
-        return AppColors.mist;
-      }),
-      trackColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) {
-          return AppColors.biLightBlue;
-        }
-        return AppColors.cloud;
-      }),
-    ),
-
-    // === PROGRESS INDICATOR STYLING ===
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: AppColors.biLightBlue,
-      linearTrackColor: AppColors.cloud,
-      circularTrackColor: AppColors.cloud,
-    ),
-
-    // === ICON STYLING ===
-    iconTheme: const IconThemeData(color: AppColors.stoneGray, size: 24),
-
-    // === LIST TILE STYLING ===
-    listTileTheme: ListTileThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      tileColor: AppColors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      titleTextStyle: _premiumTextTheme.titleMedium?.copyWith(
-        color: AppColors.charcoalBlack,
-        fontWeight: FontWeight.w500,
-      ),
-      subtitleTextStyle: _premiumTextTheme.bodyMedium?.copyWith(
-        color: AppColors.stoneGray,
-      ),
-      iconColor: AppColors.stoneGray,
-    ),
-
-    // === NAVIGATION BAR (disable Material styling) ===
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.biLightBlue,
-      unselectedItemColor: AppColors.mist,
-    ),
-  );
-
-  // === DARK THEME ===
-  static ThemeData darkTheme = ThemeData(
-    useMaterial3: false,
-    brightness: Brightness.dark,
-
-    colorScheme: const ColorScheme.dark(
-      // Primary uses the warm light blue
-      primary: AppColors.biLightBlue,
-      onPrimary: AppColors.biNavy,
-
-      // Secondary uses the navy
-      secondary: AppColors.biNavy,
-      onSecondary: Colors.white,
-
-      // Dark surfaces with premium navy tones
-      surface: AppColors.charcoalBlack,
-      onSurface: AppColors.pearl,
-      surfaceContainerHighest: AppColors.smokeGray,
-
-      // Error states
-      error: Color(0xFFEF4444),
-      onError: Colors.white,
-
-      // Outline uses subtle grays
-      outline: AppColors.stoneGray,
-      outlineVariant: AppColors.smokeGray,
-    ),
-
-    textTheme: _premiumTextTheme.apply(
-      bodyColor: AppColors.pearl,
-      displayColor: AppColors.pearl,
-    ),
-
-    appBarTheme: AppBarTheme(
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
-      foregroundColor: AppColors.pearl,
-      systemOverlayStyle: SystemUiOverlayStyle.light,
-      centerTitle: false,
-      titleTextStyle: _premiumTextTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.pearl,
-      ),
-    ),
-
-    cardTheme: CardThemeData(
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: AppColors.smokeGray,
-      surfaceTintColor: Colors.transparent,
-    ),
-
-    scaffoldBackgroundColor: AppColors.charcoalBlack,
-
-    // === DARK CARD STYLING (already set above) ===
-
-    // === DARK BUTTON STYLING ===
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
+      cardTheme: CardThemeData(
         elevation: 0,
-        shadowColor: Colors.transparent,
-        backgroundColor: AppColors.biLightBlue,
-        foregroundColor: AppColors.biNavy,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        textStyle: _premiumTextTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w600,
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        margin: EdgeInsets.zero,
+        shape: shape,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: primary,
+          foregroundColor: scheme.onPrimary,
+          minimumSize: const Size(44, 50),
+          shape: const StadiumBorder(),
+          textStyle: text.labelLarge,
         ),
       ),
-    ),
-
-    // === DARK BOTTOM SHEET STYLING ===
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: AppColors.smokeGray,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(44, 50),
+          shape: const StadiumBorder(),
+          textStyle: text.labelLarge,
+        ),
       ),
-      elevation: 0,
-      shadowColor: Colors.transparent,
-    ),
-
-    // === DARK DIALOG STYLING ===
-    dialogTheme: DialogThemeData(
-      backgroundColor: AppColors.smokeGray,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      titleTextStyle: _premiumTextTheme.headlineSmall?.copyWith(
-        color: AppColors.pearl,
-        fontWeight: FontWeight.w600,
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
+          minimumSize: const Size(44, 44),
+          textStyle: text.labelLarge,
+        ),
       ),
-      contentTextStyle: _premiumTextTheme.bodyLarge?.copyWith(
-        color: AppColors.mist,
-        height: 1.5,
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: ink,
+          side: BorderSide(color: line),
+          minimumSize: const Size(44, 50),
+          shape: const StadiumBorder(),
+        ),
       ),
-    ),
-
-    // === DARK SWITCH STYLING ===
-    switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) {
-          return AppColors.pearl;
-        }
-        return AppColors.stoneGray;
-      }),
-      trackColor: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) {
-          return AppColors.biLightBlue;
-        }
-        return AppColors.smokeGray;
-      }),
-    ),
-
-    // === DARK ICON STYLING ===
-    iconTheme: const IconThemeData(color: AppColors.mist, size: 24),
-
-    // === DARK LIST TILE STYLING ===
-    listTileTheme: ListTileThemeData(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      tileColor: AppColors.smokeGray,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      titleTextStyle: _premiumTextTheme.titleMedium?.copyWith(
-        color: AppColors.pearl,
-        fontWeight: FontWeight.w500,
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: line),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: line),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.biLightBlue, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
+        hintStyle: text.bodyLarge?.copyWith(color: muted),
       ),
-      subtitleTextStyle: _premiumTextTheme.bodyMedium?.copyWith(
-        color: AppColors.mist,
+      dividerTheme: DividerThemeData(color: line, thickness: 0.5, space: 1),
+      iconTheme: IconThemeData(color: ink, size: 24),
+      listTileTheme: ListTileThemeData(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        iconColor: muted,
+        titleTextStyle: text.titleMedium,
+        subtitleTextStyle: text.bodyMedium?.copyWith(color: muted),
       ),
-      iconColor: AppColors.mist,
-    ),
-
-    // === DARK DIVIDER STYLING ===
-    dividerTheme: const DividerThemeData(
-      color: AppColors.smokeGray,
-      thickness: 1,
-      space: 1,
-    ),
-
-    // === DARK CHIP STYLING ===
-    chipTheme: ChipThemeData(
-      backgroundColor: AppColors.smokeGray,
-      labelStyle: _premiumTextTheme.bodySmall?.copyWith(
-        color: AppColors.mist,
-        fontWeight: FontWeight.w500,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        showDragHandle: true,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-    ),
-
-    // === DARK PROGRESS INDICATOR STYLING ===
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: AppColors.biLightBlue,
-      linearTrackColor: AppColors.smokeGray,
-      circularTrackColor: AppColors.smokeGray,
-    ),
-
-    // Dark theme input styling
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: AppColors.smokeGray,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+      dialogTheme: DialogThemeData(backgroundColor: surface, shape: shape),
+      chipTheme: ChipThemeData(
+        backgroundColor: surface,
+        selectedColor: AppColors.biLightBlue.withValues(alpha: 0.18),
+        side: BorderSide(color: line),
+        shape: const StadiumBorder(),
+        labelStyle: text.labelLarge?.copyWith(color: ink),
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppColors.stoneGray, width: 1),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.biLightBlue,
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppColors.biLightBlue, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      hintStyle: _premiumTextTheme.bodyLarge?.copyWith(
-        color: AppColors.stoneGray,
-      ),
-      labelStyle: _premiumTextTheme.bodyMedium?.copyWith(
-        color: AppColors.mist,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-  );
+    );
+  }
 
   // === PREMIUM TYPOGRAPHY SYSTEM ===
   static const TextTheme _premiumTextTheme = TextTheme(
@@ -429,21 +151,21 @@ class PremiumTheme {
       fontWeight: FontWeight.w300,
       letterSpacing: -0.25,
       height: 1.12,
-      fontFamily: 'SF Pro Display', // iOS-style font for premium feel
+      fontFamily: 'MuseoSans', // iOS-style font for premium feel
     ),
     displayMedium: TextStyle(
       fontSize: 45,
       fontWeight: FontWeight.w300,
       letterSpacing: 0,
       height: 1.16,
-      fontFamily: 'SF Pro Display',
+      fontFamily: 'MuseoSans',
     ),
     displaySmall: TextStyle(
       fontSize: 36,
       fontWeight: FontWeight.w400,
       letterSpacing: 0,
       height: 1.22,
-      fontFamily: 'SF Pro Display',
+      fontFamily: 'MuseoSans',
     ),
 
     // Headline styles - for section headers
@@ -452,21 +174,21 @@ class PremiumTheme {
       fontWeight: FontWeight.w600,
       letterSpacing: 0,
       height: 1.25,
-      fontFamily: 'SF Pro Display',
+      fontFamily: 'MuseoSans',
     ),
     headlineMedium: TextStyle(
       fontSize: 28,
       fontWeight: FontWeight.w600,
       letterSpacing: 0,
       height: 1.29,
-      fontFamily: 'SF Pro Display',
+      fontFamily: 'MuseoSans',
     ),
     headlineSmall: TextStyle(
       fontSize: 24,
       fontWeight: FontWeight.w600,
       letterSpacing: 0,
       height: 1.33,
-      fontFamily: 'SF Pro Display',
+      fontFamily: 'MuseoSans',
     ),
 
     // Title styles - for cards and lists
@@ -475,21 +197,21 @@ class PremiumTheme {
       fontWeight: FontWeight.w500,
       letterSpacing: 0,
       height: 1.27,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
     titleMedium: TextStyle(
       fontSize: 16,
       fontWeight: FontWeight.w500,
       letterSpacing: 0.15,
       height: 1.50,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
     titleSmall: TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w500,
       letterSpacing: 0.1,
       height: 1.43,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
 
     // Label styles - for buttons and chips
@@ -498,21 +220,21 @@ class PremiumTheme {
       fontWeight: FontWeight.w600,
       letterSpacing: 0.1,
       height: 1.43,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
     labelMedium: TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w600,
       letterSpacing: 0.5,
       height: 1.33,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
     labelSmall: TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w600,
       letterSpacing: 0.5,
       height: 1.45,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
 
     // Body styles - for content
@@ -521,21 +243,21 @@ class PremiumTheme {
       fontWeight: FontWeight.w400,
       letterSpacing: 0.15,
       height: 1.50,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
     bodyMedium: TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w400,
       letterSpacing: 0.25,
       height: 1.43,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
     bodySmall: TextStyle(
       fontSize: 12,
       fontWeight: FontWeight.w400,
       letterSpacing: 0.4,
       height: 1.33,
-      fontFamily: 'SF Pro Text',
+      fontFamily: 'MuseoSans',
     ),
   );
 
@@ -593,7 +315,10 @@ class PremiumTheme {
           : null,
       color: color ?? AppColors.white.withValues(alpha: opacity),
       boxShadow: mediumShadow,
-      border: Border.all(color: AppColors.white.withValues(alpha: 0.2), width: 1),
+      border: Border.all(
+        color: AppColors.white.withValues(alpha: 0.2),
+        width: 1,
+      ),
     );
   }
 

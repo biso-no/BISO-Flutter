@@ -5,14 +5,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/cupertino.dart';
 
 import 'firebase_options.dart';
-import 'core/theme/biso_glass.dart';
+import 'core/theme/biso_navigation.dart';
 import 'core/theme/premium_theme.dart';
 import 'core/logging/logging_config.dart';
-import 'core/constants/app_colors.dart';
 // Appwrite services are now globally initialized
 import 'generated/l10n/app_localizations.dart';
 import 'presentation/screens/auth/login_screen.dart';
@@ -90,12 +88,6 @@ void main() async {
 
   await ExpenseIntakeService.instance.initialize();
 
-  final prefs = await SharedPreferences.getInstance();
-  final initialGlassQuality = BisoGlass.parseQuality(
-    prefs.getString(BisoGlass.qualityPreferenceKey),
-  );
-  await LiquidGlassWidgets.initialize();
-
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -106,19 +98,7 @@ void main() async {
     ),
   );
 
-  runApp(
-    LiquidGlassWidgets.wrap(
-      adaptiveQuality: true,
-      adaptiveConfig: GlassAdaptiveScopeConfig(
-        initialQuality: initialGlassQuality ?? GlassQuality.standard,
-        allowStepUp: true,
-        onQualityChanged: (_, to) {
-          prefs.setString(BisoGlass.qualityPreferenceKey, to.name);
-        },
-      ),
-      child: const ProviderScope(child: BisoApp()),
-    ),
-  );
+  runApp(const ProviderScope(child: BisoApp()));
   WidgetsBinding.instance.addPostFrameCallback((_) {
     DeepLinkService().flushPendingLinks();
     ExpenseIntakeService.instance.handlePendingNativeEntrypoints();
@@ -198,12 +178,6 @@ class BisoApp extends ConsumerWidget {
       ],
       supportedLocales: const [Locale('en'), Locale('no')],
       routerConfig: _router,
-      builder: (context, child) {
-        return GlassTheme(
-          data: BisoGlass.theme,
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
     );
   }
 }
@@ -215,64 +189,63 @@ class BisoApp extends ConsumerWidget {
 @visibleForTesting
 List<RouteBase> productRoutes() {
   return [
-                GoRoute(
-                  path: '/new',
-                  name: 'product-new',
-                  builder: (context, state) => const SellProductScreen(),
-                ),
-                // Every static single-segment route below MUST stay above
-                // `/:productId`: go_router takes the first matching sibling,
-                // so a wildcard placed first swallows `/cart`, `/checkout`
-                // and `/orders` and renders a product detail screen for a
-                // product called "cart".
-                GoRoute(
-                  path: '/cart',
-                  name: 'shop-cart',
-                  builder: (context, state) => const CartScreen(),
-                ),
-                GoRoute(
-                  path: '/checkout',
-                  name: 'shop-checkout',
-                  builder: (context, state) => const CheckoutScreen(),
-                ),
-                // The buyer is sent here before leaving for the payment
-                // provider, and the return deep link lands here too — so
-                // there is always somewhere to come back to, whether they
-                // finish, cancel, or just switch away mid-payment.
-                GoRoute(
-                  path: '/order/:orderId',
-                  name: 'shop-order',
-                  builder: (context, state) => OrderScreen(
-                    orderId: state.pathParameters['orderId']!,
-                    initialStatus: state.uri.queryParameters['status'],
-                  ),
-                ),
-                GoRoute(
-                  path: '/orders',
-                  name: 'shop-orders',
-                  builder: (context, state) => const OrdersScreen(),
-                ),
-                GoRoute(
-                  path: '/:productId',
-                  name: 'product-detail',
-                  builder: (context, state) => ProductDetailScreen(
-                    productId: state.pathParameters['productId']!,
-                  ),
-                ),
-                GoRoute(
-                  path: '/webshop/:productId',
-                  name: 'webshop-product-detail',
-                  builder: (context, state) {
-                    final product = state.extra as WebshopProduct?;
-                    // Callers that only have the id (e.g. showcase CTA deep
-                    // links) omit `extra`; the screen fetches the product
-                    // itself in that case.
-                    return WebshopProductDetailScreen(
-                      product: product,
-                      productId: state.pathParameters['productId'],
-                    );
-                  },
-                ),
+    GoRoute(
+      path: '/new',
+      name: 'product-new',
+      builder: (context, state) => const SellProductScreen(),
+    ),
+    // Every static single-segment route below MUST stay above
+    // `/:productId`: go_router takes the first matching sibling,
+    // so a wildcard placed first swallows `/cart`, `/checkout`
+    // and `/orders` and renders a product detail screen for a
+    // product called "cart".
+    GoRoute(
+      path: '/cart',
+      name: 'shop-cart',
+      builder: (context, state) => const CartScreen(),
+    ),
+    GoRoute(
+      path: '/checkout',
+      name: 'shop-checkout',
+      builder: (context, state) => const CheckoutScreen(),
+    ),
+    // The buyer is sent here before leaving for the payment
+    // provider, and the return deep link lands here too — so
+    // there is always somewhere to come back to, whether they
+    // finish, cancel, or just switch away mid-payment.
+    GoRoute(
+      path: '/order/:orderId',
+      name: 'shop-order',
+      builder: (context, state) => OrderScreen(
+        orderId: state.pathParameters['orderId']!,
+        initialStatus: state.uri.queryParameters['status'],
+      ),
+    ),
+    GoRoute(
+      path: '/orders',
+      name: 'shop-orders',
+      builder: (context, state) => const OrdersScreen(),
+    ),
+    GoRoute(
+      path: '/:productId',
+      name: 'product-detail',
+      builder: (context, state) =>
+          ProductDetailScreen(productId: state.pathParameters['productId']!),
+    ),
+    GoRoute(
+      path: '/webshop/:productId',
+      name: 'webshop-product-detail',
+      builder: (context, state) {
+        final product = state.extra as WebshopProduct?;
+        // Callers that only have the id (e.g. showcase CTA deep
+        // links) omit `extra`; the screen fetches the product
+        // itself in that case.
+        return WebshopProductDetailScreen(
+          product: product,
+          productId: state.pathParameters['productId'],
+        );
+      },
+    ),
   ];
 }
 
@@ -349,9 +322,7 @@ final _router = GoRouter(
               path: '/products',
               name: 'products',
               builder: (context, state) => const market.MarketplaceScreen(),
-              routes: [
-              ...productRoutes(),
-              ],
+              routes: [...productRoutes()],
             ),
             GoRoute(
               path: '/units',
@@ -450,9 +421,8 @@ final _router = GoRouter(
     GoRoute(
       path: '/announcements/:id',
       name: 'announcement-detail',
-      builder: (context, state) => AnnouncementDetailScreen(
-        announcementId: state.pathParameters['id']!,
-      ),
+      builder: (context, state) =>
+          AnnouncementDetailScreen(announcementId: state.pathParameters['id']!),
     ),
   ],
 );
@@ -507,33 +477,28 @@ class _AppShellState extends ConsumerState<_AppShell> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      extendBody: true,
-      body: BisoGlassScope(child: widget.child),
-      bottomNavigationBar: BisoGlassBottomNavigation(
-        currentIndex: _selectedIndex,
-        onTap: _onTabChanged,
-        items: [
-          BisoGlassNavItem(
-            icon: Icons.home_outlined,
-            activeIcon: Icons.home_rounded,
-            label: l10n.homeMessage,
-            glowColor: AppColors.accentBlue,
-          ),
-          BisoGlassNavItem(
-            icon: Icons.explore_outlined,
-            activeIcon: Icons.explore_rounded,
-            label: l10n.exploreMessage,
-            glowColor: AppColors.biLightBlue,
-          ),
-          BisoGlassNavItem(
-            icon: Icons.person_outline_rounded,
-            activeIcon: Icons.person_rounded,
-            label: l10n.profileMessage,
-            glowColor: AppColors.accentBlue,
-          ),
-        ],
-      ),
+    return BisoNavigationScaffold(
+      routeKey: GoRouterState.of(context).uri.toString(),
+      currentIndex: _selectedIndex,
+      onSelected: _onTabChanged,
+      destinations: [
+        BisoNavDestination(
+          icon: CupertinoIcons.house,
+          activeIcon: CupertinoIcons.house_fill,
+          label: l10n.homeMessage,
+        ),
+        BisoNavDestination(
+          icon: CupertinoIcons.square_grid_2x2,
+          activeIcon: CupertinoIcons.square_grid_2x2_fill,
+          label: l10n.exploreMessage,
+        ),
+        BisoNavDestination(
+          icon: CupertinoIcons.person_crop_circle,
+          activeIcon: CupertinoIcons.person_crop_circle_fill,
+          label: l10n.profileMessage,
+        ),
+      ],
+      child: widget.child,
     );
   }
 }

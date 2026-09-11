@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -168,7 +169,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
         body: RefreshIndicator(
           onRefresh: _verify,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: BisoNavigationInset.padding(
+              context,
+              const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            ),
             children: [
               _StatusHeader(
                 status: status,

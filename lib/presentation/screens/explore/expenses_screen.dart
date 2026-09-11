@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -57,14 +58,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final filteredExpenses = _searchQuery.isEmpty
         ? filteredByStatus
         : filteredByStatus
-            .where(
-              (e) =>
-                  (e.description ?? '')
-                      .toLowerCase()
-                      .contains(_searchQuery) ||
-                  e.displayDepartment.toLowerCase().contains(_searchQuery),
-            )
-            .toList();
+              .where(
+                (e) =>
+                    (e.description ?? '').toLowerCase().contains(
+                      _searchQuery,
+                    ) ||
+                    e.displayDepartment.toLowerCase().contains(_searchQuery),
+              )
+              .toList();
 
     // Show loading state
     if (expensesState.isLoading && expensesState.expenses.isEmpty) {
@@ -297,7 +298,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     subtitle: 'No expenses match your current filter',
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: BisoNavigationInset.padding(
+                      context,
+                      const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                    ),
                     itemCount: filteredExpenses.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 12),
@@ -312,11 +316,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _startNewExpense(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New Expense'),
-        backgroundColor: AppColors.orange9,
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
+        child: FloatingActionButton.extended(
+          onPressed: () => _startNewExpense(context),
+          icon: const Icon(Icons.add),
+          label: const Text('New Expense'),
+          backgroundColor: AppColors.orange9,
+        ),
       ),
     );
   }
@@ -970,8 +977,9 @@ class _ExpenseDetailSheet extends ConsumerWidget {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
-                            final notifier =
-                                ref.read(expensesStateProvider.notifier);
+                            final notifier = ref.read(
+                              expensesStateProvider.notifier,
+                            );
                             Navigator.pop(context);
                             final result = await Navigator.push<ExpenseModel>(
                               context,

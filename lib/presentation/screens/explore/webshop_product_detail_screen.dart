@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -511,7 +512,9 @@ class _WebshopProductDetailScreenState
                           // Main Image
                           Expanded(
                             child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 16),
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
                               child: PageView.builder(
                                 onPageChanged: (index) {
                                   setState(() {
@@ -557,7 +560,9 @@ class _WebshopProductDetailScreenState
                                 (index) => Container(
                                   width: 8,
                                   height: 8,
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: _currentImageIndex == index
@@ -694,9 +699,7 @@ class _WebshopProductDetailScreenState
                       decoration: BoxDecoration(
                         color: AppColors.subtleBlue.withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.gray100,
-                        ),
+                        border: Border.all(color: AppColors.gray100),
                       ),
                       child: product.description!.toFullHtml(
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -775,7 +778,8 @@ class _WebshopProductDetailScreenState
           ),
         ],
       ),
-      child: SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
         child: Row(
           children: [
             Column(

@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -228,7 +229,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           keyboardDismissBehavior: Platform.isIOS
               ? ScrollViewKeyboardDismissBehavior.manual
               : ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.all(16),
+          padding: BisoNavigationInset.padding(
+            context,
+            const EdgeInsets.all(16),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

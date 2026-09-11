@@ -1,7 +1,9 @@
+import '../../../core/theme/biso_search_app_bar.dart';
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:io' show Platform;
 
@@ -16,11 +18,18 @@ import '../../../providers/ui/locale_provider.dart';
 import '../../../data/models/app_config.dart';
 import '../../../providers/config/app_config_provider.dart';
 
-class ExploreScreen extends ConsumerWidget {
+class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
+}
+
+class _ExploreScreenState extends ConsumerState<ExploreScreen> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -66,78 +75,33 @@ class ExploreScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    l10n.explore,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  const Spacer(),
-                  _LanguageSwitcher(
-                    currentLanguage: currentLocale.languageCode,
-                    onLanguageChanged: (languageCode) {
-                      ref.read(localeProvider.notifier).setLocale(languageCode);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(
-                                Icons.language,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Language changed to ${languageCode == 'en' ? 'English' : 'Norwegian'}.',
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ),
-                            ],
-                          ),
-                          backgroundColor: AppColors.defaultBlue,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          margin: const EdgeInsets.all(16),
-                          duration: const Duration(seconds: 3),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
+      appBar: BisoSearchAppBar(
+        toolbarHeight: 78,
+        title: l10n.explore,
+        hintText: l10n.searchExploreMessage,
+        onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
+        titleStyle: theme.textTheme.displaySmall?.copyWith(
+          fontWeight: FontWeight.w300,
+          letterSpacing: -1,
         ),
+        actions: [
+          _LanguageSwitcher(
+            currentLanguage: currentLocale.languageCode,
+            onLanguageChanged: (code) =>
+                ref.read(localeProvider.notifier).setLocale(code),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+        padding: BisoNavigationInset.padding(
+          context,
+          const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Featured Large Event banner
-            Consumer(
+            if (_query.isEmpty) Consumer(
               builder: (context, ref, _) {
                 final LargeEventModel? event = ref.watch(
                   featuredLargeEventProvider,
@@ -149,9 +113,9 @@ class ExploreScreen extends ConsumerWidget {
 
             const SizedBox(height: 16),
             Text(
-              'Categories',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+              l10n.discoverEventsAndOpportunitiesMessage,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 16),
@@ -163,9 +127,9 @@ class ExploreScreen extends ConsumerWidget {
                 final config = configAsync.valueOrNull ?? const AppConfig();
 
                 List<Widget> buildGrid() {
-                  final cards = <Widget>[
+                  final cards = <_CategoryCard>[
                     _CategoryCard(
-                      icon: Icons.event,
+                      icon: CupertinoIcons.calendar,
                       title: l10n.eventsMessage,
                       subtitle: l10n.campusEventsActivitiesMessage,
                       color: AppColors.accentBlue,
@@ -173,7 +137,7 @@ class ExploreScreen extends ConsumerWidget {
                     ),
                     if (config.departuresEnabled)
                       _CategoryCard(
-                        icon: Icons.departure_board,
+                        icon: CupertinoIcons.tram_fill,
                         title: l10n.departuresMessage,
                         subtitle: l10n.realtimeBusMetroMessage,
                         color: AppColors.defaultBlue,
@@ -181,14 +145,14 @@ class ExploreScreen extends ConsumerWidget {
                       ),
                     if (config.marketplaceEnabled)
                       _CategoryCard(
-                        icon: Icons.shopping_bag,
+                        icon: CupertinoIcons.bag,
                         title: l10n.bisoShopMessage,
                         subtitle: l10n.buySellItemsMessage,
                         color: AppColors.green9,
                         onTap: () => context.go('/explore/products'),
                       ),
                     _CategoryCard(
-                      icon: Icons.groups,
+                      icon: CupertinoIcons.person_2,
                       title: l10n.unitsMessage,
                       subtitle: l10n.studentOrganizationsMessage,
                       color: AppColors.purple9,
@@ -196,42 +160,44 @@ class ExploreScreen extends ConsumerWidget {
                     ),
                     if (config.expensesEnabled)
                       _CategoryCard(
-                        icon: Icons.receipt_long,
+                        icon: CupertinoIcons.doc_plaintext,
                         title: l10n.expensesMessage,
                         subtitle: l10n.expenseReimbursementsMessage,
                         color: AppColors.orange9,
                         onTap: () => context.go('/explore/expenses'),
                       ),
                     _CategoryCard(
-                      icon: Icons.volunteer_activism,
+                      icon: CupertinoIcons.briefcase,
                       title: l10n.volunteerMessage,
                       subtitle: l10n.volunteerOpportunitiesMessage,
                       color: AppColors.pink9,
                       onTap: () => context.go('/explore/volunteer'),
                     ),
                     _CategoryCard(
-                      icon: Icons.chat,
+                      icon: CupertinoIcons.bubble_left_bubble_right,
                       title: l10n.aiAssistantMessage,
                       subtitle: l10n.getHelpInformationMessage,
                       color: AppColors.defaultGold,
                       onTap: () => context.go('/explore/ai-chat'),
                     ),
                   ];
-                  return cards;
+                  final matches = cards.where((card) =>
+                    '${card.title} ${card.subtitle}'.toLowerCase().contains(_query)).toList();
+                  return matches.isEmpty
+                    ? [Padding(padding: const EdgeInsets.all(24), child: Text(l10n.noSearchResultsMessage))]
+                    : matches;
                 }
 
-                return GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.05,
-                  children: buildGrid(),
+                return Material(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(22),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(children: buildGrid()),
                 );
               },
             ),
 
+            if (_query.isEmpty) ...[
             const SizedBox(height: 32),
 
             // Quick Links Section
@@ -252,7 +218,9 @@ class ExploreScreen extends ConsumerWidget {
                           : AppColors.subtleBlue,
                       child: Icon(
                         Icons.web,
-                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
+                        color: isDark
+                            ? AppColors.skyBlue
+                            : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.bisoWebsiteMessage),
@@ -270,7 +238,9 @@ class ExploreScreen extends ConsumerWidget {
                           : AppColors.subtleBlue,
                       child: Icon(
                         Icons.calendar_today,
-                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
+                        color: isDark
+                            ? AppColors.skyBlue
+                            : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.academicCalendarMessage),
@@ -292,7 +262,9 @@ class ExploreScreen extends ConsumerWidget {
                           : AppColors.subtleBlue,
                       child: Icon(
                         Icons.library_books,
-                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
+                        color: isDark
+                            ? AppColors.skyBlue
+                            : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.libraryServicesMessage),
@@ -312,7 +284,9 @@ class ExploreScreen extends ConsumerWidget {
                           : AppColors.subtleBlue,
                       child: Icon(
                         Icons.support_agent,
-                        color: isDark ? AppColors.skyBlue : AppColors.defaultBlue,
+                        color: isDark
+                            ? AppColors.skyBlue
+                            : AppColors.defaultBlue,
                       ),
                     ),
                     title: Text(l10n.studentSupportMessage),
@@ -529,6 +503,7 @@ class ExploreScreen extends ConsumerWidget {
                 );
               },
             ),
+            ],
           ],
         ),
       ),
@@ -542,7 +517,6 @@ class _CategoryCard extends StatelessWidget {
   final String subtitle;
   final Color color;
   final VoidCallback onTap;
-
   const _CategoryCard({
     required this.icon,
     required this.title,
@@ -550,56 +524,42 @@ class _CategoryCard extends StatelessWidget {
     required this.color,
     required this.onTap,
   });
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return BisoGlassCard(
-      padding: EdgeInsets.zero,
-      borderRadius: 16,
-      quality: GlassQuality.minimal,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(height: 8), // Reduced from 12 to 8
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2), // Reduced from 4 to 2
-              Flexible(
-                child: Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    height: 1.2,
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 19, 18, 19),
+        child: Row(
+          children: [
+            Icon(icon, size: 25, color: theme.colorScheme.onSurface),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(fontSize: 21),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Icon(
+              CupertinoIcons.chevron_right,
+              size: 15,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
         ),
       ),
     );
@@ -619,7 +579,7 @@ class _LargeEventBanner extends StatelessWidget {
         width: double.infinity,
         padding: EdgeInsets.zero,
         borderRadius: 18,
-        quality: GlassQuality.standard,
+
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -686,7 +646,7 @@ class _LanguageSwitcherState extends State<_LanguageSwitcher> {
       child: BisoGlassContainer(
         padding: const EdgeInsets.all(12),
         borderRadius: 20,
-        quality: GlassQuality.standard,
+
         child: SizedBox(
           width: 24,
           height: 24,
@@ -719,7 +679,7 @@ class _LanguageSwitcherState extends State<_LanguageSwitcher> {
             margin: const EdgeInsets.all(16),
             padding: EdgeInsets.zero,
             borderRadius: 24,
-            quality: GlassQuality.standard,
+
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

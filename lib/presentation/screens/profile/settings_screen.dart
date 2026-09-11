@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -225,7 +226,10 @@ class _GeneralSettingsTab extends ConsumerWidget {
     final brandColor = _getCampusColor(selectedCampus.id);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+      padding: BisoNavigationInset.padding(
+        context,
+        const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -288,7 +292,11 @@ class _GeneralSettingsTab extends ConsumerWidget {
                         child: Text(
                           'Choose a theme or follow your system setting',
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -597,7 +605,10 @@ class _NotificationSettingsTab extends ConsumerWidget {
     );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+      padding: BisoNavigationInset.padding(
+        context,
+        const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -921,7 +932,10 @@ class _PrivacySettingsTab extends ConsumerWidget {
     final userPrivacyAsync = ref.watch(userPrivacyProvider(userId));
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+      padding: BisoNavigationInset.padding(
+        context,
+        const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1156,7 +1170,10 @@ class _LanguageSettingsTab extends ConsumerWidget {
     final selectedCampus = ref.watch(selectedCampusProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 132),
+      padding: BisoNavigationInset.padding(
+        context,
+        const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

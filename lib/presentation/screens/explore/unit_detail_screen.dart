@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,7 +27,11 @@ final _socialsProvider =
 class UnitDetailScreen extends ConsumerWidget {
   final String departmentId;
   final String departmentName;
-  const UnitDetailScreen({super.key, required this.departmentId, required this.departmentName});
+  const UnitDetailScreen({
+    super.key,
+    required this.departmentId,
+    required this.departmentName,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,6 +51,7 @@ class UnitDetailScreen extends ConsumerWidget {
             return const Center(child: Text('Not found'));
           }
           return SingleChildScrollView(
+            padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

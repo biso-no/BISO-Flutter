@@ -2729,5 +2729,7 @@
   "bisoWebsiteMessage": "BISO.no",
   "@bisoWebsiteMessage": {
     "description": "Auto-extracted string"
-  }
+  },
+  "searchExploreMessage": "Search Explore",
+  "noSearchResultsMessage": "No results found"
 }

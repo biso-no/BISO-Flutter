@@ -1,3 +1,5 @@
+import '../../../core/theme/biso_search_app_bar.dart';
+import '../../../core/theme/biso_navigation.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -179,6 +181,13 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() {
+        _search = null;
+        _resetWebshopPaging();
+      });
+      return;
+    }
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       final nextSearch = value.trim().isEmpty ? null : value.trim();
       AppLogger.info(
@@ -515,15 +524,15 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          effectiveMode == _ShopMode.marketplace
-              ? l10n.marketplaceMessage
-              : l10n.webshopMessage,
-        ),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: theme.appBarTheme.backgroundColor,
+      appBar: BisoSearchAppBar(
+        title: effectiveMode == _ShopMode.marketplace
+            ? l10n.marketplaceMessage : l10n.webshopMessage,
+        hintText: effectiveMode == _ShopMode.marketplace
+            ? l10n.searchMarketplaceMessage : l10n.searchWebshopMessage,
+        controller: _searchController,
+        searchEnabled: !(effectiveMode == _ShopMode.marketplace && _showFavorites),
+        debounce: Duration.zero,
+        onChanged: _onSearchChanged,
         leading: IconButton(
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/home'),
@@ -537,6 +546,7 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                   _showFavorites = !_showFavorites;
                   if (_showFavorites) {
                     // Clear search when switching to favorites
+                    _debounceTimer?.cancel();
                     _searchController.clear();
                     _search = null;
                   }
@@ -611,85 +621,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                 ),
               ),
             ),
-          // Search field
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextField(
-              controller: _searchController,
-              onChanged:
-                  effectiveMode == _ShopMode.marketplace && _showFavorites
-                  ? null
-                  : _onSearchChanged,
-              enabled:
-                  !(effectiveMode == _ShopMode.marketplace && _showFavorites),
-              decoration: InputDecoration(
-                hintText: effectiveMode == _ShopMode.marketplace
-                    ? (_showFavorites
-                          ? 'Search disabled in favorites'
-                          : 'Search marketplace')
-                    : 'Search webshop',
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                suffixIcon: _search != null
-                    ? IconButton(
-                        onPressed: () {
-                          AppLogger.info(
-                            '[MARKETPLACE_SCREEN] Search cleared',
-                            extra: {
-                              'previous_search': _search,
-                              'mode': effectiveMode.name,
-                            },
-                          );
-                          // A debounce started by the last keystroke would
-                          // otherwise fire ~500ms from now and resurrect the
-                          // search the user just cleared.
-                          _debounceTimer?.cancel();
-                          // TextEditingController.clear() does not fire
-                          // onChanged, so _onSearchChanged — the only other
-                          // place that resets paging on a search change —
-                          // never runs for this path. Without the reset
-                          // here, _computeWebshopList finds a non-empty
-                          // accumulator and keeps serving the previous
-                          // search's products even though the provider has
-                          // refetched under the new key, and _currentPage
-                          // stays advanced from the load-more this clear
-                          // just invalidated.
-                          _searchController.clear();
-                          setState(() {
-                            _search = null;
-                            _resetWebshopPaging();
-                          });
-                        },
-                        icon: const Icon(
-                          Icons.clear,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      )
-                    : null,
-                filled: true,
-                fillColor: AppColors.gray50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.outlineVariant),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.outlineVariant),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: AppColors.defaultBlue,
-                    width: 2,
-                  ),
-                ),
-              ),
-              textInputAction: TextInputAction.search,
-            ),
-          ),
-
           // Category Filter – premium pill row (marketplace only)
           if (effectiveMode == _ShopMode.marketplace)
             SizedBox(
@@ -796,7 +727,10 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                             ),
                           )
                         : GridView.builder(
-                            padding: const EdgeInsets.all(16),
+                            padding: BisoNavigationInset.padding(
+                              context,
+                              EdgeInsets.fromLTRB(16, 16, 16, effectiveMode == _ShopMode.marketplace ? 88 : 16),
+                            ),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
@@ -900,11 +834,14 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
         ],
       ),
       floatingActionButton: effectiveMode == _ShopMode.marketplace
-          ? FloatingActionButton.extended(
-              onPressed: () => context.go('/explore/products/new'),
-              icon: const Icon(Icons.add),
-              label: const Text('Sell Item'),
-              backgroundColor: AppColors.green9,
+          ? Padding(
+              padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
+              child: FloatingActionButton.extended(
+                onPressed: () => context.go('/explore/products/new'),
+                icon: const Icon(Icons.add),
+                label: const Text('Sell Item'),
+                backgroundColor: AppColors.green9,
+              ),
             )
           : null,
     );

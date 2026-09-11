@@ -1,6 +1,6 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../data/models/ai_chat_models.dart';
 import '../../../data/services/ai_chat_service.dart';
 import '../../../core/constants/app_colors.dart';
@@ -433,7 +433,12 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
                         children: [
                           Expanded(child: _buildMessagesList()),
                           if (_errorMessage != null) _buildErrorBar(),
-                          _buildChatInput(theme, isDark),
+                          Padding(
+                            padding: EdgeInsets.only(
+                              bottom: BisoNavigationInset.of(context),
+                            ),
+                            child: _buildChatInput(theme, isDark),
+                          ),
                         ],
                       ),
                     );
@@ -490,14 +495,12 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
         ],
       ),
       actions: [
-        GlassIconButton(
+        IconButton(
           onPressed: _clearChat,
           icon: Icon(
             Icons.refresh_rounded,
             color: isDark ? AppColors.pearl : AppColors.strongBlue,
           ),
-          settings: BisoGlass.fixedSurfaceSettings,
-          quality: GlassQuality.standard,
         ),
         const SizedBox(width: 8),
       ],
@@ -617,7 +620,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
       child: BisoGlassContainer(
         padding: EdgeInsets.zero,
         borderRadius: 28,
-        quality: GlassQuality.standard,
+
         child: ChatInputField(
           controller: _textController,
           onSend: _sendMessage,

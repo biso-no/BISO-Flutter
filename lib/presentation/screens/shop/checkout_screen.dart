@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -105,9 +106,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Widget _buildBody(bool isAuthenticated, bool cartIsEmpty, ThemeData theme) {
     if (!isAuthenticated) {
-      return _SignInPrompt(
-        onSignIn: () => context.push('/auth/login'),
-      );
+      return _SignInPrompt(onSignIn: () => context.push('/auth/login'));
     }
     if (cartIsEmpty) {
       return _CheckoutMessage(
@@ -145,7 +144,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       key: _formKey,
       autovalidateMode: AutovalidateMode.onUserInteractionIfError,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: BisoNavigationInset.padding(
+          context,
+          const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        ),
         children: [
           _SectionCard(
             step: 1,
@@ -576,10 +578,7 @@ class _OrderSummary extends StatelessWidget {
           ),
         const Divider(),
         if (quote.discountTotal > 0) ...[
-          _SummaryRow(
-            label: 'Subtotal',
-            value: formatNok(quote.originalTotal),
-          ),
+          _SummaryRow(label: 'Subtotal', value: formatNok(quote.originalTotal)),
           _SummaryRow(
             label: quote.memberDiscountPercent > 0
                 ? 'Member discount '

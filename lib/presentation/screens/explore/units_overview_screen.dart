@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -47,7 +48,7 @@ class UnitsOverviewScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                      'No active units here yet',
+                    'No active units here yet',
                     style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
@@ -77,7 +78,10 @@ class UnitsOverviewScreen extends ConsumerWidget {
               ),
 
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: BisoNavigationInset.padding(
+                  context,
+                  const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                ),
                 sliver: SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -109,7 +113,10 @@ class _DepartmentCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/explore/units/${dept.id}', extra: {'id': dept.id, 'name': dept.name}),
+        onTap: () => context.push(
+          '/explore/units/${dept.id}',
+          extra: {'id': dept.id, 'name': dept.name},
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

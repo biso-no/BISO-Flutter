@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/biso_glass.dart';
 import '../../../core/theme/premium_theme.dart';
@@ -11,7 +10,7 @@ import '../../../core/theme/premium_theme.dart';
 
 // === PREMIUM BUTTON SYSTEM ===
 
-class PremiumButton extends StatefulWidget {
+class PremiumButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final bool isLoading;
@@ -22,7 +21,6 @@ class PremiumButton extends StatefulWidget {
   final EdgeInsets? padding;
   final double? width;
   final double borderRadius;
-
   const PremiumButton({
     super.key,
     required this.text,
@@ -34,126 +32,67 @@ class PremiumButton extends StatefulWidget {
     this.customTextColor,
     this.padding,
     this.width,
-    this.borderRadius = 16,
+    this.borderRadius = 24,
   });
-
-  @override
-  State<PremiumButton> createState() => _PremiumButtonState();
-}
-
-class _PremiumButtonState extends State<PremiumButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: PremiumTheme.fastAnimation,
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
-      CurvedAnimation(parent: _controller, curve: PremiumTheme.premiumCurve),
-    );
-    _opacityAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
-      CurvedAnimation(parent: _controller, curve: PremiumTheme.premiumCurve),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isEnabled = widget.onPressed != null && !widget.isLoading;
-
-    final backgroundColor =
-        widget.customColor ??
-        (widget.isSecondary ? Colors.transparent : AppColors.biLightBlue);
-    final textColor =
-        widget.customTextColor ??
-        (widget.isSecondary ? AppColors.biLightBlue : Colors.white);
-
-    return GestureDetector(
-      onTapDown: isEnabled ? (_) => _controller.forward() : null,
-      onTapUp: isEnabled ? (_) => _controller.reverse() : null,
-      onTapCancel: () => _controller.reverse(),
-      onTap: isEnabled ? widget.onPressed : null,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) => Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Opacity(
-            opacity: _opacityAnimation.value,
-            child: Container(
-              width: widget.width,
-              padding:
-                  widget.padding ??
-                  const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-              decoration: BoxDecoration(
-                color: backgroundColor,
-                borderRadius: BorderRadius.circular(widget.borderRadius),
-                border: widget.isSecondary
-                    ? Border.all(color: AppColors.biLightBlue, width: 2)
-                    : null,
-                gradient: !widget.isSecondary && widget.customColor == null
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppColors.biLightBlue,
-                          AppColors.biLightBlue.withValues(alpha: 0.8),
-                        ],
-                      )
-                    : null,
-                boxShadow: !widget.isSecondary && isEnabled
-                    ? [
-                        BoxShadow(
-                          color: backgroundColor.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                        ...PremiumTheme.softShadow,
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (widget.isLoading)
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(textColor),
-                      ),
-                    )
-                  else if (widget.icon != null) ...[
-                    Icon(widget.icon, color: textColor, size: 20),
-                    const SizedBox(width: 12),
-                  ],
-
-                  Text(
-                    widget.text,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    final foreground =
+        customTextColor ?? (isSecondary ? scheme.primary : scheme.onPrimary);
+    final style = ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(44, 48)),
+      padding: WidgetStatePropertyAll(
+        padding ?? const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      ),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(borderRadius),
         ),
       ),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? scheme.onSurface.withValues(alpha: 0.38)
+            : foreground,
+      ),
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (states) => isSecondary
+            ? Colors.transparent
+            : states.contains(WidgetState.disabled)
+            ? scheme.onSurface.withValues(alpha: 0.12)
+            : customColor ?? scheme.primary,
+      ),
+    );
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (isLoading) ...[
+          SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
+          ),
+          const SizedBox(width: 10),
+        ] else if (icon != null) ...[
+          Icon(icon, size: 19),
+          const SizedBox(width: 8),
+        ],
+        Flexible(child: Text(text, textAlign: TextAlign.center)),
+      ],
+    );
+    return SizedBox(
+      width: width,
+      child: isSecondary
+          ? OutlinedButton(
+              onPressed: isLoading ? null : onPressed,
+              style: style,
+              child: content,
+            )
+          : FilledButton(
+              onPressed: isLoading ? null : onPressed,
+              style: style,
+              child: content,
+            ),
     );
   }
 }
@@ -193,7 +132,7 @@ class PremiumCard extends StatelessWidget {
             margin: margin,
             padding: padding ?? const EdgeInsets.all(20),
             borderRadius: borderRadius,
-            quality: GlassQuality.standard,
+
             child: gradientColors == null
                 ? child
                 : DecoratedBox(
@@ -454,7 +393,7 @@ class _PremiumTextFieldState extends State<PremiumTextField>
               return BisoGlassContainer(
                 padding: EdgeInsets.zero,
                 borderRadius: 16,
-                quality: GlassQuality.standard,
+
                 child: field,
               );
             }
@@ -532,22 +471,6 @@ class PremiumChip extends StatelessWidget {
     final textColor = isSelected
         ? Colors.white
         : (isDark ? AppColors.mist : AppColors.stoneGray);
-
-    if (isGlass) {
-      return GlassChip(
-        label: label,
-        selected: isSelected,
-        onTap: onTap,
-        selectedColor: selectedColor ?? AppColors.accentBlue,
-        icon: icon != null ? Icon(icon, size: 16, color: textColor) : null,
-        labelStyle: theme.textTheme.labelMedium?.copyWith(
-          color: textColor,
-          fontWeight: FontWeight.w600,
-        ),
-        quality: GlassQuality.minimal,
-        settings: BisoGlass.denseSettings,
-      );
-    }
 
     return PremiumInkWell(
       onTap: onTap ?? () {},
@@ -740,19 +663,6 @@ class PremiumSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          if (icon != null) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.biLightBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 16, color: AppColors.biLightBlue),
-            ),
-            const SizedBox(width: 12),
-          ],
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -760,8 +670,8 @@ class PremiumSectionHeader extends StatelessWidget {
                 Text(
                   title,
                   style: theme.textTheme.headlineSmall?.copyWith(
-                    color: isDark ? AppColors.pearl : AppColors.charcoalBlack,
-                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -789,7 +699,7 @@ class PremiumSectionHeader extends StatelessWidget {
                     Text(
                       actionText!,
                       style: theme.textTheme.labelLarge?.copyWith(
-                        color: AppColors.biLightBlue,
+                        color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -797,7 +707,7 @@ class PremiumSectionHeader extends StatelessWidget {
                     Icon(
                       Icons.arrow_forward_ios,
                       size: 12,
-                      color: AppColors.biLightBlue,
+                      color: theme.colorScheme.primary,
                     ),
                   ],
                 ),

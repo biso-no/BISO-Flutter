@@ -1,7 +1,8 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/biso_glass.dart';
@@ -60,90 +61,104 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Profile Header
           SliverAppBar(
-            expandedHeight: 200,
-            floating: false,
             pinned: true,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      _getCampusColor(selectedCampus.id),
-                      _getCampusColor(selectedCampus.id).withValues(alpha: 0.8),
-                    ],
-                  ),
+            title: Text(l10n.profile),
+            actions: [
+              IconButton(
+                tooltip: l10n.settingsMessage,
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // Avatar
-                      Container(
-                        width: 80,
-                        height: 80,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.white, width: 3),
+                icon: const Icon(CupertinoIcons.slider_horizontal_3),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.biNavy,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'BISO',
+                          textScaler: TextScaler.noScaling,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            letterSpacing: -1,
+                          ),
                         ),
-                        child: CircleAvatar(
-                          radius: 38,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            'BI ${selectedCampus.name}',
+                            textAlign: TextAlign.end,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppColors.biLightBlue,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: const Color(0xFF20405D),
                           backgroundImage: user?.avatarUrl != null
                               ? NetworkImage(user!.avatarUrl!)
                               : null,
-                          backgroundColor: AppColors.white,
                           child: user?.avatarUrl == null
-                              ? Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: _getCampusColor(selectedCampus.id),
+                              ? Text(
+                                  (user?.name.isNotEmpty == true
+                                          ? user!.name
+                                          : 'B')
+                                      .characters
+                                      .first
+                                      .toUpperCase(),
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(color: Colors.white),
                                 )
                               : null,
                         ),
-                      ),
-                      // Name
-                      Text(
-                        user?.name ?? 'Unknown User',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            user?.name ?? l10n.profile,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w300,
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      // Campus
-                      Text(
-                        'BI ${selectedCampus.name}',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: AppColors.white.withValues(alpha: 0.9),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-            actions: [
-              IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SettingsScreen(),
-                  ),
-                ),
-                icon: const Icon(Icons.settings, color: AppColors.white),
-              ),
-            ],
           ),
 
           // Profile Content
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: BisoNavigationInset.padding(
+                context,
+                const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -298,7 +313,7 @@ class ProfileScreen extends ConsumerWidget {
                           width: 12,
                           height: 12,
                           decoration: BoxDecoration(
-                            color: _getCampusColor(selectedCampus.id),
+                            color: AppColors.biLightBlue,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -412,21 +427,6 @@ class ProfileScreen extends ConsumerWidget {
     return parts.join(', ');
   }
 
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
-  }
-
   void _showSignOutDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
@@ -483,7 +483,7 @@ class _ActionCard extends StatelessWidget {
     return BisoGlassCard(
       padding: EdgeInsets.zero,
       borderRadius: 16,
-      quality: GlassQuality.minimal,
+
       child: InkWell(
         onTap: disabled ? null : onTap,
         borderRadius: BorderRadius.circular(16),
@@ -542,7 +542,7 @@ class _ProfileSection extends StatelessWidget {
         BisoGlassCard(
           padding: EdgeInsets.zero,
           borderRadius: 16,
-          quality: GlassQuality.minimal,
+
           child: Column(
             children: children
                 .expand((widget) => [widget, const Divider(height: 1)])

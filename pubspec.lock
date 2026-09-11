@@ -281,6 +281,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
+  cupertino_icons:
+    dependency: "direct main"
+    description:
+      name: cupertino_icons
+      sha256: "41e005c33bd814be4d3096aff55b1908d419fde52ca656c8c47719ec745873cd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.9"
   dart_style:
     dependency: "direct overridden"
     description:
@@ -580,14 +588,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.2"
-  flutter_shaders:
-    dependency: transitive
-    description:
-      name: flutter_shaders
-      sha256: "34794acadd8275d971e02df03afee3dee0f98dbfb8c4837082ad0034f612a3e2"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.3"
   flutter_svg:
     dependency: "direct main"
     description:
@@ -958,14 +958,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
-  liquid_glass_widgets:
-    dependency: "direct main"
-    description:
-      name: liquid_glass_widgets
-      sha256: e6a09276d13de16cbaf8a8f523a1cdc54a591346c81f8bf3ee04df465b223adc
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.10.10"
   list_counter:
     dependency: transitive
     description:
@@ -1030,6 +1022,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.4.0"
+  native_liquid_glass_flutter:
+    dependency: "direct main"
+    description:
+      name: native_liquid_glass_flutter
+      sha256: "5fbd98d6a414c4263d830a0e7c262a5759e7d9e410c941c44c9715374841aa26"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.8"
   objective_c:
     dependency: transitive
     description:

@@ -1,4 +1,8 @@
+import '../../../core/theme/biso_search_app_bar.dart';
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -302,17 +306,12 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.eventsMessage),
+      appBar: BisoSearchAppBar(
+        title: l10n.eventsMessage,
+        hintText: l10n.searchEventsMessage,
+        initialQuery: ref.read(eventsSearchTermProvider) ?? '',
         leading: NavigationUtils.buildBackButton(context),
-        actions: [
-          IconButton(
-            onPressed: () {
-              _promptSearch(context);
-            },
-            icon: const Icon(Icons.search),
-          ),
-        ],
+        onChanged: _applySearch,
       ),
       body: Column(
         children: [
@@ -349,7 +348,10 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                               )
                             : ListView.separated(
                                 controller: _scrollController,
-                                padding: const EdgeInsets.all(16),
+                                padding: BisoNavigationInset.padding(
+                                  context,
+                                  const EdgeInsets.all(16),
+                                ),
                                 itemCount:
                                     _events.length + (_isLoadingMore ? 1 : 0),
                                 separatorBuilder: (context, index) =>
@@ -401,65 +403,13 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     );
   }
 
-  Future<void> _promptSearch(BuildContext context) async {
-    final current = ref.read(eventsSearchTermProvider);
-    final controller = TextEditingController(text: current ?? '');
-    final result = await showDialog<String?>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Search events'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Type at least 2 characters',
-            ),
-            onSubmitted: (value) => Navigator.of(context).pop(value),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null),
-              child: const Text('Cancel'),
-            ),
-            if ((current ?? '').isNotEmpty)
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(''),
-                child: const Text('Clear'),
-              ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(controller.text),
-              child: const Text('Search'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (!mounted) return;
-    if (result == null) return; // cancelled
-
-    final trimmed = result.trim();
-    if (trimmed.isEmpty) {
-      // clear search
-      AppLogger.info('[EVENTS_SCREEN] Search cleared');
-      ref.read(eventsSearchTermProvider.notifier).state = null;
-    } else if (trimmed.length >= 2) {
-      AppLogger.info(
-        '[EVENTS_SCREEN] Search applied',
-        extra: {'search': trimmed},
-      );
-      ref.read(eventsSearchTermProvider.notifier).state = trimmed;
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(this.context).showSnackBar(
-          const SnackBar(content: Text('Search must be at least 2 characters')),
-        );
-      }
-      return;
-    }
-
-    // reload with new search param
+  Future<void> _applySearch(String value) async {
+    final trimmed = value.trim();
+    // Preserve the API's minimum query length without a dialog per keystroke.
+    if (trimmed.isNotEmpty && trimmed.length < 2) return;
+    final query = trimmed.isEmpty ? null : trimmed;
+    if (ref.read(eventsSearchTermProvider) == query) return;
+    ref.read(eventsSearchTermProvider.notifier).state = query;
     await _reload();
   }
 
@@ -552,9 +502,7 @@ class _EventCard extends StatelessWidget {
 
     final category = event.category?.trim() ?? '';
     if (category.isNotEmpty) {
-      add(
-        category[0].toUpperCase() + category.substring(1).toLowerCase(),
-      );
+      add(category[0].toUpperCase() + category.substring(1).toLowerCase());
     }
     event.tags.forEach(add);
 
@@ -564,182 +512,148 @@ class _EventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final lifecycle = _lifecycleOf(event);
-
-    return Card(
+    final statusColor =
+        lifecycle == _EventLifecycle.upcoming ||
+            lifecycle == _EventLifecycle.completed
+        ? scheme.primary
+        : _getStatusColor(lifecycle);
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Event Image or Icon
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: AppColors.subtleBlue,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: event.images.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              event.images.first,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 80,
+                      height: 96,
+                      child: event.images.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: event.images.first,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(
-                                    Icons.event,
-                                    color: AppColors.defaultBlue,
-                                  ),
+                              memCacheWidth: 320,
+                              errorWidget: (_, _, _) => Icon(
+                                CupertinoIcons.calendar,
+                                color: scheme.primary,
+                              ),
+                            )
+                          : ColoredBox(
+                              color: scheme.surfaceContainerHighest,
+                              child: Icon(
+                                CupertinoIcons.calendar,
+                                color: scheme.primary,
+                              ),
                             ),
-                          )
-                        : const Icon(Icons.event, color: AppColors.defaultBlue),
+                    ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  // Event Details
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           event.title,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 2,
+                          maxLines: 3,
                           overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontSize: 21,
+                            height: 1.2,
+                          ),
                         ),
-
-                        if (event.contactName != null &&
-                            event.contactName!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        // Render Appwrite UTC instants in the user's local timezone.
+                        Text(
+                          DateFormat(
+                            'MMM dd, HH:mm',
+                          ).format(event.startDate.toLocal()),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (event.location?.isNotEmpty == true) ...[
                           const SizedBox(height: 4),
                           Text(
-                            event.contactName!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceVariant,
+                            event.location!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                         ],
-
-                        const SizedBox(height: 8),
-
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.schedule,
-                              size: 14,
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              // Appwrite returns start_date with an explicit
-                              // UTC offset (e.g. "...T10:00:00.000+00:00"),
-                              // so DateTime.parse produces a DateTime with
-                              // isUtc == true. DateFormat renders the
-                              // object's own (UTC) fields, so without
-                              // .toLocal() this silently shows the event
-                              // 1-2 hours early for a Norway-based user.
-                              // Display-only: do not add toLocal() to the
-                              // isUpcoming/isOngoing/isCompleted comparisons
-                              // in event_model.dart — those compare absolute
-                              // instants and are already correct.
-                              DateFormat(
-                                'MMM dd, HH:mm',
-                              ).format(event.startDate.toLocal()),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        if (event.location != null &&
-                            event.location!.isNotEmpty) ...[
+                        if (event.contactName?.isNotEmpty == true) ...[
                           const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.location_on,
-                                size: 14,
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  event.location!,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.onSurfaceVariant,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            event.contactName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ],
                     ),
                   ),
-
-                  // Status Badge
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(lifecycle).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      color: statusColor.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       _lifecycleLabel(lifecycle, l10n),
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: _getStatusColor(lifecycle),
-                        fontWeight: FontWeight.w600,
+                        color: statusColor,
                       ),
                     ),
                   ),
-                ],
-              ),
-
-              if (_chipLabels.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _chipLabels.take(3).map((label) {
-                    return Container(
+                  for (final label in _chipLabels.take(3))
+                    Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
+                        horizontal: 10,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.gray200,
-                        borderRadius: BorderRadius.circular(8),
+                        color: scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Text(label, style: theme.textTheme.labelSmall),
-                    );
-                  }).toList(),
-                ),
-              ],
-
+                      child: Text(
+                        label,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               if (event.price != null && event.price! > 0) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
                   'NOK ${event.price!.toStringAsFixed(0)}',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: AppColors.defaultBlue,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: theme.textTheme.titleSmall,
                 ),
               ],
             ],
@@ -953,8 +867,7 @@ class _EventDetailSheet extends StatelessWidget {
                 ],
 
                 // Organizer Info
-                if (event.contactName != null &&
-                    event.contactName!.isNotEmpty)
+                if (event.contactName != null && event.contactName!.isNotEmpty)
                   Text(
                     'Organized by ${event.contactName}',
                     style: theme.textTheme.bodyMedium?.copyWith(

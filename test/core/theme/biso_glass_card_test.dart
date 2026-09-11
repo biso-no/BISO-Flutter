@@ -1,10 +1,10 @@
 import 'package:biso/core/theme/biso_glass.dart';
+import 'package:biso/core/theme/premium_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 void main() {
-  group('BisoGlassCard at minimal quality', () {
+  group('BisoGlassCard opaque content surface', () {
     testWidgets(
       'gives a tappable ListTile child a Material to paint its background and '
       'ink on, rather than leaving the card decoration between the tile and '
@@ -15,7 +15,7 @@ void main() {
             home: Scaffold(
               body: BisoGlassCard(
                 borderRadius: 16,
-                quality: GlassQuality.minimal,
+
                 // ListTile only checks for a hidden background when it is
                 // interactive or opaque, which is exactly how the profile and
                 // explore screens use it inside this card.
@@ -34,13 +34,10 @@ void main() {
 
     testWidgets('still paints the card background itself', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
+          theme: PremiumTheme.lightTheme,
           home: Scaffold(
-            body: BisoGlassCard(
-              borderRadius: 16,
-              quality: GlassQuality.minimal,
-              child: SizedBox.shrink(),
-            ),
+            body: BisoGlassCard(borderRadius: 16, child: SizedBox.shrink()),
           ),
         ),
       );

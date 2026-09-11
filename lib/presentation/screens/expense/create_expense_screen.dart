@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'dart:io';
 import 'dart:math';
 
@@ -495,7 +496,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           child: _receipts.isEmpty
               ? _buildEmptyWallet()
               : ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: BisoNavigationInset.padding(
+                    context,
+                    const EdgeInsets.all(16),
+                  ),
                   children: _buildGroupedReceiptTiles(),
                 ),
         ),
@@ -664,8 +668,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             ],
           ),
         ),
-        SafeArea(
-          top: false,
+        Padding(
+          padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

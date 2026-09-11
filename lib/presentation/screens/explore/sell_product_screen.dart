@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -253,7 +254,10 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: BisoNavigationInset.padding(
+            context,
+            const EdgeInsets.all(16),
+          ),
           children: [
             // Images picker
             _buildImagesPicker(theme),

@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -72,7 +73,7 @@ class _OrdersList extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async => ref.invalidate(myOrdersProvider),
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            padding: BisoNavigationInset.padding(context, const EdgeInsets.fromLTRB(16, 16, 16, 24)),
             itemCount: data.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) => _OrderCard(order: data[index]),

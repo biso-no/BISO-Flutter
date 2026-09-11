@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -225,7 +226,7 @@ class _ChatConversationScreenState
 
           // Message input
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: BisoNavigationInset.padding(context, const EdgeInsets.all(16)),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
               border: const Border(
@@ -233,6 +234,7 @@ class _ChatConversationScreenState
               ),
             ),
             child: SafeArea(
+              bottom: false, // The navigation inset above includes the safe area.
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
