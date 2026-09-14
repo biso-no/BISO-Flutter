@@ -274,6 +274,9 @@ class AppLocalizationsNo extends AppLocalizations {
   String get chatDeletedSuccessfully => 'Chat slettet';
 
   @override
+  String get chatDetailsMessage => 'Chatdetaljer';
+
+  @override
   String get chatInfo => 'Chatinfo';
 
   @override
@@ -557,6 +560,9 @@ class AppLocalizationsNo extends AppLocalizations {
   @override
   String get earlyRegistrationForPopularEventsMessage =>
       'Tidlig registrering for populære arrangementer';
+
+  @override
+  String get editChatMessage => 'Rediger chat';
 
   @override
   String get editMessage => 'Rediger';
@@ -1576,6 +1582,9 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get saveAsDraftMessage => 'Lagre som utkast';
+
+  @override
+  String get saveChangesMessage => 'Lagre endringer';
 
   @override
   String get saveMessage => 'Lagre';

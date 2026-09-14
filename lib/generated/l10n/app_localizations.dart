@@ -590,6 +590,12 @@ abstract class AppLocalizations {
   /// Auto-extracted string
   ///
   /// In en, this message translates to:
+  /// **'Chat details'**
+  String get chatDetailsMessage;
+
+  /// Auto-extracted string
+  ///
+  /// In en, this message translates to:
   /// **'Chat Info'**
   String get chatInfo;
 
@@ -1099,6 +1105,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Early registration for popular events'**
   String get earlyRegistrationForPopularEventsMessage;
+
+  /// Auto-extracted string
+  ///
+  /// In en, this message translates to:
+  /// **'Edit chat'**
+  String get editChatMessage;
 
   /// Auto-extracted string
   ///
@@ -2919,6 +2931,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save as Draft'**
   String get saveAsDraftMessage;
+
+  /// Auto-extracted string
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get saveChangesMessage;
 
   /// Auto-extracted string
   ///

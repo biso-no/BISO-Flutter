@@ -3,8 +3,10 @@ import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/chat_service.dart';
 import 'package:biso/presentation/screens/chat/chat_info_screen.dart';
 import 'package:biso/presentation/screens/chat/chat_list_screen.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,17 +16,16 @@ const _userId = 'user-1';
 const _user = UserModel(id: _userId, name: 'Test Student', email: 'test@bi.no');
 
 /// A group chat owned by the current user, with a description, three
-/// participants (including "you"), a mute setting off, and chat statistics —
-/// exercises every section the screen renders: avatar/name/type/description,
-/// the edit action (owner of a group chat), participants, settings, stats,
-/// and the owner-only add/delete actions.
+/// participants (including "you"), and chat statistics — exercises every
+/// section the screen renders: avatar/name/type/description, the edit
+/// action (owner of a group chat), participants, stats, and the owner-only
+/// add/delete actions.
 final _chat = ChatModel(
   id: 'chat-1',
   name: 'Study group',
   description: 'BI Oslo exam prep',
   type: 'group',
   participants: const [_userId, 'member-2', 'member-3'],
-  isMuted: false,
   metadata: const {'created_by': _userId, 'message_count': 42},
   createdAt: DateTime(2026, 1, 10),
   lastActivityAt: DateTime(2026, 9, 1),
@@ -88,23 +89,75 @@ void main() {
     },
   );
 
-  testWidgets('shows participant count, roles, "You" and the mute toggle', (
-    tester,
-  ) async {
-    await pumpBisoScreen(
-      tester,
-      ChatInfoScreen(chat: _chat),
-      overrides: _overrides(),
-    );
-    await tester.pump();
+  testWidgets(
+    'shows the Type heading, participant count, roles, and "You"',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        ChatInfoScreen(chat: _chat),
+        overrides: _overrides(),
+      );
+      await tester.pump();
 
-    expect(find.text('Participants (3)'), findsOneWidget);
-    expect(find.text('You'), findsOneWidget);
-    expect(find.text('Owner'), findsOneWidget);
-    expect(find.text('Member'), findsWidgets);
-    expect(find.text('Mute notifications'), findsOneWidget);
+      expect(find.text('Type'), findsOneWidget);
+      expect(find.text('Group Chat'), findsOneWidget);
+      expect(find.text('Participants (3)'), findsOneWidget);
+      expect(find.text('You'), findsOneWidget);
+      expect(find.text('Owner'), findsOneWidget);
+      expect(find.text('Member'), findsWidgets);
+    },
+  );
 
-    final muteSwitch = tester.widget<Switch>(find.byType(Switch));
-    expect(muteSwitch.value, isFalse);
-  });
+  testWidgets(
+    'shows the message count in full, never ellipsized (R11)',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        ChatInfoScreen(chat: _chat),
+        textScale: 1.6,
+        overrides: _overrides(),
+      );
+      await tester.pump();
+
+      // At this text scale the Chat Statistics section sits past the
+      // viewport's initial cache extent; scroll it into range first (same
+      // approach as biso_page_test.dart's plain-row-list drag).
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+      await tester.pump();
+
+      final count = find.text('42');
+      expect(count, findsOneWidget);
+      expect(
+        tester.renderObject<RenderParagraph>(count).didExceedMaxLines,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets(
+    'editing shows the name and description fields, scroll-padded past the '
+    'header — proving the Builder+BisoPageInsets path is used',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        ChatInfoScreen(chat: _chat),
+        overrides: _overrides(),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Edit chat'));
+      await tester.pump();
+
+      final fields = tester
+          .widgetList<TextField>(find.byType(TextField))
+          .toList();
+      expect(fields, hasLength(2));
+      for (final field in fields) {
+        expect(
+          field.scrollPadding.top,
+          greaterThanOrEqualTo(47 + kBisoHeaderHeight),
+        );
+      }
+    },
+  );
 }

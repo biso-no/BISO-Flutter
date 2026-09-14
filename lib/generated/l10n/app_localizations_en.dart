@@ -274,6 +274,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatDeletedSuccessfully => 'Chat deleted successfully';
 
   @override
+  String get chatDetailsMessage => 'Chat details';
+
+  @override
   String get chatInfo => 'Chat Info';
 
   @override
@@ -558,6 +561,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get earlyRegistrationForPopularEventsMessage =>
       'Early registration for popular events';
+
+  @override
+  String get editChatMessage => 'Edit chat';
 
   @override
   String get editMessage => 'Edit';
@@ -1569,6 +1575,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saveAsDraftMessage => 'Save as Draft';
+
+  @override
+  String get saveChangesMessage => 'Save changes';
 
   @override
   String get saveMessage => 'Save';

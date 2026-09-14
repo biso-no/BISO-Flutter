@@ -342,6 +342,10 @@
   "@chatDeletedSuccessfully": {
     "description": "Auto-extracted string"
   },
+  "chatDetailsMessage": "Chat details",
+  "@chatDetailsMessage": {
+    "description": "Auto-extracted string"
+  },
   "chatInfo": "Chat Info",
   "@chatInfo": {
     "description": "Auto-extracted string"
@@ -716,6 +720,10 @@
   },
   "earlyRegistrationForPopularEventsMessage": "Early registration for popular events",
   "@earlyRegistrationForPopularEventsMessage": {
+    "description": "Auto-extracted string"
+  },
+  "editChatMessage": "Edit chat",
+  "@editChatMessage": {
     "description": "Auto-extracted string"
   },
   "editMessage": "Edit",
@@ -2042,6 +2050,10 @@
   },
   "saveAsDraftMessage": "Save as Draft",
   "@saveAsDraftMessage": {
+    "description": "Auto-extracted string"
+  },
+  "saveChangesMessage": "Save changes",
+  "@saveChangesMessage": {
     "description": "Auto-extracted string"
   },
   "saveMessage": "Save",

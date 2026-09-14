@@ -342,6 +342,10 @@
   "@chatDeletedSuccessfully": {
     "description": "Auto-extracted string"
   },
+  "chatDetailsMessage": "Chatdetaljer",
+  "@chatDetailsMessage": {
+    "description": "Auto-extracted string"
+  },
   "chatInfo": "Chatinfo",
   "@chatInfo": {
     "description": "Auto-extracted string"
@@ -716,6 +720,10 @@
   },
   "earlyRegistrationForPopularEventsMessage": "Tidlig registrering for populære arrangementer",
   "@earlyRegistrationForPopularEventsMessage": {
+    "description": "Auto-extracted string"
+  },
+  "editChatMessage": "Rediger chat",
+  "@editChatMessage": {
     "description": "Auto-extracted string"
   },
   "editMessage": "Rediger",
@@ -2042,6 +2050,10 @@
   },
   "saveAsDraftMessage": "Lagre som utkast",
   "@saveAsDraftMessage": {
+    "description": "Auto-extracted string"
+  },
+  "saveChangesMessage": "Lagre endringer",
+  "@saveChangesMessage": {
     "description": "Auto-extracted string"
   },
   "saveMessage": "Lagre",

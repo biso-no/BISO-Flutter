@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/models/chat_model.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../widgets/biso/biso.dart';
 import 'chat_list_screen.dart';
@@ -22,7 +23,6 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   bool _isEditing = false;
-  bool _isMuted = false;
   Map<String, String> _userNames = {};
 
   @override
@@ -30,7 +30,6 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
     super.initState();
     _nameController.text = widget.chat.name;
     _descriptionController.text = widget.chat.description ?? '';
-    _isMuted = widget.chat.isMuted;
     _loadUserNames();
   }
 
@@ -60,6 +59,7 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
     final authState = ref.watch(authStateProvider);
     final currentUserId = authState.user?.id ?? '';
     final isOwner = widget.chat.metadata['created_by'] == currentUserId;
+    final l10n = AppLocalizations.of(context)!;
 
     return BisoPage(
       title: 'Chat Info',
@@ -68,7 +68,7 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
         if ((widget.chat.isGroup || widget.chat.isTeam) && isOwner)
           BisoHeaderAction(
             icon: _isEditing ? CupertinoIcons.checkmark : CupertinoIcons.pencil,
-            tooltip: _isEditing ? 'Save changes' : 'Edit chat',
+            tooltip: _isEditing ? l10n.saveChangesMessage : l10n.editChatMessage,
             onPressed: () => setState(() => _isEditing = !_isEditing),
           ),
       ],
@@ -118,13 +118,6 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
                                 color: palette.ink,
                               ),
                             ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getChatTypeDisplay(),
-                            style: text.bodyMedium?.copyWith(
-                              color: palette.muted,
-                            ),
-                          ),
                           if (!_isEditing && widget.chat.description != null) ...[
                             const SizedBox(height: 8),
                             Text(
@@ -141,7 +134,7 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
                     if (_isEditing) ...[
                       const SizedBox(height: 20),
                       BisoFormGroup(
-                        title: 'Chat details',
+                        title: l10n.chatDetailsMessage,
                         children: [
                           BisoFormRow(
                             label: 'Chat Name',
@@ -170,6 +163,17 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
           ),
         ),
 
+        // Type
+        SliverToBoxAdapter(
+          child: BisoSection(
+            child: BisoListGroup(
+              children: [
+                BisoListRow(title: 'Type', value: _getChatTypeDisplay()),
+              ],
+            ),
+          ),
+        ),
+
         // Participants
         SliverToBoxAdapter(
           child: BisoSection(
@@ -183,29 +187,6 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
                     currentUserId,
                     isOwner,
                   ),
-              ],
-            ),
-          ),
-        ),
-
-        // Settings
-        SliverToBoxAdapter(
-          child: BisoSection(
-            title: 'Settings',
-            child: BisoListGroup(
-              children: [
-                BisoListRow(
-                  leading: const BisoIconTile(
-                    icon: CupertinoIcons.bell_slash,
-                    accent: BisoAccent.teal,
-                  ),
-                  title: 'Mute notifications',
-                  subtitle: 'Turn off alerts for this chat',
-                  trailing: Switch.adaptive(
-                    value: _isMuted,
-                    onChanged: _toggleMute,
-                  ),
-                ),
               ],
             ),
           ),
@@ -227,7 +208,17 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
                 ),
                 BisoListRow(
                   title: 'Messages',
-                  value: widget.chat.metadata['message_count']?.toString() ?? '0',
+                  // R11: a message count is a quantity that must never be
+                  // ellipsized, so it renders as a non-flexible trailing
+                  // Text rather than BisoListRow's Flexible `value:`.
+                  trailing: Text(
+                    widget.chat.metadata['message_count']?.toString() ?? '0',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: BisoPalette.of(context).muted,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -385,30 +376,6 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _toggleMute(bool value) async {
-    final previous = _isMuted;
-    setState(() => _isMuted = value);
-    try {
-      final chatService = ref.read(chatServiceProvider);
-      await chatService.muteChat(widget.chat.id, value);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(value ? 'Chat muted' : 'Chat unmuted')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isMuted = previous);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to ${value ? 'mute' : 'unmute'} chat'),
-          ),
-        );
-      }
-    }
   }
 
   void _leaveChat() async {
