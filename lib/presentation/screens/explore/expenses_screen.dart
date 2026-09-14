@@ -1,15 +1,17 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/constants/app_colors.dart';
+
+import '../../../core/utils/navigation_utils.dart';
+import '../../../data/models/expense_attachment_model.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
-import '../../../providers/expense/expense_provider.dart';
-import '../expense/create_expense_screen.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/expense/expense_provider.dart';
+import '../../widgets/biso/biso.dart';
+import '../expense/create_expense_screen.dart';
 import '../home/premium_home_screen.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
@@ -21,8 +23,6 @@ class ExpensesScreen extends ConsumerStatefulWidget {
 
 class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   String _selectedStatus = 'all';
-  bool _showSearch = false;
-  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
   final List<String> _statusFilters = [
@@ -34,11 +34,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     'rejected',
   ];
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  Widget _leading(BuildContext context) => BisoBackButton(
+    onPressed: () =>
+        NavigationUtils.safeGoBack(context, fallbackRoute: '/home'),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +47,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       return PremiumAuthRequiredPage(
         title: l10n.expensesMessage,
         description: 'Manage reimbursements',
-        icon: Icons.receipt_long_rounded,
+        icon: CupertinoIcons.doc_text,
       );
     }
+
     final expensesState = ref.watch(expensesStateProvider);
     final filteredByStatus = ref.watch(
       filteredExpensesProvider(_selectedStatus),
@@ -69,260 +69,137 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
 
     // Show loading state
     if (expensesState.isLoading && expensesState.expenses.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.expensesMessage),
-          leading: IconButton(
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/home');
-              }
-            },
-            icon: const Icon(Icons.arrow_back),
-          ),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+      return BisoPage(
+        title: l10n.expensesMessage,
+        largeTitle: false,
+        leading: _leading(context),
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
       );
     }
 
     // Show error state
     if (expensesState.error != null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.expensesMessage),
-          leading: IconButton(
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/home');
-              }
-            },
-            icon: const Icon(Icons.arrow_back),
+      return BisoPage(
+        title: l10n.expensesMessage,
+        largeTitle: false,
+        leading: _leading(context),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoErrorState(
+              message: expensesState.error,
+              onRetry: () => ref.read(expensesStateProvider.notifier).refresh(),
+            ),
           ),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 64, color: AppColors.error),
-              const SizedBox(height: 16),
-              Text(
-                'Error loading expenses',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                expensesState.error!,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  ref.read(expensesStateProvider.notifier).refresh();
-                },
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        ],
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: _showSearch
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search expenses...',
-                  border: InputBorder.none,
-                ),
-                onChanged: (value) =>
-                    setState(() => _searchQuery = value.toLowerCase().trim()),
-              )
-            : Text(l10n.expensesMessage),
-        leading: IconButton(
-          onPressed: () {
-            if (_showSearch) {
-              setState(() {
-                _showSearch = false;
-                _searchQuery = '';
-                _searchController.clear();
-              });
-              return;
-            }
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/home');
-            }
-          },
-          icon: Icon(_showSearch ? Icons.close : Icons.arrow_back),
+    return BisoPage(
+      title: l10n.expensesMessage,
+      leading: _leading(context),
+      search: BisoHeaderSearch(
+        hintText: 'Search expenses...',
+        onChanged: (value) =>
+            setState(() => _searchQuery = value.toLowerCase().trim()),
+      ),
+      actions: [
+        BisoHeaderAction(
+          icon: CupertinoIcons.plus,
+          tooltip: 'New Expense',
+          onPressed: () => _startNewExpense(context),
         ),
-        actions: [
-          if (!_showSearch)
-            IconButton(
-              onPressed: () {
-                ref.read(expensesStateProvider.notifier).refresh();
-              },
-              icon: const Icon(Icons.refresh),
+        BisoHeaderAction(
+          icon: CupertinoIcons.ellipsis,
+          tooltip: 'More',
+          onPressed: () => _showMoreSheet(context, filteredExpenses),
+        ),
+      ],
+      onRefresh: () => ref.read(expensesStateProvider.notifier).refresh(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: BisoSection(
+            child: _ExpenseSummaryCard(
+              draftTotal: expensesState.totalDraftAmount,
+              pendingTotal: expensesState.totalPendingAmount,
             ),
-          IconButton(
-            onPressed: () => setState(() {
-              _showSearch = !_showSearch;
-              if (!_showSearch) {
-                _searchQuery = '';
-                _searchController.clear();
-              }
-            }),
-            icon: Icon(_showSearch ? Icons.search_off : Icons.search),
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'history') {
-                _showHistory(context, filteredExpenses);
-              } else if (value == 'guidelines') {
-                _showGuidelines(context);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'history',
-                child: Row(
-                  children: [
-                    Icon(Icons.history),
-                    SizedBox(width: 12),
-                    Text('View History'),
-                  ],
-                ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _statusFilters.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final status = _statusFilters[index];
+                  return ChoiceChip(
+                    label: Text(_getStatusDisplayName(status)),
+                    selected: _selectedStatus == status,
+                    onSelected: (selected) =>
+                        setState(() => _selectedStatus = status),
+                  );
+                },
               ),
-              const PopupMenuItem(
-                value: 'guidelines',
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline),
-                    SizedBox(width: 12),
-                    Text('Guidelines'),
-                  ],
-                ),
+            ),
+          ),
+        ),
+        if (filteredExpenses.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.doc_text,
+              accent: BisoAccent.coral,
+              title: 'No expenses found',
+              message: 'No expenses match your current filter',
+            ),
+          )
+        else
+          SliverBisoListGroup(
+            itemCount: filteredExpenses.length,
+            itemBuilder: (context, index) {
+              final expense = filteredExpenses[index];
+              return _ExpenseRow(
+                expense: expense,
+                onTap: () => _showExpenseDetails(context, expense),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  void _showMoreSheet(BuildContext context, List<ExpenseModel> expenses) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.clock),
+                title: 'View History',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showHistory(context, expenses);
+                },
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.info_circle),
+                title: 'Guidelines',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showGuidelines(context);
+                },
               ),
             ],
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Status Filter
-          Container(
-            height: 60,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _statusFilters.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final status = _statusFilters[index];
-                final isSelected = _selectedStatus == status;
-
-                return FilterChip(
-                  label: Text(_getStatusDisplayName(status)),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(() {
-                      _selectedStatus = status;
-                    });
-                  },
-                  backgroundColor: Colors.transparent,
-                  selectedColor: AppColors.subtleBlue,
-                  checkmarkColor: AppColors.defaultBlue,
-                  labelStyle: TextStyle(
-                    color: isSelected
-                        ? AppColors.defaultBlue
-                        : AppColors.onSurfaceVariant,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                  side: BorderSide(
-                    color: isSelected
-                        ? AppColors.defaultBlue
-                        : AppColors.outline,
-                  ),
-                );
-              },
-            ),
-          ),
-
-          const Divider(height: 1),
-
-          // Summary Cards Row
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _SummaryCard(
-                    title: 'Draft',
-                    amount: expensesState.totalDraftAmount,
-                    color: AppColors.onSurfaceVariant,
-                    icon: Icons.drafts_outlined,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _SummaryCard(
-                    title: 'Pending',
-                    amount: expensesState.totalPendingAmount,
-                    color: AppColors.orange9,
-                    icon: Icons.pending,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Expenses List
-          Expanded(
-            child: filteredExpenses.isEmpty
-                ? _EmptyState(
-                    icon: Icons.receipt_long,
-                    title: 'No expenses found',
-                    subtitle: 'No expenses match your current filter',
-                  )
-                : ListView.separated(
-                    padding: BisoNavigationInset.padding(
-                      context,
-                      const EdgeInsets.fromLTRB(16, 16, 16, 88),
-                    ),
-                    itemCount: filteredExpenses.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final expense = filteredExpenses[index];
-                      return _ExpenseCard(
-                        expense: expense,
-                        onTap: () => _showExpenseDetails(context, expense),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-      floatingActionButton: Padding(
-        padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
-        child: FloatingActionButton.extended(
-          onPressed: () => _startNewExpense(context),
-          icon: const Icon(Icons.add),
-          label: const Text('New Expense'),
-          backgroundColor: AppColors.orange9,
         ),
       ),
     );
@@ -331,11 +208,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   void _showHistory(BuildContext context, List<ExpenseModel> expenses) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
       builder: (context) {
-        final theme = Theme.of(context);
+        final palette = BisoPalette.of(context);
         final recent = expenses.take(20).toList();
         return SafeArea(
           child: Padding(
@@ -345,9 +219,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               children: [
                 Text(
                   'Recent Expenses',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(color: palette.ink),
                 ),
                 const SizedBox(height: 12),
                 Expanded(
@@ -355,15 +229,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                       ? const Center(child: Text('No recent expenses'))
                       : ListView.separated(
                           itemCount: recent.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const SizedBox(height: 4),
                           itemBuilder: (context, index) {
                             final e = recent[index];
-                            return ListTile(
-                              title: Text(e.description ?? 'No description'),
-                              subtitle: Text(
-                                '${e.displayDepartment} • ${DateFormat('MMM dd, yyyy').format(e.expenseDate)}',
-                              ),
-                              trailing: Text(e.displayStatus),
+                            return BisoListRow(
+                              title: e.description ?? 'No description',
+                              subtitle:
+                                  '${e.displayDepartment} • ${DateFormat('MMM dd, yyyy').format(e.expenseDate)}',
+                              value: e.displayStatus,
                             );
                           },
                         ),
@@ -421,9 +294,6 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         minChildSize: 0.5,
@@ -450,53 +320,201 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  final String title;
-  final double amount;
-  final Color color;
-  final IconData icon;
+/// Maps an expense's raw `status` string onto the status pill's token (the
+/// Task 23 pill style: the token at 10% opacity behind, full token text).
+/// `success` is this schema's "approved and paid" state, so it takes
+/// [BisoPalette.success]; `draft`, `pending` and `submitted` are all still in
+/// progress, so they share [BisoPalette.warning]; `rejected` takes
+/// [BisoPalette.error]. Any other value (not currently used by the schema)
+/// is treated the same as the in-progress states — its nearest meaning.
+Color _statusColor(String status, BisoPalette palette) {
+  switch (status) {
+    case 'success':
+      return palette.success;
+    case 'rejected':
+      return palette.error;
+    case 'draft':
+    case 'pending':
+    case 'submitted':
+      return palette.warning;
+    default:
+      return palette.warning;
+  }
+}
 
-  const _SummaryCard({
+/// A small pill: [color] at 10% opacity behind, full [color] text. Reused
+/// for the status pill (rows and the detail sheet header) and the
+/// prepayment tag.
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+    ),
+  );
+}
+
+/// One "label — amount" row (a summary total, or the detail sheet's Amount),
+/// sized so the amount is never scaled down, and never silently clipped, at
+/// any text scale (R11). Mirrors `_AmountRow` in `checkout_screen.dart` and
+/// `order_screen.dart` — see either's doc comment for the full layout
+/// rationale: side by side when the label can keep a real share of the row,
+/// otherwise stacked; either way the amount renders on one line if it fits,
+/// or, as a last resort, wraps only on the single space between the
+/// currency code and the number.
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({
     required this.title,
     required this.amount,
-    required this.color,
-    required this.icon,
+    this.titleStyle,
+    this.amountStyle,
   });
+
+  final String title;
+  final String amount;
+  final TextStyle? titleStyle;
+  final TextStyle? amountStyle;
+
+  static const _spacing = 8.0;
+  static const _minLabelFraction = 0.4;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: MergeSemantics(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final painter = TextPainter(
+                text: TextSpan(text: amount, style: amountStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              final sideBySide =
+                  maxWidth.isFinite &&
+                  (maxWidth - painter.width - _spacing) >=
+                      maxWidth * _minLabelFraction;
+              final fitsOneLine =
+                  sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
+
+              final amountText = fitsOneLine
+                  ? Text(
+                      amount,
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: amountStyle,
+                    )
+                  : Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        for (final piece in amount.split(' '))
+                          Text(
+                            piece,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: amountStyle,
+                          ),
+                      ],
+                    );
+
+              final label = Text(
+                title,
+                maxLines: sideBySide ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: titleStyle,
+              );
+
+              if (sideBySide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: label),
+                    const SizedBox(width: _spacing),
+                    amountText,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  label,
+                  const SizedBox(height: 4),
+                  Align(alignment: Alignment.centerRight, child: amountText),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpenseSummaryCard extends StatelessWidget {
+  const _ExpenseSummaryCard({
+    required this.draftTotal,
+    required this.pendingTotal,
+  });
+
+  final double draftTotal;
+  final double pendingTotal;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final labelStyle = theme.textTheme.bodySmall?.copyWith(
+      color: palette.muted,
+    );
+    final amountStyle = theme.textTheme.headlineMedium?.copyWith(
+      color: palette.ink,
+    );
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'NOK ${amount.toStringAsFixed(0)}',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: BisoIconTile(
+              icon: CupertinoIcons.creditcard,
+              accent: BisoAccent.coral,
             ),
+          ),
+          _AmountRow(
+            title: 'Draft',
+            amount: 'NOK ${draftTotal.toStringAsFixed(0)}',
+            titleStyle: labelStyle,
+            amountStyle: amountStyle,
+          ),
+          _AmountRow(
+            title: 'Pending',
+            amount: 'NOK ${pendingTotal.toStringAsFixed(0)}',
+            titleStyle: labelStyle,
+            amountStyle: amountStyle,
           ),
         ],
       ),
@@ -504,214 +522,261 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _ExpenseCard extends StatelessWidget {
+/// The amount, above its status pill, right-aligned, sized to [width]. See
+/// `_OrderAmountAndStatus` in `orders_screen.dart` (copied approach, per the
+/// R11 controller ruling): [width] is content-sized, measured by
+/// [_ExpenseRow] itself, so a non-flex trailing block can never make the
+/// whole row overflow. [amount] never truncates or scales down: it renders
+/// on one line if it fits [width], or, as a last resort, splits only on the
+/// single space between the currency code and the number.
+class _ExpenseAmountAndStatus extends StatelessWidget {
+  const _ExpenseAmountAndStatus({
+    required this.amount,
+    required this.amountStyle,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.width,
+  });
+
+  final String amount;
+  final TextStyle? amountStyle;
+  final String statusLabel;
+  final Color statusColor;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final painter = TextPainter(
+                text: TextSpan(text: amount, style: amountStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              if (painter.width <= constraints.maxWidth) {
+                return Text(
+                  amount,
+                  textAlign: TextAlign.end,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: amountStyle,
+                );
+              }
+              return Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                children: [
+                  for (final piece in amount.split(' '))
+                    Text(
+                      piece,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: amountStyle,
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 6),
+          _Badge(label: statusLabel, color: statusColor),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpenseRow extends StatelessWidget {
+  const _ExpenseRow({required this.expense, required this.onTap});
+
   final ExpenseModel expense;
   final VoidCallback onTap;
 
-  const _ExpenseCard({required this.expense, required this.onTap});
+  /// Everything the trailing block (`Row`'s non-flex `trailing` slot, or the
+  /// stacked footer line) is reserved space for, besides itself: the
+  /// [SliverBisoListGroup] margin (16pt each side), `BisoListRow`'s own
+  /// padding (16pt each side), the leading icon tile (32pt) and its gap
+  /// (12pt), and the gap before `trailing` (8pt). 32+32+32+12+8 = 116.
+  static const _rowOverhead = 116.0;
+
+  /// What's reserved for a stacked footer line: just the list-group margin
+  /// and its own matching horizontal padding (no leading icon or gaps, since
+  /// it isn't inside `BisoListRow`'s own `Row`). 16+16+16+16 = 64.
+  static const _footerOverhead = 64.0;
+
+  static const _pillPadding = 20.0; // 10pt each side, matches the Container.
+
+  String get _subtitle {
+    final date = DateFormat('MMM dd, yyyy').format(expense.expenseDate);
+    final attachments = expense.attachmentCount == 1
+        ? '1 file'
+        : '${expense.attachmentCount} files';
+    final parts = [date, expense.displayDepartment, attachments];
+    if (expense.isPrepayment) parts.add('Prepayment');
+    return parts.join(' • ');
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final color = _statusColor(expense.status, palette);
+    final label = expense.displayStatus;
+    final subtitle = _subtitle;
+    final amount = expense.formattedTotal;
+    final amountStyle = theme.textTheme.titleSmall?.copyWith(
+      color: palette.ink,
+    );
+    final pillStyle = theme.textTheme.labelSmall?.copyWith(color: color);
 
-    return Card(
+    // Measured, not guessed — see `_OrderRow` in orders_screen.dart, whose
+    // approach this copies: a fixed trailing width either wastes space or
+    // starves the title. Sizing the block to what its own content actually
+    // needs, capped by the row's real width, gives the title back that space
+    // whenever the amount/pill don't need it.
+    final direction = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    double measure(String text, TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: direction,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      return painter.width;
+    }
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final rowWidth = (screenWidth - _rowOverhead).clamp(0.0, double.infinity);
+    final contentWidth = [
+      measure(amount, amountStyle),
+      measure(label, pillStyle) + _pillPadding,
+    ].reduce((a, b) => a > b ? a : b);
+    final trailingWidth = contentWidth < rowWidth ? contentWidth : rowWidth;
+
+    // Side by side only if the title would still keep a real share of the
+    // row (about 40%), otherwise a long description would be squeezed down
+    // to almost nothing beside a trailing block sized for the amount/pill.
+    final sideBySide =
+        rowWidth > 0 && (rowWidth - trailingWidth) >= rowWidth * 0.4;
+
+    final leading = const BisoIconTile(
+      icon: CupertinoIcons.doc_text,
+      accent: BisoAccent.coral,
+    );
+
+    final title = expense.description ?? 'No description';
+
+    if (sideBySide) {
+      return BisoListRow(
+        leading: leading,
+        title: title,
+        subtitle: subtitle,
+        onTap: onTap,
+        trailing: _ExpenseAmountAndStatus(
+          amount: amount,
+          amountStyle: amountStyle,
+          statusLabel: label,
+          statusColor: color,
+          width: trailingWidth,
+        ),
+      );
+    }
+
+    // Not enough room beside the title: put the amount and pill on their own
+    // right-aligned line under the subtitle instead.
+    final footerWidth = (screenWidth - _footerOverhead).clamp(
+      0.0,
+      double.infinity,
+    );
+    return MergeSemantics(
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Category Icon
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _getCategoryColor(
-                        expense.category,
-                      ).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      _getCategoryIcon(expense.category),
-                      color: _getCategoryColor(expense.category),
-                      size: 20,
-                    ),
-                  ),
-
+                  leading,
                   const SizedBox(width: 12),
-
-                  // Expense Info
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          expense.description ?? 'No description',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 2,
+                          title,
+                          maxLines: 4,
                           overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: palette.ink,
+                          ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          expense.displayDepartment,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            subtitle,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: palette.muted,
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                  // Amount and Status
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        expense.formattedTotal,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.defaultBlue,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(
-                            expense.status,
-                          ).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          expense.displayStatus,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: _getStatusColor(expense.status),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
-
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 14,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    DateFormat('MMM dd, yyyy').format(expense.expenseDate),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Icon(
-                    Icons.attach_file,
-                    size: 14,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${expense.attachmentCount} files',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                  if (expense.isPrepayment) ...[
-                    const SizedBox(width: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Prepayment',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.accentBlue,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: _ExpenseAmountAndStatus(
+                  amount: amount,
+                  amountStyle: amountStyle,
+                  statusLabel: label,
+                  statusColor: color,
+                  width: footerWidth,
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Color _getCategoryColor(String category) {
-    switch (category) {
-      case 'event':
-        return AppColors.accentBlue;
-      case 'travel':
-        return AppColors.green9;
-      case 'supplies':
-        return AppColors.purple9;
-      case 'food':
-        return AppColors.orange9;
-      case 'other':
-        return AppColors.onSurfaceVariant;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
+class _TimelineIcon extends StatelessWidget {
+  const _TimelineIcon({required this.icon, required this.color});
 
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'event':
-        return Icons.event;
-      case 'travel':
-        return Icons.directions_car;
-      case 'supplies':
-        return Icons.shopping_cart;
-      case 'food':
-        return Icons.restaurant;
-      case 'other':
-        return Icons.receipt;
-      default:
-        return Icons.receipt;
-    }
-  }
+  final IconData icon;
+  final Color color;
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'draft':
-        return AppColors.onSurfaceVariant;
-      case 'pending':
-        return AppColors.orange9;
-      case 'submitted':
-        return AppColors.accentBlue;
-      case 'success':
-        return AppColors.success;
-      case 'rejected':
-        return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 16),
+    ),
+  );
 }
 
 class _ExpenseDetailSheet extends ConsumerWidget {
@@ -723,336 +788,265 @@ class _ExpenseDetailSheet extends ConsumerWidget {
     required this.scrollController,
   });
 
+  Future<void> _openAttachment(ExpenseAttachmentModel attachment) async {
+    final url = attachment.url;
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final color = _statusColor(expense.status, palette);
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.gray300,
-              borderRadius: BorderRadius.circular(2),
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.all(24),
+      children: [
+        // Header
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    expense.description ?? 'No description',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: palette.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    expense.displayDepartment,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: palette.link,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 12),
+            _Badge(label: expense.displayStatus, color: color),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Amount card
+        Material(
+          color: palette.surfaceRaised,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _AmountRow(
+                title: 'Amount',
+                amount: expense.formattedTotal,
+                titleStyle: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.muted,
+                ),
+                amountStyle: theme.textTheme.headlineMedium?.copyWith(
+                  color: palette.ink,
+                ),
+              ),
+              if (expense.isPrepayment)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: _Badge(
+                      label: 'Prepayment Request',
+                      color: palette.link,
+                    ),
+                  ),
+                ),
+            ],
           ),
+        ),
 
-          Expanded(
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(24),
+        const SizedBox(height: 24),
+
+        // Details Section
+        BisoSection(
+          padding: EdgeInsets.zero,
+          title: 'Expense Details',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.calendar),
+                title: 'Date',
+                value: DateFormat('MMMM dd, yyyy').format(expense.expenseDate),
+              ),
+              BisoListRow(
+                // Material's category icon has no direct CupertinoIcons
+                // equivalent (not in R7); `tag` is the nearest fit.
+                leading: const BisoIconTile(icon: CupertinoIcons.tag),
+                title: 'Category',
+                value: expense.displayCategory,
+              ),
+              if (expense.eventName != null)
+                BisoListRow(
+                  leading: const BisoIconTile(
+                    icon: CupertinoIcons.calendar,
+                    accent: BisoAccent.blue,
+                  ),
+                  title: 'Related Event',
+                  value: expense.eventName!,
+                ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Payment Details
+        BisoSection(
+          padding: EdgeInsets.zero,
+          title: 'Payment Information',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                // Material's account_balance icon has no direct
+                // CupertinoIcons equivalent (not in R7); `creditcard` is the
+                // nearest fit.
+                leading: const BisoIconTile(
+                  icon: CupertinoIcons.creditcard,
+                  accent: BisoAccent.coral,
+                ),
+                title: 'Bank Account',
+                value: expense.formattedBankAccount,
+              ),
+              if (expense.userName != null)
+                BisoListRow(
+                  leading: const BisoIconTile(icon: CupertinoIcons.person_fill),
+                  title: 'Account Holder',
+                  value: expense.userName!,
+                ),
+            ],
+          ),
+        ),
+
+        // Attachments
+        if (expense.expenseAttachments.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          BisoSection(
+            padding: EdgeInsets.zero,
+            title: 'Receipts & Documents',
+            child: BisoListGroup(
               children: [
-                // Header
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            expense.description ?? 'No description',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            expense.displayDepartment,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: AppColors.defaultBlue,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(
-                          expense.status,
-                        ).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        expense.displayStatus,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: _getStatusColor(expense.status),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // Amount Card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.subtleBlue,
-                    borderRadius: BorderRadius.circular(12),
+                for (final attachment in expense.expenseAttachments)
+                  BisoListRow(
+                    leading: const BisoIconTile(icon: CupertinoIcons.paperclip),
+                    title: attachment.fileName,
+                    onTap: () => _openAttachment(attachment),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Amount',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: AppColors.defaultBlue,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              expense.formattedTotal,
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                color: AppColors.defaultBlue,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (expense.isPrepayment)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.defaultBlue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Prepayment Request',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: AppColors.defaultBlue,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Details Section
-                _DetailSection(
-                  title: 'Expense Details',
-                  children: [
-                    _DetailItem(
-                      icon: Icons.calendar_today,
-                      label: 'Date',
-                      value: DateFormat(
-                        'MMMM dd, yyyy',
-                      ).format(expense.expenseDate),
-                    ),
-                    _DetailItem(
-                      icon: Icons.category,
-                      label: 'Category',
-                      value: expense.displayCategory,
-                    ),
-                    if (expense.eventName != null)
-                      _DetailItem(
-                        icon: Icons.event,
-                        label: 'Related Event',
-                        value: expense.eventName!,
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // Payment Details
-                _DetailSection(
-                  title: 'Payment Information',
-                  children: [
-                    _DetailItem(
-                      icon: Icons.account_balance,
-                      label: 'Bank Account',
-                      value: expense.formattedBankAccount,
-                    ),
-                    if (expense.userName != null)
-                      _DetailItem(
-                        icon: Icons.person,
-                        label: 'Account Holder',
-                        value: expense.userName!,
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // Attachments
-                if (expense.expenseAttachments.isNotEmpty) ...[
-                  _DetailSection(
-                    title: 'Receipts & Documents',
-                    children: expense.expenseAttachments.map((attachment) {
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.gray200,
-                          child: Icon(
-                            _getFileIcon(attachment.fileName),
-                            color: AppColors.onSurfaceVariant,
-                            size: 20,
-                          ),
-                        ),
-                        title: Text(attachment.fileName),
-                        trailing: IconButton(
-                          onPressed: () async {
-                            final url = attachment.url;
-                            if (url == null || url.isEmpty) return;
-                            final uri = Uri.parse(url);
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.open_in_new),
-                        ),
-                        contentPadding: EdgeInsets.zero,
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Timeline/Status History
-                if (expense.approvedAt != null ||
-                    expense.rejectionReason != null) ...[
-                  _DetailSection(
-                    title: 'Status History',
-                    children: [
-                      _TimelineItem(
-                        icon: Icons.create,
-                        title: 'Created',
-                        subtitle: DateFormat(
-                          'MMM dd, yyyy • HH:mm',
-                        ).format(expense.createdAt!),
-                        isCompleted: true,
-                      ),
-                      if (expense.approvedAt != null)
-                        _TimelineItem(
-                          icon: Icons.check_circle,
-                          title: 'Approved',
-                          subtitle:
-                              'By ${expense.approverName} • ${DateFormat('MMM dd, yyyy • HH:mm').format(expense.approvedAt!)}',
-                          isCompleted: true,
-                        ),
-                      if (expense.rejectionReason != null)
-                        _TimelineItem(
-                          icon: Icons.cancel,
-                          title: 'Rejected',
-                          subtitle: expense.rejectionReason!,
-                          isCompleted: true,
-                          isError: true,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Action Buttons
-                if (expense.canEdit) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final notifier = ref.read(
-                              expensesStateProvider.notifier,
-                            );
-                            Navigator.pop(context);
-                            final result = await Navigator.push<ExpenseModel>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CreateExpenseScreen(
-                                  draftExpense: expense,
-                                  eventName: expense.eventName,
-                                ),
-                              ),
-                            );
-                            await notifier.refresh();
-                            if (context.mounted && result != null) {
-                              _showSubmittedSnack(context);
-                            }
-                          },
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Continue editing'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final deleted = await _confirmDeleteDraft(
-                              context,
-                              ref,
-                              expense.id,
-                            );
-                            if (deleted && context.mounted) {
-                              Navigator.pop(context);
-                            }
-                          },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Delete draft'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ],
             ),
           ),
         ],
-      ),
+
+        // Timeline/Status History
+        if (expense.approvedAt != null || expense.rejectionReason != null) ...[
+          const SizedBox(height: 16),
+          BisoSection(
+            padding: EdgeInsets.zero,
+            title: 'Status History',
+            child: BisoListGroup(
+              children: [
+                BisoListRow(
+                  leading: _TimelineIcon(
+                    icon: CupertinoIcons.add_circled,
+                    color: palette.muted,
+                  ),
+                  title: 'Created',
+                  subtitle: DateFormat(
+                    'MMM dd, yyyy • HH:mm',
+                  ).format(expense.createdAt!),
+                ),
+                if (expense.approvedAt != null)
+                  BisoListRow(
+                    leading: _TimelineIcon(
+                      icon: CupertinoIcons.checkmark_circle_fill,
+                      color: palette.success,
+                    ),
+                    title: 'Approved',
+                    subtitle:
+                        'By ${expense.approverName} • ${DateFormat('MMM dd, yyyy • HH:mm').format(expense.approvedAt!)}',
+                  ),
+                if (expense.rejectionReason != null)
+                  BisoListRow(
+                    leading: _TimelineIcon(
+                      icon: CupertinoIcons.xmark_circle_fill,
+                      color: palette.error,
+                    ),
+                    title: 'Rejected',
+                    subtitle: expense.rejectionReason!,
+                    destructive: true,
+                  ),
+              ],
+            ),
+          ),
+        ],
+
+        // Action Buttons
+        if (expense.canEdit) ...[
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final notifier = ref.read(
+                      expensesStateProvider.notifier,
+                    );
+                    Navigator.pop(context);
+                    final result = await Navigator.push<ExpenseModel>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CreateExpenseScreen(
+                          draftExpense: expense,
+                          eventName: expense.eventName,
+                        ),
+                      ),
+                    );
+                    await notifier.refresh();
+                    if (context.mounted && result != null) {
+                      _showSubmittedSnack(context);
+                    }
+                  },
+                  icon: const Icon(CupertinoIcons.pencil),
+                  label: const Text('Continue editing'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final deleted = await _confirmDeleteDraft(
+                      context,
+                      ref,
+                      expense.id,
+                    );
+                    if (deleted && context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(CupertinoIcons.trash),
+                  label: const Text('Delete draft'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'draft':
-        return AppColors.onSurfaceVariant;
-      case 'pending':
-        return AppColors.orange9;
-      case 'submitted':
-        return AppColors.accentBlue;
-      case 'success':
-        return AppColors.success;
-      case 'rejected':
-        return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
-  }
-
-  IconData _getFileIcon(String filename) {
-    if (filename.toLowerCase().endsWith('.pdf')) {
-      return Icons.picture_as_pdf;
-    } else if (filename.toLowerCase().contains('.jpg') ||
-        filename.toLowerCase().contains('.png') ||
-        filename.toLowerCase().contains('.jpeg')) {
-      return Icons.image;
-    }
-    return Icons.attach_file;
   }
 
   void _showSubmittedSnack(BuildContext context) {
@@ -1090,184 +1084,5 @@ class _ExpenseDetailSheet extends ConsumerWidget {
         false;
     if (!confirmed) return false;
     return notifier.deleteExpense(expenseId);
-  }
-}
-
-class _DetailSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _DetailSection({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...children,
-      ],
-    );
-  }
-}
-
-class _DetailItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _DetailItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.onSurfaceVariant),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimelineItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool isCompleted;
-  final bool isError;
-
-  const _TimelineItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.isCompleted = false,
-    this.isError = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = isError
-        ? AppColors.error
-        : isCompleted
-        ? AppColors.success
-        : AppColors.onSurfaceVariant;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 16),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: AppColors.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
