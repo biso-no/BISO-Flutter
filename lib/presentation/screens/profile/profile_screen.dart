@@ -58,7 +58,10 @@ class ProfileScreen extends ConsumerWidget {
           tooltip: l10n.settingsMessage,
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            MaterialPageRoute(
+              builder: (_) => const SettingsScreen(),
+              settings: const RouteSettings(name: kSettingsRouteName),
+            ),
           ),
         ),
       ],
@@ -302,6 +305,7 @@ class ProfileScreen extends ConsumerWidget {
                       builder: (context) => const SettingsSectionPage(
                         section: SettingsSection.notifications,
                       ),
+                      settings: const RouteSettings(name: kSettingsRouteName),
                     ),
                   ),
                 ),
@@ -314,6 +318,7 @@ class ProfileScreen extends ConsumerWidget {
                       builder: (context) => const SettingsSectionPage(
                         section: SettingsSection.language,
                       ),
+                      settings: const RouteSettings(name: kSettingsRouteName),
                     ),
                   ),
                 ),

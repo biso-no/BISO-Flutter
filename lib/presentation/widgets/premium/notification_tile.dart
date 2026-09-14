@@ -39,12 +39,35 @@ Widget buildLoadingTile(String title) {
 }
 
 /// A settings row shown in place of [buildNotificationTile] when its data
-/// failed to load.
+/// failed to load. Unlike [BisoListRow]'s `subtitle` (capped at two lines),
+/// [message] renders in full — error text is not curated copy, and clipping
+/// it can hide the one detail that explains what went wrong.
 Widget buildErrorTile(String title, String message) {
-  return BisoListRow(
-    leading: const BisoIconTile(icon: CupertinoIcons.exclamationmark_circle),
-    title: title,
-    subtitle: message,
-    destructive: true,
+  return Builder(
+    builder: (context) {
+      final palette = BisoPalette.of(context);
+      final text = Theme.of(context).textTheme;
+      return Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const BisoIconTile(icon: CupertinoIcons.exclamationmark_circle),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title, style: text.titleMedium?.copyWith(color: palette.error)),
+                  const SizedBox(height: 2),
+                  Text(message, style: text.bodyMedium?.copyWith(color: palette.muted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
   );
 }

@@ -123,6 +123,17 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
 /// with a [MaterialPageRoute] from the [SettingsScreen] list.
 enum SettingsSection { general, notifications, privacy, chat, language }
 
+/// The [RouteSettings.name] every route that is part of Settings is pushed
+/// with — the [SettingsScreen] list itself, and every [SettingsSectionPage],
+/// whether it was pushed from that list or directly from a caller (such as
+/// `ProfileScreen`'s direct links to the notifications or language section).
+///
+/// This lets the Account row's back navigation ([_GeneralSettingsBody]) pop
+/// every Settings route in one call, regardless of how many of them are on
+/// the stack: one when its section page was pushed directly, two when it
+/// was reached through the list.
+const kSettingsRouteName = 'settings';
+
 /// A grouped list of the settings sections. Tapping a row pushes its
 /// [SettingsSectionPage].
 class SettingsScreen extends ConsumerWidget {
@@ -143,7 +154,10 @@ class SettingsScreen extends ConsumerWidget {
         title: title,
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => SettingsSectionPage(section: section)),
+          MaterialPageRoute(
+            builder: (_) => SettingsSectionPage(section: section),
+            settings: const RouteSettings(name: kSettingsRouteName),
+          ),
         ),
       );
     }
@@ -263,7 +277,12 @@ class _GeneralSettingsBody extends ConsumerWidget {
                 ),
                 title: authState.user?.name ?? 'User',
                 subtitle: authState.user?.email ?? '',
-                onTap: () => Navigator.pop(context),
+                // Closes every Settings route in one call, landing on
+                // whatever is underneath — Profile, however many Settings
+                // routes (the list, this section page, or both) are on top.
+                onTap: () => Navigator.of(
+                  context,
+                ).popUntil((route) => route.settings.name != kSettingsRouteName),
               ),
               Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 14),
@@ -653,7 +672,7 @@ IconData _topicIcon(NotificationTopic topic) => switch (topic) {
 };
 
 BisoAccent _topicAccent(NotificationTopic topic) => switch (topic) {
-  NotificationTopic.news => BisoAccent.blue,
+  NotificationTopic.news => BisoAccent.neutral,
   NotificationTopic.events => BisoAccent.blue,
   NotificationTopic.jobs => BisoAccent.teal,
   NotificationTopic.shop => BisoAccent.gold,
@@ -689,7 +708,7 @@ class _PrivacySettingsBody extends ConsumerWidget {
       children: [
         BisoSection(
           title: 'Chat Privacy',
-          footer: privacyStatusAsync.valueOrNull,
+          footer: privacyStatusAsync.hasError ? null : privacyStatusAsync.valueOrNull,
           child: BisoListGroup(
             children: [
               userPrivacyAsync.when(
@@ -853,12 +872,17 @@ class _LanguageSettingsBody extends ConsumerWidget {
                     value: language['code']!,
                     groupValue: currentLocale.languageCode,
                     onChanged: (value) {
-                      if (value != null) {
+                      if (value != null && value != currentLocale.languageCode) {
                         ref.read(localeProvider.notifier).setLocale(value);
                       }
                     },
                   ),
-                  onTap: () => ref.read(localeProvider.notifier).setLocale(language['code']!),
+                  onTap: () {
+                    final code = language['code']!;
+                    if (code != currentLocale.languageCode) {
+                      ref.read(localeProvider.notifier).setLocale(code);
+                    }
+                  },
                 ),
             ],
           ),

@@ -225,6 +225,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 MaterialPageRoute(
                   builder: (context) =>
                       const SettingsSectionPage(section: SettingsSection.chat),
+                  settings: const RouteSettings(name: kSettingsRouteName),
                 ),
               );
             },
