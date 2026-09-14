@@ -1,14 +1,21 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../data/models/product_model.dart';
 import '../../../data/services/product_service.dart';
 import '../../../data/services/chat_service.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../widgets/biso/biso.dart';
 import '../chat/chat_conversation_screen.dart';
+
+/// Injectable so tests can replace the Appwrite-backed service with a fake.
+/// `_ProductDetailScreenState` watches this instead of constructing
+/// `ProductService()` directly.
+final productServiceProvider = Provider<ProductService>(
+  (ref) => ProductService(),
+);
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final String productId;
@@ -41,7 +48,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         _error = null;
       });
 
-      final service = ProductService();
+      final service = ref.read(productServiceProvider);
       final product = await service.getProductById(widget.productId);
 
       if (product == null) {
@@ -97,7 +104,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     }
 
     try {
-      final service = ProductService();
+      final service = ref.read(productServiceProvider);
       final newState = await service.toggleFavorite(
         userId: auth.user!.id,
         productId: widget.productId,
@@ -161,85 +168,96 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
     final shouldSend = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child: product.images.isNotEmpty
-                    ? Image.network(
-                        product.images.first,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: AppColors.gray100,
-                            child: const Icon(Icons.shopping_bag),
-                          );
-                        },
-                      )
-                    : Container(
-                        color: AppColors.gray100,
-                        child: const Icon(Icons.shopping_bag),
-                      ),
+      builder: (context) {
+        final palette = BisoPalette.of(context);
+        return AlertDialog(
+          title: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: product.images.isNotEmpty
+                      ? Image.network(
+                          product.images.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return ColoredBox(
+                              color: palette.surfaceRaised,
+                              child: Icon(
+                                CupertinoIcons.bag,
+                                color: palette.muted,
+                              ),
+                            );
+                          },
+                        )
+                      : ColoredBox(
+                          color: palette.surfaceRaised,
+                          child: Icon(CupertinoIcons.bag, color: palette.muted),
+                        ),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Message ${product.sellerName}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Text(
-                    product.name,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Message ${product.sellerName}',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    Text(
+                      product.name,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.muted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Send a message to ${product.sellerName}:',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: palette.muted),
+              ),
+              const SizedBox(height: 12),
+              BisoFormGroup(
+                children: [
+                  TextField(
+                    controller: messageController,
+                    maxLines: 3,
+                    decoration: bisoInputDecoration(
+                      context,
+                      hintText: 'Type your message...',
+                    ),
                   ),
                 ],
               ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Send'),
             ),
           ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Send a message to ${product.sellerName}:',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: messageController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'Type your message...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Send'),
-          ),
-        ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
+        );
+      },
     );
 
     if (shouldSend == true && messageController.text.trim().isNotEmpty) {
@@ -301,292 +319,191 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final backLeading = BisoBackButton(
+      onPressed: () =>
+          NavigationUtils.safeGoBack(context, fallbackRoute: '/explore/products'),
+    );
+
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Product Details'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => NavigationUtils.safeGoBack(
-              context,
-              fallbackRoute: '/explore/products',
-            ),
-          ),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+      return BisoPage(
+        title: 'Product Details',
+        largeTitle: false,
+        leading: backLeading,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
       );
     }
 
     if (_error != null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Product Details'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => NavigationUtils.safeGoBack(
-              context,
-              fallbackRoute: '/explore/products',
-            ),
+      return BisoPage(
+        title: 'Product Details',
+        largeTitle: false,
+        leading: backLeading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoErrorState(message: _error, onRetry: _loadProduct),
           ),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.error_outline,
-                  size: 64,
-                  color: AppColors.error,
-                ),
-                const SizedBox(height: 16),
-                Text(_error!, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _loadProduct,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
-        ),
+        ],
       );
     }
 
     final product = _product!;
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-      body: CustomScrollView(
-        slivers: [
-          // Image gallery app bar
-          SliverAppBar(
-            expandedHeight: 400,
-            pinned: true,
-            backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-            leading: IconButton(
-              icon: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
-              onPressed: () => NavigationUtils.safeGoBack(
-                context,
-                fallbackRoute: '/explore/products',
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    shape: BoxShape.circle,
-                  ),
-                  child: _favoriteLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Icon(
-                          _isFavorited ? Icons.favorite : Icons.favorite_border,
-                          color: _isFavorited ? Colors.red : Colors.white,
-                        ),
-                ),
-                onPressed: _favoriteLoading ? null : _toggleFavorite,
-              ),
-              const SizedBox(width: 8),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildImageGallery(product),
-            ),
-          ),
-
-          // Product details content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Price and title
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${product.price.toStringAsFixed(0)} ${product.currency}',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.defaultBlue,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              product.name,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (product.isNegotiable)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.warning),
-                          ),
-                          child: Text(
-                            'Negotiable',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Category and condition
-                  Row(
-                    children: [
-                      if (product.category.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            product.category,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      if (product.category.isNotEmpty && product.condition.isNotEmpty)
-                        const SizedBox(width: 8),
-                      if (product.condition.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariant,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            product.condition,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Description
-                  Text(
-                    'Description',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    product.description,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.5,
-                      color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariant,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Seller info
-                  _buildSellerInfo(product, theme),
-
-                  const SizedBox(height: 80), // Space for fixed bottom button
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // Fixed contact button
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
+    return BisoPage(
+      overImage: true,
+      title: product.name,
+      largeTitle: false,
+      leading: backLeading,
+      actions: [
+        BisoHeaderAction(
+          icon: _isFavorited ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+          tooltip: 'Favorite',
+          onPressed: _favoriteLoading ? null : _toggleFavorite,
         ),
-        child: Padding(
-          padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
+      ],
+      bottomBar: BisoBottomBar(
+        child: SizedBox(
+          width: double.infinity,
           child: FilledButton.icon(
             onPressed: _contactSeller,
-            icon: const Icon(Icons.message),
+            icon: const Icon(CupertinoIcons.chat_bubble_text_fill),
             label: const Text('Contact Seller'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.defaultBlue,
+          ),
+        ),
+      ),
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 400,
+            child: _buildImageGallery(product, palette),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Price and title
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${product.price.toStringAsFixed(0)} ${product.currency}',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              color: palette.ink,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            product.name,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              color: palette.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (product.isNegotiable)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: palette.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: palette.warning),
+                        ),
+                        child: Text(
+                          'Negotiable',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: palette.warning,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Category and condition
+                Row(
+                  children: [
+                    if (product.category.isNotEmpty)
+                      _buildInfoChip(theme, palette, product.category),
+                    if (product.category.isNotEmpty &&
+                        product.condition.isNotEmpty)
+                      const SizedBox(width: 8),
+                    if (product.condition.isNotEmpty)
+                      _buildInfoChip(theme, palette, product.condition),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
+
+        // Description
+        SliverToBoxAdapter(
+          child: BisoSection(
+            title: 'Description',
+            child: Material(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(20),
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  product.description,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    height: 1.5,
+                    color: palette.muted,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // Seller info
+        SliverToBoxAdapter(child: _buildSellerInfo(product, palette)),
+      ],
+    );
+  }
+
+  Widget _buildInfoChip(ThemeData theme, BisoPalette palette, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.surfaceRaised,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(color: palette.muted),
       ),
     );
   }
 
-  Widget _buildImageGallery(ProductModel product) {
+  Widget _buildImageGallery(ProductModel product, BisoPalette palette) {
     if (product.images.isEmpty) {
-      return Container(
-        color: AppColors.gray100,
-        child: const Center(
-          child: Icon(Icons.image, size: 64, color: AppColors.onSurfaceVariant),
+      return ColoredBox(
+        color: palette.surfaceRaised,
+        child: Center(
+          child: Icon(CupertinoIcons.photo, size: 64, color: palette.muted),
         ),
       );
     }
 
     return Stack(
+      fit: StackFit.expand,
       children: [
         PageView.builder(
           itemCount: product.images.length,
@@ -596,13 +513,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               product.images[index],
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  color: AppColors.gray100,
-                  child: const Center(
+                return ColoredBox(
+                  color: palette.surfaceRaised,
+                  child: Center(
                     child: Icon(
-                      Icons.broken_image,
+                      CupertinoIcons.photo,
                       size: 64,
-                      color: AppColors.onSurfaceVariant,
+                      color: palette.muted,
                     ),
                   ),
                 );
@@ -611,7 +528,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           },
         ),
 
-        // Image indicator
+        // Image page indicator
         if (product.images.length > 1)
           Positioned(
             bottom: 16,
@@ -620,16 +537,30 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 8,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
+                  color: Colors.black.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  '${_currentImageIndex + 1} / ${product.images.length}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < product.images.length; i++)
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: i == _currentImageIndex ? 8 : 6,
+                        height: i == _currentImageIndex ? 8 : 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(
+                            alpha: i == _currentImageIndex ? 1 : 0.5,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -638,67 +569,34 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-  Widget _buildSellerInfo(ProductModel product, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.gray50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSellerInfo(ProductModel product, BisoPalette palette) {
+    return BisoSection(
+      title: 'Seller Information',
+      child: BisoListGroup(
         children: [
-          Text(
-            'Seller Information',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+          BisoListRow(
+            title: product.sellerName,
+            subtitle: product.contactMethod != null
+                ? 'Prefers: ${_contactMethodLabel(product.contactMethod!)}'
+                : null,
+            leading: CircleAvatar(
+              radius: 24,
+              backgroundColor: palette.surfaceRaised,
+              backgroundImage: product.sellerAvatar != null
+                  ? NetworkImage(product.sellerAvatar!)
+                  : null,
+              child: product.sellerAvatar == null
+                  ? Text(
+                      product.sellerName.isNotEmpty
+                          ? product.sellerName[0].toUpperCase()
+                          : 'U',
+                      style: TextStyle(
+                        color: palette.link,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.subtleBlue,
-                backgroundImage: product.sellerAvatar != null
-                    ? NetworkImage(product.sellerAvatar!)
-                    : null,
-                child: product.sellerAvatar == null
-                    ? Text(
-                        product.sellerName.isNotEmpty
-                            ? product.sellerName[0].toUpperCase()
-                            : 'U',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: AppColors.defaultBlue,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.sellerName,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    if (product.contactMethod != null)
-                      Text(
-                        'Prefers: ${_contactMethodLabel(product.contactMethod!)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ],
       ),
