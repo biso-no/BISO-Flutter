@@ -242,14 +242,16 @@ class _DepartureRow extends StatelessWidget {
         ? _formatTime(call.expectedDepartureTime)
         : (secondsTo <= 30 ? 'Now' : '${diff.inMinutes} min');
 
-    // For a delayed call, append the pre-migration tile's own delay wording
-    // ("Delayed +Xm" and the struck-through scheduled time) to the subtitle,
-    // verbatim, so that information isn't lost — only its presentation
-    // (a standalone pill + strikethrough line) changed.
+    // For a delayed or early call, append the pre-migration tile's own
+    // wording ("Delayed +Xm" / "Early Xm" and the struck-through scheduled
+    // time) to the subtitle, verbatim, so that information isn't lost — only
+    // its presentation (a standalone pill + strikethrough line) changed.
     final subtitleParts = <String>[
       if (call.lineName.isNotEmpty) call.lineName,
       if (isDelayed)
         'Delayed +${deltaMinutes}m · Scheduled ${_formatTime(call.aimedDepartureTime)}',
+      if (deltaMinutes < 0)
+        'Early ${deltaMinutes.abs()}m · Scheduled ${_formatTime(call.aimedDepartureTime)}',
     ];
     final String? subtitle = subtitleParts.isEmpty
         ? null

@@ -79,9 +79,8 @@ class _FakeEnturService extends EnturService {
   final EnturDepartureBoard board;
 
   @override
-  Future<List<StopPlaceModel>> getStopPlacesForCampus(
-    String campusId,
-  ) async => _stopPlaces;
+  Future<List<StopPlaceModel>> getStopPlacesForCampus(String campusId) async =>
+      _stopPlaces;
 
   @override
   Future<EnturDepartureBoard?> getDeparturesByStopPlaceId(
@@ -167,8 +166,60 @@ void main() {
       expect(
         find.textContaining('Delayed +'),
         findsOneWidget,
-        reason: 'the delay wording appears exactly once, only on the '
+        reason:
+            'the delay wording appears exactly once, only on the '
             'delayed row',
+      );
+    },
+  );
+
+  testWidgets(
+    'an early departure shows its "Early Xm" wording in the subtitle',
+    (tester) async {
+      final now = DateTime.now();
+      final board = EnturDepartureBoard(
+        stopPlaceId: 'NSR:StopPlace:1',
+        stopPlaceName: 'Test Stop',
+        updatedAt: now,
+        calls: [
+          EnturEstimatedCall(
+            realtime: true,
+            aimedDepartureTime: now.add(
+              const Duration(minutes: 13, seconds: 30),
+            ),
+            expectedDepartureTime: now.add(
+              const Duration(minutes: 10, seconds: 30),
+            ),
+            destination: 'Early Destination',
+            lineId: 'line-3',
+            lineName: 'Line 3',
+            transportMode: 'bus',
+            quayId: 'quay-3',
+          ),
+        ],
+      );
+      await pumpBisoScreen(
+        tester,
+        const DeparturesScreen(),
+        routed: true,
+        overrides: _overrides(board),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final aimedTimeText = DateFormat(
+        'HH:mm',
+      ).format(board.calls.single.aimedDepartureTime);
+      // Wording verbatim from the pre-migration pill (git show 521b307).
+      expect(
+        find.text('Line 3 · Early 3m · Scheduled $aimedTimeText'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Early 3m'), findsOneWidget);
+      final value = tester.widget<Text>(find.text('10 min'));
+      expect(
+        value.style?.color,
+        BisoPalette.of(tester.element(find.text('10 min'))).muted,
+        reason: 'only a delay is a warning; an early departure stays muted',
       );
     },
   );
