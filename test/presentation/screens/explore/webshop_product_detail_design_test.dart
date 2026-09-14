@@ -54,6 +54,42 @@ WebshopProduct _product() => WebshopProduct(
   ],
 );
 
+const _firstRequiredField = ProductCustomField(
+  id: 'passport',
+  fieldKey: 'passport_number',
+  label: 'Passport number',
+  type: 'text',
+  isRequired: true,
+);
+
+/// The required field is *first* here (unlike [_product], where it's last),
+/// with several trailing optional fields after it. Scrolling down and then
+/// triggering `_revealCustomField` exercises the "already built" branch —
+/// the field has already been laid out, so revealing it means scrolling
+/// *up*, landing its top at the scroll content's `y = 0`, i.e. straight
+/// behind the translucent header unless `_clearHeaderAbove` corrects it.
+/// [_product]'s below-the-fold case instead hits the "never built" branch,
+/// which scrolls to `maxScrollExtent` — since the required field there is
+/// also the *last* section of the page, that already lands it near the
+/// natural bottom of the content, well clear of the header with or without
+/// the nudge, so it never actually exercises `_clearHeaderAbove`.
+WebshopProduct _productWithLeadingRequiredField() => WebshopProduct(
+  id: 'p2',
+  images: const [],
+  title: 'BISO Hoodie',
+  regularPrice: 349,
+  customFields: [
+    _firstRequiredField,
+    for (var i = 0; i < 10; i++)
+      ProductCustomField(
+        id: 'trailing$i',
+        fieldKey: 'trailing_$i',
+        label: 'Trailing field $i',
+        type: 'text',
+      ),
+  ],
+);
+
 List<Override> _overrides() => [
   cartUserIdProvider.overrideWithValue(null),
   hasValidMembershipProvider.overrideWithValue(false),
@@ -101,6 +137,81 @@ void main() {
 
       final fieldTop = tester.getTopLeft(find.text('Shirt size *')).dy;
       expect(fieldTop, greaterThanOrEqualTo(47 + kBisoHeaderHeight));
+    },
+  );
+
+  testWidgets(
+    'a required field placed first, scrolled above the viewport, is '
+    'revealed below the translucent header rather than behind it, and its '
+    'validation error paints below its own label (exercises '
+    '_clearHeaderAbove directly — the case above never scrolls the field '
+    'behind the header even without it, since it is also the last section '
+    'of the page)',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        WebshopProductDetailScreen(product: _productWithLeadingRequiredField()),
+        overrides: _overrides(),
+      );
+      await tester.pumpAndSettle();
+
+      // Scroll down far enough that the required field (first in the
+      // custom-fields section, right after the 360pt gallery and the
+      // title/price block) is now scrolled up past the top edge — still
+      // built and registered with the Form (it was on screen a moment
+      // ago), but needing an *upward* scroll to reveal it again. This is
+      // the "already built" branch of `_revealCustomField`.
+      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      expect(find.text('Passport number *'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to cart'));
+      await tester.pumpAndSettle();
+
+      final labelFinder = find.text('Passport number *');
+      expect(labelFinder, findsOneWidget);
+      final labelRect = tester.getRect(labelFinder);
+      expect(labelRect.top, greaterThanOrEqualTo(47 + kBisoHeaderHeight));
+
+      final errorFinder = find.text('This field is required');
+      expect(errorFinder, findsOneWidget);
+      final errorRect = tester.getRect(errorFinder);
+      expect(errorRect.top, greaterThan(labelRect.bottom));
+    },
+  );
+
+  testWidgets(
+    'focusing the lowest custom field with the keyboard open keeps it '
+    'clear of the floating purchase bar',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        WebshopProductDetailScreen(product: _product()),
+        overrides: _overrides(),
+      );
+      await tester.pumpAndSettle();
+
+      // Scroll the last (lowest) custom field into view and focus it.
+      await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -2000));
+      await tester.pumpAndSettle();
+      final field = find.byType(TextFormField).last;
+      expect(field, findsOneWidget);
+      await tester.tap(field);
+      await tester.pump();
+
+      // Open a 336pt keyboard, in physical pixels at this view's device
+      // pixel ratio (set by pumpBisoScreen), the same way flutter_test
+      // simulates the IME appearing: MediaQuery.viewInsets changes, which
+      // EditableText reacts to by scrolling its own caret into view using
+      // its `scrollPadding`.
+      final dpr = tester.view.devicePixelRatio;
+      tester.view.viewInsets = FakeViewPadding(bottom: 336 * dpr);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+
+      final fieldBottom = tester.getBottomLeft(field).dy;
+      final barTop = tester.getTopLeft(find.byType(BisoBottomBar)).dy;
+      expect(fieldBottom, lessThanOrEqualTo(barTop));
     },
   );
 }

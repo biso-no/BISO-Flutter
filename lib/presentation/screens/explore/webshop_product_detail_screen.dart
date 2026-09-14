@@ -284,7 +284,14 @@ class _WebshopProductDetailScreenState
     if (!_scrollController.hasClients) return;
     final box = fieldContext.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return;
-    final topInset = BisoPageInsets.maybeOf(fieldContext)?.top ?? 0;
+    // `getInheritedWidgetOfExactType` rather than `BisoPageInsets.maybeOf`
+    // (which calls `dependOnInheritedWidgetOfExactType`): this runs from an
+    // async callback, not a build method, so registering a rebuild
+    // dependency on the field's element would be a stray subscription that
+    // never gets cleaned up the way a real build-time read would.
+    final topInset =
+        fieldContext.getInheritedWidgetOfExactType<BisoPageInsets>()?.top ??
+        0;
     if (topInset <= 0) return;
     final fieldTop = box.localToGlobal(Offset.zero).dy;
     final shortfall = topInset - fieldTop;
@@ -498,6 +505,7 @@ class _WebshopProductDetailScreenState
               child: _buildCustomFieldsHeader(theme, palette),
             ),
             SliverBisoListGroup(
+              dividerIndent: 16,
               itemCount: product.customFields.length,
               itemBuilder: (context, index) {
                 final field = product.customFields[index];
@@ -506,7 +514,7 @@ class _WebshopProductDetailScreenState
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: BisoFormRow(
                     label: field.isRequired ? '${field.label} *' : field.label,
-                    child: _buildCustomFieldInput(field),
+                    child: _buildCustomFieldInput(context, field),
                   ),
                 );
               },
@@ -698,9 +706,12 @@ class _WebshopProductDetailScreenState
   Widget _buildCustomFieldsHeader(ThemeData theme, BisoPalette palette) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
-      child: Text(
-        'Additional information',
-        style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),
+      child: Semantics(
+        header: true,
+        child: Text(
+          'Additional information',
+          style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),
+        ),
       ),
     );
   }
@@ -777,7 +788,15 @@ class _WebshopProductDetailScreenState
   ///
   /// `fieldKey` is an opaque id and is never rendered — only [field.label],
   /// [field.placeholder] and [field.helpText] are shown to the user.
-  Widget _buildCustomFieldInput(ProductCustomField field) {
+  ///
+  /// [context] is the field's own (descendant) build context — passed in
+  /// rather than using the State's own `context`, so [BisoPageInsets] (an
+  /// ancestor only inside [BisoPage]'s subtree) can be read to size
+  /// [scrollPadding]: without it, `EditableText`'s default 20 pt scroll
+  /// padding on every edge leaves a focused field tucked under the floating
+  /// purchase bar when the keyboard opens, since that default has no idea
+  /// the bar (and, above the fold, the translucent header) are there.
+  Widget _buildCustomFieldInput(BuildContext context, ProductCustomField field) {
     final requiredValidator = field.isRequired
         ? (String? value) {
             if (value == null || value.trim().isEmpty) {
@@ -787,6 +806,11 @@ class _WebshopProductDetailScreenState
           }
         : null;
 
+    final insets = BisoPageInsets.maybeOf(context);
+    final scrollPadding = insets != null
+        ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+        : const EdgeInsets.all(20);
+
     switch (field.type) {
       case 'textarea':
         return TextFormField(
@@ -794,6 +818,7 @@ class _WebshopProductDetailScreenState
           minLines: 3,
           maxLines: 5,
           keyboardType: TextInputType.multiline,
+          scrollPadding: scrollPadding,
           decoration: bisoInputDecoration(
             context,
             hintText: field.placeholder,
@@ -804,6 +829,7 @@ class _WebshopProductDetailScreenState
         return TextFormField(
           controller: _textControllers[field.fieldKey],
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          scrollPadding: scrollPadding,
           decoration: bisoInputDecoration(
             context,
             hintText: field.placeholder,
@@ -814,6 +840,7 @@ class _WebshopProductDetailScreenState
         return TextFormField(
           controller: _textControllers[field.fieldKey],
           keyboardType: TextInputType.emailAddress,
+          scrollPadding: scrollPadding,
           decoration: bisoInputDecoration(
             context,
             hintText: field.placeholder,
@@ -856,6 +883,7 @@ class _WebshopProductDetailScreenState
       default:
         return TextFormField(
           controller: _textControllers[field.fieldKey],
+          scrollPadding: scrollPadding,
           decoration: bisoInputDecoration(
             context,
             hintText: field.placeholder,
