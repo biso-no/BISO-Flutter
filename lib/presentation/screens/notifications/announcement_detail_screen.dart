@@ -1,11 +1,12 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
 import '../../../data/services/deep_link_service.dart';
 import '../../../providers/notification/notification_provider.dart';
+import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
 /// Rich detail view for a single announcement.
@@ -41,106 +42,114 @@ class _AnnouncementDetailScreenState
   Widget build(BuildContext context) {
     final detail = ref.watch(announcementDetailProvider(widget.announcementId));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Announcement'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () =>
-              NavigationUtils.safeGoBack(context, fallbackRoute: '/notifications'),
-        ),
+    return BisoPage(
+      title: 'Announcement',
+      largeTitle: false,
+      leading: BisoBackButton(
+        onPressed: () =>
+            NavigationUtils.safeGoBack(context, fallbackRoute: '/notifications'),
       ),
-      body: detail.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _ErrorView(
-          message: error.toString(),
-          onRetry: () => ref.invalidate(
-            announcementDetailProvider(widget.announcementId),
+      slivers: detail.when(
+        loading: () => const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
+        error: (error, _) => [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoErrorState(
+              message: error.toString(),
+              onRetry: () => ref.invalidate(
+                announcementDetailProvider(widget.announcementId),
+              ),
+            ),
           ),
-        ),
+        ],
         data: (notification) {
           if (notification == null) {
-            return const _NotFoundView();
+            return const [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: BisoEmptyState(
+                  icon: CupertinoIcons.tray,
+                  title: 'Announcement not found',
+                  message: 'It may have been removed.',
+                ),
+              ),
+            ];
           }
           _maybeMarkRead(notification);
-          return _AnnouncementBody(notification: notification);
+          return _announcementSlivers(context, notification);
         },
       ),
     );
   }
 }
 
-class _AnnouncementBody extends StatelessWidget {
-  final AppNotification notification;
+List<Widget> _announcementSlivers(
+  BuildContext context,
+  AppNotification notification,
+) {
+  final theme = Theme.of(context);
+  final palette = BisoPalette.of(context);
+  final hasHtml = notification.bodyHtml.trim().isNotEmpty;
 
-  const _AnnouncementBody({required this.notification});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final categoryColor = _categoryColor(notification.category);
-    final hasHtml = notification.bodyHtml.trim().isNotEmpty;
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      children: [
-        Row(
+  return [
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: categoryColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                _categoryIcon(notification.category),
-                color: categoryColor,
-                size: 22,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [Chip(label: Text(_categoryLabel(notification.category)))],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              notification.title,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: palette.ink,
               ),
             ),
-            const SizedBox(width: 12),
-            _CategoryChip(
-              category: notification.category,
-              color: categoryColor,
+            const SizedBox(height: 8),
+            Text(
+              _formatTimestamp(notification.createdAt),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: palette.muted,
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Text(
-          notification.title,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
+      ),
+    ),
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Material(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: hasHtml
+                ? PremiumHtmlRenderer.full(htmlContent: notification.bodyHtml)
+                : Text(
+                    notification.body.isNotEmpty
+                        ? notification.body
+                        : 'No content.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      height: 1.5,
+                      color: palette.ink,
+                    ),
+                  ),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          _formatTimestamp(notification.createdAt),
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: AppColors.gray500,
-          ),
-        ),
-        const SizedBox(height: 20),
-        const Divider(height: 1),
-        const SizedBox(height: 16),
-        if (hasHtml)
-          PremiumHtmlRenderer.full(htmlContent: notification.bodyHtml)
-        else if (notification.body.isNotEmpty)
-          Text(
-            notification.body,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-          )
-        else
-          Text(
-            'No content.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.gray500,
-            ),
-          ),
-        if (notification.eventId != null &&
-            notification.eventId!.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          SizedBox(
+      ),
+    ),
+    if (notification.eventId != null && notification.eventId!.isNotEmpty)
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: () {
@@ -148,147 +157,13 @@ class _AnnouncementBody extends StatelessWidget {
                   Uri.parse('biso://event?id=${notification.eventId}'),
                 );
               },
-              icon: const Icon(Icons.event_rounded),
+              icon: const Icon(CupertinoIcons.calendar),
               label: const Text('View event'),
             ),
           ),
-        ],
-      ],
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  final String category;
-  final Color color;
-
-  const _CategoryChip({required this.category, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        _categoryLabel(category),
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
         ),
       ),
-    );
-  }
-}
-
-class _NotFoundView extends StatelessWidget {
-  const _NotFoundView();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-        const Icon(
-          Icons.inbox_rounded,
-          size: 64,
-          color: AppColors.gray400,
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            'Announcement not found',
-            style: theme.textTheme.titleMedium,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: Text(
-            'It may have been removed.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.gray500,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorView({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListView(
-      children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
-        const Icon(
-          Icons.error_outline_rounded,
-          size: 64,
-          color: AppColors.error,
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            'Could not load announcement',
-            style: theme.textTheme.titleMedium,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.gray500,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ),
-      ],
-    );
-  }
-}
-
-Color _categoryColor(String category) {
-  switch (category) {
-    case 'urgent':
-      return AppColors.error;
-    case 'trip':
-      return AppColors.orange9;
-    case 'event':
-      return AppColors.defaultBlue;
-    default:
-      return AppColors.biLightBlue;
-  }
-}
-
-IconData _categoryIcon(String category) {
-  switch (category) {
-    case 'urgent':
-      return Icons.priority_high_rounded;
-    case 'trip':
-      return Icons.flight_takeoff_rounded;
-    case 'event':
-      return Icons.event_rounded;
-    default:
-      return Icons.campaign_rounded;
-  }
+  ];
 }
 
 String _categoryLabel(String category) {
