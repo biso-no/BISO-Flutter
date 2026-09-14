@@ -172,49 +172,13 @@ A comprehensive student organization app for Norwegian Business School campuses,
 
 ## UI/UX Design System
 
-### Color Palette
-
-#### Primary Colors (BI Brand)
-```dart
-const strongBlue = Color(0xFF002341);
-const defaultBlue = Color(0xFF01417B);
-const accentBlue = Color(0xFF1A77E9);
-const subtleBlue = Color(0xFFE6F2FA);
-
-const strongGold = Color(0xFFBD9E16);
-const defaultGold = Color(0xFFF7D64A);
-const accentGold = Color(0xFFFFE98C);
-```
-
-#### Extended Palette
-- Blue spectrum: blue1-blue11 (light to dark gradients)
-- Green spectrum: green1-green11
-- Purple, Orange, Pink spectrums for categories
-
-### Typography
-- Primary Font: Inter (or system default)
-- Heading sizes: H1-H6
-- Body text with 1.5 line height
-- Support for Norwegian characters (æ, ø, å)
-
-### Components Style Guide
-
-#### Cards
-- Border radius: 12px (large), 8px (medium), 4px (small)
-- Shadow: Subtle elevation (0-2px offset, 8px blur)
-- Padding: 16px standard, 24px for featured content
-
-#### Buttons
-- Primary: Blue gradient with white text
-- Secondary: Outlined with theme color
-- Sizes: Small ($2), Medium ($4), Large ($6)
-- Border radius: Full for pills, $4 for standard
-
-#### Navigation
-- Bottom tab navigation with 4 tabs
-- Tab icons with optional badges
-- Gradient overlays for selected state
-- Safe area handling for notches
+### Design system (2026-09)
+Tokens, type and components are defined in
+`docs/superpowers/specs/2026-09-11-glass-header-and-screen-redesign-design.md`.
+Screens import `lib/presentation/widgets/biso/biso.dart` and build on
+`BisoPage`; colors come from `BisoPalette.of(context)` and `BisoAccent`;
+Museo Sans is weight 300 and only for large type; icons are CupertinoIcons.
+`test/presentation/design_rules_test.dart` enforces this for migrated files.
 
 ### Animation Guidelines
 - Spring animations for interactions
