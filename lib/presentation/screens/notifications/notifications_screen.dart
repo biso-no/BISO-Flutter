@@ -113,9 +113,14 @@ class _NotificationRow extends StatelessWidget {
     final isUnread = !notification.read;
 
     return BisoListRow(
-      leading: BisoIconTile(
-        icon: _categoryIcon(notification.category),
-        accent: _categoryAccent(notification.category),
+      // The tile's icon is decorative; the old category chip's word
+      // ("Urgent", "Trip", "Event", "General") is kept for screen readers.
+      leading: Semantics(
+        label: _categoryLabel(notification.category),
+        child: BisoIconTile(
+          icon: _categoryIcon(notification.category),
+          accent: _categoryAccent(notification.category),
+        ),
       ),
       title: notification.title,
       subtitle: notification.body.isNotEmpty ? notification.body : null,
@@ -163,4 +168,18 @@ String _relativeTime(DateTime date) {
   if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
   if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
   return '${(diff.inDays / 365).floor()}y ago';
+}
+
+// Verbatim from the pre-migration category chip (git show 521b307).
+String _categoryLabel(String category) {
+  switch (category) {
+    case 'urgent':
+      return 'Urgent';
+    case 'trip':
+      return 'Trip';
+    case 'event':
+      return 'Event';
+    default:
+      return 'General';
+  }
 }

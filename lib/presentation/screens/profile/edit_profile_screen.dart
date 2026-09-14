@@ -268,18 +268,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   Positioned(
                     bottom: -6,
                     right: -6,
-                    child: BisoGlassCapsule(
-                      children: [
-                        BisoCapsuleButton(
-                          icon: CupertinoIcons.camera_fill,
-                          tooltip:
-                              AppLocalizations.of(
-                                context,
-                              )?.changePhotoMessage ??
-                              'Change photo',
-                          onPressed: _pickImage,
+                    // A plain raised circle: glass is for floating chrome
+                    // only (spec §1.4), and this button sits on content.
+                    child: Material(
+                      color: palette.surfaceRaised,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: IconButton(
+                        icon: Icon(
+                          CupertinoIcons.camera_fill,
+                          size: 22,
+                          color: palette.ink,
                         ),
-                      ],
+                        tooltip:
+                            AppLocalizations.of(context)?.changePhotoMessage ??
+                            'Change photo',
+                        onPressed: _pickImage,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 44,
+                          height: 44,
+                        ),
+                      ),
                     ),
                   ),
                 ],

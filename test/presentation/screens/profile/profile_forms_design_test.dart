@@ -3,6 +3,7 @@ import 'package:biso/data/models/user_model.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/profile/edit_profile_screen.dart';
 import 'package:biso/presentation/screens/profile/payment_information_screen.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -183,4 +184,32 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(auth.updateProfileCalls, 1);
   });
+
+  testWidgets(
+    'the avatar photo button is a plain raised circle, not glass, with a '
+    '44pt tap target',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const EditProfileScreen(),
+        overrides: [authStateProvider.overrideWith((_) => _Auth())],
+      );
+      await tester.pumpAndSettle();
+
+      final button = find.byTooltip('Change photo');
+      expect(button, findsOneWidget);
+      expect(
+        // Header actions keep their glass; only the avatar button loses it.
+        find.ancestor(of: button, matching: find.byType(BisoGlassCapsule)),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(of: button, matching: find.byType(BackdropFilter)),
+        findsNothing,
+      );
+      final size = tester.getSize(button);
+      expect(size.width, greaterThanOrEqualTo(44));
+      expect(size.height, greaterThanOrEqualTo(44));
+    },
+  );
 }

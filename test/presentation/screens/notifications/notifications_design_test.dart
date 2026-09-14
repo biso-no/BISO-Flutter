@@ -95,4 +95,36 @@ void main() {
 
     expect(find.text('No notifications yet'), findsOneWidget);
   });
+
+  testWidgets(
+    'each row tells screen readers its category, as the old chip showed it',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpBisoScreen(
+        tester,
+        const NotificationsScreen(),
+        inShell: false,
+        overrides: _overrides(
+          NotificationInboxState(items: [_unread, _read]),
+        ),
+      );
+
+      final eventRow = tester.getSemantics(
+        find.ancestor(
+          of: find.text('Campus closed tomorrow'),
+          matching: find.byType(BisoListRow),
+        ),
+      );
+      final generalRow = tester.getSemantics(
+        find.ancestor(
+          of: find.text('Welcome to BISO'),
+          matching: find.byType(BisoListRow),
+        ),
+      );
+      expect(eventRow.label, contains('Event'));
+      expect(eventRow.label, contains('Campus closed tomorrow'));
+      expect(generalRow.label, contains('General'));
+      semantics.dispose();
+    },
+  );
 }

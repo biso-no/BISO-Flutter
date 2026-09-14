@@ -1186,13 +1186,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       builder: (sheetContext) {
         final palette = BisoPalette.of(sheetContext);
         // A bottom sheet route is not a descendant of this page's BisoPage,
-        // so BisoPageInsets.maybeOf always resolves null here; the fallback
-        // below (matching sell_product_screen's _scrollPaddingFor) is the
-        // live branch.
-        final insets = BisoPageInsets.maybeOf(sheetContext);
-        final scrollPadding = insets != null
-            ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
-            : const EdgeInsets.all(20);
+        // so there are no page insets to clear here (matching the fallback
+        // in sell_product_screen's _scrollPaddingFor).
+        const scrollPadding = EdgeInsets.all(20);
         return Padding(
           padding: EdgeInsets.only(
             left: 20,
