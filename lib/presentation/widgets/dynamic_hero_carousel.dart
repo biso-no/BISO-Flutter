@@ -9,7 +9,6 @@ import '../../data/models/campus_model.dart';
 import '../../data/models/large_event_model.dart';
 import '../../data/services/showcase_navigation_service.dart';
 import '../../generated/l10n/app_localizations.dart';
-import '../../providers/notification/notification_provider.dart';
 
 /// A campus cover followed by editorial showcases. Pages move only on a swipe,
 /// so the cover never changes while someone is reading or using VoiceOver.
@@ -52,7 +51,6 @@ class _DynamicHeroCarouselState extends ConsumerState<DynamicHeroCarousel> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
-    final unread = ref.watch(unreadCountProvider);
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final count = widget.showcaseItems.length + 1;
     return Column(
@@ -61,7 +59,9 @@ class _DynamicHeroCarouselState extends ConsumerState<DynamicHeroCarousel> {
         SafeArea(
           bottom: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 16, 16),
+            // The right inset clears the glass notifications capsule that
+            // BisoPage floats over this row's top-right corner.
+            padding: const EdgeInsets.fromLTRB(24, 10, 76, 16),
             child: Row(
               children: [
                 Text(
@@ -70,7 +70,6 @@ class _DynamicHeroCarouselState extends ConsumerState<DynamicHeroCarousel> {
                   // campus control next to it follows the user's text size.
                   textScaler: TextScaler.noScaling,
                   style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
                     letterSpacing: -1.5,
                   ),
                 ),
@@ -88,16 +87,6 @@ class _DynamicHeroCarouselState extends ConsumerState<DynamicHeroCarousel> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Badge(
-                  isLabelVisible: unread > 0,
-                  label: Text(unread > 9 ? '9+' : '$unread'),
-                  child: IconButton(
-                    tooltip: l10n.notificationsMessage,
-                    onPressed: () => context.push('/notifications'),
-                    icon: const Icon(CupertinoIcons.bell, size: 23),
                   ),
                 ),
               ],

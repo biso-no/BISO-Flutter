@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/biso_colors.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/models/job_model.dart';
@@ -26,6 +27,7 @@ class BisoEventCarousel extends StatelessWidget {
       itemBuilder: (context, index) {
         final event = events[index];
         final theme = Theme.of(context);
+        final palette = BisoPalette.of(context);
         return SizedBox(
           width: (MediaQuery.sizeOf(context).width - 72).clamp(240, 340),
           child: Material(
@@ -52,7 +54,7 @@ class BisoEventCarousel extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.primary,
+                      color: palette.link,
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -72,7 +74,7 @@ class BisoEventCarousel extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: palette.muted,
                       ),
                     ),
                   ],
@@ -159,16 +161,18 @@ class BisoJobList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Material(
-        color: theme.colorScheme.surface,
+        color: palette.surface,
         borderRadius: BorderRadius.circular(20),
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: [
             for (var i = 0; i < jobs.length; i++) ...[
-              if (i > 0) const Divider(indent: 20, endIndent: 20),
+              if (i > 0)
+                Divider(indent: 20, endIndent: 20, color: palette.hairline),
               InkWell(
                 onTap: () => context.go(
                   '/explore/volunteer',
@@ -191,7 +195,7 @@ class BisoJobList extends StatelessWidget {
                               const SizedBox(height: 5),
                               jobs[i].description.toCompactHtml(
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                                  color: palette.muted,
                                 ),
                                 maxLines: 2,
                                 fontSize: 14,
@@ -221,12 +225,10 @@ class _FeedImage extends StatelessWidget {
   final IconData fallback;
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final palette = BisoPalette.of(context);
     Widget placeholder() => ColoredBox(
-      color: scheme.surfaceContainerHighest,
-      child: Center(
-        child: Icon(fallback, size: 32, color: scheme.onSurfaceVariant),
-      ),
+      color: palette.surfaceRaised,
+      child: Center(child: Icon(fallback, size: 32, color: palette.muted)),
     );
     return SizedBox(
       height: height,
