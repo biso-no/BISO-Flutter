@@ -462,8 +462,10 @@ String _lifecycleLabel(_EventLifecycle lifecycle, AppLocalizations l10n) {
 Color _statusColor(_EventLifecycle lifecycle, BisoPalette palette) {
   switch (lifecycle) {
     case _EventLifecycle.upcoming:
-    case _EventLifecycle.completed:
       return palette.link;
+    case _EventLifecycle.completed:
+      // Past, inactive — not the active/selected meaning `link` carries.
+      return palette.muted;
     case _EventLifecycle.ongoing:
       return palette.success;
     case _EventLifecycle.cancelled:
