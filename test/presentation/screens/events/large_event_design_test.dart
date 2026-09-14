@@ -1,3 +1,4 @@
+import 'package:biso/core/constants/app_colors.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/large_event_model.dart';
 import 'package:biso/data/services/large_event_item_service.dart';
@@ -100,6 +101,22 @@ LargeEventModel _noConfigModel() => LargeEventModel(
   isActive: true,
   heroOverrideEnabled: true,
   priority: 1,
+  campusConfigs: const {},
+);
+
+/// A `primaryColorHex` is free-form CMS content, so the date pill's text
+/// color must be picked for contrast rather than assumed to be white.
+LargeEventModel _eventWithBrandColor(String hex) => LargeEventModel(
+  id: 'event-color',
+  slug: 'color-test',
+  name: 'Color Test',
+  description: 'Testing pill contrast.',
+  startDate: DateTime.utc(2030, 8, 10),
+  endDate: DateTime.utc(2030, 8, 17),
+  isActive: true,
+  heroOverrideEnabled: true,
+  priority: 1,
+  primaryColorHex: hex,
   campusConfigs: const {},
 );
 
@@ -253,5 +270,35 @@ void main() {
 
     expect(find.text('Buy Pass'), findsOneWidget);
     expect(find.text('Open Ticket Portal'), findsOneWidget);
+  });
+
+  testWidgets('a light CMS brand color gets navy date pill text', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      LargeEventScreen(event: _eventWithBrandColor('#FFF3B0')),
+      overrides: _overrides(items: const []),
+      inShell: false,
+      routed: true,
+    );
+
+    final text = tester.widget<Text>(find.text('10.8.2030'));
+    expect(text.style?.color, AppColors.biNavy);
+  });
+
+  testWidgets('a dark CMS brand color keeps white date pill text', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      LargeEventScreen(event: _eventWithBrandColor('#001731')),
+      overrides: _overrides(items: const []),
+      inShell: false,
+      routed: true,
+    );
+
+    final text = tester.widget<Text>(find.text('10.8.2030'));
+    expect(text.style?.color, Colors.white);
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/large_event_model.dart';
 import '../../../providers/campus/campus_provider.dart';
@@ -41,7 +42,7 @@ class LargeEventScreen extends ConsumerWidget {
             child: _DatePills(
               from: event.startDate,
               to: event.endDate,
-              color: event.primaryColor,
+              color: event.primaryColor, // biso:allow CMS event brand color
             ),
           ),
         ),
@@ -111,8 +112,8 @@ class _EventHero extends StatelessWidget {
             ),
           ),
           Positioned(
-            left: 20,
-            right: 20,
+            left: 16,
+            right: 16,
             bottom: 20,
             child: Text(
               event.name,
@@ -185,9 +186,14 @@ class _DatePills extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = BisoPalette.of(context);
-    final style = Theme.of(
-      context,
-    ).textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w600);
+    // `color` is CMS content (`event.primaryColor`) and can be any hex
+    // value, including a light one, so the text can't be a fixed white —
+    // pick whichever of white/navy actually reads on this background.
+    final foreground = _readableForegroundFor(color);
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: foreground,
+      fontWeight: FontWeight.w600,
+    );
     // A Wrap rather than a strict Row: at large text scales the two date
     // pills flow onto another line instead of overflowing the page width.
     return Wrap(
@@ -198,7 +204,7 @@ class _DatePills extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color,
+            color: color, // biso:allow CMS event brand color
             borderRadius: BorderRadius.circular(24),
           ),
           child: Text('${from.day}.${from.month}.${from.year}', style: style),
@@ -207,7 +213,7 @@ class _DatePills extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color,
+            color: color, // biso:allow CMS event brand color
             borderRadius: BorderRadius.circular(24),
           ),
           child: Text('${to.day}.${to.month}.${to.year}', style: style),
@@ -215,6 +221,15 @@ class _DatePills extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The readable foreground (text and any icon) for a pill painted with
+/// [background] — a CMS-supplied color that can be arbitrarily light or
+/// dark, so a fixed `Colors.white` can't be assumed to read on it.
+Color _readableForegroundFor(Color background) {
+  return ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+      ? Colors.white
+      : AppColors.biNavy;
 }
 
 class _TicketingSection extends StatelessWidget {
