@@ -40,6 +40,8 @@ const migratedFiles = <String>[
   'lib/presentation/screens/profile/settings_screen_chat_tab.dart',
   'lib/presentation/widgets/premium/notification_tile.dart',
   'lib/presentation/screens/chat/chat_conversation_screen.dart',
+  'lib/presentation/screens/chat/chat_info_screen.dart',
+  'lib/presentation/screens/chat/user_picker_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{
