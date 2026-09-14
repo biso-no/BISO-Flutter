@@ -107,6 +107,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get askAIMessage => 'Ask AI Assistant';
 
   @override
+  String get attachMessage => 'Attach';
+
+  @override
   String get attachedFilesMessage => 'Attached Files';
 
   @override

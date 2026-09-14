@@ -107,6 +107,9 @@ class AppLocalizationsNo extends AppLocalizations {
   String get askAIMessage => 'Spør AI-assistent';
 
   @override
+  String get attachMessage => 'Legg ved';
+
+  @override
   String get attachedFilesMessage => 'Vedlagte filer';
 
   @override

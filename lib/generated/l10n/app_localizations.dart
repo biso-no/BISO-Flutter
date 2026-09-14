@@ -280,6 +280,12 @@ abstract class AppLocalizations {
   /// **'Ask AI Assistant'**
   String get askAIMessage;
 
+  /// Tooltip for the chat composer's attach-file button
+  ///
+  /// In en, this message translates to:
+  /// **'Attach'**
+  String get attachMessage;
+
   /// Auto-extracted string
   ///
   /// In en, this message translates to:

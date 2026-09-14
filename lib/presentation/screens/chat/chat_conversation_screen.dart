@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/biso_chrome.dart';
 import '../../../data/models/chat_model.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../widgets/biso/biso.dart';
 import 'chat_list_screen.dart';
@@ -104,17 +105,16 @@ class _ChatConversationScreenState
     }
 
     final palette = BisoPalette.of(context);
-    final displayName = _getChatDisplayName(authState.user!.id);
-    // The old AppBar showed the chat name and, for group/team/department
-    // chats, a "N members" line underneath. BisoPage's title is a single
-    // line, so both are folded into one string rather than dropped.
-    final title =
-        (widget.chat.isGroup || widget.chat.isTeam || widget.chat.isDepartment)
-        ? '$displayName · ${widget.chat.participants.length} members'
-        : displayName;
+    final l10n = AppLocalizations.of(context);
+    // The old AppBar showed a second line under the chat name — "N members"
+    // — for group/team/department chats. The compact header title is a
+    // single line that ellipsizes, so that count is rendered separately (see
+    // `_MemberCountLabel` below) instead of being folded in and truncated.
+    final showMemberCount =
+        widget.chat.isGroup || widget.chat.isTeam || widget.chat.isDepartment;
 
     return BisoPage(
-      title: title,
+      title: _getChatDisplayName(authState.user!.id),
       largeTitle: false,
       actions: [
         BisoHeaderAction(
@@ -123,61 +123,82 @@ class _ChatConversationScreenState
           onPressed: _showChatInfo,
         ),
       ],
-      body: messagesAsync.when(
-        data: (messages) {
-          if (messages.isEmpty) {
-            return Padding(
-              padding: BisoPageInsets.padding(context),
-              child: _buildEmptyState(context),
+      // `BisoPageInsets.padding` needs a context *below* `BisoPage` in the
+      // tree (BisoPage provides that InheritedWidget around its own body),
+      // not the screen's own build context, which sits above it — a
+      // `Builder` gets one. Without this, `BisoPageInsets.maybeOf` always
+      // returns null here and silently falls back to the tab bar's inset
+      // alone, omitting the composer's own height from the list's bottom
+      // clearance and letting the newest bubble render behind it.
+      body: Builder(
+        builder: (context) => messagesAsync.when(
+          data: (messages) {
+            if (messages.isEmpty) {
+              return Padding(
+                padding: BisoPageInsets.padding(context),
+                child: _buildEmptyState(context),
+              );
+            }
+
+            return ListView.builder(
+              controller: _scrollController,
+              reverse: true,
+              padding: BisoPageInsets.padding(
+                context,
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              // `reverse: true` paints the highest index first (at the visual
+              // top), so the member count — the oldest end of the history —
+              // is one extra item past the last message rather than folded
+              // into the (single-line, ellipsizing) header title.
+              itemCount: messages.length + (showMemberCount ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (showMemberCount && index == messages.length) {
+                  return _MemberCountLabel(
+                    count: widget.chat.participants.length,
+                  );
+                }
+
+                final message = messages[index];
+                final previousMessage = index < messages.length - 1
+                    ? messages[index + 1]
+                    : null;
+                final showDateSeparator = _shouldShowDateSeparator(
+                  message,
+                  previousMessage,
+                );
+                final showAvatar = _shouldShowAvatar(message, previousMessage);
+
+                return Column(
+                  children: [
+                    if (showDateSeparator)
+                      _DateSeparator(date: message.timestamp),
+
+                    _MessageBubble(
+                      key: ValueKey('chat-message-${message.id}'),
+                      message: message,
+                      currentUserId: authState.user!.id,
+                      showAvatar: showAvatar,
+                      onReply: () => _setReplyingTo(message),
+                      onEdit: () => _setEditingMessage(message),
+                      onDelete: () => _deleteMessage(message),
+                      onReact: (emoji) => _reactToMessage(message, emoji),
+                    ),
+                  ],
+                );
+              },
             );
-          }
-
-          return ListView.builder(
-            controller: _scrollController,
-            reverse: true,
-            padding: BisoPageInsets.padding(
-              context,
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          },
+          loading: () => Padding(
+            padding: BisoPageInsets.padding(context),
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, stack) => Padding(
+            padding: BisoPageInsets.padding(context),
+            child: BisoErrorState(
+              message: 'Failed to load messages: ${error.toString()}',
+              onRetry: () => ref.refresh(chatMessagesProvider(widget.chat.id)),
             ),
-            itemCount: messages.length,
-            itemBuilder: (context, index) {
-              final message = messages[index];
-              final previousMessage = index < messages.length - 1
-                  ? messages[index + 1]
-                  : null;
-              final showDateSeparator = _shouldShowDateSeparator(
-                message,
-                previousMessage,
-              );
-              final showAvatar = _shouldShowAvatar(message, previousMessage);
-
-              return Column(
-                children: [
-                  if (showDateSeparator) _DateSeparator(date: message.timestamp),
-
-                  _MessageBubble(
-                    message: message,
-                    currentUserId: authState.user!.id,
-                    showAvatar: showAvatar,
-                    onReply: () => _setReplyingTo(message),
-                    onEdit: () => _setEditingMessage(message),
-                    onDelete: () => _deleteMessage(message),
-                    onReact: (emoji) => _reactToMessage(message, emoji),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-        loading: () => Padding(
-          padding: BisoPageInsets.padding(context),
-          child: const Center(child: CircularProgressIndicator()),
-        ),
-        error: (error, stack) => Padding(
-          padding: BisoPageInsets.padding(context),
-          child: BisoErrorState(
-            message: 'Failed to load messages: ${error.toString()}',
-            onRetry: () => ref.refresh(chatMessagesProvider(widget.chat.id)),
           ),
         ),
       ),
@@ -202,12 +223,14 @@ class _ChatConversationScreenState
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
             child: BisoChrome(
+              key: const ValueKey('chat-composer-chrome'),
               radius: 26,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   IconButton(
                     onPressed: _showAttachmentOptions,
+                    tooltip: l10n?.attachMessage ?? 'Attach',
                     icon: Icon(CupertinoIcons.paperclip, color: palette.muted),
                   ),
 
@@ -232,6 +255,7 @@ class _ChatConversationScreenState
 
                   IconButton(
                     onPressed: _canSendMessage() ? _sendMessage : null,
+                    tooltip: l10n?.sendMessage ?? 'Send',
                     icon: _isSending
                         ? SizedBox(
                             width: 16,
@@ -648,6 +672,7 @@ class _MessageBubble extends StatelessWidget {
   final Function(String) onReact;
 
   const _MessageBubble({
+    super.key,
     required this.message,
     required this.currentUserId,
     required this.showAvatar,
@@ -677,15 +702,18 @@ class _MessageBubble extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final bubbleColor = isMe ? palette.primary : palette.surface;
     final contentColor = isMe ? palette.onPrimary : palette.ink;
+    // `primary` and `link` are the same blue in dark mode, so a self bubble's
+    // 70%-alpha subtle text (timestamp, "edited") reads at ~3:1 contrast at
+    // best; bump it to full alpha there while light mode keeps 70%.
+    final ownBubbleDark =
+        isMe && Theme.of(context).brightness == Brightness.dark;
+    final subtleContentAlpha = ownBubbleDark ? 1.0 : 0.7;
     final timeColor = isMe
-        ? palette.onPrimary.withValues(alpha: 0.7)
+        ? palette.onPrimary.withValues(alpha: subtleContentAlpha)
         : palette.muted;
 
     return Container(
-      margin: EdgeInsets.symmetric(
-        vertical: showAvatar ? 8 : 2,
-        horizontal: 4,
-      ),
+      margin: EdgeInsets.symmetric(vertical: showAvatar ? 8 : 2, horizontal: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -711,61 +739,73 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
 
-                GestureDetector(
-                  onLongPress: () => _showMessageOptions(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: bubbleColor,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(20),
-                        topRight: const Radius.circular(20),
-                        bottomLeft: Radius.circular(isMe ? 20 : 6),
-                        bottomRight: Radius.circular(isMe ? 6 : 20),
+                // `IntrinsicWidth` bounds the bubble to its content's own
+                // natural width (e.g. a short "Hi"), rather than the trailing
+                // timestamp's `Align` expanding it to the full message row —
+                // which otherwise made every bubble, however short, span
+                // edge to edge.
+                IntrinsicWidth(
+                  key: ValueKey('chat-bubble-${message.id}'),
+                  child: GestureDetector(
+                    onLongPress: () => _showMessageOptions(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (message.replyTo != null)
-                          _buildReplyPreview(context, contentColor),
+                      decoration: BoxDecoration(
+                        color: bubbleColor,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(20),
+                          topRight: const Radius.circular(20),
+                          bottomLeft: Radius.circular(isMe ? 20 : 6),
+                          bottomRight: Radius.circular(isMe ? 6 : 20),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (message.replyTo != null)
+                            _buildReplyPreview(context, contentColor),
 
-                        if (message.isEdited)
+                          if (message.isEdited)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                'edited',
+                                style: text.labelSmall?.copyWith(
+                                  color: contentColor.withValues(
+                                    alpha: subtleContentAlpha,
+                                  ),
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+
+                          Text(
+                            message.content,
+                            style: text.bodyLarge?.copyWith(
+                              color: contentColor,
+                            ),
+                          ),
+
+                          if (message.attachments.isNotEmpty)
+                            _buildAttachments(context, contentColor),
+
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              'edited',
-                              style: text.labelSmall?.copyWith(
-                                color: contentColor.withValues(alpha: 0.7),
-                                fontStyle: FontStyle.italic,
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Align(
+                              alignment: Alignment.bottomRight,
+                              child: Text(
+                                _formatTime(message.timestamp),
+                                style: text.labelSmall?.copyWith(
+                                  color: timeColor,
+                                ),
                               ),
                             ),
                           ),
-
-                        Text(
-                          message.content,
-                          style: text.bodyLarge?.copyWith(color: contentColor),
-                        ),
-
-                        if (message.attachments.isNotEmpty)
-                          _buildAttachments(context, contentColor),
-
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Align(
-                            alignment: Alignment.bottomRight,
-                            child: Text(
-                              _formatTime(message.timestamp),
-                              style: text.labelSmall?.copyWith(
-                                color: timeColor,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -835,15 +875,17 @@ class _MessageBubble extends StatelessWidget {
     final cardColor = isMe
         ? palette.onPrimary.withValues(alpha: 0.12)
         : palette.surfaceRaised;
+    // See the equivalent comment in build(): primary and link share the same
+    // blue in dark mode, so a self bubble's subtle text needs full alpha
+    // there to stay readable; light mode keeps 70%.
+    final ownBubbleDark =
+        isMe && Theme.of(context).brightness == Brightness.dark;
     final timeColor = isMe
-        ? palette.onPrimary.withValues(alpha: 0.7)
+        ? palette.onPrimary.withValues(alpha: ownBubbleDark ? 1.0 : 0.7)
         : palette.muted;
 
     return Container(
-      margin: EdgeInsets.symmetric(
-        vertical: showAvatar ? 8 : 2,
-        horizontal: 4,
-      ),
+      margin: EdgeInsets.symmetric(vertical: showAvatar ? 8 : 2, horizontal: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -893,40 +935,41 @@ class _MessageBubble extends StatelessWidget {
                             top: Radius.circular(20),
                           ),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: productImage.isNotEmpty
-                                    ? Image.network(
-                                        productImage,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, _, _) => Container(
-                                          color: palette.surfaceRaised,
-                                          child: Icon(
-                                            CupertinoIcons.bag_fill,
-                                            color: palette.muted,
+                            Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 48,
+                                    height: 48,
+                                    child: productImage.isNotEmpty
+                                        ? Image.network(
+                                            productImage,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, _, _) =>
+                                                Container(
+                                                  color: palette.surfaceRaised,
+                                                  child: Icon(
+                                                    CupertinoIcons.bag_fill,
+                                                    color: palette.muted,
+                                                  ),
+                                                ),
+                                          )
+                                        : Container(
+                                            color: palette.surfaceRaised,
+                                            child: Icon(
+                                              CupertinoIcons.bag_fill,
+                                              color: palette.muted,
+                                            ),
                                           ),
-                                        ),
-                                      )
-                                    : Container(
-                                        color: palette.surfaceRaised,
-                                        child: Icon(
-                                          CupertinoIcons.bag_fill,
-                                          color: palette.muted,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
                                     productName,
                                     style: text.labelLarge?.copyWith(
                                       color: contentColor,
@@ -934,14 +977,21 @@ class _MessageBubble extends StatelessWidget {
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'NOK ${productPrice.toStringAsFixed(0)}',
-                                    style: text.titleMedium?.copyWith(
-                                      color: isMe ? contentColor : palette.link,
-                                    ),
-                                  ),
-                                ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            // On its own full-width line rather than beside
+                            // the 48pt thumbnail, so the price — which must
+                            // never be cut off (R11) — has the whole card's
+                            // width to fit in, not just the narrow remainder
+                            // beside the image.
+                            Text(
+                              'NOK ${productPrice.toStringAsFixed(0)}',
+                              maxLines: 1,
+                              softWrap: false,
+                              style: text.titleMedium?.copyWith(
+                                color: isMe ? contentColor : palette.link,
                               ),
                             ),
                           ],
@@ -966,9 +1016,7 @@ class _MessageBubble extends StatelessWidget {
                           alignment: Alignment.bottomRight,
                           child: Text(
                             _formatTime(message.timestamp),
-                            style: text.labelSmall?.copyWith(
-                              color: timeColor,
-                            ),
+                            style: text.labelSmall?.copyWith(color: timeColor),
                           ),
                         ),
                       ),
@@ -1041,20 +1089,25 @@ class _MessageBubble extends StatelessWidget {
   Widget _buildReplyPreview(BuildContext context, Color contentColor) {
     final palette = BisoPalette.of(context);
     final text = Theme.of(context).textTheme;
+    // `palette.link` is unreadable on a self bubble: it's identical to
+    // `palette.primary` in dark mode (both #3DA9E0) and ~3.3:1 in light
+    // mode. Use the bubble's own content color there instead; other
+    // people's bubbles (surface background) keep the link color.
+    final accent = isMe ? contentColor : palette.link;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: palette.link, width: 3)),
+        border: Border(left: BorderSide(color: accent, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             message.replyTo!.senderName,
-            style: text.labelMedium?.copyWith(color: palette.link),
+            style: text.labelMedium?.copyWith(color: accent),
           ),
           const SizedBox(height: 2),
           Text(
@@ -1122,9 +1175,7 @@ class _MessageBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 color: palette.surfaceRaised,
                 borderRadius: BorderRadius.circular(12),
-                border: mine
-                    ? Border.all(color: palette.link, width: 1)
-                    : null,
+                border: mine ? Border.all(color: palette.link, width: 1) : null,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1189,10 +1240,7 @@ class _MessageBubble extends StatelessWidget {
                     BisoListRow(
                       title: 'Delete',
                       destructive: true,
-                      leading: Icon(
-                        CupertinoIcons.trash,
-                        color: palette.error,
-                      ),
+                      leading: Icon(CupertinoIcons.trash, color: palette.error),
                       onTap: () {
                         Navigator.pop(sheetContext);
                         onDelete();
@@ -1281,6 +1329,33 @@ class _MessageBubble extends StatelessWidget {
 
   String _formatTime(DateTime timestamp) {
     return DateFormat('HH:mm').format(timestamp);
+  }
+}
+
+/// The chat's member count, shown once at the oldest end of the message
+/// history (the old AppBar's "N members" subtitle, moved here so the
+/// single-line compact header title never truncates it).
+class _MemberCountLabel extends StatelessWidget {
+  const _MemberCountLabel({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Text(
+          '$count members',
+          maxLines: 1,
+          softWrap: false,
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(color: palette.muted),
+        ),
+      ),
+    );
   }
 }
 

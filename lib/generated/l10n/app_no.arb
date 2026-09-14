@@ -120,6 +120,10 @@
   "@askAIMessage": {
     "description": "Auto-extracted string"
   },
+  "attachMessage": "Legg ved",
+  "@attachMessage": {
+    "description": "Tooltip for the chat composer's attach-file button"
+  },
   "attachedFilesMessage": "Vedlagte filer",
   "@attachedFilesMessage": {
     "description": "Auto-extracted string"

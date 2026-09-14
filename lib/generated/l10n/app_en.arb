@@ -120,6 +120,10 @@
   "@askAIMessage": {
     "description": "Auto-extracted string"
   },
+  "attachMessage": "Attach",
+  "@attachMessage": {
+    "description": "Tooltip for the chat composer's attach-file button"
+  },
   "attachedFilesMessage": "Attached Files",
   "@attachedFilesMessage": {
     "description": "Auto-extracted string"
