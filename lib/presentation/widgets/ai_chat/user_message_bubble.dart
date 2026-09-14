@@ -1,7 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../../data/models/ai_chat_models.dart';
-import '../../../core/constants/app_colors.dart';
+import '../biso/biso.dart';
 
 class UserMessageBubble extends StatefulWidget {
   final ChatMessage message;
@@ -49,7 +51,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -63,42 +65,37 @@ class _UserMessageBubbleState extends State<UserMessageBubble>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  _buildMessageBubble(theme, isDark),
+                  _buildMessageBubble(theme, palette),
                   const SizedBox(height: 4),
-                  _buildTimestamp(theme),
+                  _buildTimestamp(theme, palette),
                 ],
               ),
             ),
             const SizedBox(width: 12),
-            _buildAvatar(),
+            _buildAvatar(palette),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(BisoPalette palette) {
     return Container(
       width: 36,
       height: 36,
       decoration: BoxDecoration(
+        color: palette.primary,
         borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          colors: [AppColors.crystalBlue, AppColors.skyBlue],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.crystalBlue.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
-      child: const Icon(Icons.person_rounded, color: AppColors.white, size: 20),
+      child: Icon(
+        CupertinoIcons.person_fill,
+        color: palette.onPrimary,
+        size: 20,
+      ),
     );
   }
 
-  Widget _buildMessageBubble(ThemeData theme, bool isDark) {
+  Widget _buildMessageBubble(ThemeData theme, BisoPalette palette) {
     final textContent = widget.message.textContent;
 
     if (textContent.isEmpty) {
@@ -108,45 +105,25 @@ class _UserMessageBubbleState extends State<UserMessageBubble>
     return GestureDetector(
       onTap: () => _showInteractionFeedback(),
       onLongPress: () => _copyToClipboard(textContent),
-      child: AnimatedScale(
-        scale: 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [AppColors.crystalBlue, AppColors.defaultBlue],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.crystalBlue.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-              BoxShadow(
-                color: AppColors.white.withValues(alpha: 0.2),
-                blurRadius: 1,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Text(
-            textContent,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.white,
-              height: 1.6,
-              fontWeight: FontWeight.w500,
-            ),
+      child: Container(
+        key: const ValueKey('ai-user-bubble'),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: palette.primary,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          textContent,
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: palette.onPrimary,
+            height: 1.6,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTimestamp(ThemeData theme) {
+  Widget _buildTimestamp(ThemeData theme, BisoPalette palette) {
     if (widget.message.timestamp == null) {
       return const SizedBox.shrink();
     }
@@ -157,7 +134,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble>
       child: Text(
         '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
         style: theme.textTheme.bodySmall?.copyWith(
-          color: AppColors.onSurfaceVariant,
+          color: palette.muted,
           fontSize: 11,
         ),
       ),
@@ -179,7 +156,6 @@ class _UserMessageBubbleState extends State<UserMessageBubble>
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        backgroundColor: AppColors.crystalBlue,
       ),
     );
   }

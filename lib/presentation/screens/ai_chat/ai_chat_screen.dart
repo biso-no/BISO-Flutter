@@ -1,28 +1,33 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/theme/biso_chrome.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/ai_chat_models.dart';
 import '../../../data/services/ai_chat_service.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/theme/biso_glass.dart';
-import '../../../core/utils/navigation_utils.dart';
 import '../../widgets/ai_chat/ai_message_bubble.dart';
-import '../../widgets/ai_chat/user_message_bubble.dart';
 import '../../widgets/ai_chat/chat_input_field.dart';
 import '../../widgets/ai_chat/typing_indicator.dart';
+import '../../widgets/ai_chat/user_message_bubble.dart';
+import '../../widgets/biso/biso.dart';
 
 import '../../../core/logging/print_migration.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
-  const AiChatScreen({super.key});
+  const AiChatScreen({super.key, this.chatService});
+
+  /// Overridable so tests can supply a fake instead of the real
+  /// network-backed service; production always leaves this null and gets a
+  /// real [AiChatService].
+  final AiChatService? chatService;
 
   @override
   ConsumerState<AiChatScreen> createState() => _AiChatScreenState();
 }
 
-class _AiChatScreenState extends ConsumerState<AiChatScreen>
-    with TickerProviderStateMixin {
-  final AiChatService _chatService = AiChatService();
+class _AiChatScreenState extends ConsumerState<AiChatScreen> {
+  late final AiChatService _chatService = widget.chatService ?? AiChatService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<ChatMessage> _messages = [];
@@ -31,39 +36,10 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
   String? _currentStreamingMessageId;
   String? _errorMessage;
 
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
   @override
   void initState() {
     super.initState();
-    _initializeAnimations();
     _checkAuthAndShowWelcome();
-  }
-
-  void _initializeAnimations() {
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
-    );
-
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.elasticOut),
-        );
-
-    _fadeController.forward();
-    _slideController.forward();
   }
 
   Future<void> _checkAuthAndShowWelcome() async {
@@ -219,7 +195,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
 
       if (messageIndex >= 0) {
         final oldMessage = _messages[messageIndex];
-        logPrint('📝 [AI_CHAT] Old message parts: ${oldMessage.parts.length}');
+        logPrint('📝 [AI_BUBBLE] Old message parts: ${oldMessage.parts.length}');
 
         _messages[messageIndex] = _chatService.updateMessageWithText(
           _messages[messageIndex],
@@ -349,22 +325,6 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
     return 'Ready to help';
   }
 
-  Color _getStatusColor() {
-    if (_isStreaming) {
-      final runningTools = _getRunningTools();
-      if (runningTools.isNotEmpty) {
-        return AppColors.emeraldGreen;
-      }
-      return AppColors.crystalBlue;
-    }
-
-    if (_errorMessage != null) {
-      return AppColors.error;
-    }
-
-    return AppColors.crystalBlue;
-  }
-
   List<String> _getRunningTools() {
     if (_messages.isEmpty) return [];
 
@@ -402,140 +362,71 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
-    _fadeController.dispose();
-    _slideController.dispose();
     _chatService.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBodyBehindAppBar: true,
-      appBar: _buildAppBar(theme, isDark),
-      body: Stack(
-        children: [
-          _buildBackground(isDark),
-          SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SizedBox(
-                      height: constraints.maxHeight,
-                      child: Column(
-                        children: [
-                          Expanded(child: _buildMessagesList()),
-                          if (_errorMessage != null) _buildErrorBar(),
-                          Padding(
-                            padding: EdgeInsets.only(
-                              bottom: BisoNavigationInset.of(context),
-                            ),
-                            child: _buildChatInput(theme, isDark),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(ThemeData theme, bool isDark) {
-    return BisoGlassAppBar(
-      leading: NavigationUtils.buildBackButton(context, fallbackRoute: '/home'),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.crystalBlue.withValues(alpha: 0.2),
-                  AppColors.emeraldGreen.withValues(alpha: 0.2),
-                ],
-              ),
-            ),
-            child: Icon(
-              Icons.psychology_rounded,
-              color: AppColors.crystalBlue,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'BISO AI Assistant',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                _getStatusText(),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: _getStatusColor(),
-                ),
-              ),
-            ],
-          ),
-        ],
+    return BisoPage(
+      title: 'BISO AI Assistant',
+      largeTitle: false,
+      leading: BisoBackButton(
+        onPressed: () =>
+            NavigationUtils.safeGoBack(context, fallbackRoute: '/home'),
       ),
       actions: [
-        IconButton(
+        BisoHeaderAction(
+          icon: CupertinoIcons.arrow_clockwise,
+          tooltip: 'New conversation',
           onPressed: _clearChat,
-          icon: Icon(
-            Icons.refresh_rounded,
-            color: isDark ? AppColors.pearl : AppColors.strongBlue,
-          ),
         ),
-        const SizedBox(width: 8),
       ],
-    );
-  }
-
-  Widget _buildBackground(bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [
-                  AppColors.backgroundDark,
-                  AppColors.charcoalBlack.withValues(alpha: 0.9),
-                  AppColors.richNavy.withValues(alpha: 0.8),
-                ]
-              : [
-                  AppColors.background,
-                  AppColors.skyBlue.withValues(alpha: 0.1),
-                  AppColors.subtleBlue.withValues(alpha: 0.3),
-                ],
-        ),
+      // `BisoPageInsets.padding` needs a context *below* `BisoPage` in the
+      // tree, not the screen's own build context — see the identical note in
+      // `chat_conversation_screen.dart`. Without a `Builder`,
+      // `BisoPageInsets.maybeOf` returns null here and the list's bottom
+      // clearance silently omits the composer's own height.
+      body: Builder(builder: _buildMessagesList),
+      bottomBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_errorMessage != null) _buildErrorBar(context),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+            child: BisoChrome(
+              key: const ValueKey('ai-chat-composer-chrome'),
+              radius: 26,
+              child: ChatInputField(
+                controller: _textController,
+                onSend: _sendMessage,
+                enabled: !_isStreaming,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildMessagesList() {
+  Widget _buildMessagesList(BuildContext context) {
+    final itemCount =
+        1 + _messages.length + (_isStreaming ? 1 : 0); // +1 for status row
+
     return ListView.builder(
       controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      itemCount: _messages.length + (_isStreaming ? 1 : 0),
+      padding: BisoPageInsets.padding(
+        context,
+        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      itemCount: itemCount,
       itemBuilder: (context, index) {
-        if (index >= _messages.length) {
+        if (index == 0) {
+          return _StatusRow(text: _getStatusText());
+        }
+
+        final messageIndex = index - 1;
+        if (messageIndex >= _messages.length) {
           // Show typing indicator while streaming
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
@@ -543,7 +434,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
           );
         }
 
-        final message = _messages[index];
+        final message = _messages[messageIndex];
         final isUser = message.role == 'user';
         final isStreamingThisMessage =
             _isStreaming && message.id == _currentStreamingMessageId;
@@ -576,26 +467,28 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
     );
   }
 
-  Widget _buildErrorBar() {
+  Widget _buildErrorBar(BuildContext context) {
+    final palette = BisoPalette.of(context);
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.1),
+        color: palette.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: palette.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
+          Icon(
+            CupertinoIcons.exclamationmark_circle,
+            color: palette.error,
+            size: 20,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               _errorMessage!,
-              style: TextStyle(color: AppColors.error, fontSize: 14),
+              style: TextStyle(color: palette.error, fontSize: 14),
             ),
           ),
           TextButton(onPressed: _retryLastMessage, child: const Text('Retry')),
@@ -603,29 +496,38 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen>
       ),
     );
   }
+}
 
-  Widget _buildChatInput(ThemeData theme, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border(
-          top: BorderSide(
-            color: (isDark ? AppColors.outlineDark : AppColors.outline)
-                .withValues(alpha: 0.2),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: BisoGlassContainer(
-        padding: EdgeInsets.zero,
-        borderRadius: 28,
+/// The header's old changing status line ("Thinking...", "Using X...",
+/// "Error occurred", "Ready to help"), moved to the top of the message list
+/// so the compact header title can stay a single, static line.
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({required this.text});
 
-        child: ChatInputField(
-          controller: _textController,
-          onSend: _sendMessage,
-          enabled: !_isStreaming,
-          isDark: isDark,
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BisoIconTile(
+              icon: CupertinoIcons.sparkles,
+              accent: BisoAccent.violet,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(color: palette.muted),
+            ),
+          ],
         ),
       ),
     );
