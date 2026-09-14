@@ -1,16 +1,17 @@
-import '../../../core/theme/biso_navigation.dart';
 import 'dart:io';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_chrome.dart';
 import '../../../data/models/chat_model.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../widgets/biso/biso.dart';
 import 'chat_list_screen.dart';
 import 'chat_info_screen.dart';
 
@@ -96,204 +97,156 @@ class _ChatConversationScreenState
     final messagesAsync = ref.watch(chatMessagesProvider(widget.chat.id));
 
     if (authState.user == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const BisoPage(
+        largeTitle: false,
+        slivers: [SliverToBoxAdapter(child: BisoSkeleton.rows())],
+      );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () => context.pop(),
-          icon: const Icon(Icons.arrow_back),
+    final palette = BisoPalette.of(context);
+    final displayName = _getChatDisplayName(authState.user!.id);
+    // The old AppBar showed the chat name and, for group/team/department
+    // chats, a "N members" line underneath. BisoPage's title is a single
+    // line, so both are folded into one string rather than dropped.
+    final title =
+        (widget.chat.isGroup || widget.chat.isTeam || widget.chat.isDepartment)
+        ? '$displayName · ${widget.chat.participants.length} members'
+        : displayName;
+
+    return BisoPage(
+      title: title,
+      largeTitle: false,
+      actions: [
+        BisoHeaderAction(
+          icon: CupertinoIcons.info_circle,
+          tooltip: 'Chat info',
+          onPressed: _showChatInfo,
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _getChatDisplayName(authState.user!.id),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ],
+      body: messagesAsync.when(
+        data: (messages) {
+          if (messages.isEmpty) {
+            return Padding(
+              padding: BisoPageInsets.padding(context),
+              child: _buildEmptyState(context),
+            );
+          }
+
+          return ListView.builder(
+            controller: _scrollController,
+            reverse: true,
+            padding: BisoPageInsets.padding(
+              context,
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
-            if (widget.chat.isGroup ||
-                widget.chat.isTeam ||
-                widget.chat.isDepartment)
-              Text(
-                '${widget.chat.participants.length} members',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-          ],
+            itemCount: messages.length,
+            itemBuilder: (context, index) {
+              final message = messages[index];
+              final previousMessage = index < messages.length - 1
+                  ? messages[index + 1]
+                  : null;
+              final showDateSeparator = _shouldShowDateSeparator(
+                message,
+                previousMessage,
+              );
+              final showAvatar = _shouldShowAvatar(message, previousMessage);
+
+              return Column(
+                children: [
+                  if (showDateSeparator) _DateSeparator(date: message.timestamp),
+
+                  _MessageBubble(
+                    message: message,
+                    currentUserId: authState.user!.id,
+                    showAvatar: showAvatar,
+                    onReply: () => _setReplyingTo(message),
+                    onEdit: () => _setEditingMessage(message),
+                    onDelete: () => _deleteMessage(message),
+                    onReact: (emoji) => _reactToMessage(message, emoji),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+        loading: () => Padding(
+          padding: BisoPageInsets.padding(context),
+          child: const Center(child: CircularProgressIndicator()),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => _showChatInfo(),
-            icon: const Icon(Icons.info_outline),
+        error: (error, stack) => Padding(
+          padding: BisoPageInsets.padding(context),
+          child: BisoErrorState(
+            message: 'Failed to load messages: ${error.toString()}',
+            onRetry: () => ref.refresh(chatMessagesProvider(widget.chat.id)),
           ),
-        ],
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 1,
+        ),
       ),
-      body: Column(
+      bottomBar: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Messages list
-          Expanded(
-            child: messagesAsync.when(
-              data: (messages) {
-                if (messages.isEmpty) {
-                  return _buildEmptyState();
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final previousMessage = index < messages.length - 1
-                        ? messages[index + 1]
-                        : null;
-                    final showDateSeparator = _shouldShowDateSeparator(
-                      message,
-                      previousMessage,
-                    );
-                    final showAvatar = _shouldShowAvatar(
-                      message,
-                      previousMessage,
-                    );
-
-                    return Column(
-                      children: [
-                        if (showDateSeparator)
-                          _DateSeparator(date: message.timestamp),
-
-                        _MessageBubble(
-                          message: message,
-                          currentUserId: authState.user!.id,
-                          showAvatar: showAvatar,
-                          onReply: () => _setReplyingTo(message),
-                          onEdit: () => _setEditingMessage(message),
-                          onDelete: () => _deleteMessage(message),
-                          onReact: (emoji) => _reactToMessage(message, emoji),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: AppColors.error,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Failed to load messages: ${error.toString()}'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () =>
-                          ref.refresh(chatMessagesProvider(widget.chat.id)),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Reply banner
           if (_replyingTo != null)
             _ReplyBanner(message: _replyingTo!, onCancel: () => _cancelReply()),
 
-          // Edit banner
           if (_editingMessage != null)
             _EditBanner(
               message: _editingMessage!,
               onCancel: () => _cancelEdit(),
             ),
 
-          // Attachments preview
           if (_attachments.isNotEmpty)
             _AttachmentsPreview(
               attachments: _attachments,
               onRemove: _removeAttachment,
             ),
 
-          // Message input
-          Container(
-            padding: BisoNavigationInset.padding(context, const EdgeInsets.all(16)),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              border: const Border(
-                top: BorderSide(color: AppColors.outline, width: 0.5),
-              ),
-            ),
-            child: SafeArea(
-              bottom: false, // The navigation inset above includes the safe area.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+            child: BisoChrome(
+              radius: 26,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Attachment button
                   IconButton(
                     onPressed: _showAttachmentOptions,
-                    icon: const Icon(Icons.attach_file),
-                    color: AppColors.onSurfaceVariant,
+                    icon: Icon(CupertinoIcons.paperclip, color: palette.muted),
                   ),
 
-                  // Message input
                   Expanded(
-                    child: Container(
+                    child: ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 120),
                       child: TextField(
                         controller: _messageController,
                         focusNode: _messageFocusNode,
                         maxLines: null,
                         textInputAction: TextInputAction.newline,
-                        decoration: InputDecoration(
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(color: palette.ink),
+                        decoration: bisoInputDecoration(
+                          context,
                           hintText: _getInputHint(),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: AppColors.gray100,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(width: 8),
-
-                  // Send button
-                  Container(
-                    decoration: BoxDecoration(
-                      color: _canSendMessage()
-                          ? AppColors.defaultBlue
-                          : AppColors.gray300,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      onPressed: _canSendMessage() ? _sendMessage : null,
-                      icon: _isSending
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send, color: AppColors.white),
-                    ),
+                  IconButton(
+                    onPressed: _canSendMessage() ? _sendMessage : null,
+                    icon: _isSending
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: palette.link,
+                            ),
+                          )
+                        : Icon(
+                            CupertinoIcons.paperplane_fill,
+                            color: _canSendMessage()
+                                ? palette.link
+                                : palette.muted,
+                          ),
                   ),
                 ],
               ),
@@ -304,38 +257,18 @@ class _ChatConversationScreenState
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            widget.chat.isDirect
-                ? Icons.chat_bubble_outline
-                : Icons.group_outlined,
-            size: 64,
-            color: AppColors.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            widget.chat.isDirect
-                ? 'Start your conversation'
-                : 'Welcome to ${widget.chat.name}',
-            style: Theme.of(context).textTheme.titleLarge,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.chat.isDirect
-                ? 'Send a message to get started'
-                : 'Be the first to send a message',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceVariant),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+  Widget _buildEmptyState(BuildContext context) {
+    return BisoEmptyState(
+      icon: widget.chat.isDirect
+          ? CupertinoIcons.chat_bubble
+          : CupertinoIcons.person_2,
+      accent: BisoAccent.teal,
+      title: widget.chat.isDirect
+          ? 'Start your conversation'
+          : 'Welcome to ${widget.chat.name}',
+      message: widget.chat.isDirect
+          ? 'Send a message to get started'
+          : 'Be the first to send a message',
     );
   }
 
@@ -494,10 +427,7 @@ class _ChatConversationScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to send message: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Failed to send message: ${e.toString()}')),
         );
       }
     } finally {
@@ -510,6 +440,7 @@ class _ChatConversationScreenState
   }
 
   Future<void> _deleteMessage(ChatMessageModel message) async {
+    final palette = BisoPalette.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -520,9 +451,9 @@ class _ChatConversationScreenState
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: palette.error),
             child: const Text('Delete'),
           ),
         ],
@@ -538,7 +469,6 @@ class _ChatConversationScreenState
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to delete message: ${e.toString()}'),
-              backgroundColor: AppColors.error,
             ),
           );
         }
@@ -560,56 +490,57 @@ class _ChatConversationScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to react: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Failed to react: ${e.toString()}')),
         );
       }
     }
   }
 
   void _showAttachmentOptions() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(
-                Icons.photo_camera,
-                color: AppColors.defaultBlue,
+      builder: (sheetContext) {
+        final palette = BisoPalette.of(sheetContext);
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: BisoListGroup(
+                children: [
+                  BisoListRow(
+                    title: 'Camera',
+                    leading: Icon(CupertinoIcons.camera, color: palette.link),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _pickImage(ImageSource.camera);
+                    },
+                  ),
+                  BisoListRow(
+                    title: 'Photo Gallery',
+                    leading: Icon(CupertinoIcons.photo, color: palette.muted),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _pickImage(ImageSource.gallery);
+                    },
+                  ),
+                  BisoListRow(
+                    title: 'Document',
+                    leading: Icon(
+                      CupertinoIcons.paperclip,
+                      color: palette.muted,
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _pickFile();
+                    },
+                  ),
+                ],
               ),
-              title: const Text('Camera'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: AppColors.green9),
-              title: const Text('Photo Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.attach_file, color: AppColors.orange9),
-              title: const Text('Document'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickFile();
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -626,10 +557,7 @@ class _ChatConversationScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick image: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Failed to pick image: ${e.toString()}')),
         );
       }
     }
@@ -647,10 +575,7 @@ class _ChatConversationScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick file: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Failed to pick file: ${e.toString()}')),
         );
       }
     }
@@ -691,10 +616,9 @@ class _ChatConversationScreenState
           Future.delayed(const Duration(milliseconds: 600), () {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Message found'),
-                  duration: const Duration(seconds: 1),
-                  backgroundColor: AppColors.defaultBlue,
+                const SnackBar(
+                  content: Text('Message found'),
+                  duration: Duration(seconds: 1),
                 ),
               );
             }
@@ -749,16 +673,24 @@ class _MessageBubble extends StatelessWidget {
       return _buildProductMessage(context);
     }
 
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    final bubbleColor = isMe ? palette.primary : palette.surface;
+    final contentColor = isMe ? palette.onPrimary : palette.ink;
+    final timeColor = isMe
+        ? palette.onPrimary.withValues(alpha: 0.7)
+        : palette.muted;
+
     return Container(
       margin: EdgeInsets.symmetric(
         vertical: showAvatar ? 8 : 2,
-        horizontal: 16,
+        horizontal: 4,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe && showAvatar)
-            _buildAvatar()
+            _buildAvatar(context)
           else if (!isMe)
             const SizedBox(width: 40),
 
@@ -772,14 +704,10 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 if (!isMe && showAvatar)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 4, left: 4),
                     child: Text(
                       message.senderName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                      style: text.labelMedium?.copyWith(color: palette.muted),
                     ),
                   ),
 
@@ -791,27 +719,27 @@ class _MessageBubble extends StatelessWidget {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: isMe ? AppColors.defaultBlue : AppColors.gray100,
+                      color: bubbleColor,
                       borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMe ? 16 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: Radius.circular(isMe ? 20 : 6),
+                        bottomRight: Radius.circular(isMe ? 6 : 20),
                       ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (message.replyTo != null) _buildReplyPreview(),
+                        if (message.replyTo != null)
+                          _buildReplyPreview(context, contentColor),
 
                         if (message.isEdited)
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
                             child: Text(
                               'edited',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.onSurfaceVariant,
+                              style: text.labelSmall?.copyWith(
+                                color: contentColor.withValues(alpha: 0.7),
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -819,30 +747,30 @@ class _MessageBubble extends StatelessWidget {
 
                         Text(
                           message.content,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : AppColors.onSurface,
-                            fontSize: 16,
-                          ),
+                          style: text.bodyLarge?.copyWith(color: contentColor),
                         ),
 
-                        if (message.attachments.isNotEmpty) _buildAttachments(),
+                        if (message.attachments.isNotEmpty)
+                          _buildAttachments(context, contentColor),
+
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Align(
+                            alignment: Alignment.bottomRight,
+                            child: Text(
+                              _formatTime(message.timestamp),
+                              style: text.labelSmall?.copyWith(
+                                color: timeColor,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
 
-                if (message.reactions.isNotEmpty) _buildReactions(),
-
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    _formatTime(message.timestamp),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
+                if (message.reactions.isNotEmpty) _buildReactions(context),
               ],
             ),
           ),
@@ -850,7 +778,7 @@ class _MessageBubble extends StatelessWidget {
           if (isMe) const SizedBox(width: 8),
 
           if (isMe && showAvatar)
-            _buildAvatar()
+            _buildAvatar(context)
           else if (isMe)
             const SizedBox(width: 40),
         ],
@@ -859,8 +787,10 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildDeletedMessage(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
       child: Row(
         children: [
           const SizedBox(width: 48), // Avatar space
@@ -868,22 +798,20 @@ class _MessageBubble extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.gray100,
+                color: palette.surfaceRaised,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(
-                    Icons.delete_outline,
-                    size: 16,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'This message was deleted',
-                    style: TextStyle(
-                      color: AppColors.onSurfaceVariant,
-                      fontStyle: FontStyle.italic,
+                  Icon(CupertinoIcons.trash, size: 16, color: palette.muted),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'This message was deleted',
+                      style: text.bodyMedium?.copyWith(
+                        color: palette.muted,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ],
@@ -896,21 +824,31 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildProductMessage(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     final productName =
         message.metadata['product_name'] as String? ?? 'Product';
     final productPrice = message.metadata['product_price'] as double? ?? 0.0;
     final productImage = message.metadata['product_image'] as String? ?? '';
+    final bubbleColor = isMe ? palette.primary : palette.surface;
+    final contentColor = isMe ? palette.onPrimary : palette.ink;
+    final cardColor = isMe
+        ? palette.onPrimary.withValues(alpha: 0.12)
+        : palette.surfaceRaised;
+    final timeColor = isMe
+        ? palette.onPrimary.withValues(alpha: 0.7)
+        : palette.muted;
 
     return Container(
       margin: EdgeInsets.symmetric(
         vertical: showAvatar ? 8 : 2,
-        horizontal: 16,
+        horizontal: 4,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe && showAvatar)
-            _buildAvatar()
+            _buildAvatar(context)
           else if (!isMe)
             const SizedBox(width: 40),
 
@@ -924,28 +862,24 @@ class _MessageBubble extends StatelessWidget {
               children: [
                 if (!isMe && showAvatar)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 4, left: 4),
                     child: Text(
                       message.senderName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                      style: text.labelMedium?.copyWith(color: palette.muted),
                     ),
                   ),
 
                 Container(
                   constraints: const BoxConstraints(maxWidth: 300),
                   decoration: BoxDecoration(
-                    color: isMe ? AppColors.defaultBlue : Colors.white,
+                    color: bubbleColor,
                     borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
+                      topLeft: const Radius.circular(20),
+                      topRight: const Radius.circular(20),
+                      bottomLeft: Radius.circular(isMe ? 20 : 6),
+                      bottomRight: Radius.circular(isMe ? 6 : 20),
                     ),
-                    border: !isMe ? Border.all(color: AppColors.outline) : null,
+                    border: !isMe ? Border.all(color: palette.hairline) : null,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -954,11 +888,9 @@ class _MessageBubble extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isMe
-                              ? Colors.white.withValues(alpha: 0.1)
-                              : AppColors.gray50,
+                          color: cardColor,
                           borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(16),
+                            top: Radius.circular(20),
                           ),
                         ),
                         child: Row(
@@ -973,13 +905,19 @@ class _MessageBubble extends StatelessWidget {
                                         productImage,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, _, _) => Container(
-                                          color: AppColors.gray200,
-                                          child: const Icon(Icons.shopping_bag),
+                                          color: palette.surfaceRaised,
+                                          child: Icon(
+                                            CupertinoIcons.bag_fill,
+                                            color: palette.muted,
+                                          ),
                                         ),
                                       )
                                     : Container(
-                                        color: AppColors.gray200,
-                                        child: const Icon(Icons.shopping_bag),
+                                        color: palette.surfaceRaised,
+                                        child: Icon(
+                                          CupertinoIcons.bag_fill,
+                                          color: palette.muted,
+                                        ),
                                       ),
                               ),
                             ),
@@ -990,12 +928,8 @@ class _MessageBubble extends StatelessWidget {
                                 children: [
                                   Text(
                                     productName,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                      color: isMe
-                                          ? Colors.white
-                                          : AppColors.onSurface,
+                                    style: text.labelLarge?.copyWith(
+                                      color: contentColor,
                                     ),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
@@ -1003,12 +937,8 @@ class _MessageBubble extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     'NOK ${productPrice.toStringAsFixed(0)}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 16,
-                                      color: isMe
-                                          ? Colors.white
-                                          : AppColors.defaultBlue,
+                                    style: text.titleMedium?.copyWith(
+                                      color: isMe ? contentColor : palette.link,
                                     ),
                                   ),
                                 ],
@@ -1024,28 +954,29 @@ class _MessageBubble extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           child: Text(
                             message.content,
-                            style: TextStyle(
-                              color: isMe ? Colors.white : AppColors.onSurface,
-                              fontSize: 16,
+                            style: text.bodyLarge?.copyWith(
+                              color: contentColor,
                             ),
                           ),
                         ),
+
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        child: Align(
+                          alignment: Alignment.bottomRight,
+                          child: Text(
+                            _formatTime(message.timestamp),
+                            style: text.labelSmall?.copyWith(
+                              color: timeColor,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
 
-                if (message.reactions.isNotEmpty) _buildReactions(),
-
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    _formatTime(message.timestamp),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
+                if (message.reactions.isNotEmpty) _buildReactions(context),
               ],
             ),
           ),
@@ -1053,7 +984,7 @@ class _MessageBubble extends StatelessWidget {
           if (isMe) const SizedBox(width: 8),
 
           if (isMe && showAvatar)
-            _buildAvatar()
+            _buildAvatar(context)
           else if (isMe)
             const SizedBox(width: 40),
         ],
@@ -1062,21 +993,20 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildSystemMessage(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.gray200,
+            color: palette.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             message.content,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.onSurfaceVariant,
-            ),
+            style: text.labelSmall?.copyWith(color: palette.muted),
             textAlign: TextAlign.center,
           ),
         ),
@@ -1084,64 +1014,53 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _buildAvatar(BuildContext context) {
+    final palette = BisoPalette.of(context);
     return CircleAvatar(
       radius: 16,
       backgroundImage: message.senderAvatar != null
           ? NetworkImage(message.senderAvatar!)
           : null,
-      backgroundColor: AppColors.gray300,
+      backgroundColor: palette.surfaceRaised,
       child: message.senderAvatar == null
           ? Text(
               (message.senderName.isNotEmpty
                       ? message.senderName[0]
                       : message.senderId[0])
                   .toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: palette.ink,
               ),
             )
           : null,
     );
   }
 
-  Widget _buildReplyPreview() {
+  Widget _buildReplyPreview(BuildContext context, Color contentColor) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.1),
+        color: Colors.black.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border(
-          left: BorderSide(
-            color: isMe ? Colors.white : AppColors.defaultBlue,
-            width: 3,
-          ),
-        ),
+        border: Border(left: BorderSide(color: palette.link, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             message.replyTo!.senderName,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isMe
-                  ? Colors.white.withValues(alpha: 0.8)
-                  : AppColors.defaultBlue,
-            ),
+            style: text.labelMedium?.copyWith(color: palette.link),
           ),
           const SizedBox(height: 2),
           Text(
             message.replyTo!.content,
-            style: TextStyle(
-              fontSize: 12,
-              color: isMe
-                  ? Colors.white.withValues(alpha: 0.7)
-                  : AppColors.onSurfaceVariant,
+            style: text.labelSmall?.copyWith(
+              color: contentColor.withValues(alpha: 0.8),
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -1151,7 +1070,8 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildAttachments() {
+  Widget _buildAttachments(BuildContext context, Color contentColor) {
+    final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.only(top: 8),
       child: Column(
@@ -1160,17 +1080,17 @@ class _MessageBubble extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                const Icon(Icons.attach_file, size: 16),
+                Icon(CupertinoIcons.doc_text, size: 16, color: contentColor),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     attachment,
-                    style: const TextStyle(fontSize: 12),
+                    style: text.labelSmall?.copyWith(color: contentColor),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1183,7 +1103,9 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildReactions() {
+  Widget _buildReactions(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.only(top: 4),
       child: Wrap(
@@ -1191,18 +1113,17 @@ class _MessageBubble extends StatelessWidget {
         children: message.reactions.entries.map((entry) {
           final emoji = entry.key;
           final users = entry.value;
+          final mine = users.contains(currentUserId);
 
           return GestureDetector(
             onTap: () => onReact(emoji),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: users.contains(currentUserId)
-                    ? AppColors.subtleBlue
-                    : AppColors.gray200,
+                color: palette.surfaceRaised,
                 borderRadius: BorderRadius.circular(12),
-                border: users.contains(currentUserId)
-                    ? Border.all(color: AppColors.defaultBlue, width: 1)
+                border: mine
+                    ? Border.all(color: palette.link, width: 1)
                     : null,
               ),
               child: Row(
@@ -1213,11 +1134,7 @@ class _MessageBubble extends StatelessWidget {
                     const SizedBox(width: 2),
                     Text(
                       users.length.toString(),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                      style: text.labelSmall?.copyWith(color: palette.muted),
                     ),
                   ],
                 ],
@@ -1230,113 +1147,135 @@ class _MessageBubble extends StatelessWidget {
   }
 
   void _showMessageOptions(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.reply, color: AppColors.defaultBlue),
-              title: const Text('Reply'),
-              onTap: () {
-                Navigator.pop(context);
-                onReply();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.add_reaction, color: AppColors.orange9),
-              title: const Text('React'),
-              onTap: () {
-                Navigator.pop(context);
-                _showReactionPicker(context);
-              },
-            ),
-            if (isMe) ...[
-              ListTile(
-                leading: const Icon(Icons.edit, color: AppColors.green9),
-                title: const Text('Edit'),
-                onTap: () {
-                  Navigator.pop(context);
-                  onEdit();
-                },
+      builder: (sheetContext) {
+        final palette = BisoPalette.of(sheetContext);
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: BisoListGroup(
+                children: [
+                  BisoListRow(
+                    title: 'Reply',
+                    leading: Icon(CupertinoIcons.reply, color: palette.link),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      onReply();
+                    },
+                  ),
+                  BisoListRow(
+                    title: 'React',
+                    leading: Icon(CupertinoIcons.smiley, color: palette.muted),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showReactionPicker(context);
+                    },
+                  ),
+                  if (isMe) ...[
+                    BisoListRow(
+                      title: 'Edit',
+                      leading: Icon(
+                        CupertinoIcons.pencil,
+                        color: palette.muted,
+                      ),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        onEdit();
+                      },
+                    ),
+                    BisoListRow(
+                      title: 'Delete',
+                      destructive: true,
+                      leading: Icon(
+                        CupertinoIcons.trash,
+                        color: palette.error,
+                      ),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        onDelete();
+                      },
+                    ),
+                  ],
+                  BisoListRow(
+                    title: 'Copy',
+                    leading: Icon(
+                      CupertinoIcons.doc_on_doc,
+                      color: palette.muted,
+                    ),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      Clipboard.setData(ClipboardData(text: message.content));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied to clipboard')),
+                      );
+                    },
+                  ),
+                ],
               ),
-              ListTile(
-                leading: const Icon(Icons.delete, color: AppColors.error),
-                title: const Text('Delete'),
-                onTap: () {
-                  Navigator.pop(context);
-                  onDelete();
-                },
-              ),
-            ],
-            ListTile(
-              leading: const Icon(
-                Icons.copy,
-                color: AppColors.onSurfaceVariant,
-              ),
-              title: const Text('Copy'),
-              onTap: () {
-                Navigator.pop(context);
-                Clipboard.setData(ClipboardData(text: message.content));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied to clipboard')),
-                );
-              },
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   void _showReactionPicker(BuildContext context) {
     final reactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'React to message',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: reactions.map((emoji) {
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    onReact(emoji);
-                  },
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: AppColors.gray100,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Center(
-                      child: Text(emoji, style: const TextStyle(fontSize: 24)),
-                    ),
+      builder: (sheetContext) {
+        final palette = BisoPalette.of(sheetContext);
+        final text = Theme.of(sheetContext).textTheme;
+        return SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'React to message',
+                    style: text.titleMedium?.copyWith(color: palette.ink),
                   ),
-                );
-              }).toList(),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: reactions.map((emoji) {
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          onReact(emoji);
+                        },
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: palette.surfaceRaised,
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Center(
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1353,28 +1292,29 @@ class _DateSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          const Expanded(child: Divider()),
+          Expanded(child: Divider(color: palette.hairline)),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.gray200,
+              color: palette.surfaceRaised,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               _formatDate(date),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.onSurfaceVariant,
+              style: text.labelSmall?.copyWith(
+                color: palette.muted,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ),
-          const Expanded(child: Divider()),
+          Expanded(child: Divider(color: palette.hairline)),
         ],
       ),
     );
@@ -1405,19 +1345,13 @@ class _ReplyBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.midNavy.withValues(alpha: 0.5)
-            : AppColors.subtleBlue,
-        border: Border(
-          top: BorderSide(
-            color: isDark ? AppColors.outlineDark : AppColors.outline,
-            width: 0.5,
-          ),
-        ),
+        color: palette.surfaceRaised,
+        border: Border(top: BorderSide(color: palette.hairline, width: 0.5)),
       ),
       child: Row(
         children: [
@@ -1425,7 +1359,7 @@ class _ReplyBanner extends StatelessWidget {
             width: 3,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.defaultBlue,
+              color: palette.link,
               borderRadius: BorderRadius.circular(1.5),
             ),
           ),
@@ -1436,19 +1370,12 @@ class _ReplyBanner extends StatelessWidget {
               children: [
                 Text(
                   'Replying to ${message.senderName}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.defaultBlue,
-                  ),
+                  style: text.labelMedium?.copyWith(color: palette.link),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   message.content,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.onSurfaceVariant,
-                  ),
+                  style: text.bodySmall?.copyWith(color: palette.muted),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1457,8 +1384,7 @@ class _ReplyBanner extends StatelessWidget {
           ),
           IconButton(
             onPressed: onCancel,
-            icon: const Icon(Icons.close, size: 20),
-            color: AppColors.onSurfaceVariant,
+            icon: Icon(CupertinoIcons.xmark, size: 20, color: palette.muted),
           ),
         ],
       ),
@@ -1475,38 +1401,27 @@ class _EditBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.midNavy.withValues(alpha: 0.5)
-            : AppColors.subtleBlue,
-        border: Border(
-          top: BorderSide(
-            color: isDark ? AppColors.outlineDark : AppColors.outline,
-            width: 0.5,
-          ),
-        ),
+        color: palette.surfaceRaised,
+        border: Border(top: BorderSide(color: palette.hairline, width: 0.5)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.edit, size: 16, color: AppColors.defaultBlue),
+          Icon(CupertinoIcons.pencil, size: 16, color: palette.link),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Text(
               'Edit message',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.defaultBlue,
-              ),
+              style: text.labelMedium?.copyWith(color: palette.link),
             ),
           ),
           IconButton(
             onPressed: onCancel,
-            icon: const Icon(Icons.close, size: 20),
-            color: AppColors.onSurfaceVariant,
+            icon: Icon(CupertinoIcons.xmark, size: 20, color: palette.muted),
           ),
         ],
       ),
@@ -1526,12 +1441,13 @@ class _AttachmentsPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
     return Container(
       height: 80,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppColors.gray50,
-        border: Border(top: BorderSide(color: AppColors.outline, width: 0.5)),
+      decoration: BoxDecoration(
+        color: palette.surfaceRaised,
+        border: Border(top: BorderSide(color: palette.hairline, width: 0.5)),
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
@@ -1547,7 +1463,7 @@ class _AttachmentsPreview extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: AppColors.gray200,
+                  color: palette.surface,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: isImage
@@ -1555,10 +1471,7 @@ class _AttachmentsPreview extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         child: Image.file(file, fit: BoxFit.cover),
                       )
-                    : const Icon(
-                        Icons.insert_drive_file,
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                    : Icon(CupertinoIcons.doc_text, color: palette.muted),
               ),
               Positioned(
                 top: 4,
@@ -1568,14 +1481,14 @@ class _AttachmentsPreview extends StatelessWidget {
                   child: Container(
                     width: 20,
                     height: 20,
-                    decoration: const BoxDecoration(
-                      color: AppColors.error,
+                    decoration: BoxDecoration(
+                      color: palette.error,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.close,
+                    child: Icon(
+                      CupertinoIcons.xmark,
                       size: 14,
-                      color: Colors.white,
+                      color: palette.onPrimary,
                     ),
                   ),
                 ),
