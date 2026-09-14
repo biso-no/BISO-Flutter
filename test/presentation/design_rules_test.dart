@@ -22,6 +22,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/explore/unit_detail_screen.dart',
   'lib/presentation/screens/explore/jobs_screen.dart',
   'lib/presentation/screens/explore/departures_screen.dart',
+  'lib/presentation/screens/explore/marketplace_screen.dart',
   'lib/presentation/screens/notifications/notifications_screen.dart',
   'lib/presentation/screens/notifications/announcement_detail_screen.dart',
 ];
