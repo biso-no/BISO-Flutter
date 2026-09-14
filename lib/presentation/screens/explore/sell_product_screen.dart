@@ -140,7 +140,32 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
         SliverToBoxAdapter(
           child: Builder(builder: (context) => _buildContactGroup(context)),
         ),
+        SliverToBoxAdapter(child: _buildPublishButton()),
       ],
+    );
+  }
+
+  /// The header checkmark action is the compact way to publish, but the old
+  /// screen also offered a full-width button at the end of the form — kept
+  /// here, calling the same [_submit] and sharing the same disabled/loading
+  /// state, since a long form benefits from a call to action at its end as
+  /// well as in the header.
+  Widget _buildPublishButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Publish'),
+        ),
+      ),
     );
   }
 
