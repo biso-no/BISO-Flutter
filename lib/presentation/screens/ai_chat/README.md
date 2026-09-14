@@ -48,9 +48,7 @@ lib/presentation/widgets/ai_chat/
 ├── user_message_bubble.dart      # User message bubbles with gradients
 ├── chat_input_field.dart         # Floating input with animations
 ├── typing_indicator.dart         # Animated typing indicator
-├── tool_output_widget.dart       # Tool-specific rendering components
-├── markdown_text.dart            # Markdown parser for AI responses
-└── ai_assistant_fab.dart         # Floating action button for easy access
+└── markdown_text.dart            # Markdown parser for AI responses
 
 lib/data/
 ├── models/ai_chat_models.dart    # Complete type system for Vercel AI SDK
@@ -164,29 +162,12 @@ GoRoute(
 )
 ```
 
-2. **Add Floating Button**:
-```dart
-import 'package:bisoflutter/presentation/widgets/ai_chat/ai_assistant_fab.dart';
-
-Scaffold(
-  floatingActionButton: const AiAssistantFab(),
-  // ... rest of your screen
-)
-```
-
-3. **Navigate to Chat**:
+2. **Navigate to Chat**:
 ```dart
 context.pushNamed('ai-chat');
 ```
 
 ### Advanced Usage
-
-**Custom Tool Rendering**:
-```dart
-// Extend ToolOutputWidget to support custom tools
-case 'myCustomTool':
-  return _buildCustomToolResult(theme, result);
-```
 
 **Theming Integration**:
 ```dart
@@ -241,7 +222,7 @@ AppColors.emeraldGreen   // Secondary accent
 AppColors.sunGold        // Attention/warning
 AppColors.skyBlue        // Light accent
 
-// Typography from core/theme/app_theme.dart
+// Typography from your app's theme
 theme.textTheme.headlineSmall  // Tool headers
 theme.textTheme.bodyLarge      // Message text
 theme.textTheme.bodySmall      // Timestamps
@@ -257,23 +238,6 @@ AnimationController(
   duration: const Duration(milliseconds: 500),
   curve: Curves.elasticOut,
 )
-
-// In FAB
-_pulseController.repeat(reverse: true);
-```
-
-### Tool Output
-
-Add custom tool support:
-
-```dart
-// In tool_output_widget.dart
-switch (widget.toolPart.toolName) {
-  case 'myTool':
-    return _buildMyCustomTool(theme, result);
-  default:
-    return _buildDynamicToolResult(theme, result);
-}
 ```
 
 ## Performance
@@ -377,13 +341,13 @@ print('🔥 DEBUG: Stream chunk - $chunk');
 
 1. **Define Model**: Add to `ai_chat_models.dart`
 2. **Add Parser**: Update `parseToolResult()` in service
-3. **Create Widget**: Add rendering in `tool_output_widget.dart`
+3. **Create Widget**: Add rendering for the new tool output
 4. **Update Icons**: Add icon mapping in `_buildToolIcon()`
 
 ### Styling Changes
 
 1. **Colors**: Update `app_colors.dart`
-2. **Typography**: Modify `app_theme.dart`  
+2. **Typography**: Modify your app's theme
 3. **Animations**: Adjust timing in widget files
 4. **Layout**: Update component padding/margins
 

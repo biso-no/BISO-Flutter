@@ -1,6 +1,5 @@
 import '../../widgets/home/discovery_sections.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,59 +24,7 @@ import '../../../data/models/campus_model.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/job_model.dart';
 import '../../../data/models/webshop_product_model.dart';
-import '../explore/explore_screen.dart';
 import '../auth/login_screen.dart';
-import '../profile/profile_screen.dart';
-
-/// Premium Home Screen
-///
-/// A sophisticated, luxury redesign that showcases BI's exclusive nature.
-/// Features glass morphism, elegant animations, and premium visual hierarchy.
-class PremiumHomeScreen extends ConsumerStatefulWidget {
-  const PremiumHomeScreen({super.key});
-
-  @override
-  ConsumerState<PremiumHomeScreen> createState() => _PremiumHomeScreenState();
-}
-
-class _PremiumHomeScreenState extends ConsumerState<PremiumHomeScreen> {
-  int _selectedIndex = 0;
-  void _navigateToTab(int index) => setState(() => _selectedIndex = index);
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final auth = ref.watch(authStateProvider);
-    final pages = [
-      PremiumHomePage(navigateToTab: _navigateToTab),
-      const ExploreScreen(),
-      auth.isAuthenticated
-          ? const ProfileScreen()
-          : PremiumAuthRequiredPage(
-              title: l10n.profile,
-              description: l10n.manageYourAccountAndPreferencesMessage,
-              icon: CupertinoIcons.person_crop_circle,
-              navigateToTab: _navigateToTab,
-            ),
-    ];
-    return BisoNavigationScaffold(
-      currentIndex: _selectedIndex,
-      routeKey: '$_selectedIndex',
-      onSelected: _navigateToTab,
-      destinations: [
-        BisoNavDestination(icon: CupertinoIcons.house, label: l10n.home),
-        BisoNavDestination(
-          icon: CupertinoIcons.square_grid_2x2,
-          label: l10n.explore,
-        ),
-        BisoNavDestination(
-          icon: CupertinoIcons.person_crop_circle,
-          label: l10n.profile,
-        ),
-      ],
-      child: pages[_selectedIndex],
-    );
-  }
-}
 
 // === PREMIUM HOME PAGE ===
 

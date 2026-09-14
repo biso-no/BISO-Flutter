@@ -1,17 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
-import 'biso_navigation.dart';
 
 /// Compatibility names for the existing screens. Content is deliberately
 /// opaque Flutter material; only BisoChrome creates native glass surfaces.
-class BisoGlassScope extends StatelessWidget {
-  final Widget child;
-  const BisoGlassScope({super.key, required this.child});
-  @override
-  Widget build(BuildContext context) => child;
-}
-
 class BisoGlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -88,44 +80,6 @@ class BisoGlassContainer extends StatelessWidget {
     child: alignment == null
         ? child
         : Align(alignment: alignment!, child: child),
-  );
-}
-
-class BisoGlassNavItem {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  final Color? glowColor;
-  const BisoGlassNavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-    this.glowColor,
-  });
-}
-
-class BisoGlassBottomNavigation extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-  final List<BisoGlassNavItem> items;
-  const BisoGlassBottomNavigation({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-    required this.items,
-  });
-  @override
-  Widget build(BuildContext context) => BisoNavigationBar(
-    currentIndex: currentIndex,
-    onSelected: onTap,
-    destinations: [
-      for (final item in items)
-        BisoNavDestination(
-          icon: item.icon,
-          activeIcon: item.activeIcon,
-          label: item.label,
-        ),
-    ],
   );
 }
 
