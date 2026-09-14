@@ -25,13 +25,30 @@ class UserPickerScreen extends ConsumerStatefulWidget {
 }
 
 class _UserPickerScreenState extends ConsumerState<UserPickerScreen> {
+  final TextEditingController _searchController = TextEditingController();
   List<PublicProfileModel> _searchResults = [];
   List<String> _selectedUserIds = [];
+
+  /// Profiles of the selected users, keyed by user id, so a chip keeps its
+  /// name after the query that found the user changes or is cleared.
+  final Map<String, PublicProfileModel> _selectedProfiles = {};
   bool _isLoading = false;
   String _searchQuery = '';
 
-  void _onQueryChanged(String value) {
-    final query = value.trim();
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.trim();
     if (query != _searchQuery) {
       _searchQuery = query;
       _searchUsers(query);
@@ -82,16 +99,19 @@ class _UserPickerScreenState extends ConsumerState<UserPickerScreen> {
     }
   }
 
-  void _toggleUser(String userId) {
+  void _toggleUser(String userId, [PublicProfileModel? profile]) {
     setState(() {
       if (_selectedUserIds.contains(userId)) {
         _selectedUserIds.remove(userId);
+        _selectedProfiles.remove(userId);
       } else {
         if (widget.multiSelect) {
           _selectedUserIds.add(userId);
         } else {
           _selectedUserIds = [userId];
+          _selectedProfiles.clear();
         }
+        if (profile != null) _selectedProfiles[userId] = profile;
       }
     });
   }
@@ -107,10 +127,6 @@ class _UserPickerScreenState extends ConsumerState<UserPickerScreen> {
     return BisoPage(
       title: widget.title,
       largeTitle: false,
-      search: BisoHeaderSearch(
-        hintText: 'Search by name or email...',
-        onChanged: _onQueryChanged,
-      ),
       actions: [
         if (_selectedUserIds.isNotEmpty)
           BisoHeaderAction(
@@ -123,6 +139,19 @@ class _UserPickerScreenState extends ConsumerState<UserPickerScreen> {
           ),
       ],
       slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                hintText: 'Search by name or email...',
+                prefixIcon: Icon(CupertinoIcons.search),
+              ),
+            ),
+          ),
+        ),
         SliverToBoxAdapter(child: _buildSelectedChips(context)),
         ..._buildResultsSlivers(context),
       ],
@@ -139,14 +168,16 @@ class _UserPickerScreenState extends ConsumerState<UserPickerScreen> {
       child: Wrap(
         spacing: 8,
         children: _selectedUserIds.map((userId) {
-          final profile = _searchResults.firstWhere(
-            (p) => p.userId == userId,
-            orElse: () => PublicProfileModel(
-              id: '',
-              userId: userId,
-              name: 'Selected User',
-            ),
-          );
+          final profile =
+              _selectedProfiles[userId] ??
+              _searchResults.firstWhere(
+                (p) => p.userId == userId,
+                orElse: () => PublicProfileModel(
+                  id: '',
+                  userId: userId,
+                  name: 'Selected User',
+                ),
+              );
 
           return Chip(
             label: Text(profile.name),
@@ -225,7 +256,7 @@ class _UserPickerScreenState extends ConsumerState<UserPickerScreen> {
                   )
                 : null,
             onTap: () {
-              _toggleUser(profile.userId);
+              _toggleUser(profile.userId, profile);
 
               // If single select, immediately return
               if (!widget.multiSelect && _selectedUserIds.isNotEmpty) {

@@ -84,10 +84,9 @@ void main() {
       // lazily-built list of every user.
       expect(find.text('Start typing to search users'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Search'));
-      await tester.pumpAndSettle();
-
+      // The search field is always visible; no header search to open first.
       final field = find.byType(TextField);
+      expect(field, findsOneWidget);
       await tester.enterText(field, 'anna');
       await tester.pump(const Duration(milliseconds: 400)); // past debounce
       await tester.pumpAndSettle();
@@ -108,4 +107,63 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'a selected chip keeps its name after the query is cleared, and Done shows while typing',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const UserPickerScreen(),
+        overrides: _overrides(),
+      );
+
+      final field = find.byType(TextField);
+      await tester.enterText(field, 'anna');
+      await tester.pumpAndSettle();
+      expect(find.text('Anna Andersen'), findsOneWidget);
+
+      await tester.tap(find.text('Anna Andersen'));
+      await tester.pump();
+      // Done stays reachable while the field still holds the query.
+      expect(find.byTooltip('Done (1)'), findsOneWidget);
+
+      await tester.enterText(field, '');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byType(Chip),
+          matching: find.text('Anna Andersen'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Selected User'), findsNothing);
+
+      // A different query that no longer matches Anna keeps the name too.
+      await tester.enterText(field, 'bjorn');
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(Chip),
+          matching: find.text('Anna Andersen'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Done (1)'), findsOneWidget);
+    },
+  );
+
+  testWidgets('the search runs on every keystroke, with no debounce', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const UserPickerScreen(),
+      overrides: _overrides(),
+    );
+    await tester.enterText(find.byType(TextField), 'bjo');
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Bjorn Berg'), findsOneWidget);
+  });
 }
