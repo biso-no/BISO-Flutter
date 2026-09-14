@@ -76,14 +76,24 @@ const _quote = CheckoutQuote(
   ],
 );
 
+/// A line title long enough to need two lines beside its own (narrow, so
+/// side-by-side mode applies) amount, at 1.6x text on a 390pt phone — used
+/// to exercise the side-by-side layout's "label may wrap" branch. The
+/// price is kept small deliberately: at `_AmountRow`'s 40%-for-the-label
+/// rule, a wider amount claims more of the row and leaves the label too
+/// little width to demonstrate a clean two-line wrap.
+const _longTicketName = 'Gala Dinner';
+
 /// A quote with a large per-line amount, a member discount and membership
 /// applied — the worst case for R11 (amounts and counts never truncate):
-/// every row in the order summary carries a wide number at once.
+/// every row in the order summary carries a wide number at once — plus a
+/// second, cheaply-priced line whose title is long enough to force a
+/// two-line wrap beside its amount.
 const _bigQuote = CheckoutQuote(
   currency: 'NOK',
-  subtotal: 14814,
+  subtotal: 14819,
   discountTotal: 1234.5,
-  total: 13579.5,
+  total: 13584.5,
   membershipApplied: true,
   memberDiscountPercent: 10,
   items: [
@@ -94,6 +104,14 @@ const _bigQuote = CheckoutQuote(
       quantity: 12,
       unitPrice: 1234.5,
       lineTotal: 14814,
+    ),
+    CheckoutQuoteLine(
+      productId: 'prod-long-title',
+      name: _longTicketName,
+      title: _longTicketName,
+      quantity: 1,
+      unitPrice: 5,
+      lineTotal: 5,
     ),
   ],
 );
@@ -115,13 +133,42 @@ class _NoNetworkShopApi extends ShopApiClient {
   Future<void> releaseReservation({String? productId}) async {}
 }
 
-/// Asserts [text] renders as a single, complete line: present verbatim in
-/// the tree and not ellipsized (R11 — amounts and counts never truncate).
+/// The page's own scroll position — as opposed to one of the (also
+/// `Scrollable`-backed) `TextFormField`s in the contact section, which
+/// `find.byType(Scrollable).first` can just as easily match, since they're
+/// nested inside the same `CustomScrollView`. The page's is reliably the
+/// one with by far the largest scroll range.
+ScrollableState _pageScrollable(WidgetTester tester) {
+  return find
+      .byType(Scrollable)
+      .evaluate()
+      .map((element) => (element as StatefulElement).state as ScrollableState)
+      .reduce(
+        (a, b) => a.position.maxScrollExtent > b.position.maxScrollExtent
+            ? a
+            : b,
+      );
+}
+
+/// Asserts [text] (an amount) is never scaled down and never silently
+/// clipped, wherever it appears — R11: amounts and counts never truncate or
+/// scale down. It must not sit inside a `FittedBox`, and it must not be
+/// ellipsized past a line cap ([RenderParagraph.didExceedMaxLines]).
+///
+/// When it renders on a single line (`RenderParagraph.maxLines == 1` — the
+/// normal case for every amount except an extreme value in the much larger
+/// `headlineMedium` Total style), that line must reach the amount's full
+/// natural width, proving it wasn't clipped to fit. `_AmountRow`'s rare
+/// fallback instead lets an amount that doesn't fit even alone on its own
+/// row wrap onto more than one line rather than clip or scale — genuinely
+/// full text, just not on one line — so a wrapped amount (`maxLines` left
+/// unset) is checked only for the no-FittedBox/no-ellipsis conditions,
+/// which is what actually rules out data loss in that case.
 ///
 /// Two different rows can legitimately show the same amount (e.g. a
 /// single-line cart's subtotal equals that line's own total), so this
 /// checks every match rather than requiring exactly one.
-void _expectWhole(WidgetTester tester, String text) {
+void _expectFullSizeAmount(WidgetTester tester, String text) {
   final finder = find.text(text);
   expect(
     finder,
@@ -129,14 +176,30 @@ void _expectWhole(WidgetTester tester, String text) {
     reason: '"$text" should render in full',
   );
   for (final element in finder.evaluate()) {
-    final paragraph = tester.renderObject<RenderParagraph>(
-      find.byWidget(element.widget),
+    final widgetFinder = find.byWidget(element.widget);
+    expect(
+      find.ancestor(of: widgetFinder, matching: find.byType(FittedBox)),
+      findsNothing,
+      reason: '"$text" is inside a FittedBox and so may be scaled down '
+          'rather than shown at its natural size',
     );
+    final paragraph = tester.renderObject<RenderParagraph>(widgetFinder);
     expect(
       paragraph.didExceedMaxLines,
       isFalse,
       reason: '"$text" was ellipsized or wrapped past its line cap',
     );
+    if (paragraph.maxLines == 1) {
+      final maxIntrinsicWidth = paragraph.getMaxIntrinsicWidth(
+        double.infinity,
+      );
+      expect(
+        paragraph.size.width,
+        greaterThanOrEqualTo(maxIntrinsicWidth - 0.5),
+        reason: '"$text" was laid out narrower than its natural width, so '
+            'it was scaled down or clipped',
+      );
+    }
   }
 }
 
@@ -250,6 +313,47 @@ void main() {
       },
     );
 
+    testWidgets(
+      'the bottom bar shows the item count and a large subtotal in full '
+      'at 1.6x text (R11)',
+      (tester) async {
+        // One line, quantity 12, priced so the subtotal is an exact,
+        // realistic-looking big number ("NOK 13579.50") — the same shape
+        // of number the checkout side is tested with.
+        final bigCart = [
+          CartItem.fromProduct(
+            product: const WebshopProduct(
+              id: 'prod-huge',
+              images: [],
+              title: 'Huge Order',
+              regularPrice: 1131.625,
+            ),
+            quantity: 12,
+          ),
+        ];
+        _seedCart(bigCart);
+        await pumpBisoScreen(
+          tester,
+          const CartScreen(),
+          overrides: [cartUserIdProvider.overrideWithValue(_buyerId)],
+          textScale: 1.6,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final countFinder = find.text('12 items');
+        expect(countFinder, findsOneWidget);
+        expect(
+          tester.renderObject<RenderParagraph>(countFinder).didExceedMaxLines,
+          isFalse,
+        );
+
+        final subtotal = bigCart.single.lineTotal;
+        expect(formatNok(subtotal), 'NOK 13579.50');
+        _expectFullSizeAmount(tester, formatNok(subtotal));
+      },
+    );
+
     testWidgets('the remove control removes a line', (tester) async {
       final lines = _lines(2);
       _seedCart(lines);
@@ -263,6 +367,7 @@ void main() {
           // test on a real HTTP call and leaves a pending timer behind).
           shopApiClientProvider.overrideWithValue(_NoNetworkShopApi()),
         ],
+        textScale: 1.6,
       );
       await tester.pumpAndSettle();
 
@@ -381,19 +486,50 @@ void main() {
         // The order summary sits below the contact and payment sections; at
         // 1.6x text those alone fill the 844pt viewport, so the summary is
         // genuinely below the fold (not yet built by the lazy sliver list)
-        // until scrolled into view — the same as a real device.
-        await tester.fling(
-          find.byType(CustomScrollView),
-          const Offset(0, -4000),
-          3000,
+        // until scrolled into view — the same as a real device. `jumpTo`
+        // reaches the exact bottom regardless of content height at this
+        // text scale.
+        final summaryScrollable = _pageScrollable(tester);
+        summaryScrollable.position.jumpTo(
+          summaryScrollable.position.maxScrollExtent,
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
 
-        _expectWhole(tester, formatNok(_bigQuote.items.single.lineTotal));
-        _expectWhole(tester, formatNok(_bigQuote.originalTotal));
-        _expectWhole(tester, '-${formatNok(_bigQuote.discountTotal)}');
-        _expectWhole(tester, formatNok(_bigQuote.total));
+        _expectFullSizeAmount(tester, formatNok(_bigQuote.items.first.lineTotal));
+        _expectFullSizeAmount(tester, formatNok(_bigQuote.originalTotal));
+        _expectFullSizeAmount(tester, '-${formatNok(_bigQuote.discountTotal)}');
+        _expectFullSizeAmount(tester, formatNok(_bigQuote.total));
+
+        // The long-titled second line: its amount is still shown in full
+        // (same check), and its title — plenty of room beside a narrow
+        // "NOK 250" — wraps onto a second line instead of ellipsizing.
+        _expectFullSizeAmount(tester, formatNok(_bigQuote.items.last.lineTotal));
+        final titleFinder = find.text(_longTicketName);
+        expect(titleFinder, findsOneWidget);
+        final titleParagraph = tester.renderObject<RenderParagraph>(titleFinder);
+        expect(
+          titleParagraph.didExceedMaxLines,
+          isFalse,
+          reason: 'the long title should fit within its 2-line cap',
+        );
+        // Compare against a real single line of the same style/text scale,
+        // rather than a made-up ratio, to confirm it actually wrapped.
+        final titleContext = tester.element(titleFinder);
+        final singleLine = TextPainter(
+          text: TextSpan(
+            text: 'X',
+            style: Theme.of(titleContext).textTheme.titleMedium,
+          ),
+          textDirection: Directionality.of(titleContext),
+          textScaler: MediaQuery.textScalerOf(titleContext),
+        )..layout();
+        expect(
+          titleParagraph.size.height,
+          greaterThan(singleLine.height * 1.3),
+          reason: 'the long title should actually wrap onto a second line, '
+              'not merely fit on one',
+        );
       },
     );
 
@@ -406,6 +542,7 @@ void main() {
           tester,
           const CheckoutScreen(),
           overrides: overrides(providers: twoAvailableProviders),
+          textScale: 1.6,
         );
         await tester.pumpAndSettle();
 
@@ -414,13 +551,13 @@ void main() {
         // button is matched by its "Pay NOK …" prefix (unique to its own
         // label) rather than a bare "with <name>" match. It also sits below
         // the order summary, past this lazy sliver list's built cache
-        // extent until scrolled into view.
+        // extent until scrolled into view. `jumpTo` (rather than `fling`,
+        // whose distance would need re-tuning for every text scale) always
+        // reaches the exact top/bottom regardless of how tall the content
+        // at the current text scale is.
         Future<void> scrollToPayButton() async {
-          await tester.fling(
-            find.byType(CustomScrollView),
-            const Offset(0, -4000),
-            3000,
-          );
+          final scrollable = _pageScrollable(tester);
+          scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
         }
@@ -429,11 +566,20 @@ void main() {
         await scrollToPayButton();
         expect(find.text('Pay NOK 100 with Vipps'), findsOneWidget);
 
-        // Scroll back up to reach the "Card" row, then tap it.
-        await tester.fling(
-          find.byType(CustomScrollView),
-          const Offset(0, 4000),
-          3000,
+        // The "Card" row is already built (it was on-screen before this
+        // scroll to the pay button), just no longer within the viewport —
+        // scroll it back into view rather than assuming a fixed position.
+        // `ensureVisible` aligns it to the very top edge, which sits behind
+        // BisoPage's floating translucent header, so nudge down a bit more
+        // to land the tap on the row itself rather than the header.
+        await tester.ensureVisible(find.text('Card'));
+        await tester.pumpAndSettle();
+        final cardScrollable = _pageScrollable(tester);
+        cardScrollable.position.jumpTo(
+          (cardScrollable.position.pixels - 100).clamp(
+            0.0,
+            cardScrollable.position.maxScrollExtent,
+          ),
         );
         await tester.pumpAndSettle();
         await tester.tap(find.text('Card'));

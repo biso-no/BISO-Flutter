@@ -347,69 +347,69 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     BisoPalette palette,
   ) {
     // A `value:` row renders its amount in a `Flexible` with one line and an
-    // ellipsis, so at large text scales a price can become "NOK 12…" — R11
-    // (amounts and counts never truncate). `trailing:` shares the row with
-    // the title as a sibling `Flexible`, and a `FittedBox` inside it scales
-    // the digits down rather than clipping or wrapping them, so a long
-    // title and a wide amount can never force the row itself to overflow.
-    Widget amountRow(String title, String amount, {String? subtitle}) {
-      return BisoListRow(
-        title: title,
-        subtitle: subtitle,
-        trailing: Flexible(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              amount,
-              maxLines: 1,
-              style: theme.textTheme.bodyLarge?.copyWith(color: palette.muted),
-            ),
-          ),
-        ),
-      );
-    }
+    // ellipsis, and an evenly-split `Flexible`+`FittedBox` trailing shrinks
+    // the digits rather than truncating them — but shrinking still draws a
+    // large-text-scale Total *smaller* than at 1.0x, defeating the point of
+    // large text. R11 (amounts and counts never truncate) means the amount
+    // must render at its natural size; `_AmountRow` measures it and either
+    // shares the row with the (shrinkable/wrappable) label or, when there
+    // is not enough room, stacks the label above the amount — full size
+    // either way.
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(color: palette.ink);
+    final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: palette.muted,
+    );
+    final amountStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.muted,
+    );
+    final discountStyle = theme.textTheme.titleMedium?.copyWith(
+      color: palette.success,
+    );
+    final discountAmountStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.success,
+    );
 
     final rows = <Widget>[
       for (final line in quote.items)
-        amountRow(
-          line.title,
-          formatNok(line.lineTotal),
+        _AmountRow(
+          title: line.title,
           subtitle: '${line.quantity} × ${formatNok(line.unitPrice)}',
+          amount: formatNok(line.lineTotal),
+          titleStyle: titleStyle,
+          subtitleStyle: subtitleStyle,
+          amountStyle: amountStyle,
         ),
     ];
 
     if (quote.discountTotal > 0) {
-      rows.add(amountRow('Subtotal', formatNok(quote.originalTotal)));
       rows.add(
-        _MemberDiscountRow(
-          label: quote.memberDiscountPercent > 0
+        _AmountRow(
+          title: 'Subtotal',
+          amount: formatNok(quote.originalTotal),
+          titleStyle: titleStyle,
+          amountStyle: amountStyle,
+        ),
+      );
+      rows.add(
+        _AmountRow(
+          title: quote.memberDiscountPercent > 0
               ? 'Member discount '
                     '(${quote.memberDiscountPercent.toStringAsFixed(0)}%)'
               : 'Member discount',
           amount: '-${formatNok(quote.discountTotal)}',
-          color: palette.success,
-          style: theme.textTheme.titleMedium,
-          amountStyle: theme.textTheme.bodyLarge,
+          titleStyle: discountStyle,
+          amountStyle: discountAmountStyle,
         ),
       );
     }
 
     rows.add(
-      BisoListRow(
+      _AmountRow(
         title: 'Total',
-        trailing: Flexible(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              formatNok(quote.total),
-              maxLines: 1,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: palette.ink,
-              ),
-            ),
-          ),
+        amount: formatNok(quote.total),
+        titleStyle: titleStyle,
+        amountStyle: theme.textTheme.headlineMedium?.copyWith(
+          color: palette.ink,
         ),
       ),
     );
@@ -560,27 +560,49 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 }
 
-/// The member-discount line in the order summary. A plain [BisoListRow]
-/// can't tint its own `title:`, and the original screen colored both the
-/// label and the amount to call the discount out — so this builds the row
-/// itself, on the same footprint as [BisoListRow]. The amount sits in a
-/// `Flexible`+`FittedBox` (R11: amounts never truncate — this scales the
-/// digits down rather than clipping or wrapping them if the label and the
-/// amount can't both fit at full size) and the label is free to wrap.
-class _MemberDiscountRow extends StatelessWidget {
-  const _MemberDiscountRow({
-    required this.label,
+/// One "label — amount" row in the order summary (a line total, Subtotal,
+/// Member discount, or Total), sized so the amount is never scaled down,
+/// and never silently clipped, at any text scale (R11).
+///
+/// [amount] is measured (at the current [MediaQuery.textScalerOf]) against
+/// the width [LayoutBuilder] reports:
+/// 1. If it fits beside the label with the label keeping at least 40% of
+///    the row, they share one line: an [Expanded] label (free to wrap)
+///    beside the amount at its natural width, on one line.
+/// 2. Otherwise the label gets a line to itself and the amount is
+///    right-aligned on its own line below, still on one line at natural
+///    width — the amount alone almost always fits a whole row to itself.
+/// 3. Only if it still doesn't (an extreme value in `headlineMedium`, the
+///    Total's much larger style, at a large text scale) does the amount
+///    wrap onto more than one line. This never triggers for the smaller
+///    per-line/Subtotal/discount amounts in practice — it exists because a
+///    single unbroken line is not always physically wide enough for every
+///    style, and the alternative (silently clipping past the row's edge)
+///    is exactly what R11 forbids. A `FittedBox` (the previous approach)
+///    cannot promise full size either way: splitting the row evenly
+///    between an `Expanded` title and a `Flexible` amount, as
+///    `BisoListRow` does, caps every amount at about half the row and
+///    shrinks it to fit, drawing a large-text-scale Total *smaller* than
+///    at 1.0x.
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({
+    required this.title,
+    this.subtitle,
     required this.amount,
-    required this.color,
-    this.style,
+    this.titleStyle,
+    this.subtitleStyle,
     this.amountStyle,
   });
 
-  final String label;
+  final String title;
+  final String? subtitle;
   final String amount;
-  final Color color;
-  final TextStyle? style;
+  final TextStyle? titleStyle;
+  final TextStyle? subtitleStyle;
   final TextStyle? amountStyle;
+
+  static const _spacing = 8.0;
+  static const _minLabelFraction = 0.4;
 
   @override
   Widget build(BuildContext context) {
@@ -588,29 +610,83 @@ class _MemberDiscountRow extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 56),
       child: Padding(
         padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: style?.copyWith(color: color),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  amount,
-                  maxLines: 1,
-                  style: amountStyle?.copyWith(color: color),
-                ),
-              ),
-            ),
-          ],
+        child: MergeSemantics(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final painter = TextPainter(
+                text: TextSpan(text: amount, style: amountStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              final sideBySide =
+                  maxWidth.isFinite &&
+                  (maxWidth - painter.width - _spacing) >=
+                      maxWidth * _minLabelFraction;
+              // Side by side, the amount fits by construction (the check
+              // above already confirms it fits in ≤60% of the row).
+              // Stacked, it almost always fits the whole row to itself; the
+              // rare exception is tier 3 above.
+              final fitsOneLine =
+                  sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
+
+              final amountText = Text(
+                amount,
+                textAlign: TextAlign.end,
+                maxLines: fitsOneLine ? 1 : null,
+                softWrap: !fitsOneLine,
+                style: amountStyle,
+              );
+
+              final label = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    // Side by side, the label absorbs whatever the amount
+                    // didn't need and may run to a second line; stacked, it
+                    // already has the full row to itself.
+                    maxLines: sideBySide ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
+                  ),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: subtitleStyle,
+                      ),
+                    ),
+                ],
+              );
+
+              if (sideBySide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: label),
+                    const SizedBox(width: _spacing),
+                    amountText,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  label,
+                  const SizedBox(height: 4),
+                  Align(alignment: Alignment.centerRight, child: amountText),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

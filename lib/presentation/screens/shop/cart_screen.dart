@@ -350,39 +350,27 @@ class _CartSummary extends StatelessWidget {
     final palette = BisoPalette.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: palette.muted,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // headlineMedium (28pt) at large text scale can outgrow even the
-            // whole bar's width for a big cart — Flexible+FittedBox keeps
-            // every digit visible on one line, shrinking the glyphs rather
-            // than truncating or overflowing (R11).
-            Flexible(
-              flex: 3,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  formatNok(subtotal),
-                  maxLines: 1,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    color: palette.ink,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        // An `Expanded` count next to a fixed/`Flexible` subtotal splits the
+        // bar's width between them, so at large text scales either the
+        // count ellipsizes or (a big enough cart) the subtotal has to
+        // shrink to fit — R11 says neither may happen. Stacking gives each
+        // its own full-width line instead, at natural, unscaled size.
+        Text(
+          '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
+          maxLines: 1,
+          style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
+        ),
+        const SizedBox(height: 2),
+        // No `maxLines`/`FittedBox`: a realistic subtotal always fits this
+        // bar's width on one line, but letting it wrap (rather than capping
+        // at one line, which would silently clip) if an extreme cart ever
+        // didn't is strictly safer and never worse than clipping — R11.
+        Text(
+          formatNok(subtotal),
+          textAlign: TextAlign.start,
+          style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
         ),
         const SizedBox(height: 4),
         Align(
