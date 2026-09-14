@@ -6,6 +6,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -161,6 +162,64 @@ void main() {
         reason: 'the description appears in both the list row and the '
             'detail sheet',
       );
+    },
+  );
+
+  testWidgets(
+    'the detail sheet shows the application deadline and tags when present',
+    (tester) async {
+      final deadline = DateTime.utc(2030, 6, 15, 12);
+      final job = JobModel(
+        id: 'job-deadline',
+        title: 'Logistics Volunteer',
+        description: 'Help with logistics.',
+        departmentId: 'dept-1',
+        campusId: _campus.id,
+        applicationDeadline: deadline,
+        tags: const ['Logistics', 'Events'],
+      );
+
+      await pumpBisoScreen(
+        tester,
+        const JobsScreen(openJobId: 'job-deadline'),
+        routed: true,
+        overrides: _overrides(_FixedJobService([job])),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Apply by'), findsOneWidget);
+      // Display-only formatting; deliberately not run through toLocal() in
+      // any comparison, per the comment on _JobDetailSheet.
+      expect(
+        find.text(DateFormat('MMM dd').format(deadline.toLocal())),
+        findsOneWidget,
+      );
+      expect(find.text('Logistics'), findsOneWidget);
+      expect(find.text('Events'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the detail sheet shows no deadline row for a job with neither a '
+    'deadline nor tags',
+    (tester) async {
+      final job = JobModel(
+        id: 'job-plain',
+        title: 'Plain Volunteer Role',
+        description: 'No deadline, no tags.',
+        departmentId: 'dept-1',
+        campusId: _campus.id,
+      );
+
+      await pumpBisoScreen(
+        tester,
+        const JobsScreen(openJobId: 'job-plain'),
+        routed: true,
+        overrides: _overrides(_FixedJobService([job])),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Apply by'), findsNothing);
     },
   );
 }

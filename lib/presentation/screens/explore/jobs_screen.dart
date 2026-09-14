@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/logging/app_logger.dart';
 import '../../../core/utils/navigation_utils.dart';
@@ -460,10 +461,31 @@ class _JobDetailSheet extends StatelessWidget {
 
   const _JobDetailSheet({required this.job, required this.scrollController});
 
+  /// Chips shown for this job: `tags`, de-duplicated case-insensitively so a
+  /// repeated tag doesn't burn two of the three visible slots. Ported
+  /// verbatim from the pre-migration `_JobCard._chipLabels` (the only place
+  /// tags used to be shown at all).
+  List<String> get _chipLabels {
+    final labels = <String>[];
+    final seen = <String>{};
+
+    void add(String label) {
+      final trimmed = label.trim();
+      if (trimmed.isEmpty) return;
+      if (!seen.add(trimmed.toLowerCase())) return;
+      labels.add(trimmed);
+    }
+
+    job.tags.forEach(add);
+
+    return labels;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
+    final chipLabels = _chipLabels;
 
     return ListView(
       controller: scrollController,
@@ -475,6 +497,45 @@ class _JobDetailSheet extends StatelessWidget {
         ),
 
         const SizedBox(height: 16),
+
+        // Application deadline. `job.applicationDeadline` parses from an
+        // Appwrite UTC-offset timestamp (isUtc == true); DateFormat renders
+        // the object's own (UTC) fields, so without .toLocal() the deadline
+        // would display 1-2 hours early for a Norway-based user. Display
+        // only, ported verbatim from the pre-migration `_JobCard` — do not
+        // add toLocal() to any deadline comparison used for
+        // filtering/expiry.
+        if (job.applicationDeadline != null) ...[
+          BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(
+                  icon: CupertinoIcons.clock,
+                  accent: BisoAccent.teal,
+                ),
+                title: 'Apply by',
+                value: DateFormat(
+                  'MMM dd',
+                ).format(job.applicationDeadline!.toLocal()),
+                showChevron: false,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Tags
+        if (chipLabels.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: chipLabels
+                .take(3)
+                .map((label) => Chip(label: Text(label)))
+                .toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // Description
         if (job.description.isNotEmpty) ...[
