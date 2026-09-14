@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'biso_colors.dart';
 import 'biso_navigation.dart';
@@ -140,6 +141,7 @@ class _BisoPageState extends State<BisoPage> {
   final _largeTitleExtent = ValueNotifier<double>(double.infinity);
   final _bottomBarHeight = ValueNotifier<double>(0);
   Timer? _debugScroll;
+  double? _pendingOffset;
 
   @override
   void initState() {
@@ -171,12 +173,45 @@ class _BisoPageState extends State<BisoPage> {
   }
 
   bool _onScroll(ScrollNotification notification) {
-    if (notification.depth == widget.notificationDepth &&
-        notification.metrics.axis == Axis.vertical) {
-      _offset.value =
-          notification.metrics.pixels - notification.metrics.minScrollExtent;
+    if (notification.depth == widget.notificationDepth) {
+      _track(notification.metrics);
     }
     return false;
+  }
+
+  /// Dimension changes (first layout, messages arriving) move content under
+  /// the header without any scroll, e.g. a reversed chat list at rest.
+  bool _onMetrics(ScrollMetricsNotification notification) {
+    if (notification.depth == widget.notificationDepth) {
+      _track(notification.metrics);
+    }
+    return false;
+  }
+
+  /// Distance the content has scrolled past the header edge. A reversed list
+  /// (axis direction up) starts at its newest end at the bottom, so the edge
+  /// nearest the header is its max extent.
+  void _track(ScrollMetrics metrics) {
+    if (metrics.axis != Axis.vertical) return;
+    final offset = metrics.axisDirection == AxisDirection.up
+        ? metrics.maxScrollExtent - metrics.pixels
+        : metrics.pixels - metrics.minScrollExtent;
+    // Layout can report new dimensions mid-frame (a reversed list's max
+    // extent changing as it lays out); the header may only rebuild after it.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      final scheduled = _pendingOffset != null;
+      _pendingOffset = offset;
+      if (scheduled) return;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        final pending = _pendingOffset;
+        _pendingOffset = null;
+        if (mounted && pending != null) _offset.value = pending;
+      });
+      return;
+    }
+    _pendingOffset = null;
+    _offset.value = offset;
   }
 
   @override
@@ -238,9 +273,12 @@ class _BisoPageState extends State<BisoPage> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: _onScroll,
-                      child: content,
+                    child: NotificationListener<ScrollMetricsNotification>(
+                      onNotification: _onMetrics,
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: _onScroll,
+                        child: content,
+                      ),
                     ),
                   ),
                   if (widget.bottomBar != null)

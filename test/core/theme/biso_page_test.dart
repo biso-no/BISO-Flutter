@@ -285,6 +285,74 @@ void main() {
     expect(find.byKey(const ValueKey('biso-header-band')), findsOneWidget);
   });
 
+  group('reversed body lists (chat)', () {
+    Widget reversedPage(int count) => app(
+      BisoPage(
+        title: 'Chat',
+        largeTitle: false,
+        body: Builder(
+          builder: (context) => ListView.builder(
+            reverse: true,
+            padding: BisoPageInsets.padding(context),
+            itemCount: count,
+            itemBuilder: (_, i) => SizedBox(
+              height: 64,
+              child: Text('Message $i', key: ValueKey('message-$i')),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Finder band() => find.byKey(const ValueKey('biso-header-band'));
+
+    testWidgets('a long list at rest shows the band over older messages', (
+      tester,
+    ) async {
+      phone(tester);
+      await tester.pumpWidget(reversedPage(40));
+      await tester.pump();
+      await tester.pump();
+      expect(band(), findsOneWidget);
+    });
+
+    testWidgets('a list that fits on screen shows no band', (tester) async {
+      phone(tester);
+      await tester.pumpWidget(reversedPage(3));
+      await tester.pump();
+      await tester.pump();
+      expect(band(), findsNothing);
+      await tester.drag(find.byType(ListView), const Offset(0, 200));
+      await tester.pumpAndSettle();
+      expect(band(), findsNothing);
+    });
+
+    testWidgets('scrolling back towards the oldest message keeps the band', (
+      tester,
+    ) async {
+      phone(tester);
+      await tester.pumpWidget(reversedPage(40));
+      await tester.pump();
+      await tester.drag(find.byType(ListView), const Offset(0, 600));
+      await tester.pumpAndSettle();
+      expect(band(), findsOneWidget);
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position;
+      // The oldest message is on screen, and older padding still under the
+      // header edge keeps the band.
+      position.jumpTo(position.maxScrollExtent - 100);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('message-39')), findsOneWidget);
+      expect(band(), findsOneWidget);
+      // Fully at the oldest end, the header clearance sits under the header
+      // and nothing is behind it: no band, like a normal list at its top.
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(band(), findsNothing);
+    });
+  });
+
   testWidgets('back button appears only when the route can pop', (
     tester,
   ) async {
