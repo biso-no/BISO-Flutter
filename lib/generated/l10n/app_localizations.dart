@@ -3956,6 +3956,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Loading'**
   String get loadingMessage;
+
+  /// Tooltip for the header action that turns the scanner flash on
+  ///
+  /// In en, this message translates to:
+  /// **'Turn flash on'**
+  String get turnFlashOnMessage;
+
+  /// Tooltip for the header action that turns the scanner flash off
+  ///
+  /// In en, this message translates to:
+  /// **'Turn flash off'**
+  String get turnFlashOffMessage;
+
+  /// Tooltip for a header action that opens more options
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get moreMessage;
+
+  /// Tooltip for the header action that favorites a product
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite'**
+  String get favoriteMessage;
+
+  /// Tooltip for the button that changes the profile photo
+  ///
+  /// In en, this message translates to:
+  /// **'Change photo'**
+  String get changePhotoMessage;
 }
 
 class _AppLocalizationsDelegate

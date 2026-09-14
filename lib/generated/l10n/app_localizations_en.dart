@@ -2136,4 +2136,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loadingMessage => 'Loading';
+
+  @override
+  String get turnFlashOnMessage => 'Turn flash on';
+
+  @override
+  String get turnFlashOffMessage => 'Turn flash off';
+
+  @override
+  String get moreMessage => 'More';
+
+  @override
+  String get favoriteMessage => 'Favorite';
+
+  @override
+  String get changePhotoMessage => 'Change photo';
 }

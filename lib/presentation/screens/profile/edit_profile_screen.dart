@@ -272,7 +272,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       children: [
                         BisoCapsuleButton(
                           icon: CupertinoIcons.camera_fill,
-                          tooltip: 'Change photo',
+                          tooltip:
+                              AppLocalizations.of(
+                                context,
+                              )?.changePhotoMessage ??
+                              'Change photo',
                           onPressed: _pickImage,
                         ),
                       ],

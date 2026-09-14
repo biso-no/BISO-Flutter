@@ -2142,4 +2142,19 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get loadingMessage => 'Laster inn';
+
+  @override
+  String get turnFlashOnMessage => 'Slå på blits';
+
+  @override
+  String get turnFlashOffMessage => 'Slå av blits';
+
+  @override
+  String get moreMessage => 'Mer';
+
+  @override
+  String get favoriteMessage => 'Favoritt';
+
+  @override
+  String get changePhotoMessage => 'Bytt bilde';
 }

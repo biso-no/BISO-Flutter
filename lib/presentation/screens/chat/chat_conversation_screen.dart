@@ -119,7 +119,7 @@ class _ChatConversationScreenState
       actions: [
         BisoHeaderAction(
           icon: CupertinoIcons.info_circle,
-          tooltip: 'Chat info',
+          tooltip: l10n?.chatInfo ?? 'Chat info',
           onPressed: _showChatInfo,
         ),
       ],

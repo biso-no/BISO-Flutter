@@ -8,6 +8,7 @@ import '../../../core/theme/premium_theme.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/validation_result_model.dart';
 import '../../../data/services/validator_service.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../widgets/biso/biso.dart';
 
 class ControllerModeScreen extends ConsumerStatefulWidget {
@@ -121,7 +122,11 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
             icon: _isFlashOn
                 ? CupertinoIcons.bolt_fill
                 : CupertinoIcons.bolt_slash_fill,
-            tooltip: _isFlashOn ? 'Turn flash off' : 'Turn flash on',
+            tooltip: _isFlashOn
+                ? AppLocalizations.of(context)?.turnFlashOffMessage ??
+                      'Turn flash off'
+                : AppLocalizations.of(context)?.turnFlashOnMessage ??
+                      'Turn flash on',
             onPressed: _toggleFlash,
           ),
         ],

@@ -7,6 +7,7 @@ import '../../../data/services/product_service.dart';
 import '../../../data/services/chat_service.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../widgets/biso/biso.dart';
 import '../chat/chat_conversation_screen.dart';
 
@@ -359,7 +360,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       actions: [
         BisoHeaderAction(
           icon: _isFavorited ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-          tooltip: 'Favorite',
+          tooltip: AppLocalizations.of(context)?.favoriteMessage ?? 'Favorite',
           onPressed: _favoriteLoading ? null : _toggleFavorite,
         ),
       ],

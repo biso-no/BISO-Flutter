@@ -2755,5 +2755,25 @@
   "loadingMessage": "Laster inn",
   "@loadingMessage": {
     "description": "Accessibility label for skeleton placeholders while content loads"
+  },
+  "turnFlashOnMessage": "Slå på blits",
+  "@turnFlashOnMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash on"
+  },
+  "turnFlashOffMessage": "Slå av blits",
+  "@turnFlashOffMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash off"
+  },
+  "moreMessage": "Mer",
+  "@moreMessage": {
+    "description": "Tooltip for a header action that opens more options"
+  },
+  "favoriteMessage": "Favoritt",
+  "@favoriteMessage": {
+    "description": "Tooltip for the header action that favorites a product"
+  },
+  "changePhotoMessage": "Bytt bilde",
+  "@changePhotoMessage": {
+    "description": "Tooltip for the button that changes the profile photo"
   }
 }

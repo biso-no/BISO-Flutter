@@ -26,6 +26,7 @@ Future<void> pumpBisoScreen(
   bool inShell = true,
   bool routed = false,
   Size size = const Size(390, 844),
+  Locale? locale,
 }) async {
   tester.view.physicalSize = size * 3;
   tester.view.devicePixelRatio = 3;
@@ -61,6 +62,7 @@ Future<void> pumpBisoScreen(
               themeMode: themeMode,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
+              locale: locale,
               routerConfig: GoRouter(
                 routes: [
                   GoRoute(path: '/', builder: (context, _) => framed(context)),
@@ -73,6 +75,7 @@ Future<void> pumpBisoScreen(
               themeMode: themeMode,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
+              locale: locale,
               home: Builder(builder: framed),
             ),
     ),

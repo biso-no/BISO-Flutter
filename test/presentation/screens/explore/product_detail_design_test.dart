@@ -184,4 +184,19 @@ void main() {
     expect(find.byIcon(CupertinoIcons.heart), findsOneWidget);
     expect(find.byIcon(CupertinoIcons.heart_fill), findsNothing);
   });
+
+  testWidgets('the favorite action tooltip is localized in Norwegian', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const ProductDetailScreen(productId: 'p1'),
+      overrides: _overrides(),
+      routed: true,
+      locale: const Locale('no'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Favoritt'), findsOneWidget);
+    expect(find.byTooltip('Favorite'), findsNothing);
+  });
 }

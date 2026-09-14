@@ -365,4 +365,19 @@ void main() {
       expect(find.textContaining('Jane Doe'), findsOneWidget);
     },
   );
+
+  testWidgets('the more action tooltip is localized in Norwegian', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const ExpensesScreen(),
+      overrides: _overrides([
+        _expense(id: '1', description: 'Taxi', status: 'pending'),
+      ]),
+      locale: const Locale('no'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Mer'), findsOneWidget);
+  });
 }

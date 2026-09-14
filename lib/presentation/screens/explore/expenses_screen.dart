@@ -111,7 +111,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         ),
         BisoHeaderAction(
           icon: CupertinoIcons.ellipsis,
-          tooltip: 'More',
+          tooltip: l10n.moreMessage,
           onPressed: () => _showMoreSheet(context, filteredExpenses),
         ),
       ],

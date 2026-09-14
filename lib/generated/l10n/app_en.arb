@@ -2755,5 +2755,25 @@
   "loadingMessage": "Loading",
   "@loadingMessage": {
     "description": "Accessibility label for skeleton placeholders while content loads"
+  },
+  "turnFlashOnMessage": "Turn flash on",
+  "@turnFlashOnMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash on"
+  },
+  "turnFlashOffMessage": "Turn flash off",
+  "@turnFlashOffMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash off"
+  },
+  "moreMessage": "More",
+  "@moreMessage": {
+    "description": "Tooltip for a header action that opens more options"
+  },
+  "favoriteMessage": "Favorite",
+  "@favoriteMessage": {
+    "description": "Tooltip for the header action that favorites a product"
+  },
+  "changePhotoMessage": "Change photo",
+  "@changePhotoMessage": {
+    "description": "Tooltip for the button that changes the profile photo"
   }
 }
