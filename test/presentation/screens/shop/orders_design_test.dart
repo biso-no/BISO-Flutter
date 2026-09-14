@@ -8,7 +8,7 @@ import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +67,25 @@ ShopOrder _order({
   paymentLink: paymentLink,
   receiptUrl: receiptUrl,
 );
+
+/// The token every [ShopOrderStatus] maps to (fix round 1, ruling B), shared
+/// by the orders list pill and the order detail header icon — see
+/// `_statusPresentation` in `orders_screen.dart` and `_StatusHeader._presentation`
+/// in `order_screen.dart`.
+Color Function(BisoPalette) _expectedToken(ShopOrderStatus status) {
+  switch (status) {
+    case ShopOrderStatus.paid:
+    case ShopOrderStatus.authorized:
+      return (palette) => palette.success;
+    case ShopOrderStatus.pending:
+      return (palette) => palette.warning;
+    case ShopOrderStatus.cancelled:
+    case ShopOrderStatus.failed:
+      return (palette) => palette.error;
+    case ShopOrderStatus.refunded:
+      return (palette) => palette.muted;
+  }
+}
 
 /// Asserts [text] renders as a single, complete, full-size line — R11:
 /// amounts never truncate, wrap, or scale down. Mirrors the check in
@@ -138,7 +157,7 @@ void main() {
     );
 
     testWidgets(
-      'each row shows the order id, date, item count and total, and a paid '
+      'each row shows the order id, date, item names and total, and a paid '
       "order's status pill text color equals palette.success",
       (tester) async {
         final order = _order(
@@ -169,7 +188,9 @@ void main() {
           await tester.pumpAndSettle();
 
           expect(find.text('Order abc123'), findsOneWidget);
-          expect(find.textContaining('2 items'), findsOneWidget);
+          // Item names (fix round 1, ruling A), not the item count — the
+          // count is only a fallback for an order with no item names.
+          expect(find.textContaining('Hoodie'), findsOneWidget);
           expect(find.text(formatNok(349)), findsOneWidget);
           expect(find.text('Paid'), findsOneWidget);
 
@@ -185,7 +206,9 @@ void main() {
     );
 
     testWidgets(
-      'a large total renders in full, not ellipsized or scaled, at 1.6x text (R11)',
+      'a large total renders in full, not ellipsized or scaled, at 1.6x '
+      'text, and an order with no item names falls back to the item count '
+      '(R11 / ruling A)',
       (tester) async {
         final order = _order(id: 'big', status: ShopOrderStatus.paid, total: 1234.50);
         await pumpBisoScreen(
@@ -200,8 +223,11 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
 
+        // No items on this order, so the subtitle falls back to the count.
+        expect(find.textContaining('0 items'), findsOneWidget);
+
         expect(formatNok(1234.50), 'NOK 1234.50');
-        // The row's fixed-width trailing column (see _OrderAmountAndStatus)
+        // The row's content-sized trailing block (see _OrderAmountAndStatus)
         // renders the total on one line if it fits, or — the same last
         // resort R11 allows — splits only between the currency code and the
         // number. Either way, every visible piece must be shown in full.
@@ -210,6 +236,156 @@ void main() {
         } else {
           _expectFullSizeAmount(tester, 'NOK');
           _expectFullSizeAmount(tester, '1234.50');
+        }
+      },
+    );
+
+    // A 20-character id (real order ids run about this long), two item
+    // names, and a 4-digit-plus-decimals total — the combination fix round
+    // 1 flagged: a fixed trailing width left as little as 34pt for this
+    // title+subtitle on a 320pt phone. `paid` (a short pill, "Paid") is
+    // deliberately chosen over a longer label: at 390pt/1.0x it keeps the
+    // amount+pill block under ~40% of the row, which is what makes the
+    // side-by-side layout the one this data actually gets there.
+    final wideRowOrder = _order(
+      id: 'ORD1234567890ABCDEFG',
+      status: ShopOrderStatus.paid,
+      total: 1234.50,
+      createdAt: DateTime(2026, 1, 15),
+      items: const [
+        ShopOrderItem(name: 'Bag', quantity: 1, unitPrice: 617.25, lineTotal: 617.25),
+        ShopOrderItem(name: 'Hat', quantity: 1, unitPrice: 617.25, lineTotal: 617.25),
+      ],
+    );
+    final wideRowTitle = 'Order ${wideRowOrder.id}';
+    const wideRowSubtitle = 'Jan 15, 2026 • Bag, Hat';
+
+    testWidgets(
+      'a 20-character id with item names and a large total shows the title, '
+      'subtitle, amount and pill in full at 320pt/1.6x, with no overflow '
+      '(fix round 1)',
+      (tester) async {
+        await pumpBisoScreen(
+          tester,
+          const OrdersScreen(),
+          overrides: [
+            authStateProvider.overrideWith((_) => _Auth(true)),
+            myOrdersProvider.overrideWith((_) async => [wideRowOrder]),
+          ],
+          size: const Size(320, 844),
+          textScale: 1.6,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        expect(find.text(wideRowTitle), findsOneWidget);
+        expect(
+          tester.renderObject<RenderParagraph>(find.text(wideRowTitle)).didExceedMaxLines,
+          isFalse,
+          reason: 'the id should wrap within its cap, not ellipsize',
+        );
+        expect(find.text(wideRowSubtitle), findsOneWidget);
+        expect(
+          tester
+              .renderObject<RenderParagraph>(find.text(wideRowSubtitle))
+              .didExceedMaxLines,
+          isFalse,
+          reason: 'the date and item names should wrap within their cap, not ellipsize',
+        );
+
+        expect(formatNok(1234.50), 'NOK 1234.50');
+        if (find.text('NOK 1234.50').evaluate().isNotEmpty) {
+          _expectFullSizeAmount(tester, 'NOK 1234.50');
+        } else {
+          _expectFullSizeAmount(tester, 'NOK');
+          _expectFullSizeAmount(tester, '1234.50');
+        }
+        expect(find.text('Paid'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'the same order uses the side-by-side layout at 390pt/1.0x — the '
+      'amount sits on the title row (fix round 1)',
+      (tester) async {
+        await pumpBisoScreen(
+          tester,
+          const OrdersScreen(),
+          overrides: [
+            authStateProvider.overrideWith((_) => _Auth(true)),
+            myOrdersProvider.overrideWith((_) async => [wideRowOrder]),
+          ],
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final rowFinder = find.ancestor(
+          of: find.text(wideRowTitle),
+          matching: find.byType(BisoListRow),
+        );
+        expect(rowFinder, findsOneWidget);
+
+        final amountWhole = find.descendant(
+          of: rowFinder,
+          matching: find.text('NOK 1234.50'),
+        );
+        final amountSplit =
+            find.descendant(of: rowFinder, matching: find.text('NOK')).evaluate().isNotEmpty &&
+            find
+                .descendant(of: rowFinder, matching: find.text('1234.50'))
+                .evaluate()
+                .isNotEmpty;
+        expect(
+          amountWhole.evaluate().isNotEmpty || amountSplit,
+          isTrue,
+          reason: 'the amount should be inside the same BisoListRow as the '
+              'title (side-by-side), not on a separate stacked line',
+        );
+      },
+    );
+
+    testWidgets(
+      'the pill token matches every ShopOrderStatus value, in light and dark '
+      '(fix round 1, ruling B)',
+      (tester) async {
+        const expected = {
+          ShopOrderStatus.paid: 'Paid',
+          ShopOrderStatus.authorized: 'Paid',
+          ShopOrderStatus.pending: 'Awaiting payment',
+          ShopOrderStatus.cancelled: 'Cancelled',
+          ShopOrderStatus.failed: 'Failed',
+          ShopOrderStatus.refunded: 'Refunded',
+        };
+
+        for (final status in ShopOrderStatus.values) {
+          for (final brightness in Brightness.values) {
+            final order = _order(id: 'status-$status', status: status);
+            await pumpBisoScreen(
+              tester,
+              const OrdersScreen(),
+              overrides: [
+                authStateProvider.overrideWith((_) => _Auth(true)),
+                myOrdersProvider.overrideWith((_) async => [order]),
+              ],
+              brightness: brightness,
+            );
+            await tester.pumpAndSettle();
+
+            final label = expected[status]!;
+            final pillFinder = find.text(label);
+            expect(pillFinder, findsOneWidget, reason: '$status ($brightness)');
+            final palette = brightness == Brightness.dark
+                ? BisoPalette.dark
+                : BisoPalette.light;
+            final expectedColor = _expectedToken(status)(palette);
+            expect(
+              tester.widget<Text>(pillFinder).style?.color,
+              expectedColor,
+              reason: '$status ($brightness)',
+            );
+
+            await tester.pumpWidget(const SizedBox());
+          }
         }
       },
     );
@@ -307,6 +483,55 @@ void main() {
         } else {
           _expectFullSizeAmount(tester, 'NOK');
           _expectFullSizeAmount(tester, '1234.50');
+        }
+      },
+    );
+
+    testWidgets(
+      'the status header icon and token match every ShopOrderStatus value, '
+      'in light and dark, with cancelled and failed showing distinct icons '
+      '(fix round 1, ruling B)',
+      (tester) async {
+        const expectedIcons = {
+          ShopOrderStatus.paid: CupertinoIcons.checkmark_circle_fill,
+          ShopOrderStatus.authorized: CupertinoIcons.checkmark_circle_fill,
+          ShopOrderStatus.pending: CupertinoIcons.clock,
+          ShopOrderStatus.cancelled: CupertinoIcons.xmark_circle,
+          ShopOrderStatus.failed: CupertinoIcons.exclamationmark_circle,
+          ShopOrderStatus.refunded: CupertinoIcons.arrow_counterclockwise,
+        };
+        expect(
+          expectedIcons[ShopOrderStatus.cancelled],
+          isNot(expectedIcons[ShopOrderStatus.failed]),
+          reason: 'cancelled and failed must use distinct icons',
+        );
+
+        for (final status in ShopOrderStatus.values) {
+          for (final brightness in Brightness.values) {
+            final order = _order(id: 'hdr-$status', status: status);
+            await pumpBisoScreen(
+              tester,
+              OrderScreen(orderId: order.id),
+              overrides: overridesFor(order),
+              brightness: brightness,
+            );
+            await tester.pumpAndSettle();
+
+            final icon = expectedIcons[status]!;
+            final iconFinder = find.byIcon(icon);
+            expect(iconFinder, findsOneWidget, reason: '$status ($brightness)');
+            final palette = brightness == Brightness.dark
+                ? BisoPalette.dark
+                : BisoPalette.light;
+            final expectedColor = _expectedToken(status)(palette);
+            expect(
+              tester.widget<Icon>(iconFinder).color,
+              expectedColor,
+              reason: '$status ($brightness)',
+            );
+
+            await tester.pumpWidget(const SizedBox());
+          }
         }
       },
     );

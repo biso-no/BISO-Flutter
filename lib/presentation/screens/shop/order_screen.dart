@@ -309,11 +309,17 @@ class _StatusHeader extends StatelessWidget {
     );
   }
 
-  /// Maps every [ShopOrderStatus] onto the three status glyphs/tokens: `paid`
-  /// and `authorized` both mean the money is in, so they share the success
-  /// checkmark; `pending` is the only waiting state, so it takes the warning
-  /// clock; `cancelled`, `failed` and `refunded` all mean there is no longer
-  /// a live paid order, so they share the error xmark.
+  /// Maps every [ShopOrderStatus] onto its status glyph/token (fix round 1,
+  /// ruling B — the same mapping `_statusPresentation` in `orders_screen.dart`
+  /// uses for the list's pill): `paid` and `authorized` both mean the money
+  /// is in, so they share the success checkmark; `pending` is the only
+  /// waiting state, so it takes the warning clock; `cancelled` and `failed`
+  /// both mean nothing was (or stays) charged, so they share the error
+  /// token, with distinct icons — a plain xmark for a cancellation, an
+  /// exclamation for an outright failure; `refunded` is neither — money moved
+  /// and then moved back — so it gets its own muted token and a "back
+  /// around" glyph (the nearest Cupertino equivalent of the old Material
+  /// "replay_rounded" icon) rather than borrowing the error xmark.
   (IconData, Color, String, String) _presentation(BisoPalette palette) {
     switch (status) {
       case ShopOrderStatus.paid:
@@ -326,7 +332,7 @@ class _StatusHeader extends StatelessWidget {
         );
       case ShopOrderStatus.cancelled:
         return (
-          CupertinoIcons.xmark_circle_fill,
+          CupertinoIcons.xmark_circle,
           palette.error,
           'Payment cancelled',
           'Nothing has been charged. Your cart is still here if you want to '
@@ -334,15 +340,15 @@ class _StatusHeader extends StatelessWidget {
         );
       case ShopOrderStatus.failed:
         return (
-          CupertinoIcons.xmark_circle_fill,
+          CupertinoIcons.exclamationmark_circle,
           palette.error,
           'Payment failed',
           'Your payment did not go through, and nothing has been charged.',
         );
       case ShopOrderStatus.refunded:
         return (
-          CupertinoIcons.xmark_circle_fill,
-          palette.error,
+          CupertinoIcons.arrow_counterclockwise,
+          palette.muted,
           'Order refunded',
           'This order has been refunded.',
         );
@@ -437,11 +443,15 @@ class _OrderSummary extends StatelessWidget {
 /// One "label — amount" row (a line total, Member discount, or Total), sized
 /// so the amount is never scaled down, and never silently clipped, at any
 /// text scale (R11). Copied from `_AmountRow` in `checkout_screen.dart` (see
-/// its doc comment for the full layout rationale) with one change: the
-/// subtitle here can carry several lines — quantity/price plus one line per
-/// custom-field answer — and every one of them must stay readable, so this
-/// copy does not cap it at 2 lines the way checkout's per-line subtitle
-/// (a single quantity/price line, never more) does.
+/// its doc comment for the full layout rationale) with two changes:
+/// - the subtitle here can carry several lines — quantity/price plus one
+///   line per custom-field answer — and every one of them must stay
+///   readable, so this copy does not cap it at 2 lines the way checkout's
+///   per-line subtitle (a single quantity/price line, never more) does;
+/// - the title (an item's name) is likewise never capped, in either the
+///   side-by-side or the stacked layout (fix round 1, minor 2) — checkout's
+///   copy caps it at 2/1 lines because its titles are always short product
+///   names.
 class _AmountRow extends StatelessWidget {
   const _AmountRow({
     required this.title,
@@ -512,12 +522,11 @@ class _AmountRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    title,
-                    maxLines: sideBySide ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: titleStyle,
-                  ),
+                  // Item names (this row's title) must stay fully readable —
+                  // uncapped in both layouts (fix round 1, minor 2), unlike
+                  // checkout's copy of this widget, whose title is always a
+                  // short product name.
+                  Text(title, style: titleStyle),
                   if (subtitle != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),

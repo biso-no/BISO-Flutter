@@ -31,7 +31,6 @@ class OrdersScreen extends ConsumerWidget {
     if (!isAuthenticated) {
       return BisoPage(
         title: 'Your orders',
-        largeTitle: false,
         leading: leading,
         slivers: [
           SliverFillRemaining(
@@ -63,14 +62,13 @@ class _OrdersList extends ConsumerWidget {
     return orders.when(
       loading: () => BisoPage(
         title: 'Your orders',
-        largeTitle: false,
         leading: leading,
         slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
       ),
       error: (_, _) => BisoPage(
         title: 'Your orders',
-        largeTitle: false,
         leading: leading,
+        onRefresh: () async => ref.invalidate(myOrdersProvider),
         slivers: [
           SliverFillRemaining(
             hasScrollBody: false,
@@ -120,65 +118,210 @@ class _OrderRow extends StatelessWidget {
 
   final ShopOrder order;
 
+  /// Everything the trailing block (`Row`'s non-flex `trailing` slot, or the
+  /// stacked footer line) is reserved space for, besides itself: the
+  /// [SliverBisoListGroup] margin (16pt each side), `BisoListRow`'s own
+  /// padding (16pt each side), the leading icon tile (32pt) and its gap
+  /// (12pt), and the gap before `trailing` (8pt). 32+32+32+12+8 = 116.
+  static const _rowOverhead = 116.0;
+
+  /// What's reserved for a stacked footer line: just the list-group margin
+  /// and its own matching horizontal padding (no leading icon or gaps, since
+  /// it isn't inside `BisoListRow`'s own `Row`). 16+16+16+16 = 64.
+  static const _footerOverhead = 64.0;
+
+  static const _pillPadding = 20.0; // 10pt each side, matches the Container.
+
+  void _navigate(BuildContext context) =>
+      context.push('/explore/products/order/${order.id}');
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
     final (label, color) = _statusPresentation(order.status, palette);
     final date = order.createdAt;
+    final itemNames = order.items
+        .map((item) => item.name.trim())
+        .where((name) => name.isNotEmpty)
+        .join(', ');
     final itemCount = order.itemCount;
-    final itemsLabel = '$itemCount ${itemCount == 1 ? 'item' : 'items'}';
+    final itemsPart = itemNames.isNotEmpty
+        ? itemNames
+        : '$itemCount ${itemCount == 1 ? 'item' : 'items'}';
+    final subtitle = date != null
+        ? '${DateFormat.yMMMd().format(date)} • $itemsPart'
+        : itemsPart;
 
-    return BisoListRow(
-      leading: const BisoIconTile(icon: CupertinoIcons.bag, accent: BisoAccent.gold),
-      title: 'Order ${order.id}',
-      subtitle: date != null
-          ? '${DateFormat.yMMMd().format(date)} • $itemsLabel'
-          : itemsLabel,
-      onTap: () => context.push('/explore/products/order/${order.id}'),
-      trailing: _OrderAmountAndStatus(
-        amount: formatNok(order.total),
-        amountStyle: theme.textTheme.titleSmall?.copyWith(color: palette.ink),
-        statusLabel: label,
-        statusColor: color,
+    final amount = formatNok(order.total);
+    final amountStyle = theme.textTheme.titleSmall?.copyWith(color: palette.ink);
+    final pillStyle = theme.textTheme.labelSmall?.copyWith(color: color);
+
+    // Measured, not guessed (fix round 1): a fixed trailing width either
+    // wastes space or starves the title — real order ids run to ~20
+    // characters, and a fixed box sized for the amount/pill leaves as little
+    // as 34pt for the title+subtitle on a 320pt phone. Sizing the block to
+    // what its own content actually needs, capped by the row's real width,
+    // gives the title back that space whenever the amount/pill don't need
+    // it.
+    final direction = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+    double measure(String text, TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: direction,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      return painter.width;
+    }
+
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final rowWidth = (screenWidth - _rowOverhead).clamp(0.0, double.infinity);
+    final contentWidth = [
+      measure(amount, amountStyle),
+      measure(label, pillStyle) + _pillPadding,
+    ].reduce((a, b) => a > b ? a : b);
+    final trailingWidth = contentWidth < rowWidth ? contentWidth : rowWidth;
+
+    // Side by side only if the title would still keep a real share of the
+    // row (about 40%, mirroring `_AmountRow`'s own threshold) — otherwise an
+    // id-length title would be squeezed down to almost nothing beside a
+    // trailing block sized for the amount/pill.
+    final sideBySide =
+        rowWidth > 0 && (rowWidth - trailingWidth) >= rowWidth * 0.4;
+
+    final leading = const BisoIconTile(
+      icon: CupertinoIcons.bag,
+      accent: BisoAccent.gold,
+    );
+
+    final title = 'Order ${order.id}';
+
+    if (sideBySide) {
+      return BisoListRow(
+        leading: leading,
+        title: title,
+        subtitle: subtitle,
+        onTap: () => _navigate(context),
+        trailing: _OrderAmountAndStatus(
+          amount: amount,
+          amountStyle: amountStyle,
+          statusLabel: label,
+          statusColor: color,
+          width: trailingWidth,
+        ),
+      );
+    }
+
+    // Not enough room beside the title: put the amount and pill on their own
+    // right-aligned line under the subtitle instead — the same stacked idea
+    // `_AmountRow` falls back to when a label and its amount don't fit one
+    // line together. This isn't `BisoListRow` (whose title/subtitle cap at
+    // 2 lines each, tuned for its normal — trailing-present — width): a real
+    // order id can run to ~20 characters, and stacking already means the
+    // title/subtitle have the row to themselves, so they're given more
+    // room to wrap into rather than ellipsizing.
+    final footerWidth = (screenWidth - _footerOverhead).clamp(
+      0.0,
+      double.infinity,
+    );
+    return MergeSemantics(
+      child: InkWell(
+        onTap: () => _navigate(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leading,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: palette.ink,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            subtitle,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: palette.muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: _OrderAmountAndStatus(
+                  amount: amount,
+                  amountStyle: amountStyle,
+                  statusLabel: label,
+                  statusColor: color,
+                  width: footerWidth,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// The total, above its status pill, right-aligned.
+/// The total, above its status pill, right-aligned, sized to [width].
 ///
-/// `BisoListRow`'s `Row` lays out `trailing` with unbounded width — the same
-/// reason `value:` needs its own `Flexible` — so a trailing child that simply
-/// reports its own natural size can make the *whole row* overflow instead of
-/// letting the (already shrinkable) title give way. Declaring a fixed
-/// [_width] here gives the row a bounded, predictable footprint no matter how
-/// wide the amount or the status label want to be, while [amount] itself
-/// still never truncates or scales down (R11): it renders on one line if it
-/// fits [_width], or — the same last resort `_AmountRow` in
+/// `BisoListRow`'s `Row` lays out a non-flex `trailing` child with unbounded
+/// width — the same reason `value:` needs its own `Flexible` — so a trailing
+/// child that simply reports its own natural size can make the *whole row*
+/// overflow instead of letting the (shrinkable) title give way. [_OrderRow]
+/// measures [amount] and [statusLabel] itself and passes the resulting
+/// [width] in (content-sized, not a guess), so this widget only needs to
+/// honor it. [amount] still never truncates or scales down (R11): it renders
+/// on one line if it fits [width], or — the same last resort `_AmountRow` in
 /// `checkout_screen.dart`/`order_screen.dart` uses — splits only on the
 /// single space `formatNok` always produces, between the currency code and
 /// the number, never inside either. The status label isn't an amount, so it
-/// simply wraps onto a second line if [_width] is not enough for it.
+/// simply wraps onto a second line if [width] is not enough for it.
 class _OrderAmountAndStatus extends StatelessWidget {
   const _OrderAmountAndStatus({
     required this.amount,
     required this.amountStyle,
     required this.statusLabel,
     required this.statusColor,
+    required this.width,
   });
 
   final String amount;
   final TextStyle? amountStyle;
   final String statusLabel;
   final Color statusColor;
-
-  static const _width = 170.0;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: _width,
+      width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -237,11 +380,13 @@ class _OrderAmountAndStatus extends StatelessWidget {
   }
 }
 
-/// Maps every [ShopOrderStatus] onto the three tokens the pill can show:
-/// `paid` and `authorized` both mean the money is in, so they share
+/// Maps every [ShopOrderStatus] onto the pill's token (fix round 1, ruling
+/// B): `paid` and `authorized` both mean the money is in, so they share
 /// [BisoPalette.success]; `pending` is the only waiting state, so it takes
-/// [BisoPalette.warning]; `cancelled`, `failed` and `refunded` all mean there
-/// is no longer a live paid order, so they share [BisoPalette.error].
+/// [BisoPalette.warning]; `cancelled` and `failed` both mean nothing was (or
+/// stays) charged, so they share [BisoPalette.error]; `refunded` is neither —
+/// money moved and then moved back — so it gets its own, calmer
+/// [BisoPalette.muted] rather than borrowing the error token.
 (String, Color) _statusPresentation(ShopOrderStatus status, BisoPalette palette) {
   return switch (status) {
     ShopOrderStatus.paid ||
@@ -249,6 +394,6 @@ class _OrderAmountAndStatus extends StatelessWidget {
     ShopOrderStatus.pending => ('Awaiting payment', palette.warning),
     ShopOrderStatus.cancelled => ('Cancelled', palette.error),
     ShopOrderStatus.failed => ('Failed', palette.error),
-    ShopOrderStatus.refunded => ('Refunded', palette.error),
+    ShopOrderStatus.refunded => ('Refunded', palette.muted),
   };
 }

@@ -41,13 +41,25 @@ Widget app(Widget page, {bool shell = true, ValueChanged<int>? onSelected}) =>
     }))),
     chatMessagesProvider('chat').overrideWith((_) => Stream.value([])),
     chatServiceProvider.overrideWithValue(_ChatService()),
-  ], child: MaterialApp(home: MediaQuery(
-    data: const MediaQueryData(padding: EdgeInsets.only(bottom: 34), viewPadding: EdgeInsets.only(bottom: 34)),
-    child: shell ? BisoNavigationScaffold(
-      currentIndex: 1, routeKey: 'test', destinations: tabs,
-      onSelected: onSelected ?? (_) {}, child: page,
-    ) : page,
-  )));
+  ], child: MaterialApp(home: Builder(builder: (context) {
+    // Overrides only padding/viewPadding, on top of the ambient MediaQuery
+    // (real test view size) rather than a bare `MediaQueryData()` — the
+    // latter defaults `size` to `Size.zero`, which content that reads
+    // `MediaQuery.sizeOf` (such as the orders row's content-sized trailing
+    // block) would see as "no room at all" and misread as a genuine
+    // narrow-screen case.
+    final base = MediaQuery.of(context);
+    return MediaQuery(
+      data: base.copyWith(
+        padding: const EdgeInsets.only(bottom: 34),
+        viewPadding: const EdgeInsets.only(bottom: 34),
+      ),
+      child: shell ? BisoNavigationScaffold(
+        currentIndex: 1, routeKey: 'test', destinations: tabs,
+        onSelected: onSelected ?? (_) {}, child: page,
+      ) : page,
+    );
+  })));
 
 void main() {
   testWidgets('order cards retain their height and the last order clears glass', (tester) async {
