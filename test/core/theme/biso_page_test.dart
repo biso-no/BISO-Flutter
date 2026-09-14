@@ -312,4 +312,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('debug initial scroll pre-scrolls the next page', (tester) async {
+    phone(tester);
+    BisoPageDebug.initialScroll.value = 300;
+    addTearDown(() => BisoPageDebug.initialScroll.value = 0);
+    await tester.pumpWidget(app(BisoPage(title: 'Shop', slivers: rows())));
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump();
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      300,
+    );
+    expect(find.byKey(const ValueKey('biso-header-band')), findsOneWidget);
+  });
 }

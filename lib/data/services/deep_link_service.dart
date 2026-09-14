@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/logging/print_migration.dart';
+import '../../core/theme/biso_page.dart';
 import '../../providers/auth/auth_provider.dart';
 
 class DeepLinkService {
@@ -75,6 +77,9 @@ class DeepLinkService {
           break;
         case 'announcement':
           _handleAnnouncementDeepLink(uri);
+          break;
+        case 'debug':
+          if (kDebugMode) _handleDebugDeepLink(uri);
           break;
         default:
           logPrint('🔴 Unknown deep link host: ${uri.host}');
@@ -353,6 +358,18 @@ class DeepLinkService {
     } else {
       logPrint('🔴 Missing chat ID in deep link');
     }
+  }
+
+  /// Debug builds only: `biso://debug/open?path=/explore/products&scroll=320`
+  /// opens a route with its page pre-scrolled, so each screen's header can be
+  /// screenshotted from the command line with `xcrun simctl openurl`.
+  void _handleDebugDeepLink(Uri uri) {
+    final context = navigatorKey.currentContext;
+    final path = uri.queryParameters['path'];
+    if (context == null || path == null) return;
+    BisoPageDebug.initialScroll.value =
+        double.tryParse(uri.queryParameters['scroll'] ?? '') ?? 0;
+    GoRouter.of(context).go(path);
   }
 
   /// Public method to handle programmatic deep links

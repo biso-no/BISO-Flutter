@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -65,6 +68,14 @@ class BisoLargeTitle extends StatelessWidget {
   );
 }
 
+/// Debug builds only. A scroll offset applied to the next BisoPage built, so
+/// a scrolled header can be screenshotted on a simulator without gestures.
+class BisoPageDebug {
+  BisoPageDebug._();
+
+  static final ValueNotifier<double> initialScroll = ValueNotifier(0);
+}
+
 /// One scaffold for every BISO screen: a full-screen scroll body with the
 /// translucent [BisoPageHeader] floating over it, the way the tab bar floats
 /// over the bottom.
@@ -123,9 +134,28 @@ class _BisoPageState extends State<BisoPage> {
   final _offset = ValueNotifier<double>(0);
   final _largeTitleExtent = ValueNotifier<double>(double.infinity);
   final _bottomBarHeight = ValueNotifier<double>(0);
+  Timer? _debugScroll;
+
+  @override
+  void initState() {
+    super.initState();
+    final target = BisoPageDebug.initialScroll.value;
+    if (kDebugMode && target > 0 && widget.slivers != null) {
+      // Content usually arrives asynchronously; wait for it before jumping.
+      _debugScroll = Timer(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        final controller =
+            widget.controller ?? PrimaryScrollController.maybeOf(context);
+        if (controller == null || !controller.hasClients) return;
+        final position = controller.position;
+        controller.jumpTo(target.clamp(0.0, position.maxScrollExtent));
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _debugScroll?.cancel();
     _offset.dispose();
     _largeTitleExtent.dispose();
     _bottomBarHeight.dispose();
