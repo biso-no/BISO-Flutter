@@ -6,6 +6,7 @@ import 'package:biso/data/services/chat_service.dart';
 import 'package:biso/presentation/screens/chat/chat_conversation_screen.dart';
 import 'package:biso/presentation/screens/chat/chat_list_screen.dart';
 import 'package:biso/presentation/screens/shop/orders_screen.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';
@@ -52,22 +53,22 @@ void main() {
   testWidgets('order cards retain their height and the last order clears glass', (tester) async {
     await tester.pumpWidget(app(const OrdersScreen(), shell: false));
     await tester.pumpAndSettle();
-    final card = find.ancestor(of: find.text('Order 0'), matching: find.byType(InkWell)).first;
+    final card = find.ancestor(of: find.text('Order 0'), matching: find.byType(BisoListRow)).first;
     final normalHeight = tester.getSize(card).height;
     await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(app(const OrdersScreen()));
     await tester.pumpAndSettle();
     expect(tester.getSize(card).height, normalHeight);
-    await tester.drag(find.byType(ListView), const Offset(0, -6000));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -6000));
     await tester.pumpAndSettle();
     // Lazy slivers refine their extent when the final cards are first built.
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('biso-nav-collapsed')));
     await tester.pumpAndSettle();
     final scroll = tester.state<ScrollableState>(find.byType(Scrollable));
     expect(scroll.position.extentAfter, 0);
-    final last = find.ancestor(of: find.text('Order 19'), matching: find.byType(InkWell)).first;
+    final last = find.ancestor(of: find.text('Order 19'), matching: find.byType(BisoListRow)).first;
     expect(tester.getRect(last).bottom, lessThan(tester.getRect(find.byKey(const ValueKey('biso-nav-expanded'))).top));
   });
 

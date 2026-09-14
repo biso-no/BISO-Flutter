@@ -1,15 +1,15 @@
-import '../../../core/theme/biso_navigation.dart';
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency.dart';
 import '../../../data/models/shop_order.dart';
 import '../../../providers/shop/checkout_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 /// Where the buyer waits for, and then sees the result of, a payment.
 ///
@@ -137,11 +137,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
     final order = _order;
     final status =
-        order?.status ??
-        ShopOrderStatus.fromValue(widget.initialStatus);
+        order?.status ?? ShopOrderStatus.fromValue(widget.initialStatus);
 
     return PopScope(
       // Back from here belongs in the shop, not on the checkout form the buyer
@@ -150,53 +149,49 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) context.go('/explore/products');
       },
-      child: Scaffold(
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-        appBar: AppBar(
-          backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          title: const Text('Your order'),
-          centerTitle: true,
-          actions: [
-            IconButton(
-              onPressed: _isVerifying ? null : _verify,
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Check again',
-            ),
-          ],
-        ),
-        body: RefreshIndicator(
-          onRefresh: _verify,
-          child: ListView(
-            padding: BisoNavigationInset.padding(
-              context,
-              const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            ),
-            children: [
-              _StatusHeader(
+      child: BisoPage(
+        title: 'Your order',
+        largeTitle: false,
+        automaticallyImplyLeading: false,
+        actions: [
+          BisoHeaderAction(
+            icon: CupertinoIcons.arrow_clockwise,
+            tooltip: 'Check again',
+            onPressed: _isVerifying ? null : _verify,
+          ),
+        ],
+        onRefresh: _verify,
+        slivers: [
+          SliverToBoxAdapter(
+            child: BisoSection(
+              child: _StatusHeader(
                 status: status,
                 isVerifying: _isVerifying && order == null,
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
+            ),
+          ),
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Text(
                   _error!,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
+                    color: palette.muted,
                   ),
                 ),
-              ],
-              if (order != null) ...[
-                const SizedBox(height: 24),
-                _OrderDetails(order: order),
-              ],
-              const SizedBox(height: 24),
-              ..._buildActions(status, order),
-            ],
+              ),
+            ),
+          if (order != null)
+            SliverToBoxAdapter(child: _OrderSummary(order: order)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: Column(children: _buildActions(status, order)),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -213,12 +208,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               Uri.parse(order!.paymentLink!),
               mode: LaunchMode.externalApplication,
             ),
-            icon: const Icon(Icons.open_in_new_rounded),
+            icon: const Icon(CupertinoIcons.arrow_up_right_square),
             label: const Text('Continue payment'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.defaultBlue,
-            ),
           ),
         ),
       );
@@ -234,7 +225,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               Uri.parse(order!.receiptUrl!),
               mode: LaunchMode.externalApplication,
             ),
-            icon: const Icon(Icons.receipt_long_outlined),
+            icon: const Icon(CupertinoIcons.doc_text),
             label: const Text('View receipt'),
           ),
         ),
@@ -248,12 +239,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: () => context.go('/explore/products/cart'),
-            icon: const Icon(Icons.shopping_cart_outlined),
+            icon: const Icon(CupertinoIcons.cart),
             label: const Text('Back to cart'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.defaultBlue,
-            ),
           ),
         ),
       );
@@ -282,7 +269,8 @@ class _StatusHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (icon, color, title, message) = _presentation();
+    final palette = BisoPalette.of(context);
+    final (icon, color, title, message) = _presentation(palette);
 
     return Column(
       children: [
@@ -293,71 +281,75 @@ class _StatusHeader extends StatelessWidget {
             child: CircularProgressIndicator(),
           )
         else
-          Container(
-            width: 72,
-            height: 72,
+          // Not a BisoIconTile: its colors are the fixed category accents,
+          // while this glyph must track the status token itself.
+          DecoratedBox(
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withValues(alpha: 0.12),
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, size: 36, color: color),
+            child: SizedBox.square(
+              dimension: 56,
+              child: Icon(icon, size: 32, color: color),
+            ),
           ),
         const SizedBox(height: 16),
         Text(
           title,
           textAlign: TextAlign.center,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
         ),
         const SizedBox(height: 8),
         Text(
           message,
           textAlign: TextAlign.center,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceVariant,
-          ),
+          style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
         ),
       ],
     );
   }
 
-  (IconData, Color, String, String) _presentation() {
+  /// Maps every [ShopOrderStatus] onto the three status glyphs/tokens: `paid`
+  /// and `authorized` both mean the money is in, so they share the success
+  /// checkmark; `pending` is the only waiting state, so it takes the warning
+  /// clock; `cancelled`, `failed` and `refunded` all mean there is no longer
+  /// a live paid order, so they share the error xmark.
+  (IconData, Color, String, String) _presentation(BisoPalette palette) {
     switch (status) {
       case ShopOrderStatus.paid:
       case ShopOrderStatus.authorized:
         return (
-          Icons.check_circle_rounded,
-          AppColors.success,
+          CupertinoIcons.checkmark_circle_fill,
+          palette.success,
           'Payment complete',
           'Thank you! Your order is confirmed and BISO has been notified.',
         );
       case ShopOrderStatus.cancelled:
         return (
-          Icons.cancel_outlined,
-          AppColors.onSurfaceVariant,
+          CupertinoIcons.xmark_circle_fill,
+          palette.error,
           'Payment cancelled',
           'Nothing has been charged. Your cart is still here if you want to '
               'try again.',
         );
       case ShopOrderStatus.failed:
         return (
-          Icons.error_outline_rounded,
-          AppColors.error,
+          CupertinoIcons.xmark_circle_fill,
+          palette.error,
           'Payment failed',
           'Your payment did not go through, and nothing has been charged.',
         );
       case ShopOrderStatus.refunded:
         return (
-          Icons.replay_rounded,
-          AppColors.onSurfaceVariant,
+          CupertinoIcons.xmark_circle_fill,
+          palette.error,
           'Order refunded',
           'This order has been refunded.',
         );
       case ShopOrderStatus.pending:
         return (
-          Icons.hourglass_top_rounded,
-          AppColors.defaultBlue,
+          CupertinoIcons.clock,
+          palette.warning,
           'Waiting for your payment',
           'Finish the payment in your payment app. This page updates by '
               'itself once it goes through.',
@@ -366,105 +358,197 @@ class _StatusHeader extends StatelessWidget {
   }
 }
 
-class _OrderDetails extends StatelessWidget {
-  const _OrderDetails({required this.order});
+class _OrderSummary extends StatelessWidget {
+  const _OrderSummary({required this.order});
 
   final ShopOrder order;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gray100),
+    final palette = BisoPalette.of(context);
+
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(
+      color: palette.ink,
+    );
+    final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: palette.muted,
+    );
+    final amountStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.muted,
+    );
+    final discountStyle = theme.textTheme.titleMedium?.copyWith(
+      color: palette.success,
+    );
+    final discountAmountStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.success,
+    );
+
+    final rows = <Widget>[
+      for (final item in order.items)
+        _AmountRow(
+          title: item.name,
+          subtitle: _itemSubtitle(item),
+          amount: formatNok(item.lineTotal),
+          titleStyle: titleStyle,
+          subtitleStyle: subtitleStyle,
+          amountStyle: amountStyle,
+        ),
+    ];
+
+    if (order.discountTotal > 0) {
+      rows.add(
+        _AmountRow(
+          title: 'Member discount',
+          amount: '-${formatNok(order.discountTotal)}',
+          titleStyle: discountStyle,
+          amountStyle: discountAmountStyle,
+        ),
+      );
+    }
+
+    rows.add(
+      _AmountRow(
+        title: 'Total',
+        amount: formatNok(order.total),
+        titleStyle: titleStyle,
+        amountStyle: theme.textTheme.headlineMedium?.copyWith(
+          color: palette.ink,
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Order ${order.id}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 12),
-          for (final item in order.items) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '${item.quantity} × ${formatNok(item.unitPrice)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                      for (final answer in item.customFields)
-                        Text(
-                          '${answer.label}: ${answer.value}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
+    );
+
+    return BisoFormGroup(title: 'Order ${order.id}', children: rows);
+  }
+
+  /// Quantity and unit price on the first line, followed by one line per
+  /// custom-field answer the buyer gave at checkout — every one of them,
+  /// since these are the exact details (size, name for engraving, …) the
+  /// order was placed for.
+  String _itemSubtitle(ShopOrderItem item) {
+    final lines = ['${item.quantity} × ${formatNok(item.unitPrice)}'];
+    for (final answer in item.customFields) {
+      lines.add('${answer.label}: ${answer.value}');
+    }
+    return lines.join('\n');
+  }
+}
+
+/// One "label — amount" row (a line total, Member discount, or Total), sized
+/// so the amount is never scaled down, and never silently clipped, at any
+/// text scale (R11). Copied from `_AmountRow` in `checkout_screen.dart` (see
+/// its doc comment for the full layout rationale) with one change: the
+/// subtitle here can carry several lines — quantity/price plus one line per
+/// custom-field answer — and every one of them must stay readable, so this
+/// copy does not cap it at 2 lines the way checkout's per-line subtitle
+/// (a single quantity/price line, never more) does.
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({
+    required this.title,
+    this.subtitle,
+    required this.amount,
+    this.titleStyle,
+    this.subtitleStyle,
+    this.amountStyle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String amount;
+  final TextStyle? titleStyle;
+  final TextStyle? subtitleStyle;
+  final TextStyle? amountStyle;
+
+  static const _spacing = 8.0;
+  static const _minLabelFraction = 0.4;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: MergeSemantics(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final painter = TextPainter(
+                text: TextSpan(text: amount, style: amountStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              final sideBySide =
+                  maxWidth.isFinite &&
+                  (maxWidth - painter.width - _spacing) >=
+                      maxWidth * _minLabelFraction;
+              final fitsOneLine =
+                  sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
+
+              final amountText = fitsOneLine
+                  ? Text(
+                      amount,
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: amountStyle,
+                    )
+                  : Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        for (final piece in amount.split(' '))
+                          Text(
+                            piece,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: amountStyle,
                           ),
-                        ),
-                    ],
-                  ),
-                ),
-                Text(formatNok(item.lineTotal)),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          const Divider(),
-          if (order.discountTotal > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
+                      ],
+                    );
+
+              final label = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Member discount',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.success,
-                    ),
+                    title,
+                    maxLines: sideBySide ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
                   ),
-                  const Spacer(),
-                  Text(
-                    '-${formatNok(order.discountTotal)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.success,
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(subtitle!, style: subtitleStyle),
                     ),
-                  ),
                 ],
-              ),
-            ),
-          Row(
-            children: [
-              Text(
-                'Total',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                formatNok(order.total),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.defaultBlue,
-                ),
-              ),
-            ],
+              );
+
+              if (sideBySide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: label),
+                    const SizedBox(width: _spacing),
+                    amountText,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  label,
+                  const SizedBox(height: 4),
+                  Align(alignment: Alignment.centerRight, child: amountText),
+                ],
+              );
+            },
           ),
-        ],
+        ),
       ),
     );
   }
