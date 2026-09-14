@@ -147,8 +147,32 @@ class PremiumTheme {
       chipTheme: ChipThemeData(
         backgroundColor: p.surfaceRaised,
         selectedColor: p.primary,
-        labelStyle: text.labelMedium?.copyWith(color: p.ink),
+        // A selected chip swaps its background to `p.primary`; the label
+        // must swap to `p.onPrimary` in step or it renders in `p.ink` on top
+        // of itself. `RawChip` explicitly resolves `labelStyle`'s color
+        // against the chip's live `WidgetState`s before painting (see
+        // `resolvedLabelColor` in `chip.dart`), so a `WidgetStateColor` here
+        // works correctly — unlike `secondaryLabelStyle`, which current
+        // Flutter no longer applies for the selected state at all.
+        labelStyle: text.labelMedium?.copyWith(
+          color: WidgetStateColor.resolveWith(
+            (states) =>
+                states.contains(WidgetState.selected) ? p.onPrimary : p.ink,
+          ),
+        ),
         secondaryLabelStyle: text.labelMedium?.copyWith(color: p.onPrimary),
+        // NOT the same fix for a selected chip's avatar icon: unlike
+        // `labelStyle`, `RawChip` merges `chipTheme.iconTheme` into the
+        // avatar's `IconTheme` as-is (see the `avatar` local in
+        // `RawChip.build`) — it never resolves a `WidgetStateColor` here
+        // against the chip's actual selected state, so a `WidgetStateColor`
+        // in this slot silently paints as its unselected branch for every
+        // chip, selected or not. The theme genuinely cannot express a
+        // selected-state-aware avatar color, so a chip whose avatar must
+        // stay legible when selected (e.g. `_TransitFilterChip` in
+        // departures_screen.dart) sets its `Icon`'s `color` directly instead
+        // of relying on `iconTheme` here.
+        checkmarkColor: p.onPrimary,
         side: BorderSide.none,
         shape: pill,
         showCheckmark: false,

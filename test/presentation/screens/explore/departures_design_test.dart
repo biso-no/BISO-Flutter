@@ -8,6 +8,7 @@ import 'package:biso/providers/ui/entur_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/intl.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -112,13 +113,14 @@ void main() {
 
   testWidgets(
     'two fake departures render as rows, and the delayed one shows its '
-    'value in palette.warning',
+    'value in palette.warning and its delay text',
     (tester) async {
+      final board = _board();
       await pumpBisoScreen(
         tester,
         const DeparturesScreen(),
         routed: true,
-        overrides: _overrides(_board()),
+        overrides: _overrides(board),
       );
       await tester.pump(const Duration(milliseconds: 600));
 
@@ -140,6 +142,33 @@ void main() {
         delayedValue.style?.color,
         palette.warning,
         reason: 'a realtime delay colors the value text palette.warning',
+      );
+
+      // Restored delay wording (verbatim from the pre-migration tile, see
+      // git show 29d83f0:lib/.../departures_screen.dart): only the delayed
+      // row shows it, appended to the subtitle.
+      final aimedTimeText = DateFormat(
+        'HH:mm',
+      ).format(board.calls[1].aimedDepartureTime);
+      expect(
+        find.text('Line 2 · Delayed +5m · Scheduled $aimedTimeText'),
+        findsOneWidget,
+        reason:
+            'the delayed row appends the old "Delayed +Xm" / scheduled '
+            'time wording to its subtitle',
+      );
+      expect(
+        find.text('Line 1'),
+        findsOneWidget,
+        reason:
+            'the on-time row keeps a plain line-name subtitle, with no '
+            'delay text appended',
+      );
+      expect(
+        find.textContaining('Delayed +'),
+        findsOneWidget,
+        reason: 'the delay wording appears exactly once, only on the '
+            'delayed row',
       );
     },
   );

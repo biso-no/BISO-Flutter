@@ -77,14 +77,15 @@ class DeparturesScreen extends ConsumerWidget {
   }
 }
 
-/// A Bus/Metro toggle. The shared `ChipThemeData` (premium_theme.dart) only
-/// ever applies `labelStyle`'s fixed `palette.ink` to the label — Flutter's
-/// current `RawChip` resolves label color from `labelStyle` alone and does
-/// not use `secondaryLabelStyle` for the selected state — so a selected chip
-/// would otherwise render `palette.ink` text on the `palette.primary`
-/// background it also picks for selection, which is illegible on light
-/// (navy-on-navy). This chip supplies its own state-aware color instead of
-/// relying on the shared theme.
+/// A Bus/Metro toggle. The shared `ChipThemeData` (premium_theme.dart) now
+/// makes a selected chip's *label* legible on its own (see the `labelStyle`
+/// `WidgetStateColor` there), so this widget no longer needs to override it.
+/// The avatar icon is different: `RawChip` merges `chipTheme.iconTheme` into
+/// the avatar's `IconTheme` without ever resolving a `WidgetStateColor`
+/// against the chip's actual selected state (unlike `labelStyle`, which it
+/// does resolve) — the shared theme genuinely cannot express a
+/// selected-state-aware avatar color, so this icon still sets its own color
+/// directly.
 class _TransitFilterChip extends StatelessWidget {
   const _TransitFilterChip({
     required this.selected,
@@ -101,15 +102,15 @@ class _TransitFilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = BisoPalette.of(context);
-    final color = selected ? palette.onPrimary : palette.ink;
     return FilterChip(
       selected: selected,
       onSelected: (_) => onTap(),
-      avatar: Icon(icon, size: 18, color: color),
+      avatar: Icon(
+        icon,
+        size: 18,
+        color: selected ? palette.onPrimary : palette.ink,
+      ),
       label: Text(label),
-      labelStyle: Theme.of(
-        context,
-      ).textTheme.labelMedium?.copyWith(color: color),
     );
   }
 }
@@ -241,6 +242,19 @@ class _DepartureRow extends StatelessWidget {
         ? _formatTime(call.expectedDepartureTime)
         : (secondsTo <= 30 ? 'Now' : '${diff.inMinutes} min');
 
+    // For a delayed call, append the pre-migration tile's own delay wording
+    // ("Delayed +Xm" and the struck-through scheduled time) to the subtitle,
+    // verbatim, so that information isn't lost — only its presentation
+    // (a standalone pill + strikethrough line) changed.
+    final subtitleParts = <String>[
+      if (call.lineName.isNotEmpty) call.lineName,
+      if (isDelayed)
+        'Delayed +${deltaMinutes}m · Scheduled ${_formatTime(call.aimedDepartureTime)}',
+    ];
+    final String? subtitle = subtitleParts.isEmpty
+        ? null
+        : subtitleParts.join(' · ');
+
     return Opacity(
       opacity: departed ? 0.6 : 1,
       child: BisoListRow(
@@ -249,7 +263,7 @@ class _DepartureRow extends StatelessWidget {
           accent: BisoAccent.blue,
         ),
         title: call.destination,
-        subtitle: call.lineName.isEmpty ? null : call.lineName,
+        subtitle: subtitle,
         trailing: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,

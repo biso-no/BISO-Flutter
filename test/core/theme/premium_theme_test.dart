@@ -73,4 +73,71 @@ void main() {
       );
     }
   });
+
+  testWidgets(
+    'a selected FilterChip label stays legible on the selected background, '
+    'and an unselected chip keeps the ink look',
+    (tester) async {
+      final palette = BisoPalette.light;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: PremiumTheme.build(
+            Brightness.light,
+            platform: TargetPlatform.iOS,
+          ),
+          home: const Scaffold(
+            body: Column(
+              children: [
+                FilterChip(
+                  selected: true,
+                  onSelected: _noop,
+                  label: Text('Selected'),
+                ),
+                FilterChip(
+                  selected: false,
+                  onSelected: _noop,
+                  label: Text('Unselected'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      // The effective painted color, mirroring what a viewer actually sees:
+      // this is exactly what would have stayed silently broken if only the
+      // ChipThemeData properties were inspected instead of the render tree
+      // (RawChip reads `labelStyle`, not `secondaryLabelStyle`, for a
+      // selected chip's label).
+      Color? labelColor(String label) => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.text(label),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+
+      expect(labelColor('Selected'), palette.onPrimary);
+      expect(labelColor('Unselected'), palette.ink);
+    },
+  );
+
+  testWidgets(
+    "the theme cannot make a selected chip's avatar icon state-aware: "
+    "RawChip merges chipTheme.iconTheme into the avatar's IconTheme "
+    'verbatim, without resolving a WidgetStateColor against the actual '
+    'selected state (unlike labelStyle, which it does resolve above) — so '
+    'chipTheme intentionally leaves iconTheme unset and a chip whose avatar '
+    'must stay legible when selected sets its Icon color directly instead '
+    '(see _TransitFilterChip in departures_screen.dart)',
+    (tester) async {
+      final theme = PremiumTheme.build(Brightness.light);
+      expect(theme.chipTheme.iconTheme, isNull);
+    },
+  );
 }
+
+void _noop(bool _) {}
