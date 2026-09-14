@@ -1,10 +1,14 @@
+import 'package:biso/core/theme/premium_theme.dart';
+import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/auth/login_screen.dart';
 import 'package:biso/presentation/screens/auth/magic_link_verify_screen.dart';
 import 'package:biso/presentation/screens/auth/otp_verification_screen.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -105,4 +109,59 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'OTP back button renders even with nothing to pop, and goes to '
+    '/auth/login',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844) * 3;
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      // A router whose only entry is the OTP screen: Navigator.canPop() is
+      // false here, exactly like the real app reaching /auth/verify-otp via
+      // context.go from the login screen. BisoPage's automatic leading would
+      // render nothing in this situation, which is why the screen passes an
+      // explicit `leading:` instead.
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) =>
+                const OtpVerificationScreen(email: 'student@bi.no'),
+          ),
+          GoRoute(
+            path: '/auth/login',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('login stub'))),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _overrides(),
+          child: MaterialApp.router(
+            theme: PremiumTheme.build(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        Navigator.canPop(tester.element(find.byType(OtpVerificationScreen))),
+        isFalse,
+      );
+      expect(find.byType(BisoBackButton), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('login stub'), findsOneWidget);
+    },
+  );
 }

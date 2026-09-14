@@ -194,6 +194,11 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
 
     return BisoPage(
       largeTitle: false,
+      // The old AppBar's back button always went to /auth/login rather than
+      // popping — this screen is only ever reached via context.go, which
+      // leaves nothing to pop, so BisoPage's automatic leading would render
+      // nothing here. Keep the explicit target instead of losing the button.
+      leading: BisoBackButton(onPressed: () => context.go('/auth/login')),
       slivers: [
         SliverFillRemaining(
           hasScrollBody: false,
