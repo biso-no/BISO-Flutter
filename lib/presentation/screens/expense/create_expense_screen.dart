@@ -1,24 +1,25 @@
-import '../../../core/theme/biso_navigation.dart';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/models/expense_v2_models.dart';
+import '../../../data/models/user_model.dart';
 import '../../../data/services/expense_api_client.dart';
 import '../../../data/services/expense_intake_service.dart';
 import '../../../data/services/expense_service_v2.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
+import '../../widgets/biso/biso.dart';
 import '../home/premium_home_screen.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
@@ -41,8 +42,8 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
-  final ExpenseServiceV2 _expenseService = ExpenseServiceV2();
-  final ExpenseApiClient _apiClient = ExpenseApiClient();
+  late final ExpenseServiceV2 _expenseService;
+  late final ExpenseApiClient _apiClient;
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _eventController = TextEditingController();
@@ -66,6 +67,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    _expenseService = ref.read(expenseServiceProvider);
+    _apiClient = ref.read(expenseApiClientProvider);
     _draftExpenseId = widget.draftExpense?.id;
     _descriptionController.text = widget.draftExpense?.description ?? '';
     _eventController.text =
@@ -200,14 +203,15 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         title: 'New reimbursement',
         description:
             'Sign in to attach shared receipts and submit reimbursements.',
-        icon: Icons.receipt_long_rounded,
+        icon: CupertinoIcons.doc_text,
       );
     }
 
     if (_isLoadingLookups) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('New reimbursement')),
-        body: const Center(child: CircularProgressIndicator()),
+      return const BisoPage(
+        title: 'New reimbursement',
+        largeTitle: false,
+        slivers: [SliverToBoxAdapter(child: BisoSkeleton.rows())],
       );
     }
 
@@ -225,40 +229,43 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           );
         }
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _draftExpenseId == null
-                ? 'New reimbursement'
-                : 'Draft reimbursement',
-          ),
-          leading: IconButton(
-            onPressed: () async {
-              final shouldLeave = await _confirmLeaveIfNeeded();
-              if (shouldLeave && context.mounted) {
-                NavigationUtils.safeGoBack(
-                  context,
-                  fallbackRoute: '/explore/expenses',
-                );
-              }
-            },
-            icon: const Icon(Icons.close),
-          ),
-          actions: [
-            TextButton.icon(
-              onPressed: _canSaveDraft(user) ? () => _saveDraft(user) : null,
-              icon: _isSavingDraft
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: const Text('Save draft'),
+      child: BisoPage(
+        title: _draftExpenseId == null
+            ? 'New reimbursement'
+            : 'Draft reimbursement',
+        largeTitle: false,
+        automaticallyImplyLeading: false,
+        leading: BisoGlassCapsule(
+          children: [
+            BisoCapsuleButton(
+              icon: CupertinoIcons.xmark,
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+              onPressed: () async {
+                final shouldLeave = await _confirmLeaveIfNeeded();
+                if (shouldLeave && context.mounted) {
+                  NavigationUtils.safeGoBack(
+                    context,
+                    fallbackRoute: '/explore/expenses',
+                  );
+                }
+              },
             ),
-            const SizedBox(width: 8),
           ],
         ),
+        actions: [
+          BisoHeaderAction(
+            icon: CupertinoIcons.tray_arrow_down,
+            tooltip: 'Save draft',
+            onPressed: _canSaveDraft(user) ? () => _saveDraft(user) : null,
+          ),
+        ],
+        // The wallet/report split (a side-by-side pane on wide screens, a
+        // tabbed pane on narrow ones, each with its own selection state) does
+        // not decompose into one linear scroll list the way `slivers:` wants
+        // — the recipe reserves `body:` for exactly this shape (PageView-like
+        // screens). The assignment gate below shares the same `body:` return
+        // so both branches of this conditional agree on which BisoPage slot
+        // they fill; see the report's Deviations section.
         body: _hasAssignment
             ? _buildSplitFlow(user, profileReadiness)
             : _buildAssignmentGate(user),
@@ -266,126 +273,107 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     );
   }
 
-  Widget _buildAssignmentGate(dynamic user) {
-    return Container(
-      width: double.infinity,
-      color: AppColors.gray50,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Card(
-          elevation: 4,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.subtleBlue,
-                  child: Icon(Icons.apartment, color: AppColors.defaultBlue),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Choose cost allocation',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+  Widget _buildAssignmentGate(UserModel? user) {
+    return Builder(
+      builder: (context) {
+        final palette = BisoPalette.of(context);
+        final text = Theme.of(context).textTheme;
+        final insets = BisoPageInsets.maybeOf(context);
+        final padding = insets != null
+            ? EdgeInsets.fromLTRB(24, insets.top + 24, 24, insets.bottom + 24)
+            : const EdgeInsets.all(24);
+        return SingleChildScrollView(
+          padding: padding,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: BisoIconTile(
+                      icon: CupertinoIcons.building_2_fill,
+                      accent: BisoAccent.coral,
+                      size: 56,
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Select the campus and department responsible for this reimbursement before uploading receipts.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                DropdownButtonFormField<String>(
-                  initialValue: _assignment?.campusId.isNotEmpty == true
-                      ? _assignment!.campusId
-                      : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Campus',
-                    prefixIcon: Icon(Icons.location_city),
-                  ),
-                  items: _campuses
-                      .map(
-                        (campus) => DropdownMenuItem(
-                          value: campus['id'],
-                          child: Text(campus['name']!),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (campusId) async {
-                    if (campusId == null) return;
-                    final campus = _campuses.firstWhere(
-                      (item) => item['id'] == campusId,
-                    );
-                    setState(() {
-                      _assignment = ExpenseAssignment(
-                        campusId: campus['id']!,
-                        campusName: campus['name']!,
-                        departmentId: '',
-                        departmentName: '',
-                      );
-                      _departments = [];
-                    });
-                    await _loadDepartments(campusId);
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _assignment?.departmentId.isNotEmpty == true
-                      ? _assignment!.departmentId
-                      : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Department',
-                    prefixIcon: Icon(Icons.business),
-                  ),
-                  items: _departments
-                      .map(
-                        (department) => DropdownMenuItem(
-                          value: department['id'],
-                          child: Text(department['name']!),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _assignment == null
-                      ? null
-                      : (departmentId) {
-                          if (departmentId == null) return;
-                          final department = _departments.firstWhere(
-                            (item) => item['id'] == departmentId,
-                          );
-                          final current = _assignment!;
-                          setState(() {
-                            _assignment = ExpenseAssignment(
-                              campusId: current.campusId,
-                              campusName: current.campusName,
-                              departmentId: department['id']!,
-                              departmentName: department['name']!,
-                            );
-                          });
-                          _maybeGenerateSummary();
-                        },
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: _hasAssignment ? () => setState(() {}) : null,
-                  icon: const Icon(Icons.arrow_forward),
-                  label: const Text('Continue'),
-                ),
-                if (_flowError != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
                   Text(
-                    _flowError!,
-                    style: const TextStyle(color: AppColors.error),
+                    'Choose cost allocation',
+                    style: text.headlineSmall?.copyWith(color: palette.ink),
+                    textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Select the campus and department responsible for this reimbursement before uploading receipts.',
+                    style: text.bodyMedium?.copyWith(color: palette.muted),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  BisoFormGroup(
+                    children: [
+                      BisoListRow(
+                        title: 'Campus',
+                        value: _assignment?.campusId.isNotEmpty == true
+                            ? _assignment!.campusName
+                            : 'Select',
+                        onTap: _campuses.isEmpty ? null : _showCampusPicker,
+                      ),
+                      BisoListRow(
+                        title: 'Department',
+                        value: _assignment?.departmentId.isNotEmpty == true
+                            ? _assignment!.departmentName
+                            : 'Select',
+                        onTap: _assignment == null
+                            ? null
+                            : _showDepartmentPicker,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: _hasAssignment ? () => setState(() {}) : null,
+                    icon: const Icon(CupertinoIcons.chevron_forward),
+                    label: const Text('Continue'),
+                  ),
+                  if (_flowError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_flowError!, style: TextStyle(color: palette.error)),
+                  ],
                 ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showCampusPicker() async {
+    final palette = BisoPalette.of(context);
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: BisoSection(
+            title: 'Campus',
+            padding: EdgeInsets.zero,
+            child: BisoListGroup(
+              children: [
+                for (final campus in _campuses)
+                  BisoListRow(
+                    title: campus['name']!,
+                    trailing: _assignment?.campusId == campus['id']
+                        ? Icon(CupertinoIcons.checkmark, color: palette.link)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _selectCampus(campus['id']!, campus['name']!);
+                    },
+                  ),
               ],
             ),
           ),
@@ -394,465 +382,471 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     );
   }
 
-  Widget _buildSplitFlow(
-    dynamic user,
-    ExpenseProfileReadiness profileReadiness,
-  ) {
-    final isWide = MediaQuery.sizeOf(context).width >= 820;
-    if (isWide) {
-      return Row(
-        children: [
-          SizedBox(width: 390, child: _buildReceiptWallet()),
-          const VerticalDivider(width: 1),
-          Expanded(child: _buildReportPane(user, profileReadiness)),
-        ],
+  Future<void> _selectCampus(String campusId, String campusName) async {
+    setState(() {
+      _assignment = ExpenseAssignment(
+        campusId: campusId,
+        campusName: campusName,
+        departmentId: '',
+        departmentName: '',
       );
-    }
+      _departments = [];
+    });
+    await _loadDepartments(campusId);
+  }
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(
-                value: 0,
-                label: Text('Receipts'),
-                icon: Icon(Icons.receipt_long),
-              ),
-              ButtonSegment(
-                value: 1,
-                label: Text('Report'),
-                icon: Icon(Icons.description_outlined),
-              ),
-            ],
-            selected: {_mobileTabIndex},
-            onSelectionChanged: (selection) {
-              setState(() => _mobileTabIndex = selection.first);
-            },
+  void _showDepartmentPicker() {
+    final assignment = _assignment;
+    if (assignment == null) return;
+    final palette = BisoPalette.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: BisoSection(
+            title: 'Department',
+            padding: EdgeInsets.zero,
+            child: BisoListGroup(
+              children: [
+                for (final department in _departments)
+                  BisoListRow(
+                    title: department['name']!,
+                    trailing: assignment.departmentId == department['id']
+                        ? Icon(CupertinoIcons.checkmark, color: palette.link)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _selectDepartment(
+                        department['id']!,
+                        department['name']!,
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ),
-        Expanded(
-          child: _mobileTabIndex == 0
-              ? _buildReceiptWallet()
-              : _buildReportPane(user, profileReadiness),
-        ),
-      ],
+      ),
+    );
+  }
+
+  void _selectDepartment(String departmentId, String departmentName) {
+    final current = _assignment!;
+    setState(() {
+      _assignment = ExpenseAssignment(
+        campusId: current.campusId,
+        campusName: current.campusName,
+        departmentId: departmentId,
+        departmentName: departmentName,
+      );
+    });
+    _maybeGenerateSummary();
+  }
+
+  Widget _buildSplitFlow(
+    UserModel? user,
+    ExpenseProfileReadiness profileReadiness,
+  ) {
+    return Builder(
+      builder: (context) {
+        final palette = BisoPalette.of(context);
+        final insets = BisoPageInsets.maybeOf(context);
+        final topPadding =
+            insets?.top ??
+            MediaQuery.paddingOf(context).top + kBisoHeaderHeight;
+        final isWide = MediaQuery.sizeOf(context).width >= 820;
+
+        final content = isWide
+            ? Row(
+                children: [
+                  SizedBox(width: 390, child: _buildReceiptWallet()),
+                  VerticalDivider(width: 1, color: palette.hairline),
+                  Expanded(child: _buildReportPane(user, profileReadiness)),
+                ],
+              )
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 0,
+                          label: Text('Receipts'),
+                          icon: Icon(CupertinoIcons.doc_text),
+                        ),
+                        ButtonSegment(
+                          value: 1,
+                          label: Text('Report'),
+                          icon: Icon(CupertinoIcons.doc_plaintext),
+                        ),
+                      ],
+                      selected: {_mobileTabIndex},
+                      onSelectionChanged: (selection) {
+                        setState(() => _mobileTabIndex = selection.first);
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: _mobileTabIndex == 0
+                        ? _buildReceiptWallet()
+                        : _buildReportPane(user, profileReadiness),
+                  ),
+                ],
+              );
+
+        return Padding(
+          padding: EdgeInsets.only(top: topPadding),
+          child: content,
+        );
+      },
     );
   }
 
   Widget _buildReceiptWallet() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Receipt wallet',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Upload images or PDFs. OCR runs after upload.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
+    return Builder(
+      builder: (context) {
+        final palette = BisoPalette.of(context);
+        final text = Theme.of(context).textTheme;
+        final bottomInset = BisoPageInsets.maybeOf(context)?.bottom ?? 16;
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _pickCameraReceipt(),
-                      icon: const Icon(Icons.camera_alt_outlined),
-                      label: const Text('Camera'),
-                    ),
+                  Text(
+                    'Receipt wallet',
+                    style: text.titleLarge?.copyWith(color: palette.ink),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _pickImageReceipt(),
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: const Text('Photo'),
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Upload images or PDFs. OCR runs after upload.',
+                    style: text.bodySmall?.copyWith(color: palette.muted),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickCameraReceipt(),
+                          icon: const Icon(CupertinoIcons.camera),
+                          label: const Text('Camera'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _pickImageReceipt(),
+                          icon: const Icon(CupertinoIcons.photo),
+                          label: const Text('Photo'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _pickDocumentReceipt(),
+                    icon: const Icon(CupertinoIcons.paperclip),
+                    label: const Text('PDF receipt'),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () => _pickDocumentReceipt(),
-                icon: const Icon(Icons.attach_file),
-                label: const Text('PDF receipt'),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: _receipts.isEmpty
-              ? _buildEmptyWallet()
-              : ListView(
-                  padding: BisoNavigationInset.padding(
-                    context,
-                    const EdgeInsets.all(16),
-                  ),
-                  children: _buildGroupedReceiptTiles(),
-                ),
-        ),
-      ],
+            ),
+            Divider(height: 1, color: palette.hairline),
+            Expanded(
+              child: _receipts.isEmpty
+                  ? const SingleChildScrollView(
+                      child: BisoEmptyState(
+                        icon: CupertinoIcons.doc_text,
+                        accent: BisoAccent.coral,
+                        title: 'No receipts yet',
+                        message:
+                            'Receipts are required before this can be submitted.',
+                      ),
+                    )
+                  : ListView(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        16,
+                        16,
+                        bottomInset + 16,
+                      ),
+                      children: _buildGroupedReceiptTiles(),
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   List<Widget> _buildGroupedReceiptTiles() {
     final topLevel = _receipts.where((r) => r.parentReceiptId == null).toList();
-    final widgets = <Widget>[];
+    final rows = <Widget>[];
     for (final receipt in topLevel) {
-      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 10));
-      widgets.add(
-        _ReceiptTile(
-          receipt: receipt,
-          isSelected: receipt.localId == _selectedReceiptId,
-          onTap: () => setState(() {
-            _selectedReceiptId = receipt.localId;
-            _mobileTabIndex = 1;
-          }),
-          onRemove: () => _removeReceipt(receipt.localId),
-          onRetry: receipt.localPath != null
-              ? () => _processReceipt(receipt.localId)
-              : null,
-        ),
-      );
+      rows.add(_receiptRow(receipt, indent: false));
       final children = _receipts
           .where((r) => r.parentReceiptId == receipt.localId)
           .toList();
       for (final child in children) {
-        widgets.add(const SizedBox(height: 6));
-        widgets.add(
-          Padding(
-            padding: const EdgeInsets.only(left: 20),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  children: [
-                    Container(
-                      width: 2,
-                      height: 20,
-                      color: AppColors.outlineVariant,
-                    ),
-                    Container(
-                      width: 10,
-                      height: 2,
-                      color: AppColors.outlineVariant,
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _ReceiptTile(
-                    receipt: child,
-                    isSelected: child.localId == _selectedReceiptId,
-                    onTap: () => setState(() {
-                      _selectedReceiptId = child.localId;
-                      _mobileTabIndex = 1;
-                    }),
-                    onRemove: () => _removeReceipt(child.localId),
-                    onRetry: child.localPath != null
-                        ? () => _processReceipt(child.localId)
-                        : null,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+        rows.add(_receiptRow(child, indent: true));
       }
     }
-    return widgets;
+    return [BisoListGroup(children: rows)];
   }
 
-  Widget _buildEmptyWallet() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.receipt_long_outlined,
-              size: 56,
-              color: AppColors.onSurfaceVariant,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'No receipts yet',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Receipts are required before this can be submitted.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _receiptRow(ExpenseReceiptDraft receipt, {required bool indent}) {
+    return _ReceiptRow(
+      receipt: receipt,
+      isSelected: receipt.localId == _selectedReceiptId,
+      indent: indent,
+      onTap: () => setState(() {
+        _selectedReceiptId = receipt.localId;
+        _mobileTabIndex = 1;
+      }),
+      onRemove: () => _removeReceipt(receipt.localId),
+      onRetry: receipt.localPath != null
+          ? () => _processReceipt(receipt.localId)
+          : null,
     );
   }
 
   Widget _buildReportPane(
-    dynamic user,
+    UserModel? user,
     ExpenseProfileReadiness profileReadiness,
   ) {
-    final selected = _selectedReceipt();
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              if (!profileReadiness.isReady)
-                _WarningBanner(
-                  icon: Icons.warning_amber_rounded,
-                  color: AppColors.orange9,
-                  title: 'Complete your profile',
-                  message:
-                      'Missing: ${profileReadiness.missingFields.join(', ')}',
-                  actionLabel: 'Update',
-                  onAction: () => _showProfileCompletionSheet(user),
-                ),
-              if (_hasBusyReceipts)
-                const _InfoBanner(
-                  icon: Icons.hourglass_top,
-                  color: AppColors.accentBlue,
-                  title: 'Processing receipts',
-                  message:
-                      'Drafts and submissions wait until upload and OCR finish.',
-                ),
-              if (_isImportingIntakeBatch)
-                const _InfoBanner(
-                  icon: Icons.file_upload_outlined,
-                  color: AppColors.accentBlue,
-                  title: 'Importing shared receipts',
-                  message:
-                      'Files shared with BISO are being added to this reimbursement.',
-                ),
-              if (_flowError != null)
-                _WarningBanner(
-                  icon: Icons.error_outline,
-                  color: AppColors.error,
-                  title: 'Expense error',
-                  message: _flowError!,
-                  actionLabel: 'Dismiss',
-                  onAction: () => setState(() => _flowError = null),
-                ),
-              _buildReportDocument(user),
-              const SizedBox(height: 20),
-              if (selected != null)
-                _ReceiptDetailEditor(
-                  receipt: selected,
-                  onChanged: _updateReceipt,
-                  onAddBankStatement:
-                      selected.isForeignCurrency && !selected.isBankStatement
-                      ? () => _pickBankStatement(selected.localId)
-                      : null,
-                ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.shadowLight,
-                  blurRadius: 12,
-                  offset: const Offset(0, -4),
-                ),
-              ],
+    return Builder(
+      builder: (context) {
+        final palette = BisoPalette.of(context);
+        final insets = BisoPageInsets.maybeOf(context);
+        final scrollPadding = insets != null
+            ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+            : const EdgeInsets.all(20);
+        final selected = _selectedReceipt();
+        return Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                children: [
+                  if (!profileReadiness.isReady)
+                    _WarningBanner(
+                      icon: CupertinoIcons.exclamationmark_triangle,
+                      color: palette.warning,
+                      title: 'Complete your profile',
+                      message:
+                          'Missing: ${profileReadiness.missingFields.join(', ')}',
+                      actionLabel: 'Update',
+                      onAction: () => _showProfileCompletionSheet(user),
+                    ),
+                  if (_hasBusyReceipts)
+                    _InfoBanner(
+                      icon: CupertinoIcons.hourglass,
+                      color: palette.link,
+                      title: 'Processing receipts',
+                      message:
+                          'Drafts and submissions wait until upload and OCR finish.',
+                    ),
+                  if (_isImportingIntakeBatch)
+                    _InfoBanner(
+                      icon: CupertinoIcons.arrow_up_circle,
+                      color: palette.link,
+                      title: 'Importing shared receipts',
+                      message:
+                          'Files shared with BISO are being added to this reimbursement.',
+                    ),
+                  if (_flowError != null)
+                    _WarningBanner(
+                      icon: CupertinoIcons.exclamationmark_circle,
+                      color: palette.error,
+                      title: 'Expense error',
+                      message: _flowError!,
+                      actionLabel: 'Dismiss',
+                      onAction: () => setState(() => _flowError = null),
+                    ),
+                  _buildReportDocument(context, user, scrollPadding),
+                  const SizedBox(height: 20),
+                  if (selected != null)
+                    _ReceiptDetailEditor(
+                      receipt: selected,
+                      scrollPadding: scrollPadding,
+                      onChanged: _updateReceipt,
+                      onAddBankStatement:
+                          selected.isForeignCurrency && !selected.isBankStatement
+                          ? () => _pickBankStatement(selected.localId)
+                          : null,
+                    ),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _canSaveDraft(user)
-                        ? () => _saveDraft(user!)
-                        : null,
-                    icon: _isSavingDraft
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(
-                      _draftExpenseId == null ? 'Save draft' : 'Update draft',
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + (insets?.bottom ?? 0),
+              ),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                border: Border(top: BorderSide(color: palette.hairline)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _canSaveDraft(user)
+                          ? () => _saveDraft(user)
+                          : null,
+                      icon: _isSavingDraft
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(CupertinoIcons.tray_arrow_down),
+                      label: Text(
+                        _draftExpenseId == null ? 'Save draft' : 'Update draft',
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _canSubmit(user, profileReadiness)
-                        ? () => _submit(user!)
-                        : null,
-                    icon: _isSubmitting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.send),
-                    label: const Text('Submit'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _canSubmit(user, profileReadiness)
+                          ? () => _submit(user)
+                          : null,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(CupertinoIcons.paperplane_fill),
+                      label: const Text('Submit'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildReportDocument(dynamic user) {
+  Widget _buildReportDocument(
+    BuildContext context,
+    UserModel? user,
+    EdgeInsets scrollPadding,
+  ) {
     final assignment = _assignment!;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.shadowLight,
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Reimbursement report',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _draftExpenseId == null
-                          ? DateFormat.yMMMd().format(DateTime.now())
-                          : 'Draft $_draftExpenseId',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                'NOK ${_totalAmount.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.defaultBlue,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _ReportInfoChip(
-                icon: Icons.person_outline,
-                label: user?.name ?? 'Unknown user',
-                value: user?.email ?? '',
-              ),
-              _ReportInfoChip(
-                icon: Icons.account_balance,
-                label: 'Bank account',
-                value: user?.bankAccount == null
-                    ? 'Missing'
-                    : formatNorwegianBankAccount(user!.bankAccount!),
-              ),
-              _ReportInfoChip(
-                icon: Icons.apartment,
-                label: assignment.campusName,
-                value: assignment.departmentName,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 4,
-            decoration: InputDecoration(
-              labelText: _isSummaryLoading
-                  ? 'Generating summary...'
-                  : 'Accounting summary',
-              hintText: 'What was this expense for?',
-              suffixIcon: _isSummaryLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(14),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : IconButton(
-                      tooltip: 'Regenerate summary',
-                      onPressed: _hasReadyExpenseReceipts
-                          ? () => _maybeGenerateSummary(force: true)
-                          : null,
-                      icon: const Icon(Icons.auto_awesome),
-                    ),
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: _AmountRow(
+              title: 'Reimbursement report',
+              subtitle: _draftExpenseId == null
+                  ? DateFormat.yMMMd().format(DateTime.now())
+                  : 'Draft $_draftExpenseId',
+              amount: 'NOK ${_totalAmount.toStringAsFixed(2)}',
+              titleStyle: text.titleLarge?.copyWith(color: palette.ink),
+              subtitleStyle: text.bodySmall?.copyWith(color: palette.muted),
+              amountStyle: text.headlineSmall?.copyWith(color: palette.ink),
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Receipts',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          if (_readyReceipts.isEmpty)
-            const Text('No ready receipts yet.')
-          else
-            ..._readyReceipts.map(
-              (receipt) => _ReportReceiptRow(receipt: receipt),
+        ),
+        const SizedBox(height: 16),
+        BisoFormGroup(
+          title: 'Payment details',
+          children: [
+            BisoListRow(
+              title: user?.name ?? 'Unknown user',
+              subtitle: user?.email ?? '',
             ),
-          const Divider(height: 28),
-          Row(
+            BisoListRow(
+              title: 'Bank account',
+              value: user?.bankAccount == null
+                  ? 'Missing'
+                  : formatNorwegianBankAccount(user!.bankAccount!),
+            ),
+            BisoListRow(
+              title: assignment.campusName,
+              value: assignment.departmentName,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        BisoFormGroup(
+          title: _isSummaryLoading ? 'Generating summary...' : 'Accounting summary',
+          children: [
+            BisoFormRow(
+              label: 'What was this expense for?',
+              child: TextField(
+                controller: _descriptionController,
+                maxLines: 4,
+                scrollPadding: scrollPadding,
+                decoration: bisoInputDecoration(
+                  context,
+                  suffixIcon: _isSummaryLoading
+                      ? const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: 'Regenerate summary',
+                          onPressed: _hasReadyExpenseReceipts
+                              ? () => _maybeGenerateSummary(force: true)
+                              : null,
+                          icon: const Icon(CupertinoIcons.sparkles),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        BisoSection(
+          title: 'Receipts',
+          padding: EdgeInsets.zero,
+          child: BisoListGroup(
             children: [
-              Text('${_readyReceipts.length} file(s)'),
-              const Spacer(),
-              Text(
-                'Total NOK ${_totalAmount.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.w900),
+              if (_readyReceipts.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'No ready receipts yet.',
+                    style: text.bodyMedium?.copyWith(color: palette.muted),
+                  ),
+                )
+              else
+                for (final receipt in _readyReceipts)
+                  _ReportReceiptRow(receipt: receipt),
+              _AmountRow(
+                title: '${_readyReceipts.length} file(s)',
+                amount: 'Total NOK ${_totalAmount.toStringAsFixed(2)}',
+                titleStyle: text.bodyMedium?.copyWith(color: palette.muted),
+                amountStyle: text.titleMedium?.copyWith(color: palette.ink),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -893,7 +887,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     );
   }
 
-  void _scheduleIntakeImportIfReady(dynamic user) {
+  void _scheduleIntakeImportIfReady(UserModel? user) {
     final batchId = widget.intakeBatchId;
     if (batchId == null ||
         batchId.isEmpty ||
@@ -1096,7 +1090,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  bool _canSaveDraft(dynamic user) {
+  bool _canSaveDraft(UserModel? user) {
     return user != null &&
         _hasAssignment &&
         !_hasBusyReceipts &&
@@ -1105,7 +1099,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         (user.bankAccount ?? '').trim().isNotEmpty;
   }
 
-  bool _canSubmit(dynamic user, ExpenseProfileReadiness profileReadiness) {
+  bool _canSubmit(UserModel? user, ExpenseProfileReadiness profileReadiness) {
     return user != null &&
         profileReadiness.isReady &&
         _hasAssignment &&
@@ -1116,7 +1110,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         !_isSubmitting;
   }
 
-  Future<void> _saveDraft(dynamic user) async {
+  Future<void> _saveDraft(UserModel? user) async {
     final assignment = _assignment;
     if (assignment == null || user == null) return;
     setState(() {
@@ -1148,7 +1142,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  Future<void> _submit(dynamic user) async {
+  Future<void> _submit(UserModel? user) async {
     final assignment = _assignment;
     if (assignment == null || user == null) return;
     setState(() {
@@ -1181,7 +1175,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  Future<void> _showProfileCompletionSheet(dynamic user) async {
+  Future<void> _showProfileCompletionSheet(UserModel? user) async {
     if (user == null) return;
     final nameController = TextEditingController(text: user.name);
     final phoneController = TextEditingController(text: user.phone ?? '');
@@ -1195,13 +1189,22 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
+      builder: (sheetContext) {
+        final palette = BisoPalette.of(sheetContext);
+        // A bottom sheet route is not a descendant of this page's BisoPage,
+        // so BisoPageInsets.maybeOf always resolves null here; the fallback
+        // below (matching sell_product_screen's _scrollPaddingFor) is the
+        // live branch.
+        final insets = BisoPageInsets.maybeOf(sheetContext);
+        final scrollPadding = insets != null
+            ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+            : const EdgeInsets.all(20);
         return Padding(
           padding: EdgeInsets.only(
             left: 20,
             right: 20,
             top: 20,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + 20,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -1211,53 +1214,74 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 Text(
                   'Complete profile',
                   style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(color: palette.ink),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: phoneController,
-                  decoration: const InputDecoration(labelText: 'Phone'),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: bankController,
-                  decoration: const InputDecoration(labelText: 'Bank account'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(labelText: 'Address'),
-                ),
-                const SizedBox(height: 10),
-                Row(
+                BisoFormGroup(
                   children: [
-                    Expanded(
+                    BisoFormRow(
+                      label: 'Name',
                       child: TextField(
-                        controller: zipController,
-                        decoration: const InputDecoration(labelText: 'Zip'),
+                        controller: nameController,
+                        scrollPadding: scrollPadding,
+                        decoration: bisoInputDecoration(sheetContext),
+                      ),
+                    ),
+                    BisoFormRow(
+                      label: 'Phone',
+                      child: TextField(
+                        controller: phoneController,
+                        scrollPadding: scrollPadding,
+                        decoration: bisoInputDecoration(sheetContext),
+                        keyboardType: TextInputType.phone,
+                      ),
+                    ),
+                    BisoFormRow(
+                      label: 'Bank account',
+                      child: TextField(
+                        controller: bankController,
+                        scrollPadding: scrollPadding,
+                        decoration: bisoInputDecoration(sheetContext),
                         keyboardType: TextInputType.number,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
+                    BisoFormRow(
+                      label: 'Address',
                       child: TextField(
-                        controller: cityController,
-                        decoration: const InputDecoration(labelText: 'City'),
+                        controller: addressController,
+                        scrollPadding: scrollPadding,
+                        decoration: bisoInputDecoration(sheetContext),
+                      ),
+                    ),
+                    BisoFormRow(
+                      label: 'Zip / City',
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: zipController,
+                              scrollPadding: scrollPadding,
+                              decoration: bisoInputDecoration(sheetContext),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: cityController,
+                              scrollPadding: scrollPadding,
+                              decoration: bisoInputDecoration(sheetContext),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 18),
-                ElevatedButton(
+                FilledButton(
                   onPressed: () async {
                     final bank = normalizeNorwegianBankAccount(
                       bankController.text,
@@ -1265,7 +1289,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     final bankError = validateNorwegianBankAccount(bank);
                     if (bankError != null) {
                       ScaffoldMessenger.of(
-                        context,
+                        sheetContext,
                       ).showSnackBar(SnackBar(content: Text(bankError)));
                       return;
                     }
@@ -1281,7 +1305,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                           campusId: _assignment?.campusId ?? user.campusId,
                         );
                     await ref.read(authStateProvider.notifier).refreshProfile();
-                    if (context.mounted) Navigator.of(context).pop();
+                    if (sheetContext.mounted) Navigator.of(sheetContext).pop();
                   },
                   child: const Text('Save profile'),
                 ),
@@ -1414,134 +1438,151 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 }
 
-class _ReceiptTile extends StatelessWidget {
-  final ExpenseReceiptDraft receipt;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-  final VoidCallback? onRetry;
-
-  const _ReceiptTile({
+/// One receipt tile: a 44pt rounded thumbnail (or a coral document tile when
+/// there is nothing to preview) as leading, the vendor or file name as
+/// title, the amount or current OCR status as subtitle, and retry/remove as
+/// trailing. [indent] draws the small connector used for a bank statement
+/// nested under the receipt it verifies, mirroring the tree the original
+/// screen drew with a `Card` and manual connector lines.
+class _ReceiptRow extends StatelessWidget {
+  const _ReceiptRow({
     required this.receipt,
     required this.isSelected,
     required this.onTap,
     required this.onRemove,
     this.onRetry,
+    this.indent = false,
   });
+
+  final ExpenseReceiptDraft receipt;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+  final VoidCallback? onRetry;
+  final bool indent;
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColor(receipt.status);
-    return Card(
-      color: isSelected ? AppColors.subtleBlue : null,
-      child: InkWell(
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    final color = _statusColor(receipt.status, palette);
+
+    final row = Container(
+      color: isSelected ? palette.link.withValues(alpha: 0.08) : null,
+      child: BisoListRow(
+        leading: _leading(receipt, palette),
+        title: receipt.vendor?.isNotEmpty == true
+            ? receipt.vendor!
+            : receipt.fileName,
+        subtitle: _statusLabel(receipt),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  _buildReceiptLeading(receipt, color),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          receipt.vendor?.isNotEmpty == true
-                              ? receipt.vendor!
-                              : receipt.fileName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          _statusLabel(receipt),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.onSurfaceVariant),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (receipt.status == ExpenseReceiptStatus.error &&
-                      onRetry != null)
-                    IconButton(
-                      tooltip: 'Retry',
-                      onPressed: onRetry,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  IconButton(
-                    tooltip: 'Remove',
-                    onPressed: onRemove,
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                ],
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (receipt.status == ExpenseReceiptStatus.error && onRetry != null)
+              IconButton(
+                tooltip: 'Retry',
+                onPressed: onRetry,
+                icon: const Icon(CupertinoIcons.arrow_clockwise),
               ),
-              if (receipt.isBusy) ...[
-                const SizedBox(height: 10),
-                LinearProgressIndicator(color: color),
-              ],
-              if (receipt.hasEstimatedNok) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'Estimated NOK amount. Add bank statement for exact verification.',
-                  style: TextStyle(color: AppColors.orange9, fontSize: 12),
-                ),
-              ],
-              if (receipt.hasLinkedBankStatement) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'Bank statement attached',
-                  style: TextStyle(color: AppColors.success, fontSize: 12),
-                ),
-              ],
-            ],
-          ),
+            IconButton(
+              tooltip: 'Remove',
+              onPressed: onRemove,
+              icon: const Icon(CupertinoIcons.trash),
+            ),
+          ],
         ),
+      ),
+    );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        if (receipt.isBusy)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: LinearProgressIndicator(color: color),
+          ),
+        if (receipt.hasEstimatedNok)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Text(
+              'Estimated NOK amount. Add bank statement for exact verification.',
+              style: text.bodySmall?.copyWith(color: palette.warning),
+            ),
+          ),
+        if (receipt.hasLinkedBankStatement)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Text(
+              'Bank statement attached',
+              style: text.bodySmall?.copyWith(color: palette.success),
+            ),
+          ),
+      ],
+    );
+
+    if (!indent) return content;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 18),
+            child: Column(
+              children: [
+                Container(width: 2, height: 20, color: palette.hairline),
+                Container(width: 10, height: 2, color: palette.hairline),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(child: content),
+        ],
       ),
     );
   }
 
-  static Widget _buildReceiptLeading(ExpenseReceiptDraft receipt, Color color) {
+  static Widget _leading(ExpenseReceiptDraft receipt, BisoPalette palette) {
+    const size = 44.0;
     final isPdf = receipt.mimeType == 'application/pdf';
     final path = receipt.localPath;
     if (!isPdf && path != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Image.file(File(path), width: 40, height: 40, fit: BoxFit.cover),
+        borderRadius: BorderRadius.circular(size / 4),
+        child: Image.file(File(path), width: size, height: size, fit: BoxFit.cover),
       );
     }
     final url = receipt.viewUrl;
     if (!isPdf && url != null) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(size / 4),
         child: Image.network(
           url,
-          width: 40,
-          height: 40,
+          width: size,
+          height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.12),
-            child: Icon(_fileIcon(receipt), color: color, size: 20),
+          errorBuilder: (_, _, _) => BisoIconTile(
+            icon: _fileIcon(receipt),
+            accent: BisoAccent.coral,
+            size: size,
           ),
         ),
       );
     }
-    return CircleAvatar(
-      backgroundColor: color.withValues(alpha: 0.12),
-      child: Icon(_fileIcon(receipt), color: color, size: 20),
+    return BisoIconTile(
+      icon: _fileIcon(receipt),
+      accent: BisoAccent.coral,
+      size: size,
     );
   }
 
   static IconData _fileIcon(ExpenseReceiptDraft receipt) {
-    if (receipt.mimeType == 'application/pdf') return Icons.picture_as_pdf;
-    if (receipt.isBankStatement) return Icons.account_balance_wallet_outlined;
-    return Icons.image_outlined;
+    if (receipt.isBankStatement) return CupertinoIcons.creditcard;
+    return CupertinoIcons.doc_text;
   }
 
   static String _statusLabel(ExpenseReceiptDraft receipt) {
@@ -1564,28 +1605,30 @@ class _ReceiptTile extends StatelessWidget {
     }
   }
 
-  static Color _statusColor(ExpenseReceiptStatus status) {
+  static Color _statusColor(ExpenseReceiptStatus status, BisoPalette palette) {
     switch (status) {
       case ExpenseReceiptStatus.ready:
-        return AppColors.success;
+        return palette.success;
       case ExpenseReceiptStatus.error:
-        return AppColors.error;
+        return palette.error;
       case ExpenseReceiptStatus.analyzing:
       case ExpenseReceiptStatus.processing:
       case ExpenseReceiptStatus.uploading:
       case ExpenseReceiptStatus.editing:
-        return AppColors.accentBlue;
+        return palette.link;
     }
   }
 }
 
 class _ReceiptDetailEditor extends StatefulWidget {
   final ExpenseReceiptDraft receipt;
+  final EdgeInsets scrollPadding;
   final ValueChanged<ExpenseReceiptDraft> onChanged;
   final VoidCallback? onAddBankStatement;
 
   const _ReceiptDetailEditor({
     required this.receipt,
+    required this.scrollPadding,
     required this.onChanged,
     this.onAddBankStatement,
   });
@@ -1645,7 +1688,12 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
   @override
   Widget build(BuildContext context) {
     final receipt = widget.receipt;
-    return Card(
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1658,13 +1706,11 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                     receipt.isBankStatement
                         ? 'Bank statement'
                         : 'Receipt detail',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: text.titleLarge?.copyWith(color: palette.ink),
                   ),
                 ),
                 Chip(
-                  avatar: const Icon(Icons.auto_awesome, size: 16),
+                  avatar: const Icon(CupertinoIcons.sparkles, size: 16),
                   label: Text(
                     receipt.isBusy ? 'Analyzing receipt...' : 'AI Extracted',
                   ),
@@ -1672,12 +1718,12 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildPreview(receipt),
+            _buildPreview(receipt, palette),
             const SizedBox(height: 16),
             if (receipt.hasEstimatedNok)
               _WarningBanner(
-                icon: Icons.currency_exchange,
-                color: AppColors.orange9,
+                icon: CupertinoIcons.arrow_2_squarepath,
+                color: palette.warning,
                 title: 'Estimated exchange rate',
                 message:
                     '${receipt.originalForeignAmount ?? receipt.currency} was converted using historical rates.',
@@ -1685,61 +1731,74 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                 onAction: widget.onAddBankStatement,
               ),
             if (receipt.hasLinkedBankStatement)
-              const _InfoBanner(
-                icon: Icons.verified_outlined,
-                color: AppColors.success,
+              _InfoBanner(
+                icon: CupertinoIcons.checkmark_seal_fill,
+                color: palette.success,
                 title: 'Verified NOK amount',
                 message: 'A bank statement is linked to this receipt.',
               ),
-            TextField(
-              controller: _vendorController,
-              decoration: const InputDecoration(
-                labelText: 'Vendor',
-                prefixIcon: Icon(Icons.storefront),
+            BisoFormRow(
+              label: 'Vendor',
+              child: TextField(
+                controller: _vendorController,
+                scrollPadding: widget.scrollPadding,
+                decoration: bisoInputDecoration(
+                  context,
+                  prefixIcon: const Icon(CupertinoIcons.bag),
+                ),
+                onChanged: (_) => _emit(),
               ),
-              onChanged: (_) => _emit(),
             ),
             const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _amountController,
-                    decoration: const InputDecoration(
-                      labelText: 'Amount in NOK',
-                      prefixIcon: Icon(Icons.payments_outlined),
+                  child: BisoFormRow(
+                    label: 'Amount in NOK',
+                    child: TextField(
+                      controller: _amountController,
+                      scrollPadding: widget.scrollPadding,
+                      decoration: bisoInputDecoration(
+                        context,
+                        prefixIcon: const Icon(CupertinoIcons.money_dollar),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => _emit(),
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) => _emit(),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _date ?? now,
-                        firstDate: now.subtract(const Duration(days: 365 * 5)),
-                        lastDate: now.add(const Duration(days: 1)),
-                      );
-                      if (picked != null) {
-                        setState(() => _date = picked);
-                        _emit();
-                      }
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(
-                        labelText: 'Date',
-                        prefixIcon: Icon(Icons.calendar_today_outlined),
-                      ),
-                      child: Text(
-                        _date == null
-                            ? 'Select'
-                            : DateFormat.yMMMd().format(_date!),
+                  child: BisoFormRow(
+                    label: 'Date',
+                    child: InkWell(
+                      onTap: () async {
+                        final now = DateTime.now();
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _date ?? now,
+                          firstDate: now.subtract(const Duration(days: 365 * 5)),
+                          lastDate: now.add(const Duration(days: 1)),
+                        );
+                        if (picked != null) {
+                          setState(() => _date = picked);
+                          _emit();
+                        }
+                      },
+                      child: InputDecorator(
+                        decoration: bisoInputDecoration(
+                          context,
+                          prefixIcon: const Icon(CupertinoIcons.calendar),
+                        ),
+                        child: Text(
+                          _date == null
+                              ? 'Select'
+                              : DateFormat.yMMMd().format(_date!),
+                          style: text.bodyMedium?.copyWith(color: palette.ink),
+                        ),
                       ),
                     ),
                   ),
@@ -1747,14 +1806,18 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
               ],
             ),
             const SizedBox(height: 10),
-            TextField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                prefixIcon: Icon(Icons.notes_outlined),
+            BisoFormRow(
+              label: 'Description',
+              child: TextField(
+                controller: _descriptionController,
+                scrollPadding: widget.scrollPadding,
+                decoration: bisoInputDecoration(
+                  context,
+                  prefixIcon: const Icon(CupertinoIcons.text_alignleft),
+                ),
+                maxLines: 2,
+                onChanged: (_) => _emit(),
               ),
-              maxLines: 2,
-              onChanged: (_) => _emit(),
             ),
           ],
         ),
@@ -1762,21 +1825,21 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
     );
   }
 
-  Widget _buildPreview(ExpenseReceiptDraft receipt) {
+  Widget _buildPreview(ExpenseReceiptDraft receipt, BisoPalette palette) {
     if (receipt.mimeType == 'application/pdf') {
       return Container(
         height: 180,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.gray100,
+          color: palette.surfaceRaised,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Column(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.picture_as_pdf, size: 42),
-            SizedBox(height: 8),
-            Text('No preview available'),
+            Icon(CupertinoIcons.doc_fill, size: 42, color: palette.muted),
+            const SizedBox(height: 8),
+            Text('No preview available', style: TextStyle(color: palette.muted)),
           ],
         ),
       );
@@ -1818,85 +1881,22 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
   }
 }
 
-class _ReportInfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _ReportInfoChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 180),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.gray50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: AppColors.defaultBlue),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (value.isNotEmpty)
-                  Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ReportReceiptRow extends StatelessWidget {
-  final ExpenseReceiptDraft receipt;
-
   const _ReportReceiptRow({required this.receipt});
 
+  final ExpenseReceiptDraft receipt;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(
-            receipt.isBankStatement
-                ? Icons.account_balance_wallet_outlined
-                : Icons.receipt_long,
-            size: 18,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              receipt.description.isNotEmpty
-                  ? receipt.description
-                  : receipt.fileName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text('NOK ${receipt.effectiveAmount.toStringAsFixed(2)}'),
-        ],
-      ),
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return _AmountRow(
+      title: receipt.description.isNotEmpty
+          ? receipt.description
+          : receipt.fileName,
+      amount: 'NOK ${receipt.effectiveAmount.toStringAsFixed(2)}',
+      titleStyle: text.bodyMedium?.copyWith(color: palette.ink),
+      amountStyle: text.bodyMedium?.copyWith(color: palette.muted),
     );
   }
 }
@@ -1920,6 +1920,7 @@ class _WarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -1937,11 +1938,8 @@ class _WarningBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                Text(message),
+                Text(title, style: text.titleSmall?.copyWith(color: color)),
+                Text(message, style: text.bodyMedium?.copyWith(color: color)),
               ],
             ),
           ),
@@ -1973,6 +1971,130 @@ class _InfoBanner extends StatelessWidget {
       color: color,
       title: title,
       message: message,
+    );
+  }
+}
+
+/// One "label — amount" row, sized so the amount is never scaled down or
+/// silently clipped at any text scale (R11). Mirrors `_AmountRow` in
+/// `checkout_screen.dart` and `expenses_screen.dart` — see either's doc
+/// comment for the full layout rationale: side by side when the label can
+/// keep a real share of the row, otherwise stacked; either way the amount
+/// renders on one line if it fits, or, as a last resort, wraps only on the
+/// single space between the currency code and the number.
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({
+    required this.title,
+    this.subtitle,
+    required this.amount,
+    this.titleStyle,
+    this.subtitleStyle,
+    this.amountStyle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String amount;
+  final TextStyle? titleStyle;
+  final TextStyle? subtitleStyle;
+  final TextStyle? amountStyle;
+
+  static const _spacing = 8.0;
+  static const _minLabelFraction = 0.4;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: MergeSemantics(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final painter = TextPainter(
+                text: TextSpan(text: amount, style: amountStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              final sideBySide =
+                  maxWidth.isFinite &&
+                  (maxWidth - painter.width - _spacing) >=
+                      maxWidth * _minLabelFraction;
+              final fitsOneLine =
+                  sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
+
+              final amountText = fitsOneLine
+                  ? Text(
+                      amount,
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: amountStyle,
+                    )
+                  : Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        for (final piece in amount.split(' '))
+                          Text(
+                            piece,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: amountStyle,
+                          ),
+                      ],
+                    );
+
+              final label = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: sideBySide ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
+                  ),
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: subtitleStyle,
+                      ),
+                    ),
+                ],
+              );
+
+              if (sideBySide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: label),
+                    const SizedBox(width: _spacing),
+                    amountText,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  label,
+                  const SizedBox(height: 4),
+                  Align(alignment: Alignment.centerRight, child: amountText),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }

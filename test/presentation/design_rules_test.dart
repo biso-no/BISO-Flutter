@@ -33,6 +33,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/shop/order_screen.dart',
   'lib/presentation/screens/explore/sell_product_screen.dart',
   'lib/presentation/screens/explore/expenses_screen.dart',
+  'lib/presentation/screens/expense/create_expense_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{

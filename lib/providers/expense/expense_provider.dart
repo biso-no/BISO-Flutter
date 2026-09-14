@@ -1,11 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/expense_model.dart';
+import '../../data/services/expense_api_client.dart';
 import '../../data/services/expense_service_v2.dart';
 import '../../core/logging/print_migration.dart';
 
 // Service provider
 final expenseServiceProvider = Provider<ExpenseServiceV2>(
   (ref) => ExpenseServiceV2(),
+);
+
+/// Injectable so screen tests can replace the HTTP-backed client with a
+/// fake, the same way [expenseServiceProvider] lets them fake the
+/// Appwrite-backed service.
+final expenseApiClientProvider = Provider<ExpenseApiClient>(
+  (ref) => ExpenseApiClient(),
 );
 
 // Expenses state provider
