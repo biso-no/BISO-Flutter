@@ -13,6 +13,25 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
+/// Asserts [text] renders as a single, complete, full-size line — R11:
+/// amounts never truncate, wrap, or scale down. Mirrors the check in
+/// expenses_design_test.dart / orders_design_test.dart.
+void _expectFullSizeAmount(WidgetTester tester, String text) {
+  final finder = find.text(text);
+  expect(finder, findsAtLeastNWidgets(1), reason: '"$text" should render in full');
+  for (final element in finder.evaluate()) {
+    final widgetFinder = find.byWidget(element.widget);
+    expect(
+      find.ancestor(of: widgetFinder, matching: find.byType(FittedBox)),
+      findsNothing,
+      reason: '"$text" is inside a FittedBox and so may be scaled down',
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(widgetFinder);
+    expect(paragraph.maxLines, 1, reason: '"$text" should be one line');
+    expect(paragraph.didExceedMaxLines, isFalse, reason: '"$text" was ellipsized');
+  }
+}
+
 class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
   _Auth(UserModel? user)
     : super(AuthState(isAuthenticated: user != null, user: user));
@@ -181,6 +200,78 @@ void main() {
       await tester.pump();
 
       expect(find.text('Invalid Norwegian bank account number'), findsOneWidget);
+
+      // Saving was short-circuited by the validator (it returns before
+      // calling updateUserProfile/Navigator.pop): the sheet is still open,
+      // not silently dismissed with the bad value discarded.
+      expect(find.text('Complete profile'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.widgetWithText(BisoFormRow, 'Bank account'),
+          matching: find.byType(TextField),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'the department picker scrolls to, selects and stores the last of 30 '
+    'departments, without overflow at 1.0x and 1.6x text',
+    (tester) async {
+      final departments = [
+        for (var i = 1; i <= 30; i++) {'Id': 'd$i', 'Name': 'Department $i'},
+      ];
+
+      for (final textScale in [1.0, 1.6]) {
+        await pumpBisoScreen(
+          tester,
+          CreateExpenseScreen(
+            draftExpense: ExpenseModel(
+              id: 'draft-1',
+              userId: 'u1',
+              campus: 'c1',
+              department: '',
+              bankAccount: '',
+              total: 0,
+              status: 'draft',
+            ),
+          ),
+          overrides: _overrides(departments: departments),
+          textScale: textScale,
+          // Wide (side-by-side) layout: once selected, the department name
+          // is directly visible in the report pane's payment-details row,
+          // with no extra tab switch needed to confirm the stored value.
+          size: const Size(900, 844),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'gate at $textScale');
+
+        await tester.tap(find.widgetWithText(BisoListRow, 'Department'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'open sheet at $textScale');
+
+        expect(find.text('Department 1'), findsOneWidget);
+        expect(find.text('Department 30'), findsNothing);
+
+        await tester.dragUntilVisible(
+          find.text('Department 30'),
+          find.byType(CustomScrollView),
+          const Offset(0, -300),
+        );
+        expect(tester.takeException(), isNull, reason: 'scroll at $textScale');
+
+        await tester.tap(find.text('Department 30'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'select at $textScale');
+
+        // The gate is gone (assignment complete) and the split flow's
+        // payment-details row shows the stored department name.
+        expect(find.widgetWithText(BisoListRow, 'Department'), findsNothing);
+        expect(find.text('Department 30'), findsOneWidget, reason: '$textScale');
+
+        await tester.pumpWidget(const SizedBox());
+      }
     },
   );
 
@@ -246,6 +337,79 @@ void main() {
 
         await tester.pumpWidget(const SizedBox());
       }
+    },
+  );
+
+  testWidgets(
+    'the total, each receipt amount, and the bank account render in full '
+    'at 1.6x text on the narrow (tabbed) layout, on the Report tab (R11)',
+    (tester) async {
+      final draft = ExpenseModel(
+        id: 'draft-1',
+        userId: 'u1',
+        campus: 'c1',
+        department: 'd1',
+        bankAccount: '86011117947',
+        total: 12345.50,
+        status: 'draft',
+        expenseAttachments: const [
+          ExpenseAttachmentModel(
+            id: 'a1',
+            url: 'https://appwrite.biso.no/v1/storage/buckets/b/files/file123/view',
+            amount: 12345.50,
+            description: 'A very large taxi receipt',
+            type: 'image/jpeg',
+          ),
+        ],
+      );
+
+      await pumpBisoScreen(
+        tester,
+        CreateExpenseScreen(draftExpense: draft),
+        overrides: _overrides(
+          user: const UserModel(
+            id: 'u1',
+            name: 'Kari Nordmann',
+            email: 'kari@bi.no',
+            phone: '12345678',
+            address: 'Nydalsveien 15',
+            city: 'Oslo',
+            zipCode: '0484',
+            campusId: 'c1',
+            bankAccount: '86011117947',
+          ),
+        ),
+        textScale: 1.6,
+        size: const Size(390, 844),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Narrow layout defaults to the Receipts tab; switch to Report.
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // The report header's total, the ready-receipt line, and the "n
+      // file(s) · Total" summary line all carry this number — each
+      // independently either fits as one "NOK 12345.50" or, at this
+      // narrow width, falls back to Tier-3 and wraps only between "NOK"
+      // and the number; either way "12345.50" itself must never split or
+      // ellipsize, so match every Text containing it rather than assuming
+      // one exact combined form.
+      final totalOccurrences = find.textContaining('12345.50');
+      expect(totalOccurrences, findsNWidgets(3));
+      for (final element in totalOccurrences.evaluate()) {
+        final widgetFinder = find.byWidget(element.widget);
+        final paragraph = tester.renderObject<RenderParagraph>(widgetFinder);
+        expect(paragraph.maxLines, 1);
+        expect(paragraph.didExceedMaxLines, isFalse);
+      }
+      // The refund destination (bank account), formatted. Bank-account
+      // values never use the amount's Tier-3 split fallback (it would
+      // fragment the account number itself), so this must always be one
+      // combined Text.
+      _expectFullSizeAmount(tester, '8601 11 17947');
     },
   );
 }

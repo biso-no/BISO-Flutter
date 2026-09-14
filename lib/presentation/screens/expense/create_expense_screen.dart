@@ -325,7 +325,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                         value: _assignment?.departmentId.isNotEmpty == true
                             ? _assignment!.departmentName
                             : 'Select',
-                        onTap: _assignment == null
+                        onTap: _assignment == null || _departments.isEmpty
                             ? null
                             : _showDepartmentPicker,
                       ),
@@ -351,32 +351,23 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   Future<void> _showCampusPicker() async {
-    final palette = BisoPalette.of(context);
     await showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: BisoSection(
-            title: 'Campus',
-            padding: EdgeInsets.zero,
-            child: BisoListGroup(
-              children: [
-                for (final campus in _campuses)
-                  BisoListRow(
-                    title: campus['name']!,
-                    trailing: _assignment?.campusId == campus['id']
-                        ? Icon(CupertinoIcons.checkmark, color: palette.link)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _selectCampus(campus['id']!, campus['name']!);
-                    },
-                  ),
-              ],
-            ),
-          ),
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (sheetContext, scrollController) => _AssignmentPickerSheet(
+          title: 'Campus',
+          options: _campuses,
+          selectedId: _assignment?.campusId,
+          scrollController: scrollController,
+          onSelected: (id, name) {
+            Navigator.pop(sheetContext);
+            _selectCampus(id, name);
+          },
         ),
       ),
     );
@@ -398,35 +389,23 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   void _showDepartmentPicker() {
     final assignment = _assignment;
     if (assignment == null) return;
-    final palette = BisoPalette.of(context);
     showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: BisoSection(
-            title: 'Department',
-            padding: EdgeInsets.zero,
-            child: BisoListGroup(
-              children: [
-                for (final department in _departments)
-                  BisoListRow(
-                    title: department['name']!,
-                    trailing: assignment.departmentId == department['id']
-                        ? Icon(CupertinoIcons.checkmark, color: palette.link)
-                        : null,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _selectDepartment(
-                        department['id']!,
-                        department['name']!,
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ),
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (sheetContext, scrollController) => _AssignmentPickerSheet(
+          title: 'Department',
+          options: _departments,
+          selectedId: assignment.departmentId,
+          scrollController: scrollController,
+          onSelected: (id, name) {
+            Navigator.pop(sheetContext);
+            _selectDepartment(id, name);
+          },
         ),
       ),
     );
@@ -769,17 +748,27 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         ),
         const SizedBox(height: 16),
         BisoFormGroup(
-          title: 'Payment details',
+          // Reuses the exact wording expenses_screen.dart's detail sheet
+          // already uses for the same concept (a hardcoded title there
+          // too, not an ARB key) rather than inventing new copy.
+          title: 'Payment Information',
           children: [
             BisoListRow(
               title: user?.name ?? 'Unknown user',
               subtitle: user?.email ?? '',
             ),
-            BisoListRow(
+            // The refund destination must never truncate or scale (R11),
+            // so this is `_AmountRow`'s label-beside-value layout rather
+            // than `BisoListRow(value:)`, whose `Flexible`+ellipsis can
+            // clip a long formatted account number at large text scales.
+            _AmountRow(
               title: 'Bank account',
-              value: user?.bankAccount == null
+              amount: user?.bankAccount == null
                   ? 'Missing'
                   : formatNorwegianBankAccount(user!.bankAccount!),
+              titleStyle: text.titleMedium?.copyWith(color: palette.ink),
+              amountStyle: text.bodyLarge?.copyWith(color: palette.muted),
+              allowWrapFallback: false,
             ),
             BisoListRow(
               title: assignment.campusName,
@@ -838,8 +827,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 for (final receipt in _readyReceipts)
                   _ReportReceiptRow(receipt: receipt),
               _AmountRow(
-                title: '${_readyReceipts.length} file(s)',
-                amount: 'Total NOK ${_totalAmount.toStringAsFixed(2)}',
+                // "Total" lives in the label, not the amount string: the
+                // amount must stay exactly `currency code + space + number`
+                // so its Tier-3 fallback (wrap only on that one space) still
+                // applies — an extra word in the amount string would let it
+                // wrap in the wrong place instead.
+                title: '${_readyReceipts.length} file(s) · Total',
+                amount: 'NOK ${_totalAmount.toStringAsFixed(2)}',
                 titleStyle: text.bodyMedium?.copyWith(color: palette.muted),
                 amountStyle: text.titleMedium?.copyWith(color: palette.ink),
               ),
@@ -1254,11 +1248,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                         decoration: bisoInputDecoration(sheetContext),
                       ),
                     ),
-                    BisoFormRow(
-                      label: 'Zip / City',
-                      child: Row(
-                        children: [
-                          Expanded(
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: BisoFormRow(
+                            label: 'Zip',
                             child: TextField(
                               controller: zipController,
                               scrollPadding: scrollPadding,
@@ -1266,17 +1261,19 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                               keyboardType: TextInputType.number,
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            flex: 2,
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: BisoFormRow(
+                            label: 'City',
                             child: TextField(
                               controller: cityController,
                               scrollPadding: scrollPadding,
                               decoration: bisoInputDecoration(sheetContext),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1435,6 +1432,82 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     if (!value.startsWith('http')) return value;
     final match = RegExp(r'/files/([^/]+)/').firstMatch(value);
     return match?.group(1);
+  }
+}
+
+/// The campus/department picker sheet: a `DraggableScrollableSheet` (the
+/// same drag-to-expand shape as `_EventDetailSheet` in events_screen.dart)
+/// whose body is a lazy `SliverBisoListGroup` bound to the sheet's own
+/// `scrollController`, rather than a fixed-height `BisoListGroup` — a
+/// `showModalBottomSheet` without `isScrollControlled` caps at 9/16 of the
+/// screen height, and a real department list can run well past what fits
+/// there. The checkmark marks [selectedId]; tapping a row hands the picked
+/// id/name back to the caller, which pops the sheet itself.
+class _AssignmentPickerSheet extends StatelessWidget {
+  const _AssignmentPickerSheet({
+    required this.title,
+    required this.options,
+    required this.selectedId,
+    required this.scrollController,
+    required this.onSelected,
+  });
+
+  final String title;
+  final List<Map<String, String>> options;
+  final String? selectedId;
+  final ScrollController scrollController;
+  final void Function(String id, String name) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+              child: Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  style: text.headlineSmall?.copyWith(color: palette.ink),
+                ),
+              ),
+            ),
+            Expanded(
+              child: CustomScrollView(
+                controller: scrollController,
+                slivers: [
+                  SliverBisoListGroup(
+                    itemCount: options.length,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    itemBuilder: (context, index) {
+                      final option = options[index];
+                      final selected = option['id'] == selectedId;
+                      return BisoListRow(
+                        title: option['name']!,
+                        trailing: selected
+                            ? Icon(
+                                CupertinoIcons.checkmark,
+                                color: palette.link,
+                              )
+                            : null,
+                        onTap: () => onSelected(option['id']!, option['name']!),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1920,6 +1993,7 @@ class _WarningBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
     final text = Theme.of(context).textTheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1939,7 +2013,13 @@ class _WarningBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: text.titleSmall?.copyWith(color: color)),
-                Text(message, style: text.bodyMedium?.copyWith(color: color)),
+                // The title may keep the accent color, but the body text
+                // needs real contrast against the 10%-tint background —
+                // ink, not the (often lighter) accent color.
+                Text(
+                  message,
+                  style: text.bodyMedium?.copyWith(color: palette.ink),
+                ),
               ],
             ),
           ),
@@ -1990,6 +2070,7 @@ class _AmountRow extends StatelessWidget {
     this.titleStyle,
     this.subtitleStyle,
     this.amountStyle,
+    this.allowWrapFallback = true,
   });
 
   final String title;
@@ -1998,6 +2079,16 @@ class _AmountRow extends StatelessWidget {
   final TextStyle? titleStyle;
   final TextStyle? subtitleStyle;
   final TextStyle? amountStyle;
+
+  /// Tier 3 (split the amount on its single space, between the currency
+  /// code and the number) assumes [amount] is exactly that pair — right
+  /// for a money amount, wrong for a value with its own internal spaces
+  /// (a formatted Norwegian bank account, "8601 11 17947": splitting it
+  /// would fragment the account number itself, not just separate a label
+  /// from a value). Set false for such values: the amount then always
+  /// stays one `maxLines: 1, softWrap: false` `Text`, beside the label or
+  /// stacked below it, never split into pieces.
+  final bool allowWrapFallback;
 
   static const _spacing = 8.0;
   static const _minLabelFraction = 0.4;
@@ -2023,7 +2114,10 @@ class _AmountRow extends StatelessWidget {
                   (maxWidth - painter.width - _spacing) >=
                       maxWidth * _minLabelFraction;
               final fitsOneLine =
-                  sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
+                  !allowWrapFallback ||
+                  sideBySide ||
+                  !maxWidth.isFinite ||
+                  painter.width <= maxWidth;
 
               final amountText = fitsOneLine
                   ? Text(
