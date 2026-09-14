@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -7,6 +8,14 @@ import '../../../data/models/campus_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/campus/campus_leadership_section.dart';
+
+/// The pre-redesign rows in this file gave a selection-click on every tap;
+/// kept identical (R9 — interaction behavior stays) even though the row
+/// widgets that replaced the old custom rows don't do this themselves.
+void _tap(VoidCallback action) {
+  HapticFeedback.selectionClick();
+  action();
+}
 
 /// The campus photo cover under the translucent header. Full-bleed image
 /// with a bottom-to-top scrim, the campus name and a compact weather/stats
@@ -163,7 +172,7 @@ class CampusQuickActions extends StatelessWidget {
               accent: BisoAccent.blue,
             ),
             title: l10n.eventMessage,
-            onTap: () => onActionTap('events'),
+            onTap: () => _tap(() => onActionTap('events')),
           ),
           BisoListRow(
             leading: const BisoIconTile(
@@ -171,7 +180,7 @@ class CampusQuickActions extends StatelessWidget {
               accent: BisoAccent.gold,
             ),
             title: l10n.productsMessage,
-            onTap: () => onActionTap('products'),
+            onTap: () => _tap(() => onActionTap('products')),
           ),
           BisoListRow(
             leading: const BisoIconTile(
@@ -179,7 +188,7 @@ class CampusQuickActions extends StatelessWidget {
               accent: BisoAccent.teal,
             ),
             title: l10n.jobsMessage,
-            onTap: () => onActionTap('jobs'),
+            onTap: () => _tap(() => onActionTap('jobs')),
           ),
           BisoListRow(
             leading: const BisoIconTile(
@@ -187,7 +196,7 @@ class CampusQuickActions extends StatelessWidget {
               accent: BisoAccent.teal,
             ),
             title: l10n.unitsMessage,
-            onTap: () => onActionTap('units'),
+            onTap: () => _tap(() => onActionTap('units')),
           ),
         ],
       ),
@@ -329,14 +338,14 @@ class CampusContactCard extends StatelessWidget {
           leading: const BisoIconTile(icon: CupertinoIcons.location_solid),
           title: l10n.addressMessage,
           subtitle: campus.contactAddress,
-          onTap: () => _launchMaps(campus.contactAddress!),
+          onTap: () => _tap(() => _launchMaps(campus.contactAddress!)),
         ),
       if (campus.contactEmail != null)
         BisoListRow(
           leading: const BisoIconTile(icon: CupertinoIcons.mail),
           title: l10n.emailMessage,
           subtitle: campus.contactEmail,
-          onTap: () => _launchEmail(campus.contactEmail!),
+          onTap: () => _tap(() => _launchEmail(campus.contactEmail!)),
         ),
     ];
 

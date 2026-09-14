@@ -242,6 +242,7 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
                 children: [
                   if (band > 0)
                     _HeaderBand(amount: band, opaque: media.highContrast),
+                  if (widget.overImage) _HeaderImageScrim(band: band),
                   Padding(
                     padding: EdgeInsets.fromLTRB(12, media.padding.top, 12, 2),
                     child: IconTheme.merge(
@@ -371,6 +372,39 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// A faint top-to-bottom black scrim drawn only on `overImage` pages, behind
+/// the header's controls, so the glass back button and actions stay legible
+/// on a bright photo before the blurred [_HeaderBand] has faded in. It fades
+/// out as the band fades in ([band] 1 → the band alone is enough contrast),
+/// and it is a plain gradient, never a [BackdropFilter].
+class _HeaderImageScrim extends StatelessWidget {
+  const _HeaderImageScrim({required this.band});
+
+  final double band;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      key: const ValueKey('biso-header-image-scrim'),
+      opacity: (1 - band).clamp(0.0, 1.0),
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.35),
+                Colors.black.withValues(alpha: 0),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

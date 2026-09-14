@@ -1,5 +1,7 @@
+import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/board_member_model.dart';
 import 'package:biso/data/models/campus_model.dart';
+import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/campus_detail_screen.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/leadership/leadership_provider.dart';
@@ -7,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -72,6 +75,65 @@ List<Override> _overrides({BoardMembersResponse? boardMembers}) => [
     _campusId,
   ).overrideWith((ref) async => boardMembers ?? _boardMembers),
 ];
+
+/// A marker screen for a target route, so a navigation test can assert the
+/// tap landed on the exact route rather than merely "away from" the campus
+/// detail screen.
+class _Marker extends StatelessWidget {
+  const _Marker(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(body: Center(child: Text(label)));
+}
+
+/// Every route `_navigateToExplore` can push, each rendering a distinct
+/// marker so a test can tell them apart.
+GoRouter _routerFromCampusDetail() => GoRouter(
+  initialLocation: '/explore/campus/$_campusId',
+  routes: [
+    GoRoute(
+      path: '/explore/campus/:campusId',
+      builder: (context, state) =>
+          CampusDetailScreen(campusId: state.pathParameters['campusId']!),
+    ),
+    GoRoute(
+      path: '/explore/events',
+      builder: (context, state) => const _Marker('EVENTS_ROUTE'),
+    ),
+    GoRoute(
+      path: '/explore/products',
+      builder: (context, state) => const _Marker('PRODUCTS_ROUTE'),
+    ),
+    GoRoute(
+      path: '/explore/volunteer',
+      builder: (context, state) => const _Marker('VOLUNTEER_ROUTE'),
+    ),
+    GoRoute(
+      path: '/explore/units',
+      builder: (context, state) => const _Marker('UNITS_ROUTE'),
+    ),
+  ],
+);
+
+Future<void> _pumpRouted(WidgetTester tester, GoRouter router) async {
+  tester.view.physicalSize = const Size(390, 844) * 3;
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: _overrides(),
+      child: MaterialApp.router(
+        theme: PremiumTheme.build(Brightness.light),
+        darkTheme: PremiumTheme.build(Brightness.dark),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
 
 void main() {
   testWidgets('Campus detail builds on BisoPage in every appearance', (
@@ -175,21 +237,56 @@ void main() {
     },
   );
 
-  testWidgets('quick actions navigate to the matching explore route', (
+  testWidgets('the Event quick action pushes the events route', (
     tester,
   ) async {
-    await pumpBisoScreen(
-      tester,
-      const CampusDetailScreen(campusId: _campusId),
-      overrides: _overrides(),
-      routed: true,
-    );
+    await _pumpRouted(tester, _routerFromCampusDetail());
+    await tester.tap(find.text('Event'));
     await tester.pumpAndSettle();
 
+    expect(find.text('EVENTS_ROUTE'), findsOneWidget);
+    expect(find.text('PRODUCTS_ROUTE'), findsNothing);
+    expect(find.text('VOLUNTEER_ROUTE'), findsNothing);
+    expect(find.text('UNITS_ROUTE'), findsNothing);
+  });
+
+  testWidgets('the Products quick action pushes the products route', (
+    tester,
+  ) async {
+    await _pumpRouted(tester, _routerFromCampusDetail());
     await tester.tap(find.text('Products'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(CampusDetailScreen), findsNothing);
+    expect(find.text('PRODUCTS_ROUTE'), findsOneWidget);
+    expect(find.text('EVENTS_ROUTE'), findsNothing);
+    expect(find.text('VOLUNTEER_ROUTE'), findsNothing);
+    expect(find.text('UNITS_ROUTE'), findsNothing);
+  });
+
+  testWidgets('the Jobs quick action pushes the volunteer route', (
+    tester,
+  ) async {
+    await _pumpRouted(tester, _routerFromCampusDetail());
+    await tester.tap(find.text('Jobs'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('VOLUNTEER_ROUTE'), findsOneWidget);
+    expect(find.text('EVENTS_ROUTE'), findsNothing);
+    expect(find.text('PRODUCTS_ROUTE'), findsNothing);
+    expect(find.text('UNITS_ROUTE'), findsNothing);
+  });
+
+  testWidgets('the Units quick action pushes the units route', (
+    tester,
+  ) async {
+    await _pumpRouted(tester, _routerFromCampusDetail());
+    await tester.tap(find.text('Units'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('UNITS_ROUTE'), findsOneWidget);
+    expect(find.text('EVENTS_ROUTE'), findsNothing);
+    expect(find.text('PRODUCTS_ROUTE'), findsNothing);
+    expect(find.text('VOLUNTEER_ROUTE'), findsNothing);
   });
 
   testWidgets('benefit cards show benefits and expand for more', (

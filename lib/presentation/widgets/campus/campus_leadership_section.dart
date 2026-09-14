@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -134,6 +134,7 @@ class BoardMemberCard extends StatelessWidget {
   }
 
   void _showMemberDetails(BuildContext context) {
+    HapticFeedback.selectionClick();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -227,14 +228,20 @@ class _MemberDetailModal extends StatelessWidget {
                         leading: const BisoIconTile(icon: CupertinoIcons.mail),
                         title: 'Email',
                         subtitle: member.email,
-                        onTap: () => _launchEmail(member.email),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _launchEmail(member.email);
+                        },
                       ),
                     if (member.phone.isNotEmpty)
                       BisoListRow(
                         leading: const BisoIconTile(icon: CupertinoIcons.phone),
                         title: 'Call',
                         subtitle: member.phone,
-                        onTap: () => _launchPhone(member.phone),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _launchPhone(member.phone);
+                        },
                       ),
                   ],
                 ),

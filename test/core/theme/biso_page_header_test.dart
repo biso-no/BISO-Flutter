@@ -61,6 +61,23 @@ double titleOpacity(WidgetTester tester) => tester
     )
     .opacity;
 
+double? scrimOpacity(WidgetTester tester) {
+  final finder = find.byKey(const ValueKey('biso-header-image-scrim'));
+  if (finder.evaluate().isEmpty) return null;
+  return tester.widget<Opacity>(finder).opacity;
+}
+
+double scrimTopAlpha(WidgetTester tester) {
+  final box = tester.widget<DecoratedBox>(
+    find.descendant(
+      of: find.byKey(const ValueKey('biso-header-image-scrim')),
+      matching: find.byType(DecoratedBox),
+    ),
+  );
+  final gradient = (box.decoration as BoxDecoration).gradient as LinearGradient;
+  return gradient.colors.first.a;
+}
+
 double bandTintAlpha(WidgetTester tester) {
   final box = tester.widget<DecoratedBox>(
     find
@@ -173,6 +190,40 @@ void main() {
         BisoPalette.light.ink);
     expect(titleOpacity(tester), 1);
     expect(style(), SystemUiOverlayStyle.dark);
+  });
+
+  testWidgets(
+    'overImage at rest draws a top scrim so controls stay legible',
+    (tester) async {
+      await tester.pumpWidget(
+        header(overImage: true, offset: ValueNotifier(0)),
+      );
+      expect(
+        find.byKey(const ValueKey('biso-header-image-scrim')),
+        findsOneWidget,
+      );
+      expect(find.byType(BackdropFilter), findsNothing);
+      expect(scrimOpacity(tester), 1);
+      expect(scrimTopAlpha(tester), closeTo(0.35, 0.001));
+    },
+  );
+
+  testWidgets(
+    'overImage once the band is fully in, the scrim has faded out',
+    (tester) async {
+      await tester.pumpWidget(
+        header(overImage: true, offset: ValueNotifier(200)),
+      );
+      final opacity = scrimOpacity(tester);
+      expect(opacity == null || opacity == 0, isTrue);
+    },
+  );
+
+  testWidgets('not overImage never draws the scrim', (tester) async {
+    await tester.pumpWidget(header(offset: ValueNotifier(0)));
+    expect(find.byKey(const ValueKey('biso-header-image-scrim')), findsNothing);
+    await tester.pumpWidget(header(offset: ValueNotifier(200)));
+    expect(find.byKey(const ValueKey('biso-header-image-scrim')), findsNothing);
   });
 
   testWidgets('actions and search share one glass capsule', (tester) async {
