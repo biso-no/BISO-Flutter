@@ -15,6 +15,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/home/premium_home_screen.dart',
   'lib/presentation/widgets/dynamic_hero_carousel.dart',
   'lib/presentation/widgets/home/discovery_sections.dart',
+  'lib/presentation/screens/explore/explore_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{
