@@ -72,17 +72,21 @@ class UnitsOverviewScreen extends ConsumerWidget {
             : [
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  sliver: SliverGrid.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 0.75,
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, constraints) => SliverGrid.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        mainAxisExtent: _DepartmentCard.extentFor(
+                          context,
+                          tileWidth: (constraints.crossAxisExtent - 12) / 2,
                         ),
-                    itemCount: depts.length,
-                    itemBuilder: (context, index) =>
-                        _DepartmentCard(dept: depts[index]),
+                      ),
+                      itemCount: depts.length,
+                      itemBuilder: (context, index) =>
+                          _DepartmentCard(dept: depts[index]),
+                    ),
                   ),
                 ),
               ];
@@ -95,6 +99,33 @@ class UnitsOverviewScreen extends ConsumerWidget {
 class _DepartmentCard extends StatelessWidget {
   final DepartmentModel dept;
   const _DepartmentCard({required this.dept});
+
+  /// Lines the name may wrap to before it is cut. The full name stays in the
+  /// semantics tree and on the detail page either way.
+  static const titleMaxLines = 3;
+
+  /// The tile height: the original 3:4 tile, grown when the text scale needs
+  /// more room so [titleMaxLines] lines of name plus one line of description
+  /// always fit under the 16:9 logo.
+  static double extentFor(BuildContext context, {required double tileWidth}) {
+    final theme = Theme.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    double lineHeight(TextStyle? style, double fallbackSize) {
+      final size = style?.fontSize ?? fallbackSize;
+      return scaler.scale(size) * (style?.height ?? 1.3);
+    }
+
+    final textHeight =
+        12 +
+        lineHeight(theme.textTheme.titleMedium, 17) * titleMaxLines +
+        6 +
+        // The compact HTML description renders at 14 pt.
+        scaler.scale(14) * 1.5 +
+        12;
+    final needed = tileWidth * 9 / 16 + textHeight;
+    final original = tileWidth / 0.75;
+    return needed > original ? needed : original;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,7 +177,7 @@ class _DepartmentCard extends StatelessWidget {
                   children: [
                     Text(
                       dept.name,
-                      maxLines: 1,
+                      maxLines: titleMaxLines,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium,
                     ),
