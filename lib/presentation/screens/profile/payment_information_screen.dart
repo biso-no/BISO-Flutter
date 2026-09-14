@@ -1,14 +1,13 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../core/utils/navigation_utils.dart';
-import '../../../providers/auth/auth_provider.dart';
-import '../../../providers/campus/campus_provider.dart';
+import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/user_model.dart';
+import '../../../providers/auth/auth_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 class PaymentInformationScreen extends ConsumerStatefulWidget {
   const PaymentInformationScreen({super.key});
@@ -88,7 +87,6 @@ class _PaymentInformationScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Payment information saved successfully'),
-            backgroundColor: AppColors.defaultBlue,
           ),
         );
         NavigationUtils.safeGoBack(context);
@@ -96,10 +94,7 @@ class _PaymentInformationScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save payment information: $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Failed to save payment information: $e')),
         );
       }
     } finally {
@@ -111,9 +106,6 @@ class _PaymentInformationScreenState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final selectedCampus = ref.watch(selectedCampusProvider);
-
     // Prefill when auth state updates and user becomes available
     ref.listen(authStateProvider, (previous, next) {
       final user = next.user;
@@ -127,272 +119,252 @@ class _PaymentInformationScreenState
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment Information'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: BisoNavigationInset.padding(
-            context,
-            const EdgeInsets.all(16),
+    return Form(
+      key: _formKey,
+      child: BisoPage(
+        title: 'Payment Information',
+        largeTitle: false,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Builder(builder: (context) => _buildInfoBanner(context)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Information Card
-              Card(
-                color: AppColors.subtleBlue,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.info_outline,
-                        color: AppColors.defaultBlue,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Add your bank account information to receive expense reimbursements from BISO.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.defaultBlue,
-                          ),
-                        ),
-                      ),
-                    ],
+          SliverToBoxAdapter(
+            child: BisoFormGroup(
+              title: 'Account Type',
+              children: [
+                BisoListRow(
+                  leading: BisoIconTile(
+                    icon: _isInternational
+                        ? CupertinoIcons.globe
+                        : CupertinoIcons.flag,
+                    accent: BisoAccent.coral,
                   ),
+                  title: _isInternational
+                      ? 'International Bank Account'
+                      : 'Norwegian Bank Account',
+                  subtitle: _isInternational
+                      ? 'Requires SWIFT code for international transfers'
+                      : 'Standard Norwegian bank account with MOD11 validation',
+                  trailing: Switch.adaptive(
+                    value: _isInternational,
+                    onChanged: _setInternational,
+                  ),
+                  onTap: () => _setInternational(!_isInternational),
                 ),
+              ],
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Builder(
+              builder: (context) => _buildBankAccountGroup(context),
+            ),
+          ),
+          if (_isInternational)
+            SliverToBoxAdapter(
+              child: Builder(builder: (context) => _buildSwiftGroup(context)),
+            ),
+          SliverToBoxAdapter(child: _buildSaveButton()),
+          SliverToBoxAdapter(
+            child: Builder(builder: (context) => _buildSecurityNotice(context)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _setInternational(bool value) {
+    setState(() {
+      _isInternational = value;
+      if (!value) {
+        // Clear SWIFT when switching to Norwegian
+        _swiftController.clear();
+      }
+    });
+  }
+
+  /// [context] must be a descendant of the enclosing [BisoPage] (obtained via
+  /// a [Builder] at each call site) so a focused field's keyboard clearance
+  /// accounts for the translucent header, mirroring `sell_product_screen.dart`.
+  EdgeInsets _scrollPaddingFor(BuildContext context) {
+    final insets = BisoPageInsets.maybeOf(context);
+    return insets != null
+        ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+        : const EdgeInsets.all(20);
+  }
+
+  Widget _buildInfoBanner(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: palette.link.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.info_circle, color: palette.link),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Add your bank account information to receive expense reimbursements from BISO.',
+                style: text.bodyMedium?.copyWith(color: palette.link),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              const SizedBox(height: 24),
-
-              // Account Type Toggle
-              Text(
-                'Account Type',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.strongBlue,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Card(
-                child: SwitchListTile(
-                  secondary: Icon(
-                    _isInternational ? Icons.public : Icons.flag,
-                    color: _isInternational
-                        ? AppColors.purple9
-                        : AppColors.defaultBlue,
-                  ),
-                  title: Text(
-                    _isInternational
-                        ? 'International Bank Account'
-                        : 'Norwegian Bank Account',
-                  ),
-                  subtitle: Text(
-                    _isInternational
-                        ? 'Requires SWIFT code for international transfers'
-                        : 'Standard Norwegian bank account with MOD11 validation',
-                  ),
-                  value: _isInternational,
-                  onChanged: (value) {
-                    setState(() {
-                      _isInternational = value;
-                      if (!value) {
-                        // Clear SWIFT when switching to Norwegian
-                        _swiftController.clear();
-                      }
-                    });
-                  },
-                  thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return _getCampusColor(selectedCampus.id);
-                    }
-                    return null;
-                  }),
-                  trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return _getCampusColor(
-                        selectedCampus.id,
-                      ).withValues(alpha: 0.45);
-                    }
-                    return null;
-                  }),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Bank Account Field
-              Text(
-                'Bank Account Number',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.strongBlue,
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: _bankAccountController,
-                decoration: InputDecoration(
-                  labelText: _isInternational
-                      ? 'International Account Number'
-                      : 'Norwegian Account Number',
-                  hintText: _isInternational
-                      ? 'Enter your international account number'
-                      : '1234 56 78901',
-                  prefixIcon: const Icon(Icons.account_balance),
-                  border: const OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                inputFormatters: _isInternational
-                    ? [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[0-9A-Za-z]'),
-                        ),
-                      ]
-                    : [
-                        FilteringTextInputFormatter.digitsOnly,
-                        TextInputFormatter.withFunction((oldValue, newValue) {
-                          // Auto-format Norwegian bank account (XXXX XX XXXXX)
-                          String text = normalizeNorwegianBankAccount(
-                            newValue.text,
-                          );
-                          if (text.length > 11) text = text.substring(0, 11);
-                          var formatted = '';
-                          for (int i = 0; i < text.length; i++) {
-                            if (i == 4 || i == 6) {
-                              formatted += ' ';
-                            }
-                            formatted += text[i];
-                          }
-
-                          return TextEditingValue(
-                            text: formatted,
-                            selection: TextSelection.collapsed(
-                              offset: formatted.length,
-                            ),
-                          );
-                        }),
-                      ],
-                validator: _isInternational
-                    ? (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Account number is required';
-                        }
-                        return null;
-                      }
-                    : validateNorwegianBankAccount,
-              ),
-
-              // SWIFT Code Field (conditional)
-              if (_isInternational) ...[
-                const SizedBox(height: 24),
-
-                Text(
-                  'SWIFT Code',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.strongBlue,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                TextFormField(
-                  controller: _swiftController,
-                  decoration: const InputDecoration(
-                    labelText: 'SWIFT/BIC Code',
-                    hintText: 'DEUTDEFF',
-                    prefixIcon: Icon(Icons.code),
-                    border: OutlineInputBorder(),
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+  Widget _buildBankAccountGroup(BuildContext context) {
+    final scrollPadding = _scrollPaddingFor(context);
+    return BisoFormGroup(
+      title: 'Bank Account Number',
+      children: [
+        BisoFormRow(
+          label: _isInternational
+              ? 'International Account Number'
+              : 'Norwegian Account Number',
+          child: TextFormField(
+            controller: _bankAccountController,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(
+              context,
+              hintText: _isInternational
+                  ? 'Enter your international account number'
+                  : '1234 56 78901',
+              prefixIcon: const Icon(CupertinoIcons.building_2_fill),
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: _isInternational
+                ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9A-Za-z]'))]
+                : [
+                    FilteringTextInputFormatter.digitsOnly,
                     TextInputFormatter.withFunction((oldValue, newValue) {
+                      // Auto-format Norwegian bank account (XXXX XX XXXXX)
+                      String text = normalizeNorwegianBankAccount(
+                        newValue.text,
+                      );
+                      if (text.length > 11) text = text.substring(0, 11);
+                      var formatted = '';
+                      for (int i = 0; i < text.length; i++) {
+                        if (i == 4 || i == 6) {
+                          formatted += ' ';
+                        }
+                        formatted += text[i];
+                      }
+
                       return TextEditingValue(
-                        text: newValue.text.toUpperCase(),
-                        selection: newValue.selection,
+                        text: formatted,
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
+                        ),
                       );
                     }),
                   ],
-                  validator: _validateSwift,
-                ),
-              ],
-
-              const SizedBox(height: 32),
-
-              // Save Button
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isLoading ? null : _savePaymentInformation,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _getCampusColor(selectedCampus.id),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        )
-                      : const Text('Save Payment Information'),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Security Notice
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.green9.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.security, color: AppColors.green9),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Secure Storage',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.green9,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Your payment information is encrypted and stored securely. Only BISO administrators can access this information for reimbursement processing.',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.green9,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            validator: _isInternational
+                ? (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Account number is required';
+                    }
+                    return null;
+                  }
+                : validateNorwegianBankAccount,
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSwiftGroup(BuildContext context) {
+    final scrollPadding = _scrollPaddingFor(context);
+    return BisoFormGroup(
+      title: 'SWIFT Code',
+      children: [
+        BisoFormRow(
+          label: 'SWIFT/BIC Code',
+          child: TextFormField(
+            controller: _swiftController,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(
+              context,
+              hintText: 'DEUTDEFF',
+              prefixIcon: const Icon(
+                CupertinoIcons.chevron_left_slash_chevron_right,
+              ),
+            ),
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+              TextInputFormatter.withFunction((oldValue, newValue) {
+                return TextEditingValue(
+                  text: newValue.text.toUpperCase(),
+                  selection: newValue.selection,
+                );
+              }),
+            ],
+            validator: _validateSwift,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: _isLoading ? null : _savePaymentInformation,
+          child: _isLoading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save Payment Information'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSecurityNotice(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: palette.success.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(CupertinoIcons.lock_shield_fill, color: palette.success),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Secure Storage',
+                    style: text.titleSmall?.copyWith(color: palette.success),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Your payment information is encrypted and stored securely. Only BISO administrators can access this information for reimbursement processing.',
+                    style: text.bodySmall?.copyWith(color: palette.success),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -408,20 +380,5 @@ class _PaymentInformationScreenState
     setState(() {
       _isInternational = user.swift?.isNotEmpty == true;
     });
-  }
-
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
   }
 }

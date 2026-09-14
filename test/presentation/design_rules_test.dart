@@ -34,6 +34,8 @@ const migratedFiles = <String>[
   'lib/presentation/screens/explore/sell_product_screen.dart',
   'lib/presentation/screens/explore/expenses_screen.dart',
   'lib/presentation/screens/expense/create_expense_screen.dart',
+  'lib/presentation/screens/profile/payment_information_screen.dart',
+  'lib/presentation/screens/profile/edit_profile_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{
@@ -83,11 +85,15 @@ void main() {
       isNotEmpty,
     );
     expect(
-      museoWeightViolations('t.headlineLarge?.copyWith(fontWeight: FontWeight.w300)'),
+      museoWeightViolations(
+        't.headlineLarge?.copyWith(fontWeight: FontWeight.w300)',
+      ),
       isEmpty,
     );
     expect(
-      museoWeightViolations('t.headlineSmall?.copyWith(fontWeight: FontWeight.bold)'),
+      museoWeightViolations(
+        't.headlineSmall?.copyWith(fontWeight: FontWeight.bold)',
+      ),
       isEmpty,
     );
   });
