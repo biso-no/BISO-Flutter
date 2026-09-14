@@ -299,8 +299,8 @@ class ProfileScreen extends ConsumerWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(
-                        initialTab: 1,
+                      builder: (context) => const SettingsSectionPage(
+                        section: SettingsSection.notifications,
                       ),
                     ),
                   ),
@@ -311,8 +311,8 @@ class ProfileScreen extends ConsumerWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(
-                        initialTab: 4,
+                      builder: (context) => const SettingsSectionPage(
+                        section: SettingsSection.language,
                       ),
                     ),
                   ),

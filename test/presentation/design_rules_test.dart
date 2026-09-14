@@ -36,6 +36,9 @@ const migratedFiles = <String>[
   'lib/presentation/screens/expense/create_expense_screen.dart',
   'lib/presentation/screens/profile/payment_information_screen.dart',
   'lib/presentation/screens/profile/edit_profile_screen.dart',
+  'lib/presentation/screens/profile/settings_screen.dart',
+  'lib/presentation/screens/profile/settings_screen_chat_tab.dart',
+  'lib/presentation/widgets/premium/notification_tile.dart',
 ];
 
 final _lineRules = <String, RegExp>{

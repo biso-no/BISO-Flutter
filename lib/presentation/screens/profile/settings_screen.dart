@@ -1,12 +1,12 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/notification_topics.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/privacy/privacy_provider.dart';
@@ -15,6 +15,7 @@ import '../../../providers/ui/theme_mode_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../../data/services/notification_service.dart' show ReconcileOutcome;
 import '../../../data/services/validator_service.dart';
+import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/notification_tile.dart';
 import 'settings_screen_chat_tab.dart';
 
@@ -118,451 +119,306 @@ class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
   }
 }
 
-class SettingsScreen extends ConsumerStatefulWidget {
-  final int initialTab;
+/// The sections Settings is split into. Each one is its own page, pushed
+/// with a [MaterialPageRoute] from the [SettingsScreen] list.
+enum SettingsSection { general, notifications, privacy, chat, language }
 
-  const SettingsScreen({super.key, this.initialTab = 0});
-
-  @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-WidgetStateProperty<Color?> campusSwitchThumbColor(Color activeColor) {
-  return WidgetStateProperty.resolveWith<Color?>((states) {
-    if (states.contains(WidgetState.selected)) {
-      return activeColor;
-    }
-    return null;
-  });
-}
-
-WidgetStateProperty<Color?> campusSwitchTrackColor(Color activeColor) {
-  return WidgetStateProperty.resolveWith<Color?>((states) {
-    if (states.contains(WidgetState.selected)) {
-      return activeColor.withValues(alpha: 0.45);
-    }
-    return null;
-  });
-}
-
-class _SettingsScreenState extends ConsumerState<SettingsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+/// A grouped list of the settings sections. Tapping a row pushes its
+/// [SettingsSectionPage].
+class SettingsScreen extends ConsumerWidget {
+  const SettingsScreen({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: 5, // Added Privacy and Chat tabs
-      vsync: this,
-      initialIndex: widget.initialTab,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+
+    Widget row({
+      required SettingsSection section,
+      required String title,
+      required IconData icon,
+      BisoAccent accent = BisoAccent.neutral,
+    }) {
+      return BisoListRow(
+        leading: BisoIconTile(icon: icon, accent: accent),
+        title: title,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => SettingsSectionPage(section: section)),
+        ),
+      );
+    }
+
+    return BisoPage(
+      title: l10n.settingsMessage,
+      slivers: [
+        SliverToBoxAdapter(
+          child: BisoSection(
+            child: BisoListGroup(
+              children: [
+                row(
+                  section: SettingsSection.general,
+                  title: l10n.generalMessage,
+                  icon: CupertinoIcons.gear,
+                ),
+                row(
+                  section: SettingsSection.notifications,
+                  title: l10n.notificationsMessage,
+                  icon: CupertinoIcons.bell,
+                ),
+                row(
+                  section: SettingsSection.privacy,
+                  title: l10n.privacyMessage,
+                  icon: CupertinoIcons.lock,
+                ),
+                row(
+                  section: SettingsSection.chat,
+                  title: l10n.chatMessage,
+                  icon: CupertinoIcons.bubble_left_bubble_right,
+                  accent: BisoAccent.teal,
+                ),
+                row(
+                  section: SettingsSection.language,
+                  title: l10n.languageMessage,
+                  icon: CupertinoIcons.globe,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
+}
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+/// One settings section's own page, reached from [SettingsScreen].
+class SettingsSectionPage extends StatelessWidget {
+  const SettingsSectionPage({super.key, required this.section});
+
+  final SettingsSection section;
 
   @override
   Widget build(BuildContext context) {
-    final selectedCampus = ref.watch(selectedCampusProvider);
+    final l10n = AppLocalizations.of(context)!;
+    final (title, body) = switch (section) {
+      SettingsSection.general => (l10n.generalMessage, const _GeneralSettingsBody()),
+      SettingsSection.notifications => (
+        l10n.notificationsMessage,
+        const _NotificationSettingsBody(),
+      ),
+      SettingsSection.privacy => (l10n.privacyMessage, const _PrivacySettingsBody()),
+      SettingsSection.chat => (l10n.chatMessage, const ChatSettingsBody()),
+      SettingsSection.language => (l10n.languageMessage, const _LanguageSettingsBody()),
+    };
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: _getCampusColor(selectedCampus.id),
-          labelColor: _getCampusColor(selectedCampus.id),
-          unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
-          tabs: const [
-            Tab(text: 'General'),
-            Tab(text: 'Notifications'),
-            Tab(text: 'Privacy'),
-            Tab(text: 'Chat'),
-            Tab(text: 'Language'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _GeneralSettingsTab(),
-          _NotificationSettingsTab(),
-          _PrivacySettingsTab(),
-          ChatSettingsTab(),
-          _LanguageSettingsTab(),
-        ],
-      ),
+    return BisoPage(
+      title: title,
+      largeTitle: false,
+      slivers: [SliverToBoxAdapter(child: body)],
     );
-  }
-
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
   }
 }
 
-class _GeneralSettingsTab extends ConsumerWidget {
+/// A rounded surface block for a loading spinner or an error message with a
+/// retry action, matching the shape of the [BisoListGroup] cards around it.
+class _CardBlock extends StatelessWidget {
+  const _CardBlock({required this.child, this.padding = const EdgeInsets.all(24)});
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: BisoPalette.of(context).surface,
+    borderRadius: BorderRadius.circular(20),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(padding: padding, child: child),
+  );
+}
+
+class _GeneralSettingsBody extends ConsumerWidget {
+  const _GeneralSettingsBody();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
     final authState = ref.watch(authStateProvider);
     final selectedCampus = ref.watch(selectedCampusProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final brandColor = _getCampusColor(selectedCampus.id);
 
-    return SingleChildScrollView(
-      padding: BisoNavigationInset.padding(
-        context,
-        const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Account Section
-          Text(
-            'Account',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: _getCampusColor(
-                      selectedCampus.id,
-                    ).withValues(alpha: 0.1),
-                    child: Text(
-                      authState.user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                      style: TextStyle(
-                        color: _getCampusColor(selectedCampus.id),
-                        fontWeight: FontWeight.bold,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BisoSection(
+          title: 'Account',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: CircleAvatar(
+                  backgroundColor: palette.link.withValues(alpha: 0.1),
+                  child: Text(
+                    authState.user?.name.substring(0, 1).toUpperCase() ?? 'U',
+                    style: TextStyle(color: palette.link, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                title: authState.user?.name ?? 'User',
+                subtitle: authState.user?.email ?? '',
+                onTap: () => Navigator.pop(context),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const BisoIconTile(icon: CupertinoIcons.brightness),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Appearance',
+                            style: text.titleMedium?.copyWith(color: palette.ink),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 44),
+                      child: Text(
+                        'Choose a theme or follow your system setting',
+                        style: text.bodySmall?.copyWith(color: palette.muted),
                       ),
                     ),
-                  ),
-                  title: Text(authState.user?.name ?? 'User'),
-                  subtitle: Text(authState.user?.email ?? ''),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Navigate back to profile
-                  },
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            icon: Icon(CupertinoIcons.device_phone_portrait),
+                            label: Text('System'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            icon: Icon(CupertinoIcons.sun_max),
+                            label: Text('Light'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            icon: Icon(CupertinoIcons.moon),
+                            label: Text('Dark'),
+                          ),
+                        ],
+                        selected: {themeMode},
+                        onSelectionChanged: (selection) {
+                          ref.read(themeModeProvider.notifier).setThemeMode(selection.first);
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
+              ),
+            ],
+          ),
+        ),
+
+        BisoSection(
+          title: 'Campus',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.location_solid),
+                title: 'Current Campus',
+                subtitle: 'BI ${selectedCampus.name}',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Use the campus switcher on the home screen to change campus',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        // Controller Mode Section (only show if user has permissions)
+        ref
+            .watch(controllerPermissionsProvider)
+            .when(
+              data: (hasPermissions) => hasPermissions
+                  ? BisoSection(
+                      title: 'Validator Mode',
+                      child: BisoListGroup(
                         children: [
-                          Icon(Icons.brightness_6_outlined),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'Appearance',
-                              style: TextStyle(fontWeight: FontWeight.w600),
+                          BisoListRow(
+                            leading: const BisoIconTile(
+                              icon: CupertinoIcons.qrcode_viewfinder,
                             ),
+                            title: 'Open Validator Mode',
+                            subtitle: 'Scan student QR codes to verify membership',
+                            onTap: () => context.push('/controller-mode'),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 40),
-                        child: Text(
-                          'Choose a theme or follow your system setting',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: SegmentedButton<ThemeMode>(
-                          segments: const [
-                            ButtonSegment(
-                              value: ThemeMode.system,
-                              icon: Icon(Icons.phone_iphone),
-                              label: Text('System'),
-                            ),
-                            ButtonSegment(
-                              value: ThemeMode.light,
-                              icon: Icon(Icons.light_mode_outlined),
-                              label: Text('Light'),
-                            ),
-                            ButtonSegment(
-                              value: ThemeMode.dark,
-                              icon: Icon(Icons.dark_mode_outlined),
-                              label: Text('Dark'),
-                            ),
-                          ],
-                          selected: {themeMode},
-                          onSelectionChanged: (selection) {
-                            ref
-                                .read(themeModeProvider.notifier)
-                                .setThemeMode(selection.first);
-                          },
-                          style: ButtonStyle(
-                            visualDensity: VisualDensity.compact,
-                            foregroundColor:
-                                WidgetStateProperty.resolveWith<Color?>((
-                                  states,
-                                ) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return Colors.white;
-                                  }
-                                  return brandColor;
-                                }),
-                            backgroundColor:
-                                WidgetStateProperty.resolveWith<Color?>((
-                                  states,
-                                ) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return brandColor;
-                                  }
-                                  return null;
-                                }),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    )
+                  : const SizedBox.shrink(),
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
             ),
-          ),
 
-          const SizedBox(height: 24),
-
-          // Campus Section
-          Text(
-            'Campus',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _getCampusColor(selectedCampus.id),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.location_city, color: Colors.white),
+        BisoSection(
+          title: 'Data & Storage',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.arrow_2_circlepath),
+                title: 'Clear Cache',
+                subtitle: 'Free up storage space',
+                onTap: () => _showClearCacheDialog(context),
               ),
-              title: Text('Current Campus'),
-              subtitle: Text('BI ${selectedCampus.name}'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Use the campus switcher on the home screen to change campus',
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Controller Mode Section (only show if user has permissions)
-          ref
-              .watch(controllerPermissionsProvider)
-              .when(
-                data: (hasPermissions) => hasPermissions
-                    ? Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Validator Mode',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                          ),
-                          const SizedBox(height: 12),
-                          Card(
-                            child: ListTile(
-                              leading: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: _getCampusColor(selectedCampus.id),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.qr_code_scanner,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              title: const Text('Open Validator Mode'),
-                              subtitle: const Text(
-                                'Scan student QR codes to verify membership',
-                              ),
-                              trailing: const Icon(
-                                Icons.arrow_forward_ios,
-                                size: 16,
-                              ),
-                              onTap: () {
-                                context.push('/controller-mode');
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.arrow_down_circle),
+                title: 'Offline Data',
+                subtitle: 'Manage downloaded content',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Offline data management coming soon')),
+                  );
+                },
               ),
-
-          // Data Section
-          Text(
-            'Data & Storage',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            ],
           ),
+        ),
 
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.cached,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Clear Cache'),
-                  subtitle: const Text('Free up storage space'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () => _showClearCacheDialog(context),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(
-                    Icons.download,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Offline Data'),
-                  subtitle: const Text('Manage downloaded content'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Offline data management coming soon'),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
+        BisoSection(
+          title: 'About',
+          child: BisoListGroup(
+            children: [
+              const BisoListRow(
+                leading: BisoIconTile(icon: CupertinoIcons.info_circle),
+                title: 'App Version',
+                subtitle: '1.0.0 (Build 1)',
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.shield),
+                title: 'Privacy Policy',
+                onTap: () => launchUrl(Uri.parse('https://biso.no/privacy')),
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.doc_text),
+                title: 'Terms of Service',
+                onTap: () => launchUrl(Uri.parse('https://biso.no/terms')),
+              ),
+            ],
           ),
-
-          const SizedBox(height: 24),
-
-          // About Section
-          Text(
-            'About',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.info_outline,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('App Version'),
-                  subtitle: const Text('1.0.0 (Build 1)'),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(
-                    Icons.privacy_tip_outlined,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Privacy Policy'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    launchUrl(Uri.parse('https://biso.no/privacy'));
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(
-                    Icons.description_outlined,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Terms of Service'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    launchUrl(Uri.parse('https://biso.no/terms'));
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
-  }
-
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
   }
 
   void _showClearCacheDialog(BuildContext context) {
@@ -593,109 +449,87 @@ class _GeneralSettingsTab extends ConsumerWidget {
   }
 }
 
-class _NotificationSettingsTab extends ConsumerWidget {
+class _NotificationSettingsBody extends ConsumerWidget {
+  const _NotificationSettingsBody();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final selectedCampus = ref.watch(selectedCampusProvider);
     final notificationPrefsAsync = ref.watch(notificationPreferencesProvider);
     final topicIntentAsync = ref.watch(topicIntentProvider);
     final homeCampusId = ref.watch(
       authStateProvider.select((state) => state.user?.campusId),
     );
 
-    return SingleChildScrollView(
-      padding: BisoNavigationInset.padding(
-        context,
-        const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Push Notifications',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BisoSection(
+          title: 'Push Notifications',
+          footer: homeCampusId == null
+              ? 'You will receive national updates. Set your campus in your profile '
+                    'to also get campus news.'
+              : 'You receive updates for your campus and national updates.',
+          child: topicIntentAsync.when(
+            data: (intent) => BisoListGroup(
+              children: [
+                for (final topic in NotificationTopic.values)
+                  buildNotificationTile(
+                    icon: _topicIcon(topic),
+                    accent: _topicAccent(topic),
+                    title: topic.label,
+                    subtitle: _topicSubtitle(topic),
+                    isEnabled: intent[topic.id] ?? false,
+                    onChanged: (value) async {
+                      final result = await ref
+                          .read(topicIntentProvider.notifier)
+                          .setTopic(topic.id, value);
+                      if (!context.mounted) return;
+                      switch (result) {
+                        case null:
+                          // The save itself failed - nothing was recorded.
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Could not update ${topic.label} notifications. '
+                                'Check your connection and try again.',
+                              ),
+                            ),
+                          );
+                          break;
+                        case ReconcileOutcome.applied:
+                          // Saved and this device is subscribed. No snackbar.
+                          break;
+                        case ReconcileOutcome.permissionDenied:
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Saved. Turn on notifications in your device '
+                                'settings to receive them.',
+                              ),
+                            ),
+                          );
+                          break;
+                        case ReconcileOutcome.unavailable:
+                        case ReconcileOutcome.partiallyFailed:
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Saved, but this device could not be updated. '
+                                'It will retry next time you open the app.',
+                              ),
+                            ),
+                          );
+                          break;
+                      }
+                    },
+                  ),
+              ],
             ),
-          ),
-
-          const SizedBox(height: 12),
-
-          topicIntentAsync.when(
-            data: (intent) => Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+            loading: () => const _CardBlock(child: Center(child: CircularProgressIndicator())),
+            error: (error, _) => _CardBlock(
               child: Column(
-                children: [
-                  for (final topic in NotificationTopic.values) ...[
-                    if (topic != NotificationTopic.values.first) buildDivider(),
-                    buildNotificationTile(
-                      context: context,
-                      ref: ref,
-                      icon: _topicIcon(topic),
-                      iconColor: _topicColor(topic),
-                      title: topic.label,
-                      subtitle: _topicSubtitle(topic),
-                      isEnabled: intent[topic.id] ?? false,
-                      onChanged: (value) async {
-                        final result = await ref
-                            .read(topicIntentProvider.notifier)
-                            .setTopic(topic.id, value);
-                        if (!context.mounted) return;
-                        switch (result) {
-                          case null:
-                            // The save itself failed - nothing was recorded.
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Could not update ${topic.label} notifications. '
-                                  'Check your connection and try again.',
-                                ),
-                              ),
-                            );
-                            break;
-                          case ReconcileOutcome.applied:
-                            // Saved and this device is subscribed. No snackbar.
-                            break;
-                          case ReconcileOutcome.permissionDenied:
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Saved. Turn on notifications in your device '
-                                  'settings to receive them.',
-                                ),
-                              ),
-                            );
-                            break;
-                          case ReconcileOutcome.unavailable:
-                          case ReconcileOutcome.partiallyFailed:
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Saved, but this device could not be updated. '
-                                  'It will retry next time you open the app.',
-                                ),
-                              ),
-                            );
-                            break;
-                        }
-                      },
-                      selectedCampus: selectedCampus,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            loading: () => const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'Could not load your notification settings.',
@@ -703,210 +537,126 @@ class _NotificationSettingsTab extends ConsumerWidget {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () =>
-                        ref.read(topicIntentProvider.notifier).refresh(),
+                  FilledButton(
+                    onPressed: () => ref.read(topicIntentProvider.notifier).refresh(),
                     child: const Text('Retry'),
                   ),
                 ],
               ),
             ),
           ),
+        ),
 
-          Padding(
-            padding: const EdgeInsets.only(top: 8, left: 4),
-            child: Text(
-              homeCampusId == null
-                  ? 'You will receive national updates. Set your campus in your profile '
-                        'to also get campus news.'
-                  : 'You receive updates for your campus and national updates.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          notificationPrefsAsync.when(
-            data: (preferences) => Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: buildNotificationTile(
-                context: context,
-                ref: ref,
-                icon: Icons.chat_outlined,
-                iconColor: AppColors.defaultBlue,
-                title: 'Chat Messages',
-                subtitle: 'New messages and conversations',
-                isEnabled: preferences['chat_notifications'] ?? true,
-                onChanged: (value) {
-                  ref
-                      .read(notificationPreferencesProvider.notifier)
-                      .updateChatNotifications(value);
-                },
-                selectedCampus: selectedCampus,
-              ),
-            ),
-            loading: () => const Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(16)),
-              ),
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-            error: (error, stack) => Card(
-              elevation: 2,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(16)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: AppColors.error,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load notification preferences',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: AppColors.error,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        ref
-                            .read(notificationPreferencesProvider.notifier)
-                            .refresh();
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          Text(
-            'Notification Schedule',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
+        BisoSection(
+          child: notificationPrefsAsync.when(
+            data: (preferences) => BisoListGroup(
               children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.schedule,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Quiet Hours'),
-                  subtitle: const Text(
-                    'Mute notifications during specific hours',
-                  ),
-                  trailing: Switch(
-                    value: false,
-                    onChanged: (value) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Quiet hours feature coming soon'),
-                        ),
-                      );
-                    },
-                    thumbColor: campusSwitchThumbColor(
-                      _getCampusColor(selectedCampus.id),
-                    ),
-                    trackColor: campusSwitchTrackColor(
-                      _getCampusColor(selectedCampus.id),
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(
-                    Icons.vibration,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Vibration'),
-                  subtitle: const Text('Vibrate for notifications'),
-                  trailing: Switch(
-                    value: true,
-                    onChanged: (value) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Vibration settings coming soon'),
-                        ),
-                      );
-                    },
-                    thumbColor: campusSwitchThumbColor(
-                      _getCampusColor(selectedCampus.id),
-                    ),
-                    trackColor: campusSwitchTrackColor(
-                      _getCampusColor(selectedCampus.id),
-                    ),
-                  ),
+                buildNotificationTile(
+                  icon: CupertinoIcons.chat_bubble,
+                  accent: BisoAccent.teal,
+                  title: 'Chat Messages',
+                  subtitle: 'New messages and conversations',
+                  isEnabled: preferences['chat_notifications'] ?? true,
+                  onChanged: (value) {
+                    ref
+                        .read(notificationPreferencesProvider.notifier)
+                        .updateChatNotifications(value);
+                  },
                 ),
               ],
             ),
+            loading: () => const _CardBlock(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (error, stack) => _CardBlock(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    CupertinoIcons.exclamationmark_circle,
+                    size: 48,
+                    color: BisoPalette.of(context).error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Failed to load notification preferences',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: BisoPalette.of(context).error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    error.toString(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: BisoPalette.of(context).muted,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () {
+                      ref.read(notificationPreferencesProvider.notifier).refresh();
+                    },
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
 
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
+        BisoSection(
+          title: 'Notification Schedule',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.clock),
+                title: 'Quiet Hours',
+                subtitle: 'Mute notifications during specific hours',
+                trailing: Switch.adaptive(
+                  value: false,
+                  onChanged: (value) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Quiet hours feature coming soon')),
+                    );
+                  },
+                ),
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.waveform),
+                title: 'Vibration',
+                subtitle: 'Vibrate for notifications',
+                trailing: Switch.adaptive(
+                  value: true,
+                  onChanged: (value) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vibration settings coming soon')),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
 IconData _topicIcon(NotificationTopic topic) => switch (topic) {
-  NotificationTopic.news => Icons.article_outlined,
-  NotificationTopic.events => Icons.event_outlined,
-  NotificationTopic.jobs => Icons.work_outline,
-  NotificationTopic.shop => Icons.shopping_bag_outlined,
+  NotificationTopic.news => CupertinoIcons.news,
+  NotificationTopic.events => CupertinoIcons.calendar,
+  NotificationTopic.jobs => CupertinoIcons.briefcase,
+  NotificationTopic.shop => CupertinoIcons.bag,
 };
 
-Color _topicColor(NotificationTopic topic) => switch (topic) {
-  NotificationTopic.news => AppColors.defaultBlue,
-  NotificationTopic.events => AppColors.accentBlue,
-  NotificationTopic.jobs => AppColors.purple9,
-  NotificationTopic.shop => AppColors.green9,
+BisoAccent _topicAccent(NotificationTopic topic) => switch (topic) {
+  NotificationTopic.news => BisoAccent.blue,
+  NotificationTopic.events => BisoAccent.blue,
+  NotificationTopic.jobs => BisoAccent.teal,
+  NotificationTopic.shop => BisoAccent.gold,
 };
 
 String _topicSubtitle(NotificationTopic topic) => switch (topic) {
@@ -916,56 +666,43 @@ String _topicSubtitle(NotificationTopic topic) => switch (topic) {
   NotificationTopic.shop => 'New items and offers in the BISO shop',
 };
 
-class _PrivacySettingsTab extends ConsumerWidget {
+class _PrivacySettingsBody extends ConsumerWidget {
+  const _PrivacySettingsBody();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final authState = ref.watch(authStateProvider);
-    final selectedCampus = ref.watch(selectedCampusProvider);
 
     if (authState.user == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: BisoSkeleton.rows(count: 2),
+      );
     }
 
     final userId = authState.user!.id;
     final privacyStatusAsync = ref.watch(privacyStatusProvider(userId));
     final userPrivacyAsync = ref.watch(userPrivacyProvider(userId));
 
-    return SingleChildScrollView(
-      padding: BisoNavigationInset.padding(
-        context,
-        const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Chat Privacy',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
-              children: [
-                userPrivacyAsync.when(
-                  data: (isPublic) => SwitchListTile(
-                    secondary: Icon(
-                      isPublic == true ? Icons.public : Icons.lock_outline,
-                      color: isPublic == true
-                          ? AppColors.green9
-                          : AppColors.orange9,
-                    ),
-                    title: const Text('Public Profile'),
-                    subtitle: Text(
-                      isPublic == true
-                          ? 'Others can find and message you'
-                          : 'Others cannot find you in search',
-                    ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BisoSection(
+          title: 'Chat Privacy',
+          footer: privacyStatusAsync.valueOrNull,
+          child: BisoListGroup(
+            children: [
+              userPrivacyAsync.when(
+                data: (isPublic) => BisoListRow(
+                  leading: BisoIconTile(
+                    icon: isPublic == true ? CupertinoIcons.globe : CupertinoIcons.lock,
+                    accent: isPublic == true ? BisoAccent.teal : BisoAccent.neutral,
+                  ),
+                  title: 'Public Profile',
+                  subtitle: isPublic == true
+                      ? 'Others can find and message you'
+                      : 'Others cannot find you in search',
+                  trailing: Switch.adaptive(
                     value: isPublic == true,
                     onChanged: (value) async {
                       try {
@@ -986,7 +723,7 @@ class _PrivacySettingsTab extends ConsumerWidget {
                                     ? 'Public profile created - others can find you in search'
                                     : 'Public profile removed - you won\'t appear in search',
                               ),
-                              backgroundColor: AppColors.defaultBlue,
+                              backgroundColor: BisoPalette.of(context).link,
                             ),
                           );
                         }
@@ -994,321 +731,171 @@ class _PrivacySettingsTab extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(
-                                'Failed to update privacy setting: $e',
-                              ),
-                              backgroundColor: AppColors.error,
+                              content: Text('Failed to update privacy setting: $e'),
+                              backgroundColor: BisoPalette.of(context).error,
                             ),
                           );
                         }
                       }
                     },
-                    thumbColor: campusSwitchThumbColor(
-                      _getCampusColor(selectedCampus.id),
-                    ),
-                    trackColor: campusSwitchTrackColor(
-                      _getCampusColor(selectedCampus.id),
-                    ),
-                  ),
-                  loading: () => const ListTile(
-                    leading: CircularProgressIndicator(),
-                    title: Text('Loading privacy settings...'),
-                  ),
-                  error: (error, stack) => ListTile(
-                    leading: const Icon(
-                      Icons.error_outline,
-                      color: AppColors.error,
-                    ),
-                    title: const Text('Error loading privacy settings'),
-                    subtitle: Text(error.toString()),
                   ),
                 ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Privacy status display
-          privacyStatusAsync.when(
-            data: (status) => Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.brightness == Brightness.dark
-                    ? AppColors.midNavy.withValues(alpha: 0.5)
-                    : AppColors.subtleBlue,
-                borderRadius: BorderRadius.circular(12),
+                loading: () => buildLoadingTile('Loading privacy settings...'),
+                error: (error, stack) =>
+                    buildErrorTile('Error loading privacy settings', error.toString()),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: theme.brightness == Brightness.dark
-                        ? AppColors.skyBlue
-                        : AppColors.defaultBlue,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      status,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.brightness == Brightness.dark
-                            ? AppColors.skyBlue
-                            : AppColors.defaultBlue,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            loading: () => const SizedBox.shrink(),
-            error: (error, stack) => const SizedBox.shrink(),
+            ],
           ),
+        ),
 
-          const SizedBox(height: 24),
-
-          Text(
-            'Privacy Information',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.public, color: AppColors.green9, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Public Profile',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.green9,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
+        BisoSection(
+          title: 'Privacy Information',
+          child: BisoListGroup(
+            children: [
+              _PrivacyInfoRow(
+                icon: CupertinoIcons.globe,
+                accent: BisoAccent.teal,
+                title: 'Public Profile',
+                bullets:
                     '• Others can find you in user search\n'
                     '• Students can start conversations with you\n'
                     '• You appear in recent contacts\n'
                     '• You can still control who messages you',
-                    style: TextStyle(height: 1.4),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.lock_outline,
-                        color: AppColors.orange9,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Private Profile',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.orange9,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
+              ),
+              _PrivacyInfoRow(
+                icon: CupertinoIcons.lock,
+                accent: BisoAccent.neutral,
+                title: 'Private Profile',
+                bullets:
                     '• Others cannot find you in search\n'
                     '• You can still message others\n'
                     '• Only you can start new conversations\n'
                     '• Existing conversations remain active',
-                    style: TextStyle(height: 1.4),
-                  ),
-                ],
               ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A row of descriptive bullet text, too long for [BisoListRow]'s two-line
+/// subtitle, explaining one privacy state.
+class _PrivacyInfoRow extends StatelessWidget {
+  const _PrivacyInfoRow({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.bullets,
+  });
+
+  final IconData icon;
+  final BisoAccent accent;
+  final String title;
+  final String bullets;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BisoIconTile(icon: icon, accent: accent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: text.titleMedium?.copyWith(color: palette.ink)),
+                const SizedBox(height: 6),
+                Text(
+                  bullets,
+                  style: text.bodyMedium?.copyWith(color: palette.muted, height: 1.4),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
-  }
 }
 
-class _LanguageSettingsTab extends ConsumerWidget {
-  final List<Map<String, String>> _languages = [
+class _LanguageSettingsBody extends ConsumerWidget {
+  const _LanguageSettingsBody();
+
+  static const _languages = [
     {'code': 'en', 'name': 'English', 'nativeName': 'English'},
     {'code': 'no', 'name': 'Norwegian', 'nativeName': 'Norsk'},
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final currentLocale = ref.watch(localeProvider);
-    final selectedCampus = ref.watch(selectedCampusProvider);
 
-    return SingleChildScrollView(
-      padding: BisoNavigationInset.padding(
-        context,
-        const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'App Language',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
-              children: _languages.map((language) {
-                return RadioListTile<String>(
-                  value: language['code']!,
-                  groupValue: currentLocale.languageCode,
-                  onChanged: (value) {
-                    if (value != null) {
-                      ref.read(localeProvider.notifier).setLocale(value);
-                    }
-                  },
-                  title: Text(language['name']!),
-                  subtitle: Text(language['nativeName']!),
-                  activeColor: _getCampusColor(selectedCampus.id),
-                );
-              }).toList(),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.brightness == Brightness.dark
-                  ? AppColors.midNavy.withValues(alpha: 0.5)
-                  : AppColors.subtleBlue,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline,
-                  color: theme.brightness == Brightness.dark
-                      ? AppColors.skyBlue
-                      : AppColors.defaultBlue,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BisoSection(
+          title: 'App Language',
+          footer: 'Language changes will take effect immediately.',
+          child: BisoListGroup(
+            children: [
+              for (final language in _languages)
+                BisoListRow(
+                  title: language['name']!,
+                  subtitle: language['nativeName']!,
+                  trailing: Radio<String>(
+                    value: language['code']!,
+                    groupValue: currentLocale.languageCode,
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(localeProvider.notifier).setLocale(value);
+                      }
+                    },
+                  ),
+                  onTap: () => ref.read(localeProvider.notifier).setLocale(language['code']!),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Language changes will take effect immediately.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.brightness == Brightness.dark
-                          ? AppColors.skyBlue
-                          : AppColors.defaultBlue,
+            ],
+          ),
+        ),
+
+        BisoSection(
+          title: 'Regional Settings',
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.clock),
+                title: 'Date Format',
+                subtitle: 'DD/MM/YYYY (Norwegian)',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Date format options coming soon')),
+                  );
+                },
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.money_dollar_circle),
+                title: 'Currency',
+                subtitle: 'NOK (Norwegian Krone)',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Currency is automatically set to NOK for BI students',
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
+                  );
+                },
+              ),
+            ],
           ),
-
-          const SizedBox(height: 24),
-
-          Text(
-            'Regional Settings',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.schedule,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Date Format'),
-                  subtitle: const Text('DD/MM/YYYY (Norwegian)'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Date format options coming soon'),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: Icon(
-                    Icons.attach_money,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  title: const Text('Currency'),
-                  subtitle: const Text('NOK (Norwegian Krone)'),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Currency is automatically set to NOK for BI students',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
-  }
-
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
   }
 }
