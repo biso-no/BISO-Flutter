@@ -357,9 +357,8 @@ void main() {
         // "NOK 999" measures 311.5pt (per the same `TextPainter` method
         // used for the checkout fixture above) — under 342pt with margin
         // to spare, so this exercises the ordinary single-line case rather
-        // than forcing `_SubtotalAmount`'s own split fallback (that path is
-        // exercised directly by unit-testing `_AmountRow`'s equivalent
-        // logic in the checkout fixture instead).
+        // than forcing `_SubtotalAmount`'s own split fallback (the next
+        // test forces that path).
         final bigCart = [
           CartItem.fromProduct(
             product: const WebshopProduct(
@@ -386,6 +385,72 @@ void main() {
         final subtotal = bigCart.single.lineTotal;
         expect(formatNok(subtotal), 'NOK 999');
         _expectFullSizeAmount(tester, formatNok(subtotal));
+      },
+    );
+
+    testWidgets(
+      'a subtotal too wide for the bar splits into currency and number, '
+      'and is still read as one amount at 1.6x text (R11)',
+      (tester) async {
+        // Sized to force `_SubtotalAmount`'s split branch. Per direct
+        // `TextPainter` measurement against `PremiumTheme` at
+        // `headlineMedium`/1.6x in this harness's synthetic font (reported
+        // in the fix-round-4 section of the task report): "NOK 1200"
+        // measures 356pt, wider than the bar's 342pt content width, while
+        // the number piece "1200" measures 178pt and "NOK" 133.5pt, so
+        // each piece still fits a line of its own.
+        final wideCart = [
+          CartItem.fromProduct(
+            product: const WebshopProduct(
+              id: 'prod-wide',
+              images: [],
+              title: 'Wide Order',
+              regularPrice: 100,
+            ),
+            quantity: 12,
+          ),
+        ];
+        _seedCart(wideCart);
+        final semantics = tester.ensureSemantics();
+        await pumpBisoScreen(
+          tester,
+          const CartScreen(),
+          overrides: [cartUserIdProvider.overrideWithValue(_buyerId)],
+          textScale: 1.6,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final subtotal = formatNok(wideCart.single.lineTotal);
+        expect(subtotal, 'NOK 1200');
+
+        // The bar's subtotal is split; the line's own (smaller) total is
+        // the same string, so scope the "not one paragraph" check to the
+        // bottom bar rather than the whole screen.
+        final bar = find.byType(BisoBottomBar);
+        expect(
+          find.descendant(of: bar, matching: find.text(subtotal)),
+          findsNothing,
+          reason: '"$subtotal" should be split into separate currency/number '
+              'pieces in the bottom bar, not rendered as one paragraph',
+        );
+        for (final piece in subtotal.split(' ')) {
+          _expectFullSizeAmount(tester, piece);
+        }
+
+        // A screen reader must announce the amount as one phrase, not
+        // "NOK" and "1200" as two separate elements.
+        expect(
+          find.descendant(
+            of: bar,
+            matching: find.bySemanticsLabel(RegExp(r'^NOK\s+1200$')),
+          ),
+          findsOneWidget,
+          reason: 'the split subtotal should be one semantics node',
+        );
+        expect(find.bySemanticsLabel('NOK'), findsNothing);
+        expect(find.bySemanticsLabel('1200'), findsNothing);
+        semantics.dispose();
       },
     );
 

@@ -342,6 +342,10 @@ class _QuantityStepper extends StatelessWidget {
 /// *between* the code and the number, never inside either one — unlike a
 /// plain, uncapped `Text`, which would happily hard-wrap in the middle of
 /// the digits once nothing softer is left to break on.
+///
+/// Like `_AmountRow` on checkout, the whole amount sits under one
+/// [MergeSemantics], so a screen reader announces the split pieces as one
+/// amount rather than "NOK" and the number as two separate elements.
 class _SubtotalAmount extends StatelessWidget {
   const _SubtotalAmount({required this.subtotal});
 
@@ -355,30 +359,32 @@ class _SubtotalAmount extends StatelessWidget {
     ).textTheme.headlineMedium?.copyWith(color: palette.ink);
     final amount = formatNok(subtotal);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxWidth = constraints.maxWidth;
-        final painter = TextPainter(
-          text: TextSpan(text: amount, style: style),
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-          maxLines: 1,
-        )..layout();
-        final fitsOneLine = !maxWidth.isFinite || painter.width <= maxWidth;
+    return MergeSemantics(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+          final painter = TextPainter(
+            text: TextSpan(text: amount, style: style),
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+            maxLines: 1,
+          )..layout();
+          final fitsOneLine = !maxWidth.isFinite || painter.width <= maxWidth;
 
-        if (fitsOneLine) {
-          return Text(amount, maxLines: 1, softWrap: false, style: style);
-        }
-        return Wrap(
-          alignment: WrapAlignment.start,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 4,
-          children: [
-            for (final piece in amount.split(' '))
-              Text(piece, maxLines: 1, softWrap: false, style: style),
-          ],
-        );
-      },
+          if (fitsOneLine) {
+            return Text(amount, maxLines: 1, softWrap: false, style: style);
+          }
+          return Wrap(
+            alignment: WrapAlignment.start,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            children: [
+              for (final piece in amount.split(' '))
+                Text(piece, maxLines: 1, softWrap: false, style: style),
+            ],
+          );
+        },
+      ),
     );
   }
 }
