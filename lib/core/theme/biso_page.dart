@@ -141,12 +141,15 @@ class _BisoPageState extends State<BisoPage> {
     super.initState();
     final target = BisoPageDebug.initialScroll.value;
     if (kDebugMode && target > 0 && widget.slivers != null) {
+      // Consumed by this page only; later pages must not inherit it.
+      BisoPageDebug.initialScroll.value = 0;
       // Content usually arrives asynchronously; wait for it before jumping.
       _debugScroll = Timer(const Duration(milliseconds: 1500), () {
         if (!mounted) return;
         final controller =
             widget.controller ?? PrimaryScrollController.maybeOf(context);
         if (controller == null || !controller.hasClients) return;
+        if (controller.positions.length != 1) return;
         final position = controller.position;
         controller.jumpTo(target.clamp(0.0, position.maxScrollExtent));
       });

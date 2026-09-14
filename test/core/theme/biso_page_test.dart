@@ -326,4 +326,26 @@ void main() {
     );
     expect(find.byKey(const ValueKey('biso-header-band')), findsOneWidget);
   });
+
+  testWidgets('debug initial scroll applies to the next page only', (
+    tester,
+  ) async {
+    phone(tester);
+    BisoPageDebug.initialScroll.value = 300;
+    addTearDown(() => BisoPageDebug.initialScroll.value = 0);
+    await tester.pumpWidget(app(BisoPage(title: 'Shop', slivers: rows())));
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump();
+    expect(
+      tester.state<ScrollableState>(scrollable).position.pixels,
+      300,
+    );
+    expect(BisoPageDebug.initialScroll.value, 0);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(app(BisoPage(title: 'Other', slivers: rows())));
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump();
+    expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
+  });
 }
