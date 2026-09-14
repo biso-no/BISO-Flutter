@@ -1,148 +1,29 @@
-import '../../../core/theme/biso_navigation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:go_router/go_router.dart';
 import 'dart:io';
 
-import '../../../core/constants/app_colors.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../../data/models/product_model.dart';
 import '../../../data/services/product_service.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../widgets/biso/biso.dart';
+
+/// Injectable so tests can replace the Appwrite-backed service with a fake.
+/// `_SellProductScreenState` watches this instead of constructing
+/// `ProductService()` directly.
+final _productServiceProvider = Provider<ProductService>(
+  (ref) => ProductService(),
+);
 
 class SellProductScreen extends ConsumerStatefulWidget {
   const SellProductScreen({super.key});
 
   @override
   ConsumerState<SellProductScreen> createState() => _SellProductScreenState();
-}
-
-class _PremiumField extends StatelessWidget {
-  final TextEditingController controller;
-  final String label;
-  final String? hint;
-  final int maxLines;
-  final TextInputType? keyboardType;
-  final String? Function(String?)? validator;
-  const _PremiumField({
-    required this.controller,
-    required this.label,
-    this.hint,
-    this.maxLines = 1,
-    this.keyboardType,
-    this.validator,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        filled: true,
-        fillColor: AppColors.gray50,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.defaultBlue),
-        ),
-      ),
-    );
-  }
-}
-
-class _PremiumPillSelector extends StatelessWidget {
-  final String? value;
-  final String label;
-  final List<String> options;
-  final String Function(String) display;
-  final bool allowNull;
-  final void Function(String) onChanged;
-  const _PremiumPillSelector({
-    required this.value,
-    required this.label,
-    required this.options,
-    required this.display,
-    required this.onChanged,
-    this.allowNull = false,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: AppColors.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            if (allowNull)
-              _pill(
-                context,
-                selected: value == null,
-                text: 'None',
-                onTap: () => onChanged(''),
-              ),
-            ...options.map(
-              (o) => _pill(
-                context,
-                selected: value == o,
-                text: display(o),
-                onTap: () => onChanged(o),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _pill(
-    BuildContext context, {
-    required bool selected,
-    required String text,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.subtleBlue : Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected ? AppColors.defaultBlue : AppColors.outlineVariant,
-          ),
-        ),
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: selected ? AppColors.defaultBlue : AppColors.charcoalBlack,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _SellProductScreenState extends ConsumerState<SellProductScreen> {
@@ -183,257 +64,263 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final auth = ref.watch(authStateProvider);
     final _ = ref.watch(
       filterCampusProvider,
     ); // keep reactive to campus changes
 
     if (!auth.isAuthenticated || auth.user == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Sell Item')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.lock_outline,
-                  size: 64,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Please sign in to sell items',
-                  style: theme.textTheme.titleMedium,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => context.go('/auth/login'),
-                  child: const Text('Sign In'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    final isDark = theme.brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-      appBar: AppBar(
-        title: const Text('Sell Item'),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _handleCancel,
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(
-              onPressed: _submitting ? null : _submit,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+      return BisoPage(
+        title: 'Sell Item',
+        largeTitle: false,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.lock,
+              accent: BisoAccent.gold,
+              title: 'Please sign in to sell items',
+              action: FilledButton(
+                onPressed: () => context.go('/auth/login'),
+                child: const Text('Sign In'),
               ),
-              child: _submitting
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Publish'),
             ),
           ),
         ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: BisoNavigationInset.padding(
-            context,
-            const EdgeInsets.all(16),
-          ),
-          children: [
-            // Images picker
-            _buildImagesPicker(theme),
+      );
+    }
 
-            const SizedBox(height: 16),
+    return Form(key: _formKey, child: _buildForm());
+  }
 
-            _PremiumField(
-              controller: _nameController,
-              label: 'Title',
-              hint: 'e.g., MacBook Pro 13"',
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Title is required' : null,
-            ),
-
-            const SizedBox(height: 12),
-
-            _PremiumField(
-              controller: _descriptionController,
-              label: 'Description',
-              maxLines: 5,
-              validator: (v) => (v == null || v.trim().length < 10)
-                  ? 'Please add a bit more detail'
-                  : null,
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _PremiumField(
-                    controller: _priceController,
-                    label: 'Price (NOK)',
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      final num? val = num.tryParse(v.replaceAll(',', '.'));
-                      if (val == null || val <= 0) {
-                        return 'Enter a valid amount';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _PremiumPillSelector(
-                    value: _category,
-                    label: 'Category',
-                    options: _categories,
-                    display: _categoryLabel,
-                    onChanged: (v) => setState(() => _category = v),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _PremiumPillSelector(
-                    value: _condition,
-                    label: 'Condition',
-                    options: _conditions,
-                    display: _conditionLabel,
-                    onChanged: (v) => setState(() => _condition = v),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              value: _isNegotiable,
-              onChanged: (v) => setState(() => _isNegotiable = v),
-              title: const Text('Price is negotiable'),
-            ),
-
-            const Divider(height: 24),
-
-            _PremiumPillSelector(
-              value: _contactMethod,
-              label: 'Preferred contact (optional)',
-              options: _contactMethods,
-              display: _contactLabel,
-              onChanged: (v) => setState(() => _contactMethod = v),
-              allowNull: true,
-            ),
-
-            const SizedBox(height: 12),
-
-            _PremiumField(
-              controller: _contactInfoController,
-              label: 'Contact info (optional)',
-            ),
-
-            const SizedBox(height: 32),
-
-            FilledButton.icon(
-              onPressed: _submitting ? null : _submit,
-              icon: const Icon(Icons.publish),
-              label: const Text('Publish'),
-            ),
-          ],
+  Widget _buildForm() {
+    return BisoPage(
+      title: 'Sell Item',
+      largeTitle: false,
+      automaticallyImplyLeading: false,
+      actions: [
+        BisoHeaderAction(
+          icon: CupertinoIcons.xmark,
+          tooltip: 'Cancel',
+          onPressed: _handleCancel,
         ),
-      ),
+        BisoHeaderAction(
+          icon: CupertinoIcons.checkmark,
+          tooltip: 'Publish',
+          onPressed: _submitting ? null : _submit,
+        ),
+      ],
+      slivers: [
+        SliverToBoxAdapter(
+          child: BisoSection(title: 'Photos', child: _buildImagesPicker()),
+        ),
+        SliverToBoxAdapter(
+          child: Builder(builder: (context) => _buildDetailsGroup(context)),
+        ),
+        SliverToBoxAdapter(
+          child: Builder(builder: (context) => _buildPriceGroup(context)),
+        ),
+        SliverToBoxAdapter(
+          child: BisoFormGroup(
+            title: 'Category & condition',
+            children: [
+              BisoListRow(
+                title: 'Category',
+                value: _categoryLabel(_category),
+                onTap: _showCategoryPicker,
+              ),
+              BisoListRow(
+                title: 'Condition',
+                value: _conditionLabel(_condition),
+                onTap: _showConditionPicker,
+              ),
+            ],
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Builder(builder: (context) => _buildContactGroup(context)),
+        ),
+      ],
     );
   }
 
-  Widget _buildImagesPicker(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  /// [context] must be a descendant of the enclosing [BisoPage] (obtained via
+  /// a [Builder] at each call site) — this state's own context sits above
+  /// it, so [BisoPageInsets.maybeOf] would find nothing there and a focused
+  /// field could end up tucked behind the translucent header once the
+  /// keyboard opens.
+  EdgeInsets _scrollPaddingFor(BuildContext context) {
+    final insets = BisoPageInsets.maybeOf(context);
+    return insets != null
+        ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+        : const EdgeInsets.all(20);
+  }
+
+  Widget _buildDetailsGroup(BuildContext context) {
+    final scrollPadding = _scrollPaddingFor(context);
+    return BisoFormGroup(
+      title: 'Details',
       children: [
-        Text('Photos', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        BisoFormRow(
+          label: 'Title',
+          child: TextFormField(
+            controller: _nameController,
+            textInputAction: TextInputAction.next,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(
+              context,
+              hintText: 'e.g., MacBook Pro 13"',
+            ),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Title is required' : null,
+          ),
+        ),
+        BisoFormRow(
+          label: 'Description',
+          child: TextFormField(
+            controller: _descriptionController,
+            maxLines: 5,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context),
+            validator: (v) => (v == null || v.trim().length < 10)
+                ? 'Please add a bit more detail'
+                : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPriceGroup(BuildContext context) {
+    final scrollPadding = _scrollPaddingFor(context);
+    return BisoFormGroup(
+      title: 'Price',
+      children: [
+        BisoFormRow(
+          label: 'Price (NOK)',
+          child: TextFormField(
+            controller: _priceController,
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+            ),
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context, prefixText: 'NOK '),
+            validator: (v) {
+              if (v == null || v.trim().isEmpty) return 'Required';
+              final num? val = num.tryParse(v.replaceAll(',', '.'));
+              if (val == null || val <= 0) {
+                return 'Enter a valid amount';
+              }
+              return null;
+            },
+          ),
+        ),
+        BisoListRow(
+          title: 'Price is negotiable',
+          trailing: Switch.adaptive(
+            value: _isNegotiable,
+            onChanged: (v) => setState(() => _isNegotiable = v),
+          ),
+          onTap: () => setState(() => _isNegotiable = !_isNegotiable),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContactGroup(BuildContext context) {
+    final scrollPadding = _scrollPaddingFor(context);
+    final hasContactMethod =
+        _contactMethod != null && _contactMethod!.isNotEmpty;
+    return BisoFormGroup(
+      title: 'Contact',
+      children: [
+        BisoListRow(
+          title: 'Preferred contact (optional)',
+          value: hasContactMethod ? _contactLabel(_contactMethod!) : 'None',
+          onTap: _showContactMethodPicker,
+        ),
+        BisoFormRow(
+          label: 'Contact info (optional)',
+          child: TextFormField(
+            controller: _contactInfoController,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagesPicker() {
+    const crossAxisCount = 3;
+    const spacing = 8.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final palette = BisoPalette.of(context);
+        final tileSize =
+            (constraints.maxWidth - spacing * (crossAxisCount - 1)) /
+            crossAxisCount;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
           children: [
             ..._images.map(
-              (x) => Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.file(
-                      File(x.path),
-                      width: 96,
-                      height: 96,
-                      fit: BoxFit.cover,
+              (x) => SizedBox(
+                width: tileSize,
+                height: tileSize,
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Image.file(
+                        File(x.path),
+                        width: tileSize,
+                        height: tileSize,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: InkWell(
-                      onTap: () => setState(() => _images.remove(x)),
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 14,
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _images.remove(x)),
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.xmark,
+                            color: Colors.white,
+                            size: 14,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            InkWell(
-              onTap: _pickImages,
-              child: Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: AppColors.gray50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.outlineVariant),
+            SizedBox(
+              width: tileSize,
+              height: tileSize,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: _pickImages,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: palette.surfaceRaised,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(CupertinoIcons.camera, color: palette.muted),
                 ),
-                child: const Center(child: Icon(Icons.add_a_photo)),
               ),
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -448,6 +335,98 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
         }
       });
     }
+  }
+
+  void _showCategoryPicker() {
+    _showOptionPicker(
+      title: 'Category',
+      options: _categories,
+      display: _categoryLabel,
+      selected: _category,
+      onSelected: (v) => setState(() => _category = v),
+    );
+  }
+
+  void _showConditionPicker() {
+    _showOptionPicker(
+      title: 'Condition',
+      options: _conditions,
+      display: _conditionLabel,
+      selected: _condition,
+      onSelected: (v) => setState(() => _condition = v),
+    );
+  }
+
+  void _showContactMethodPicker() {
+    _showOptionPicker(
+      title: 'Preferred contact',
+      options: _contactMethods,
+      display: _contactLabel,
+      // A previous "None" tap stores '' (see below) rather than null — kept
+      // exactly so `_hasChanges()`/`_submit()` see the same value as before;
+      // both null and '' read as "no selection" here for display only.
+      selected: (_contactMethod?.isEmpty ?? true) ? null : _contactMethod,
+      allowNull: true,
+      onSelected: (v) => setState(() => _contactMethod = v),
+    );
+  }
+
+  /// One bottom sheet used for category, condition and contact method: a
+  /// grouped list of options with a checkmark on the current selection,
+  /// mirroring the language sheet in `explore_screen.dart`.
+  void _showOptionPicker({
+    required String title,
+    required List<String> options,
+    required String Function(String) display,
+    required String? selected,
+    required ValueChanged<String> onSelected,
+    bool allowNull = false,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        final palette = BisoPalette.of(sheetContext);
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: BisoSection(
+              title: title,
+              padding: EdgeInsets.zero,
+              child: BisoListGroup(
+                children: [
+                  if (allowNull)
+                    BisoListRow(
+                      title: 'None',
+                      trailing: selected == null
+                          ? Icon(CupertinoIcons.checkmark, color: palette.link)
+                          : null,
+                      onTap: () {
+                        // The original pill selector's "None" also passed an
+                        // empty string, not null, to its onChanged callback —
+                        // kept identical here.
+                        onSelected('');
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                  for (final option in options)
+                    BisoListRow(
+                      title: display(option),
+                      trailing: selected == option
+                          ? Icon(CupertinoIcons.checkmark, color: palette.link)
+                          : null,
+                      onTap: () {
+                        onSelected(option);
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   bool _hasChanges() {
@@ -473,6 +452,7 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
   }
 
   Future<bool> _showDiscardDialog() async {
+    final palette = BisoPalette.of(context);
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -487,11 +467,10 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: palette.error),
             child: const Text('Discard'),
           ),
         ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
     return result ?? false;
@@ -535,7 +514,7 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
             : _contactInfoController.text.trim(),
       );
 
-      final service = ProductService();
+      final service = ref.read(_productServiceProvider);
       final createdProduct = await service.createProduct(
         product: product,
         imagePaths: _images.map((x) => x.path).toList(),
