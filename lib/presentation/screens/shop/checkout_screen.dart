@@ -157,11 +157,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         slivers: [
           SliverFillRemaining(
             hasScrollBody: false,
-            child: BisoErrorState(
+            child: BisoEmptyState(
+              icon: CupertinoIcons.exclamationmark_triangle,
+              title: 'We could not price your cart',
               message: error is ShopApiException
                   ? error.message
                   : 'Something went wrong. Please try again.',
-              onRetry: () => ref.invalidate(checkoutQuoteProvider),
+              action: FilledButton(
+                onPressed: () => ref.invalidate(checkoutQuoteProvider),
+                child: const Text('Try again'),
+              ),
             ),
           ),
         ],
@@ -341,31 +346,51 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ThemeData theme,
     BisoPalette palette,
   ) {
+    // A `value:` row renders its amount in a `Flexible` with one line and an
+    // ellipsis, so at large text scales a price can become "NOK 12…" — R11
+    // (amounts and counts never truncate). `trailing:` shares the row with
+    // the title as a sibling `Flexible`, and a `FittedBox` inside it scales
+    // the digits down rather than clipping or wrapping them, so a long
+    // title and a wide amount can never force the row itself to overflow.
+    Widget amountRow(String title, String amount, {String? subtitle}) {
+      return BisoListRow(
+        title: title,
+        subtitle: subtitle,
+        trailing: Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              amount,
+              maxLines: 1,
+              style: theme.textTheme.bodyLarge?.copyWith(color: palette.muted),
+            ),
+          ),
+        ),
+      );
+    }
+
     final rows = <Widget>[
       for (final line in quote.items)
-        BisoListRow(
-          title: line.title,
+        amountRow(
+          line.title,
+          formatNok(line.lineTotal),
           subtitle: '${line.quantity} × ${formatNok(line.unitPrice)}',
-          value: formatNok(line.lineTotal),
         ),
     ];
 
     if (quote.discountTotal > 0) {
+      rows.add(amountRow('Subtotal', formatNok(quote.originalTotal)));
       rows.add(
-        BisoListRow(title: 'Subtotal', value: formatNok(quote.originalTotal)),
-      );
-      rows.add(
-        BisoListRow(
-          title: quote.memberDiscountPercent > 0
+        _MemberDiscountRow(
+          label: quote.memberDiscountPercent > 0
               ? 'Member discount '
                     '(${quote.memberDiscountPercent.toStringAsFixed(0)}%)'
               : 'Member discount',
-          trailing: Text(
-            '-${formatNok(quote.discountTotal)}',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: palette.success,
-            ),
-          ),
+          amount: '-${formatNok(quote.discountTotal)}',
+          color: palette.success,
+          style: theme.textTheme.titleMedium,
+          amountStyle: theme.textTheme.bodyLarge,
         ),
       );
     }
@@ -373,9 +398,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     rows.add(
       BisoListRow(
         title: 'Total',
-        trailing: Text(
-          formatNok(quote.total),
-          style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
+        trailing: Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              formatNok(quote.total),
+              maxLines: 1,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: palette.ink,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -523,6 +557,63 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     } finally {
       if (mounted) setState(() => _isStarting = false);
     }
+  }
+}
+
+/// The member-discount line in the order summary. A plain [BisoListRow]
+/// can't tint its own `title:`, and the original screen colored both the
+/// label and the amount to call the discount out — so this builds the row
+/// itself, on the same footprint as [BisoListRow]. The amount sits in a
+/// `Flexible`+`FittedBox` (R11: amounts never truncate — this scales the
+/// digits down rather than clipping or wrapping them if the label and the
+/// amount can't both fit at full size) and the label is free to wrap.
+class _MemberDiscountRow extends StatelessWidget {
+  const _MemberDiscountRow({
+    required this.label,
+    required this.amount,
+    required this.color,
+    this.style,
+    this.amountStyle,
+  });
+
+  final String label;
+  final String amount;
+  final Color color;
+  final TextStyle? style;
+  final TextStyle? amountStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: style?.copyWith(color: color),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  amount,
+                  maxLines: 1,
+                  style: amountStyle?.copyWith(color: color),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

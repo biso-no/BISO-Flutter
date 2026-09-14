@@ -101,6 +101,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               onQuantityChanged: (quantity) => ref
                   .read(cartProvider.notifier)
                   .setQuantity(item.lineId, quantity),
+              onRemove: () =>
+                  ref.read(cartProvider.notifier).removeLine(item.lineId),
             );
           },
         ),
@@ -140,10 +142,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 }
 
 class _CartLine extends StatelessWidget {
-  const _CartLine({super.key, required this.item, required this.onQuantityChanged});
+  const _CartLine({
+    super.key,
+    required this.item,
+    required this.onQuantityChanged,
+    required this.onRemove,
+  });
 
   final CartItem item;
   final ValueChanged<int> onQuantityChanged;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -155,91 +163,106 @@ class _CartLine extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: item.imageUrl == null
-                  ? ColoredBox(
-                      color: palette.surfaceRaised,
-                      child: Icon(CupertinoIcons.photo, color: palette.muted),
-                    )
-                  : CachedNetworkImage(
-                      imageUrl: item.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => ColoredBox(
-                        color: palette.surfaceRaised,
-                        child: Icon(
-                          CupertinoIcons.exclamationmark_triangle,
-                          color: palette.muted,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: item.imageUrl == null
+                      ? ColoredBox(
+                          color: palette.surfaceRaised,
+                          child: Icon(
+                            CupertinoIcons.photo,
+                            color: palette.muted,
+                          ),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, _, _) => ColoredBox(
+                            color: palette.surfaceRaised,
+                            child: Icon(
+                              CupertinoIcons.exclamationmark_triangle,
+                              color: palette.muted,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: palette.ink,
-                  ),
                 ),
-                if (item.variationName != null &&
-                    item.variationName!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      item.variationName!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.muted,
-                      ),
-                    ),
-                  ),
-                // The buyer's answers are part of what makes this line
-                // distinct from another line of the same product, so they
-                // belong on the line rather than hidden until the receipt.
-                for (final entry in item.customFields.entries)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      '${item.customFieldLabels[entry.key] ?? entry.key}: '
-                      '${entry.value}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: palette.muted,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _QuantityStepper(
-                      quantity: item.quantity,
-                      canIncrease: canIncrease,
-                      onChanged: onQuantityChanged,
+                    Text(
+                      item.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: palette.ink,
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        formatNok(item.lineTotal),
-                        textAlign: TextAlign.end,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: palette.ink,
+                    if (item.variationName != null &&
+                        item.variationName!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          item.variationName!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: palette.muted,
+                          ),
                         ),
                       ),
-                    ),
+                    // The buyer's answers are part of what makes this line
+                    // distinct from another line of the same product, so
+                    // they belong on the line rather than hidden until the
+                    // receipt.
+                    for (final entry in item.customFields.entries)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '${item.customFieldLabels[entry.key] ?? entry.key}: '
+                          '${entry.value}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: palette.muted,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-              ],
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: onRemove,
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: Icon(CupertinoIcons.xmark, size: 18, color: palette.muted),
+                tooltip: 'Remove',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // The stepper and the price each get a full-width line of their
+          // own: sharing one row left too little space for a wide price
+          // ("NOK 1234.50") beside a two-digit quantity at large text
+          // scales (R11 — amounts and counts never truncate).
+          _QuantityStepper(
+            quantity: item.quantity,
+            canIncrease: canIncrease,
+            onChanged: onQuantityChanged,
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              formatNok(item.lineTotal),
+              maxLines: 1,
+              style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
             ),
           ),
         ],
@@ -279,11 +302,13 @@ class _QuantityStepper extends StatelessWidget {
               tooltip: 'Decrease quantity',
             ),
           ),
-          SizedBox(
-            width: 24,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 24),
             child: Text(
               '$quantity',
               textAlign: TextAlign.center,
+              maxLines: 1,
+              softWrap: false,
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(color: palette.ink),
@@ -339,10 +364,22 @@ class _CartSummary extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              formatNok(subtotal),
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: palette.ink,
+            // headlineMedium (28pt) at large text scale can outgrow even the
+            // whole bar's width for a big cart — Flexible+FittedBox keeps
+            // every digit visible on one line, shrinking the glyphs rather
+            // than truncating or overflowing (R11).
+            Flexible(
+              flex: 3,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  formatNok(subtotal),
+                  maxLines: 1,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: palette.ink,
+                  ),
+                ),
               ),
             ),
           ],
