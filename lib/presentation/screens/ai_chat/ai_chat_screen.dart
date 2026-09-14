@@ -6,6 +6,7 @@ import '../../../core/theme/biso_chrome.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/ai_chat_models.dart';
 import '../../../data/services/ai_chat_service.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../widgets/ai_chat/ai_message_bubble.dart';
 import '../../widgets/ai_chat/chat_input_field.dart';
 import '../../widgets/ai_chat/typing_indicator.dart';
@@ -35,11 +36,28 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
   bool _isStreaming = false;
   String? _currentStreamingMessageId;
   String? _errorMessage;
+  double _lastBottomInset = 0;
 
   @override
   void initState() {
     super.initState();
     _checkAuthAndShowWelcome();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The message list doesn't reverse-anchor to the bottom the way
+    // `chat_conversation_screen.dart`'s does, so opening the keyboard
+    // shrinks the scroll viewport without moving the scroll position: the
+    // newest message can end up hidden below the now-higher composer.
+    // Re-run the same scroll-to-bottom used after every send whenever the
+    // keyboard inset grows.
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    if (bottomInset > _lastBottomInset) {
+      _scrollToBottom();
+    }
+    _lastBottomInset = bottomInset;
   }
 
   Future<void> _checkAuthAndShowWelcome() async {
@@ -195,7 +213,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
 
       if (messageIndex >= 0) {
         final oldMessage = _messages[messageIndex];
-        logPrint('📝 [AI_BUBBLE] Old message parts: ${oldMessage.parts.length}');
+        logPrint('📝 [AI_CHAT] Old message parts: ${oldMessage.parts.length}');
 
         _messages[messageIndex] = _chatService.updateMessageWithText(
           _messages[messageIndex],
@@ -368,6 +386,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return BisoPage(
       title: 'BISO AI Assistant',
       largeTitle: false,
@@ -378,7 +397,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       actions: [
         BisoHeaderAction(
           icon: CupertinoIcons.arrow_clockwise,
-          tooltip: 'New conversation',
+          tooltip: l10n?.newConversationMessage ?? 'New conversation',
           onPressed: _clearChat,
         ),
       ],
@@ -455,6 +474,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
         }
 
         return Padding(
+          key: ValueKey('ai-chat-message-${message.id}'),
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: isUser
               ? UserMessageBubble(message: message)

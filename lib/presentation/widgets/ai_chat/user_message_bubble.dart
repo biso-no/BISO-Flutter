@@ -106,7 +106,7 @@ class _UserMessageBubbleState extends State<UserMessageBubble>
       onTap: () => _showInteractionFeedback(),
       onLongPress: () => _copyToClipboard(textContent),
       child: Container(
-        key: const ValueKey('ai-user-bubble'),
+        key: ValueKey('ai-user-bubble-${widget.message.id}'),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: palette.primary,

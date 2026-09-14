@@ -1084,6 +1084,9 @@ class AppLocalizationsNo extends AppLocalizations {
   }
 
   @override
+  String get newConversationMessage => 'Ny samtale';
+
+  @override
   String get newExpenseMessage => 'Ny utgift';
 
   @override

@@ -2038,6 +2038,12 @@ abstract class AppLocalizations {
   /// **'Network error: {e}'**
   String networkErrorMessage(String e);
 
+  /// Tooltip for the AI assistant's clear-chat header action
+  ///
+  /// In en, this message translates to:
+  /// **'New conversation'**
+  String get newConversationMessage;
+
   /// Auto-extracted string (used in 2 files)
   ///
   /// In en, this message translates to:

@@ -1079,6 +1079,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get newConversationMessage => 'New conversation';
+
+  @override
   String get newExpenseMessage => 'New Expense';
 
   @override

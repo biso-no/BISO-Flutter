@@ -1402,6 +1402,10 @@
       }
     }
   },
+  "newConversationMessage": "New conversation",
+  "@newConversationMessage": {
+    "description": "Tooltip for the AI assistant's clear-chat header action"
+  },
   "newExpenseMessage": "New Expense",
   "@newExpenseMessage": {
     "description": "Auto-extracted string (used in 2 files)"
