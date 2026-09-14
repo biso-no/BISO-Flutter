@@ -52,7 +52,12 @@ class BisoLargeTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+    padding: const EdgeInsets.fromLTRB(
+      20,
+      4,
+      20,
+      kBisoLargeTitleBottomPadding,
+    ),
     child: Semantics(
       header: true,
       child: Text(

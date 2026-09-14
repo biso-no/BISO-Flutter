@@ -3,6 +3,7 @@ import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/core/theme/biso_page_header.dart';
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -64,6 +65,17 @@ Finder get scrollable => find
       matching: find.byType(Scrollable),
     )
     .first;
+
+double compactTitleOpacity(WidgetTester tester) => tester
+    .widget<Opacity>(
+      find
+          .ancestor(
+            of: find.byKey(const ValueKey('biso-compact-title')),
+            matching: find.byType(Opacity),
+          )
+          .first,
+    )
+    .opacity;
 
 bool anyRowUnder(WidgetTester tester, Rect area) => List.generate(
   40,
@@ -348,4 +360,81 @@ void main() {
     await tester.pump();
     expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
   });
+
+  // A short page (an empty state) can only scroll by its bottom clearance, and
+  // the scroll rests wherever that ends. When that lands just past the large
+  // title, the header must not show a half-faded compact title with the large
+  // title already gone underneath it.
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    for (final textScale in [1.0, 2.0]) {
+      testWidgets(
+        'a short page resting just past the large title shows the compact '
+        'title in full (${platform.name}, text x$textScale)',
+        (tester) async {
+          phone(tester);
+          debugDefaultTargetPlatformOverride = platform;
+          addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+          Widget page(double barHeight) => app(
+            BisoPage(
+              title: 'Inbox',
+              bottomBar: SizedBox(height: barHeight),
+              slivers: const [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: Text('No notifications yet')),
+                ),
+              ],
+            ),
+            textScale: textScale,
+          );
+
+          await tester.pumpWidget(page(0));
+          await tester.pump();
+          // BisoLargeTitle pads its text 4 pt above and 12 pt below.
+          final titleExtent =
+              tester
+                  .getSize(find.byKey(const ValueKey('biso-large-title')))
+                  .height +
+              16;
+          final restingMax = tester
+              .state<ScrollableState>(scrollable)
+              .position
+              .maxScrollExtent;
+          // Make the page able to scroll to 4 pt short of the whole title
+          // block: the title text is then entirely under the header.
+          final bar = titleExtent - 4 - restingMax;
+          await tester.pumpWidget(page(bar));
+          await tester.pump();
+          await tester.pump();
+
+          await tester.drag(
+            find.byType(CustomScrollView),
+            const Offset(0, -400),
+          );
+          await tester.pumpAndSettle();
+
+          final position = tester.state<ScrollableState>(scrollable).position;
+          final header = tester.getRect(headerFinder);
+          final largeTitle = tester.getRect(
+            find.byKey(const ValueKey('biso-large-title')),
+          );
+          final compact = compactTitleOpacity(tester);
+          final band = find.byKey(const ValueKey('biso-header-band'));
+          debugDefaultTargetPlatformOverride = null;
+
+          expect(position.pixels, closeTo(titleExtent - 4, 0.01));
+          expect(largeTitle.bottom, lessThanOrEqualTo(header.bottom));
+          expect(
+            compact,
+            1,
+            reason:
+                'resting at ${position.pixels} with the large title under '
+                'the header, the compact title must be fully shown',
+          );
+          expect(band, findsOneWidget);
+        },
+      );
+    }
+  }
 }

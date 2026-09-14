@@ -139,7 +139,7 @@ void main() {
     expect(find.byType(BackdropFilter), findsOneWidget);
     expect(bandTintAlpha(tester), closeTo(0.78 * 0.5, 0.001));
     expect(titleOpacity(tester), 0);
-    offset.value = 58; // extent 60 - 8 = 52, so (58 - 52) / 12 = 0.5
+    offset.value = 42; // extent 60 - 12 - 12 = 36, so (42 - 36) / 12 = 0.5
     await tester.pump();
     expect(titleOpacity(tester), closeTo(0.5, 0.001));
     offset.value = 200;
@@ -147,6 +147,41 @@ void main() {
     expect(bandTintAlpha(tester), closeTo(0.78, 0.001));
     expect(titleOpacity(tester), 1);
   });
+
+  testWidgets(
+    'compact title is as full as the band once the large title text is under '
+    'the header, and never fuller than the band',
+    (tester) async {
+      for (final extent in [60.0, 30.0, 16.0]) {
+        final offset = ValueNotifier<double>(0);
+        await tester.pumpWidget(header(offset: offset, titleExtent: extent));
+        // BisoLargeTitle pads its text 12 pt below, so the text is entirely
+        // under the header from extent - 12.
+        for (var at = 0.0; at <= extent + 24; at += 1) {
+          offset.value = at;
+          await tester.pump();
+          final title = titleOpacity(tester);
+          final band = find.byKey(const ValueKey('biso-header-band'));
+          final bandAmount = band.evaluate().isEmpty
+              ? 0.0
+              : bandTintAlpha(tester) / 0.78;
+          if (at >= extent - 12) {
+            // As full as the band allows (the band itself is full from 12).
+            expect(
+              title,
+              closeTo(bandAmount, 0.001),
+              reason: 'extent $extent, offset $at',
+            );
+          }
+          expect(
+            title,
+            lessThanOrEqualTo(bandAmount + 0.001),
+            reason: 'extent $extent, offset $at: title without its band',
+          );
+        }
+      }
+    },
+  );
 
   testWidgets('dark mode tints the band with 72% paper', (tester) async {
     await tester.pumpWidget(

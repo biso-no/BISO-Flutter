@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
@@ -14,6 +15,10 @@ const double kBisoHeaderHeight = 52;
 
 /// Scroll distance over which the header band fades in.
 const double _fadeDistance = 12;
+
+/// Space `BisoLargeTitle` leaves under its text. Once the page has scrolled
+/// its large-title extent minus this, the text is entirely under the header.
+const double kBisoLargeTitleBottomPadding = 12;
 
 class BisoHeaderAction {
   const BisoHeaderAction({
@@ -247,10 +252,21 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
               ? (offset > start ? 1.0 : 0.0)
               : ((offset - start) / _fadeDistance).clamp(0.0, 1.0);
           final band = fadeAfter(0);
+          // The compact title is fully in by the time the large title's text
+          // is entirely under the header, so wherever a scroll comes to rest
+          // (a short page can only scroll by its bottom clearance) one of the
+          // two titles is readable. It never gets ahead of its band either.
           final titleOpacity = widget.overImage
               ? band
               : widget.showLargeTitle
-              ? fadeAfter(widget.largeTitleExtent.value - 8)
+              ? math.min(
+                  band,
+                  fadeAfter(
+                    widget.largeTitleExtent.value -
+                        kBisoLargeTitleBottomPadding -
+                        _fadeDistance,
+                  ),
+                )
               : 1.0;
           final onImage = widget.overImage && band < 0.5;
           final palette = BisoPalette.of(context);
