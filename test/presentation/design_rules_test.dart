@@ -52,6 +52,9 @@ const migratedFiles = <String>[
   'lib/presentation/widgets/ai_chat/user_message_bubble.dart',
   'lib/presentation/widgets/ai_chat/markdown_text.dart',
   'lib/presentation/screens/events/large_event_screen.dart',
+  'lib/presentation/screens/auth/login_screen.dart',
+  'lib/presentation/screens/auth/otp_verification_screen.dart',
+  'lib/presentation/screens/auth/magic_link_verify_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{
