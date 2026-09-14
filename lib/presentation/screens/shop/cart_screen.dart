@@ -1,14 +1,14 @@
-import '../../../core/theme/biso_navigation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/cart_item.dart';
 import '../../../providers/shop/cart_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 /// The cart: what the buyer has picked, before they commit to paying.
 ///
@@ -25,8 +25,6 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen> {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final cart = ref.watch(cartProvider);
 
     // A reservation sync can discover that stock went while the buyer was
@@ -40,55 +38,80 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       ref.read(cartProvider.notifier).clearError();
     });
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-        elevation: 0,
-        leading: NavigationUtils.buildBackButton(
-          context,
-          fallbackRoute: '/explore/products',
-        ),
-        title: const Text('Your cart'),
-        centerTitle: true,
-        actions: [
-          if (!cart.isEmpty)
-            TextButton(onPressed: _confirmClear, child: const Text('Clear')),
-        ],
+    final leading = BisoBackButton(
+      onPressed: () => NavigationUtils.safeGoBack(
+        context,
+        fallbackRoute: '/explore/products',
       ),
-      body: _buildBody(cart, theme),
-      bottomNavigationBar: cart.isEmpty
-          ? null
-          : _CartSummaryBar(
-              subtotal: cart.subtotal,
-              itemCount: cart.itemCount,
-              onCheckout: () => context.push('/explore/products/checkout'),
-            ),
     );
-  }
 
-  Widget _buildBody(CartState cart, ThemeData theme) {
     if (cart.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (cart.isEmpty) {
-      return _EmptyCart(onBrowse: () => context.go('/explore/products'));
+      return BisoPage(
+        title: 'Your cart',
+        largeTitle: false,
+        leading: leading,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
+      );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      itemCount: cart.items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final item = cart.items[index];
-        return _CartLine(
-          item: item,
-          onQuantityChanged: (quantity) => ref
-              .read(cartProvider.notifier)
-              .setQuantity(item.lineId, quantity),
-          onRemove: () => ref.read(cartProvider.notifier).removeLine(item.lineId),
-        );
-      },
+    if (cart.isEmpty) {
+      return BisoPage(
+        title: 'Your cart',
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.bag,
+              accent: BisoAccent.gold,
+              title: 'Your cart is empty',
+              message:
+                  'Merch, tickets and everything else BISO sells lives in '
+                  'the shop.',
+              action: FilledButton.icon(
+                onPressed: () => context.go('/explore/products'),
+                icon: const Icon(CupertinoIcons.bag),
+                label: const Text('Browse the shop'),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return BisoPage(
+      title: 'Your cart',
+      leading: leading,
+      actions: [
+        BisoHeaderAction(
+          icon: CupertinoIcons.trash,
+          tooltip: 'Clear',
+          onPressed: _confirmClear,
+        ),
+      ],
+      slivers: [
+        SliverBisoListGroup(
+          dividerIndent: 16,
+          itemCount: cart.items.length,
+          itemBuilder: (context, index) {
+            final item = cart.items[index];
+            return _CartLine(
+              key: ValueKey('cart-line-${item.lineId}'),
+              item: item,
+              onQuantityChanged: (quantity) => ref
+                  .read(cartProvider.notifier)
+                  .setQuantity(item.lineId, quantity),
+            );
+          },
+        ),
+      ],
+      bottomBar: BisoBottomBar(
+        child: _CartSummary(
+          subtotal: cart.subtotal,
+          itemCount: cart.itemCount,
+          onCheckout: () => context.push('/explore/products/checkout'),
+        ),
+      ),
     );
   }
 
@@ -116,105 +139,43 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 }
 
-class _EmptyCart extends StatelessWidget {
-  const _EmptyCart({required this.onBrowse});
-
-  final VoidCallback onBrowse;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.shopping_bag_outlined,
-              size: 64,
-              color: AppColors.mist,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Your cart is empty',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Merch, tickets and everything else BISO sells lives in the shop.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onBrowse,
-              icon: const Icon(Icons.storefront_outlined),
-              label: const Text('Browse the shop'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.defaultBlue,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CartLine extends StatelessWidget {
-  const _CartLine({
-    required this.item,
-    required this.onQuantityChanged,
-    required this.onRemove,
-  });
+  const _CartLine({super.key, required this.item, required this.onQuantityChanged});
 
   final CartItem item;
   final ValueChanged<int> onQuantityChanged;
-  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
     // The stepper stops at the stock the product had when it was added; the
     // server clamps for real, this just avoids obviously futile taps.
     final canIncrease = item.stock == null || item.quantity < item.stock!;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.subtleBlue.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gray100),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
-              width: 72,
-              height: 72,
+              width: 56,
+              height: 56,
               child: item.imageUrl == null
-                  ? Container(
-                      color: AppColors.gray100,
-                      child: const Icon(
-                        Icons.image_outlined,
-                        color: AppColors.charcoalBlack,
-                      ),
+                  ? ColoredBox(
+                      color: palette.surfaceRaised,
+                      child: Icon(CupertinoIcons.photo, color: palette.muted),
                     )
                   : CachedNetworkImage(
                       imageUrl: item.imageUrl!,
                       fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => Container(
-                        color: AppColors.gray100,
-                        child: const Icon(
-                          Icons.broken_image_outlined,
-                          color: AppColors.charcoalBlack,
+                      errorWidget: (_, _, _) => ColoredBox(
+                        color: palette.surfaceRaised,
+                        child: Icon(
+                          CupertinoIcons.exclamationmark_triangle,
+                          color: palette.muted,
                         ),
                       ),
                     ),
@@ -227,20 +188,21 @@ class _CartLine extends StatelessWidget {
               children: [
                 Text(
                   item.name,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: palette.ink,
                   ),
                 ),
                 if (item.variationName != null &&
-                    item.variationName!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    item.variationName!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
+                    item.variationName!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      item.variationName!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: palette.muted,
+                      ),
                     ),
                   ),
-                ],
                 // The buyer's answers are part of what makes this line
                 // distinct from another line of the same product, so they
                 // belong on the line rather than hidden until the receipt.
@@ -251,7 +213,7 @@ class _CartLine extends StatelessWidget {
                       '${item.customFieldLabels[entry.key] ?? entry.key}: '
                       '${entry.value}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                        color: palette.muted,
                       ),
                     ),
                   ),
@@ -263,23 +225,22 @@ class _CartLine extends StatelessWidget {
                       canIncrease: canIncrease,
                       onChanged: onQuantityChanged,
                     ),
-                    const Spacer(),
-                    Text(
-                      formatNok(item.lineTotal),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.defaultBlue,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        formatNok(item.lineTotal),
+                        textAlign: TextAlign.end,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: palette.ink,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ],
             ),
-          ),
-          IconButton(
-            onPressed: onRemove,
-            icon: const Icon(Icons.close_rounded, size: 20),
-            tooltip: 'Remove',
           ),
         ],
       ),
@@ -300,32 +261,46 @@ class _QuantityStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final palette = BisoPalette.of(context);
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.gray100),
+        color: palette.surfaceRaised,
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () => onChanged(quantity - 1),
-            icon: const Icon(Icons.remove_rounded, size: 18),
-            tooltip: 'Decrease quantity',
+          SizedBox.square(
+            dimension: 44,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              onPressed: () => onChanged(quantity - 1),
+              icon: Icon(CupertinoIcons.minus, size: 16, color: palette.ink),
+              tooltip: 'Decrease quantity',
+            ),
           ),
-          Text(
-            '$quantity',
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$quantity',
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: palette.ink),
+            ),
           ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: canIncrease ? () => onChanged(quantity + 1) : null,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            tooltip: 'Increase quantity',
+          SizedBox.square(
+            dimension: 44,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              onPressed: canIncrease ? () => onChanged(quantity + 1) : null,
+              icon: Icon(
+                CupertinoIcons.plus,
+                size: 16,
+                color: canIncrease ? palette.ink : palette.muted,
+              ),
+              tooltip: 'Increase quantity',
+            ),
           ),
         ],
       ),
@@ -333,8 +308,8 @@ class _QuantityStepper extends StatelessWidget {
   }
 }
 
-class _CartSummaryBar extends StatelessWidget {
-  const _CartSummaryBar({
+class _CartSummary extends StatelessWidget {
+  const _CartSummary({
     required this.subtotal,
     required this.itemCount,
     required this.onCheckout,
@@ -347,66 +322,49 @@ class _CartSummaryBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: BisoNavigationInset.of(context)),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    final palette = BisoPalette.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Text(
-                  '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  formatNok(subtotal),
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
+            Expanded(
               child: Text(
-                'Member discounts are applied at checkout',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
+                '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.muted,
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onCheckout,
-                icon: const Icon(Icons.lock_outline_rounded),
-                label: const Text('Go to checkout'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: AppColors.defaultBlue,
-                ),
+            const SizedBox(width: 8),
+            Text(
+              formatNok(subtotal),
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: palette.ink,
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            'Member discounts are applied at checkout',
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onCheckout,
+            icon: const Icon(CupertinoIcons.lock),
+            label: const Text('Go to checkout'),
+          ),
+        ),
+      ],
     );
   }
 }

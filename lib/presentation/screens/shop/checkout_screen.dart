@@ -1,10 +1,9 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/checkout_quote.dart';
@@ -13,6 +12,7 @@ import '../../../data/services/shop_api_client.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/shop/cart_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 /// Where the buyer confirms who they are, how they want to pay, and what it
 /// costs — then leaves for Vipps or the card form.
@@ -78,7 +78,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
     final auth = ref.watch(authStateProvider);
     final cart = ref.watch(cartProvider);
 
@@ -88,161 +88,325 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _prefillFromProfile();
     });
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-        elevation: 0,
-        leading: NavigationUtils.buildBackButton(
-          context,
-          fallbackRoute: '/explore/products/cart',
-        ),
-        title: const Text('Checkout'),
-        centerTitle: true,
+    final leading = BisoBackButton(
+      onPressed: () => NavigationUtils.safeGoBack(
+        context,
+        fallbackRoute: '/explore/products/cart',
       ),
-      body: _buildBody(auth.isAuthenticated, cart.isEmpty, theme),
     );
-  }
 
-  Widget _buildBody(bool isAuthenticated, bool cartIsEmpty, ThemeData theme) {
-    if (!isAuthenticated) {
-      return _SignInPrompt(onSignIn: () => context.push('/auth/login'));
+    if (!auth.isAuthenticated) {
+      return BisoPage(
+        title: 'Checkout',
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.lock,
+              accent: BisoAccent.coral,
+              title: 'Sign in to complete your purchase',
+              message:
+                  'Your order, your receipt and any member discount are '
+                  'tied to your BISO account.',
+              action: FilledButton(
+                onPressed: () => context.push('/auth/login'),
+                child: const Text('Sign in'),
+              ),
+            ),
+          ),
+        ],
+      );
     }
-    if (cartIsEmpty) {
-      return _CheckoutMessage(
-        icon: Icons.shopping_bag_outlined,
-        title: 'Your cart is empty',
-        message: 'Add something from the shop to check out.',
-        actionLabel: 'Browse the shop',
-        onAction: () => context.go('/explore/products'),
+
+    if (cart.isEmpty) {
+      return BisoPage(
+        title: 'Checkout',
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.bag,
+              accent: BisoAccent.gold,
+              title: 'Your cart is empty',
+              message: 'Add something from the shop to check out.',
+              action: FilledButton(
+                onPressed: () => context.go('/explore/products'),
+                child: const Text('Browse the shop'),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
     final quote = ref.watch(checkoutQuoteProvider);
 
     return quote.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => _CheckoutMessage(
-        icon: Icons.error_outline_rounded,
-        title: 'We could not price your cart',
-        message: error is ShopApiException
-            ? error.message
-            : 'Something went wrong. Please try again.',
-        actionLabel: 'Back to cart',
-        onAction: () => context.go('/explore/products/cart'),
-        secondaryLabel: 'Try again',
-        onSecondary: () => ref.invalidate(checkoutQuoteProvider),
+      loading: () => BisoPage(
+        title: 'Checkout',
+        largeTitle: false,
+        leading: leading,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows(count: 3))],
       ),
-      data: (data) => _buildForm(data, theme),
+      error: (error, _) => BisoPage(
+        title: 'Checkout',
+        largeTitle: false,
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoErrorState(
+              message: error is ShopApiException
+                  ? error.message
+                  : 'Something went wrong. Please try again.',
+              onRetry: () => ref.invalidate(checkoutQuoteProvider),
+            ),
+          ),
+        ],
+      ),
+      data: (data) => _buildForm(data, leading, theme, palette),
     );
   }
 
-  Widget _buildForm(CheckoutQuote quote, ThemeData theme) {
+  Widget _buildForm(
+    CheckoutQuote quote,
+    Widget leading,
+    ThemeData theme,
+    BisoPalette palette,
+  ) {
     final providers = ref.watch(availablePaymentProvidersProvider);
+    final available = providers.valueOrNull ?? const <PaymentProvider>[];
 
     return Form(
       key: _formKey,
       autovalidateMode: AutovalidateMode.onUserInteractionIfError,
-      child: ListView(
-        padding: BisoNavigationInset.padding(
-          context,
-          const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        ),
-        children: [
-          _SectionCard(
-            step: 1,
-            title: 'Your details',
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Full name',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty)
-                      ? 'We need a name for the order'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    helperText: 'Your receipt goes here',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: _validateEmail,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
+      child: BisoPage(
+        title: 'Checkout',
+        leading: leading,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Builder(builder: (context) => _buildContactGroup(context)),
+          ),
+          SliverToBoxAdapter(
+            child: RadioGroup<PaymentProvider>(
+              groupValue: _resolveSelection(available),
+              onChanged: (provider) {
+                if (provider != null) {
+                  setState(() => _selectedProvider = provider);
+                }
+              },
+              child: BisoFormGroup(
+                title: 'How would you like to pay?',
+                children: _paymentRows(providers),
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            step: 2,
-            title: 'How would you like to pay?',
-            child: providers.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, _) => _ProviderUnavailable(
-                message:
-                    'We could not reach the payment service. Please try again '
-                    'in a moment.',
-                onRetry: () => ref.invalidate(paymentProvidersProvider),
-              ),
-              data: (available) => available.isEmpty
-                  ? const _ProviderUnavailable(
-                      message:
-                          'Payments are temporarily unavailable. Your cart is '
-                          'saved — please try again later.',
-                    )
-                  : _ProviderPicker(
-                      providers: available,
-                      selected: _resolveSelection(available),
-                      onSelected: (provider) =>
-                          setState(() => _selectedProvider = provider),
-                    ),
+          SliverToBoxAdapter(
+            child: BisoFormGroup(
+              title: 'Order summary',
+              children: _summaryRows(quote, theme, palette),
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            step: 3,
-            title: 'Order summary',
-            child: _OrderSummary(quote: quote),
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _ErrorBanner(message: _error!),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: _buildPayButton(quote, available),
+            ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            _ErrorBanner(message: _error!),
-          ],
-          const SizedBox(height: 24),
-          _buildPayButton(quote, providers.valueOrNull ?? const []),
-          const SizedBox(height: 12),
-          Text(
-            'You will be taken to your payment provider to complete the '
-            'purchase, then brought back here.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceVariant,
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                'You will be taken to your payment provider to complete the '
+                'purchase, then brought back here.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.muted,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// [context] is a descendant of the enclosing [BisoPage], obtained via a
+  /// [Builder] — this state's own context sits above it, so
+  /// [BisoPageInsets.maybeOf] would find nothing there. Without the real
+  /// insets, `EditableText`'s default scroll padding has no idea the
+  /// translucent header (and, on other screens, a floating bottom bar) is
+  /// there, and a focused field can end up tucked behind it once the
+  /// keyboard opens.
+  Widget _buildContactGroup(BuildContext context) {
+    final insets = BisoPageInsets.maybeOf(context);
+    final scrollPadding = insets != null
+        ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+        : const EdgeInsets.all(20);
+
+    return BisoFormGroup(
+      title: 'Your details',
+      children: [
+        BisoFormRow(
+          label: 'Full name',
+          child: TextFormField(
+            controller: _nameController,
+            textInputAction: TextInputAction.next,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context),
+            validator: (value) => (value == null || value.trim().isEmpty)
+                ? 'We need a name for the order'
+                : null,
+          ),
+        ),
+        BisoFormRow(
+          label: 'Email',
+          child: TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(
+              context,
+            ).copyWith(helperText: 'Your receipt goes here'),
+            validator: _validateEmail,
+          ),
+        ),
+        BisoFormRow(
+          label: 'Phone (optional)',
+          child: TextFormField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _paymentRows(AsyncValue<List<PaymentProvider>> providers) {
+    return providers.when(
+      loading: () => const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ],
+      error: (_, _) => [
+        _ProviderUnavailable(
+          message:
+              'We could not reach the payment service. Please try again '
+              'in a moment.',
+          onRetry: () => ref.invalidate(paymentProvidersProvider),
+        ),
+      ],
+      data: (available) => available.isEmpty
+          ? const [
+              _ProviderUnavailable(
+                message:
+                    'Payments are temporarily unavailable. Your cart is '
+                    'saved — please try again later.',
+              ),
+            ]
+          : [
+              for (final provider in available)
+                BisoListRow(
+                  title: provider.displayName,
+                  subtitle: provider.description,
+                  leading: BisoIconTile(
+                    icon: provider == PaymentProvider.vipps
+                        ? CupertinoIcons.device_phone_portrait
+                        : CupertinoIcons.creditcard,
+                    accent: BisoAccent.coral,
+                  ),
+                  trailing: Radio<PaymentProvider>.adaptive(value: provider),
+                  onTap: () => setState(() => _selectedProvider = provider),
+                ),
+            ],
+    );
+  }
+
+  List<Widget> _summaryRows(
+    CheckoutQuote quote,
+    ThemeData theme,
+    BisoPalette palette,
+  ) {
+    final rows = <Widget>[
+      for (final line in quote.items)
+        BisoListRow(
+          title: line.title,
+          subtitle: '${line.quantity} × ${formatNok(line.unitPrice)}',
+          value: formatNok(line.lineTotal),
+        ),
+    ];
+
+    if (quote.discountTotal > 0) {
+      rows.add(
+        BisoListRow(title: 'Subtotal', value: formatNok(quote.originalTotal)),
+      );
+      rows.add(
+        BisoListRow(
+          title: quote.memberDiscountPercent > 0
+              ? 'Member discount '
+                    '(${quote.memberDiscountPercent.toStringAsFixed(0)}%)'
+              : 'Member discount',
+          trailing: Text(
+            '-${formatNok(quote.discountTotal)}',
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: palette.success,
+            ),
+          ),
+        ),
+      );
+    }
+
+    rows.add(
+      BisoListRow(
+        title: 'Total',
+        trailing: Text(
+          formatNok(quote.total),
+          style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
+        ),
+      ),
+    );
+
+    if (quote.membershipApplied) {
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Row(
+            children: [
+              Icon(
+                CupertinoIcons.checkmark_seal_fill,
+                size: 16,
+                color: palette.success,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Your BISO membership discount has been applied.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return rows;
   }
 
   /// Keeps the selection valid: defaults to the first offerable provider, and
@@ -268,17 +432,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Icon(Icons.lock_outline_rounded),
+            : const Icon(CupertinoIcons.lock),
         label: Text(
           _isStarting
               ? 'Starting payment…'
               : provider == null
               ? 'Payments unavailable'
               : 'Pay ${formatNok(quote.total)} with ${provider.displayName}',
-        ),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: AppColors.defaultBlue,
         ),
       ),
     );
@@ -366,148 +526,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.step,
-    required this.title,
-    required this.child,
-  });
-
-  final int step;
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gray100),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: AppColors.defaultBlue,
-                child: Text(
-                  '$step',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _ProviderPicker extends StatelessWidget {
-  const _ProviderPicker({
-    required this.providers,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final List<PaymentProvider> providers;
-  final PaymentProvider? selected;
-  final ValueChanged<PaymentProvider> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        for (final provider in providers)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => onSelected(provider),
-              child: Semantics(
-                selected: provider == selected,
-                button: true,
-                label: '${provider.displayName}. ${provider.description}',
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: provider == selected
-                          ? AppColors.defaultBlue
-                          : AppColors.gray100,
-                      width: provider == selected ? 2 : 1,
-                    ),
-                    color: provider == selected
-                        ? AppColors.subtleBlue.withValues(alpha: 0.35)
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        provider == PaymentProvider.vipps
-                            ? Icons.smartphone_rounded
-                            : Icons.credit_card_rounded,
-                        color: AppColors.defaultBlue,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              provider.displayName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              provider.description,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        provider == selected
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_unchecked_rounded,
-                        color: provider == selected
-                            ? AppColors.defaultBlue
-                            : AppColors.mist,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class _ProviderUnavailable extends StatelessWidget {
   const _ProviderUnavailable({required this.message, this.onRetry});
 
@@ -517,147 +535,24 @@ class _ProviderUnavailable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          message,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceVariant,
+    final palette = BisoPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
           ),
-        ),
-        if (onRetry != null) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Try again'),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _OrderSummary extends StatelessWidget {
-  const _OrderSummary({required this.quote});
-
-  final CheckoutQuote quote;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        for (final line in quote.items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        line.title,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '${line.quantity} × ${formatNok(line.unitPrice)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(formatNok(line.lineTotal)),
-              ],
-            ),
-          ),
-        const Divider(),
-        if (quote.discountTotal > 0) ...[
-          _SummaryRow(label: 'Subtotal', value: formatNok(quote.originalTotal)),
-          _SummaryRow(
-            label: quote.memberDiscountPercent > 0
-                ? 'Member discount '
-                      '(${quote.memberDiscountPercent.toStringAsFixed(0)}%)'
-                : 'Member discount',
-            value: '-${formatNok(quote.discountTotal)}',
-            highlight: true,
-          ),
-          const SizedBox(height: 4),
-        ],
-        Row(
-          children: [
-            Text(
-              'Total',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              formatNok(quote.total),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppColors.defaultBlue,
-              ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(CupertinoIcons.arrow_clockwise),
+              label: const Text('Try again'),
             ),
           ],
-        ),
-        if (quote.membershipApplied) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(
-                Icons.card_membership_rounded,
-                size: 16,
-                color: AppColors.strongGold,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Your BISO membership discount has been applied.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.highlight = false,
-  });
-
-  final String label;
-  final String value;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = theme.textTheme.bodyMedium?.copyWith(
-      color: highlight ? AppColors.green9 : AppColors.onSurfaceVariant,
-      fontWeight: highlight ? FontWeight.w600 : FontWeight.w400,
-    );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Text(label, style: style),
-          const Spacer(),
-          Text(value, style: style),
         ],
       ),
     );
@@ -671,103 +566,28 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
+        color: palette.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        border: Border.all(color: palette.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error),
+          Icon(CupertinoIcons.exclamationmark_circle, color: palette.error),
           const SizedBox(width: 8),
-          Expanded(child: Text(message)),
-        ],
-      ),
-    );
-  }
-}
-
-class _SignInPrompt extends StatelessWidget {
-  const _SignInPrompt({required this.onSignIn});
-
-  final VoidCallback onSignIn;
-
-  @override
-  Widget build(BuildContext context) {
-    return _CheckoutMessage(
-      icon: Icons.lock_outline_rounded,
-      title: 'Sign in to complete your purchase',
-      message:
-          'Your order, your receipt and any member discount are tied to your '
-          'BISO account.',
-      actionLabel: 'Sign in',
-      onAction: onSignIn,
-    );
-  }
-}
-
-class _CheckoutMessage extends StatelessWidget {
-  const _CheckoutMessage({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-    this.secondaryLabel,
-    this.onSecondary,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String actionLabel;
-  final VoidCallback onAction;
-  final String? secondaryLabel;
-  final VoidCallback? onSecondary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: AppColors.mist),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
+          Expanded(
+            child: Text(
               message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: palette.ink),
             ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: onAction,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.defaultBlue,
-              ),
-              child: Text(actionLabel),
-            ),
-            if (secondaryLabel != null && onSecondary != null) ...[
-              const SizedBox(height: 8),
-              TextButton(onPressed: onSecondary, child: Text(secondaryLabel!)),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
