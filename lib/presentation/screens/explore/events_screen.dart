@@ -1,12 +1,9 @@
-import '../../../core/theme/biso_search_app_bar.dart';
-import '../../../core/theme/biso_navigation.dart';
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
@@ -14,6 +11,7 @@ import '../../../data/services/event_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
+import '../../widgets/biso/biso.dart';
 import '../../widgets/event/your_trip_card.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
@@ -305,83 +303,72 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: BisoSearchAppBar(
-        title: l10n.eventsMessage,
+    final List<Widget> contentSlivers;
+    if (_isLoading) {
+      contentSlivers = [
+        const SliverToBoxAdapter(
+          child: Column(
+            children: [BisoSkeleton.card(), BisoSkeleton.card()],
+          ),
+        ),
+      ];
+    } else {
+      // The empty state fills the viewport (via SliverFillRemaining) so a
+      // user looking at an empty campus can still pull to refresh.
+      _logEventsState(campusId: campusId);
+      contentSlivers = _events.isEmpty
+          ? [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: BisoEmptyState(
+                  icon: CupertinoIcons.calendar,
+                  accent: BisoAccent.blue,
+                  title: 'No Events Found',
+                  message: 'There are no events matching your criteria.',
+                ),
+              ),
+            ]
+          : [
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList.separated(
+                  itemCount: _events.length + (_isLoadingMore ? 1 : 0),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    if (index >= _events.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final event = _events[index];
+                    return _EventCard(
+                      event: event,
+                      onTap: () {
+                        _showEventDetails(context, event);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ];
+    }
+
+    return BisoPage(
+      title: l10n.eventsMessage,
+      leading: BisoBackButton(
+        onPressed: () =>
+            NavigationUtils.safeGoBack(context, fallbackRoute: '/explore'),
+      ),
+      search: BisoHeaderSearch(
         hintText: l10n.searchEventsMessage,
         initialQuery: ref.read(eventsSearchTermProvider) ?? '',
-        leading: NavigationUtils.buildBackButton(context),
         onChanged: _applySearch,
       ),
-      body: Column(
-        children: [
-          const Divider(height: 1),
-
-          // Events List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Builder(
-                    builder: (context) {
-                      _logEventsState(campusId: campusId);
-
-                      // The empty state is rendered inside the
-                      // RefreshIndicator (via a CustomScrollView so it fills
-                      // the viewport and stays scrollable) so a user looking
-                      // at an empty campus can still pull to refresh.
-                      return RefreshIndicator(
-                        onRefresh: _reload,
-                        child: _events.isEmpty
-                            ? CustomScrollView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                slivers: [
-                                  SliverFillRemaining(
-                                    hasScrollBody: false,
-                                    child: _EmptyState(
-                                      icon: Icons.event_busy,
-                                      title: 'No Events Found',
-                                      subtitle:
-                                          'There are no events matching your criteria.',
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : ListView.separated(
-                                controller: _scrollController,
-                                padding: BisoNavigationInset.padding(
-                                  context,
-                                  const EdgeInsets.all(16),
-                                ),
-                                itemCount:
-                                    _events.length + (_isLoadingMore ? 1 : 0),
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: 12),
-                                itemBuilder: (context, index) {
-                                  if (index >= _events.length) {
-                                    return const Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      child: Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    );
-                                  }
-                                  final event = _events[index];
-                                  return _EventCard(
-                                    event: event,
-                                    onTap: () {
-                                      _showEventDetails(context, event);
-                                    },
-                                  );
-                                },
-                              ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
+      onRefresh: _reload,
+      controller: _scrollController,
+      slivers: contentSlivers,
     );
   }
 
@@ -389,9 +376,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         minChildSize: 0.5,
@@ -474,6 +458,19 @@ String _lifecycleLabel(_EventLifecycle lifecycle, AppLocalizations l10n) {
   }
 }
 
+/// One color per lifecycle, shared by the card and the detail sheet.
+Color _statusColor(_EventLifecycle lifecycle, BisoPalette palette) {
+  switch (lifecycle) {
+    case _EventLifecycle.upcoming:
+    case _EventLifecycle.completed:
+      return palette.link;
+    case _EventLifecycle.ongoing:
+      return palette.success;
+    case _EventLifecycle.cancelled:
+      return palette.error;
+  }
+}
+
 class _EventCard extends StatelessWidget {
   final EventModel event;
   final VoidCallback onTap;
@@ -512,169 +509,151 @@ class _EventCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final palette = BisoPalette.of(context);
     final l10n = AppLocalizations.of(context)!;
     final lifecycle = _lifecycleOf(event);
-    final statusColor =
-        lifecycle == _EventLifecycle.upcoming ||
-            lifecycle == _EventLifecycle.completed
-        ? scheme.primary
-        : _getStatusColor(lifecycle);
+    final statusColor = _statusColor(lifecycle, palette);
+
     return Material(
-      color: scheme.surface,
+      color: palette.surface,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: 160,
+              width: double.infinity,
+              child: event.images.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: event.images.first,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 640,
+                      errorWidget: (_, _, _) =>
+                          _EventImagePlaceholder(palette: palette),
+                    )
+                  : _EventImagePlaceholder(palette: palette),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      width: 80,
-                      height: 96,
-                      child: event.images.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: event.images.first,
-                              fit: BoxFit.cover,
-                              memCacheWidth: 320,
-                              errorWidget: (_, _, _) => Icon(
-                                CupertinoIcons.calendar,
-                                color: scheme.primary,
-                              ),
-                            )
-                          : ColoredBox(
-                              color: scheme.surfaceContainerHighest,
-                              child: Icon(
-                                CupertinoIcons.calendar,
-                                color: scheme.primary,
-                              ),
-                            ),
+                  Text(
+                    // Render Appwrite UTC instants in the user's local
+                    // timezone.
+                    DateFormat(
+                      'MMM dd, HH:mm',
+                    ).format(event.startDate.toLocal()),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: palette.link,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          event.title,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontSize: 21,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // Render Appwrite UTC instants in the user's local timezone.
-                        Text(
-                          DateFormat(
-                            'MMM dd, HH:mm',
-                          ).format(event.startDate.toLocal()),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                        if (event.location?.isNotEmpty == true) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            event.location!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                        if (event.contactName?.isNotEmpty == true) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            event.contactName!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    event.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge,
                   ),
+                  if (event.location?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      event.location!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: palette.muted,
+                      ),
+                    ),
+                  ],
+                  if (event.contactName?.isNotEmpty == true) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      event.contactName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: palette.muted,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _Chip(
+                        label: _lifecycleLabel(lifecycle, l10n),
+                        foreground: statusColor,
+                        background: statusColor.withValues(alpha: 0.12),
+                      ),
+                      for (final label in _chipLabels.take(3))
+                        _Chip(
+                          label: label,
+                          foreground: palette.muted,
+                          background: palette.surfaceRaised,
+                        ),
+                    ],
+                  ),
+                  if (event.price != null && event.price! > 0) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'NOK ${event.price!.toStringAsFixed(0)}',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _lifecycleLabel(lifecycle, l10n),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: statusColor,
-                      ),
-                    ),
-                  ),
-                  for (final label in _chipLabels.take(3))
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        label,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              if (event.price != null && event.price! > 0) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'NOK ${event.price!.toStringAsFixed(0)}',
-                  style: theme.textTheme.titleSmall,
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Color _getStatusColor(_EventLifecycle lifecycle) {
-    switch (lifecycle) {
-      case _EventLifecycle.upcoming:
-        return AppColors.accentBlue;
-      case _EventLifecycle.ongoing:
-        return AppColors.success;
-      case _EventLifecycle.completed:
-        return AppColors.onSurfaceVariant;
-      case _EventLifecycle.cancelled:
-        return AppColors.error;
-    }
-  }
+class _EventImagePlaceholder extends StatelessWidget {
+  const _EventImagePlaceholder({required this.palette});
+
+  final BisoPalette palette;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: palette.surfaceRaised,
+    child: Center(
+      child: Icon(CupertinoIcons.calendar, color: palette.link, size: 32),
+    ),
+  );
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.label,
+    required this.foreground,
+    required this.background,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: Theme.of(
+        context,
+      ).textTheme.labelSmall?.copyWith(color: foreground),
+    ),
+  );
 }
 
 class _EventDetailSheet extends StatelessWidget {
@@ -706,226 +685,107 @@ class _EventDetailSheet extends StatelessWidget {
     return formattedStartDate;
   }
 
-  Color _getStatusColor(_EventLifecycle lifecycle) {
-    switch (lifecycle) {
-      case _EventLifecycle.upcoming:
-        return AppColors.accentBlue;
-      case _EventLifecycle.ongoing:
-        return AppColors.success;
-      case _EventLifecycle.completed:
-        return AppColors.gray400;
-      case _EventLifecycle.cancelled:
-        return AppColors.error;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
     final l10n = AppLocalizations.of(context)!;
-    final isDark = theme.brightness == Brightness.dark;
     final lifecycle = _lifecycleOf(event);
+    final statusColor = _statusColor(lifecycle, palette);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.gray300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      children: [
+        Text(
+          event.title,
+          style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),
+        ),
 
-          Expanded(
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(24),
-              children: [
-                Text(
-                  event.title,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isDark
-                        ? AppColors.onSurfaceDark
-                        : AppColors.onSurface,
-                  ),
-                ),
+        const SizedBox(height: 16),
 
-                const SizedBox(height: 16),
-
-                // Event Info Row
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 20,
-                      color: isDark
-                          ? AppColors.onSurfaceVariantDark
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatEventDate(event.startDate, event.endDate),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.onSurfaceVariantDark
-                            : AppColors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (event.location != null && event.location!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 20,
-                        color: isDark
-                            ? AppColors.onSurfaceVariantDark
-                            : AppColors.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          event.location!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.onSurfaceVariantDark
-                                : AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-
-                // Status Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(lifecycle).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _getStatusColor(lifecycle),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    _lifecycleLabel(lifecycle, l10n),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: _getStatusColor(lifecycle),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Personalized "Your trip" logistics for the signed-in user.
-                // Renders nothing when signed out or with no assigned segments.
-                YourTripCard(eventId: event.id),
-
-                // Description
-                if (event.description.isNotEmpty) ...[
-                  Text(
-                    'Description',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // `content_translations.description` is HTML — render it,
-                  // don't print the tags. Same helper jobs_screen uses.
-                  event.description.toFullHtml(
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.5,
-                      color: isDark
-                          ? AppColors.onSurfaceVariantDark
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    fontSize: 16,
-                  ),
-                  const SizedBox(height: 24),
-                ],
-
-                // Organizer Info
-                if (event.contactName != null && event.contactName!.isNotEmpty)
-                  Text(
-                    'Organized by ${event.contactName}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: isDark
-                          ? AppColors.onSurfaceVariantDark
-                          : AppColors.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        // Event Info Row
+        Row(
           children: [
-            Icon(icon, size: 64, color: AppColors.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
+            Icon(CupertinoIcons.calendar, size: 20, color: palette.muted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _formatEventDate(event.startDate, event.endDate),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.muted,
+                ),
               ),
-              textAlign: TextAlign.center,
             ),
           ],
         ),
-      ),
+
+        if (event.location != null && event.location!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                CupertinoIcons.location_solid,
+                size: 20,
+                color: palette.muted,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  event.location!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+
+        const SizedBox(height: 16),
+
+        // Status Badge
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: _Chip(
+            label: _lifecycleLabel(lifecycle, l10n),
+            foreground: statusColor,
+            background: statusColor.withValues(alpha: 0.12),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Personalized "Your trip" logistics for the signed-in user.
+        // Renders nothing when signed out or with no assigned segments.
+        YourTripCard(eventId: event.id),
+
+        // Description
+        if (event.description.isNotEmpty) ...[
+          Text(
+            'Description',
+            style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
+          ),
+          const SizedBox(height: 8),
+          // `content_translations.description` is HTML — render it,
+          // don't print the tags. Same helper jobs_screen uses.
+          event.description.toFullHtml(
+            style: theme.textTheme.bodyLarge?.copyWith(
+              height: 1.5,
+              color: palette.muted,
+            ),
+            fontSize: 16,
+          ),
+          const SizedBox(height: 24),
+        ],
+
+        // Organizer Info
+        if (event.contactName != null && event.contactName!.isNotEmpty)
+          Text(
+            'Organized by ${event.contactName}',
+            style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
+          ),
+      ],
     );
   }
 }
-
-// Removed old _ErrorState (not used with widget-managed pagination)

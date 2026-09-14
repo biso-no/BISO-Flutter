@@ -111,7 +111,7 @@ void main() {
       final inFlight = Completer<List<EventModel>>();
       service.enqueue(inFlight.future);
 
-      await tester.drag(find.byType(ListView), const Offset(0, -4000));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -10000));
       await tester.pump();
 
       expect(
@@ -132,7 +132,7 @@ void main() {
       // not perturbed by a scroll correction (removing the spinner row
       // shrinks maxScrollExtent, which at the very bottom would clamp the
       // offset, notify _onScroll and legitimately start another page).
-      await tester.drag(find.byType(ListView), const Offset(0, 4000));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 10000));
       await tester.pumpAndSettle();
 
       // --- the user switches language while page 2 is still in flight --
@@ -162,7 +162,7 @@ void main() {
       expect(find.textContaining('en-title'), findsNothing);
 
       // THE REGRESSION (guard half). `renderedRowCount` is read off the
-      // ListView's childrenDelegate rather than by hunting for a spinner
+      // SliverList's delegate rather than by hunting for a spinner
       // widget, so it is independent of where the list happens to be
       // scrolled: a lazily built trailing spinner that is merely off-screen
       // would still be counted here.
@@ -177,7 +177,7 @@ void main() {
       // ...and paging is not wedged: scrolling to the bottom again must
       // start a new page, for the new locale.
       service.enqueue(Future.value(page('no')));
-      await tester.drag(find.byType(ListView), const Offset(0, -4000));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -10000));
 
       // No pumpAndSettle here on purpose, matching
       // events_screen_staleness_test.dart: _onScroll -> _loadMore ->
@@ -204,13 +204,13 @@ void main() {
 
 /// Number of `itemBuilder` rows the list is currently configured to build.
 ///
-/// `ListView.separated` interleaves separators, so its delegate reports
+/// `SliverList.separated` interleaves separators, so its delegate reports
 /// `2 * items - 1`. Reading it back gives the screen's
 /// `_events.length + (_isLoadingMore ? 1 : 0)` exactly, without depending
 /// on which rows happen to be laid out.
 int renderedRowCount(WidgetTester tester) {
-  final list = tester.widget<ListView>(find.byType(ListView));
-  final delegateCount = list.childrenDelegate.estimatedChildCount!;
+  final list = tester.widget<SliverList>(find.byType(SliverList));
+  final delegateCount = list.delegate.estimatedChildCount!;
   return (delegateCount + 1) ~/ 2;
 }
 
