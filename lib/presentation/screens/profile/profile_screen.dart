@@ -1,19 +1,18 @@
-import '../../../core/theme/biso_navigation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/theme/biso_glass.dart';
 import '../../../data/models/user_model.dart';
+import '../../../data/services/feature_flag_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
-import '../../../data/services/feature_flag_service.dart';
+import '../../widgets/biso/biso.dart';
 import 'edit_profile_screen.dart';
-import 'settings_screen.dart';
 import 'payment_information_screen.dart';
+import 'settings_screen.dart';
 
 // Feature flag provider for expenses
 final _featureFlagServiceProvider = Provider<FeatureFlagService>(
@@ -34,57 +33,47 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
     final selectedCampus = ref.watch(selectedCampusProvider);
 
     // Show loading while initializing user data
     if (authState.isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.profile)),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Loading your profile...'),
-            ],
-          ),
-        ),
+      return BisoPage(
+        title: l10n.profile,
+        largeTitle: false,
+        slivers: [SliverToBoxAdapter(child: BisoSkeleton.rows(count: 4))],
       );
     }
 
     final profile = user;
+    final expenseFlagAsync = ref.watch(expenseFeatureFlagProvider);
+    final showExpenseHistory = expenseFlagAsync.valueOrNull ?? false;
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            title: Text(l10n.profile),
-            actions: [
-              IconButton(
-                tooltip: l10n.settingsMessage,
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                ),
-                icon: const Icon(CupertinoIcons.slider_horizontal_3),
-              ),
-              const SizedBox(width: 8),
-            ],
+    return BisoPage(
+      title: l10n.profile,
+      actions: [
+        BisoHeaderAction(
+          icon: CupertinoIcons.gear,
+          tooltip: l10n.settingsMessage,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
-              child: Container(
+        ),
+      ],
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: DecoratedBox(
+              // biso:allow brand card
+              decoration: BoxDecoration(
+                color: AppColors.biNavy,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Padding(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.biNavy,
-                  borderRadius: BorderRadius.circular(24),
-                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -117,7 +106,9 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         CircleAvatar(
                           radius: 28,
-                          backgroundColor: const Color(0xFF20405D),
+                          backgroundColor: Colors.white.withValues(
+                            alpha: 0.12,
+                          ),
                           backgroundImage: user?.avatarUrl != null
                               ? NetworkImage(user!.avatarUrl!)
                               : null,
@@ -151,270 +142,205 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
           ),
+        ),
 
-          // Profile Content
+        // Profile Completion Banner (if profile is incomplete)
+        if (authState.needsOnboarding)
           SliverToBoxAdapter(
-            child: Padding(
-              padding: BisoNavigationInset.padding(
-                context,
-                const EdgeInsets.fromLTRB(24, 12, 24, 24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            child: BisoSection(
+              child: BisoListGroup(
                 children: [
-                  // Profile Completion Banner (if profile is incomplete)
-                  if (authState.needsOnboarding) ...[
-                    Card(
-                      color: isDark
-                          ? AppColors.warmGold.withValues(alpha: 0.15)
-                          : AppColors.accentGold.withValues(alpha: 0.1),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: isDark
-                                      ? AppColors.warmGold
-                                      : AppColors.strongGold,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Complete Your Profile',
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark
-                                        ? AppColors.warmGold
-                                        : AppColors.strongGold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Get the most out of BISO by completing your profile with campus and contact information.',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: isDark
-                                    ? AppColors.warmGold
-                                    : AppColors.strongGold,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed: () => context.push('/onboarding'),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.defaultGold,
-                                  foregroundColor: AppColors.strongBlue,
-                                ),
-                                child: const Text('Complete Profile'),
-                              ),
-                            ),
-                          ],
-                        ),
+                  const BisoListRow(
+                    leading: BisoIconTile(
+                      icon: CupertinoIcons.info_circle,
+                      accent: BisoAccent.violet,
+                    ),
+                    title: 'Complete Your Profile',
+                    subtitle:
+                        'Get the most out of BISO by completing your profile '
+                        'with campus and contact information.',
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => context.push('/onboarding'),
+                        child: const Text('Complete Profile'),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Quick Actions
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _ActionCard(
-                              icon: Icons.edit,
-                              label: 'Edit Profile',
-                              color: AppColors.defaultBlue,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const EditProfileScreen(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _ActionCard(
-                              icon: Icons.school,
-                              label: 'Student ID',
-                              color: AppColors.green9,
-                              disabled: true,
-                              onTap: () {},
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'We’re improving Student ID. Thanks for your patience.',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
-
-                  const SizedBox(height: 24),
-
-                  const SizedBox(height: 24),
-
-                  // Profile Information Section
-                  _ProfileSection(
-                    title: 'Profile Information',
-                    children: [
-                      _ProfileInfoTile(
-                        icon: Icons.email_outlined,
-                        label: 'Email',
-                        value: authState.user?.email ?? '',
-                      ),
-                      if (profile?.phone != null)
-                        _ProfileInfoTile(
-                          icon: Icons.phone_outlined,
-                          label: 'Phone',
-                          value: profile!.phone!,
-                        ),
-                      if (profile?.address != null)
-                        _ProfileInfoTile(
-                          icon: Icons.home_outlined,
-                          label: 'Address',
-                          value: _formatAddress(profile!),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Campus & Departments Section
-                  _ProfileSection(
-                    title: 'Campus & Interests',
-                    children: [
-                      _ProfileInfoTile(
-                        icon: Icons.location_city_outlined,
-                        label: 'Campus',
-                        value: 'BI ${selectedCampus.name}',
-                        trailing: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: AppColors.biLightBlue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      if (profile?.departments.isNotEmpty == true)
-                        _ProfileInfoTile(
-                          icon: Icons.interests_outlined,
-                          label: 'Interests',
-                          value: profile!.departments.join(', '),
-                        ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Account Actions Section
-                  _ProfileSection(
-                    title: 'Account',
-                    children: [
-                      // Expense feature - only show when enabled
-                      Consumer(
-                        builder: (context, ref, child) {
-                          final expenseFlagAsync = ref.watch(
-                            expenseFeatureFlagProvider,
-                          );
-                          return expenseFlagAsync.when(
-                            data: (enabled) => enabled
-                                ? _ProfileActionTile(
-                                    icon: Icons.receipt_long_outlined,
-                                    label: 'Expense History',
-                                    onTap: () =>
-                                        context.push('/explore/expenses'),
-                                  )
-                                : const SizedBox.shrink(),
-                            loading: () => const SizedBox.shrink(),
-                            error: (_, _) => const SizedBox.shrink(),
-                          );
-                        },
-                      ),
-                      _ProfileActionTile(
-                        icon: Icons.shopping_bag_outlined,
-                        label: 'Your Orders',
-                        onTap: () => context.push('/explore/products/orders'),
-                      ),
-                      _ProfileActionTile(
-                        icon: Icons.payment_outlined,
-                        label: 'Payment Information',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const PaymentInformationScreen(),
-                          ),
-                        ),
-                      ),
-                      _ProfileActionTile(
-                        icon: Icons.notifications_outlined,
-                        label: 'Notification Preferences',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const SettingsScreen(initialTab: 1),
-                          ),
-                        ),
-                      ),
-                      _ProfileActionTile(
-                        icon: Icons.language_outlined,
-                        label: 'Language Settings',
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const SettingsScreen(initialTab: 4),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Sign Out
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.logout, color: AppColors.error),
-                      title: const Text(
-                        'Sign Out',
-                        style: TextStyle(color: AppColors.error),
-                      ),
-                      onTap: () => _showSignOutDialog(context, ref),
-                    ),
-                  ),
-
-                  const SizedBox(height: 132),
                 ],
               ),
             ),
           ),
-        ],
-      ),
+
+        // Quick Actions
+        SliverToBoxAdapter(
+          child: BisoSection(
+            child: BisoListGroup(
+              children: [
+                BisoListRow(
+                  leading: const BisoIconTile(icon: CupertinoIcons.pencil),
+                  title: 'Edit Profile',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EditProfileScreen(),
+                    ),
+                  ),
+                ),
+                const BisoListRow(
+                  leading: BisoIconTile(
+                    icon: CupertinoIcons.book,
+                    accent: BisoAccent.gold,
+                  ),
+                  title: 'Student ID',
+                  subtitle:
+                      'We’re improving Student ID. Thanks for your patience.',
+                  showChevron: false,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Profile Information Section
+        SliverToBoxAdapter(
+          child: BisoSection(
+            title: 'Profile Information',
+            child: BisoListGroup(
+              children: [
+                BisoListRow(
+                  leading: const BisoIconTile(icon: CupertinoIcons.mail),
+                  title: 'Email',
+                  value: authState.user?.email ?? '',
+                ),
+                if (profile?.phone != null)
+                  BisoListRow(
+                    leading: const BisoIconTile(icon: CupertinoIcons.phone),
+                    title: 'Phone',
+                    value: profile!.phone!,
+                  ),
+                if (profile?.address != null)
+                  BisoListRow(
+                    leading: const BisoIconTile(icon: CupertinoIcons.house),
+                    title: 'Address',
+                    value: _formatAddress(profile!),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // Campus & Departments Section
+        SliverToBoxAdapter(
+          child: BisoSection(
+            title: 'Campus & Interests',
+            child: BisoListGroup(
+              children: [
+                BisoListRow(
+                  leading: const BisoIconTile(
+                    icon: CupertinoIcons.location_solid,
+                  ),
+                  title: 'Campus',
+                  value: 'BI ${selectedCampus.name}',
+                ),
+                if (profile?.departments.isNotEmpty == true)
+                  BisoListRow(
+                    leading: const BisoIconTile(icon: CupertinoIcons.tags),
+                    title: 'Interests',
+                    value: profile!.departments.join(', '),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // Account Actions Section
+        SliverToBoxAdapter(
+          child: BisoSection(
+            title: 'Account',
+            child: BisoListGroup(
+              children: [
+                if (showExpenseHistory)
+                  BisoListRow(
+                    leading: const BisoIconTile(
+                      icon: CupertinoIcons.doc_text,
+                      accent: BisoAccent.coral,
+                    ),
+                    title: 'Expense History',
+                    onTap: () => context.push('/explore/expenses'),
+                  ),
+                BisoListRow(
+                  leading: const BisoIconTile(
+                    icon: CupertinoIcons.bag,
+                    accent: BisoAccent.gold,
+                  ),
+                  title: 'Your Orders',
+                  onTap: () => context.push('/explore/products/orders'),
+                ),
+                BisoListRow(
+                  leading: const BisoIconTile(
+                    icon: CupertinoIcons.creditcard,
+                    accent: BisoAccent.coral,
+                  ),
+                  title: 'Payment Information',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const PaymentInformationScreen(),
+                    ),
+                  ),
+                ),
+                BisoListRow(
+                  leading: const BisoIconTile(icon: CupertinoIcons.bell),
+                  title: 'Notification Preferences',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(
+                        initialTab: 1,
+                      ),
+                    ),
+                  ),
+                ),
+                BisoListRow(
+                  leading: const BisoIconTile(icon: CupertinoIcons.globe),
+                  title: 'Language Settings',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(
+                        initialTab: 4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Sign Out
+        SliverToBoxAdapter(
+          child: BisoSection(
+            child: BisoListGroup(
+              children: [
+                BisoListRow(
+                  leading: const BisoIconTile(
+                    icon: CupertinoIcons.square_arrow_right,
+                  ),
+                  title: 'Sign Out',
+                  destructive: true,
+                  showChevron: false,
+                  onTap: () => _showSignOutDialog(context, ref),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -448,162 +374,13 @@ class ProfileScreen extends ConsumerWidget {
                 context.go('/home');
               }
             },
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            style: TextButton.styleFrom(
+              foregroundColor: BisoPalette.of(context).error,
+            ),
             child: const Text('Sign Out'),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ActionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  final bool disabled;
-
-  const _ActionCard({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-    this.disabled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final Color iconColor = disabled ? color.withValues(alpha: 0.5) : color;
-    final Color iconBackground = disabled
-        ? color.withValues(alpha: 0.06)
-        : color.withValues(alpha: 0.1);
-
-    return BisoGlassCard(
-      padding: EdgeInsets.zero,
-      borderRadius: 16,
-
-      child: InkWell(
-        onTap: disabled ? null : onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: iconBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: iconColor, size: 24),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: disabled
-                      ? theme.colorScheme.onSurface.withValues(alpha: 0.6)
-                      : theme.colorScheme.onSurface,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileSection extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-
-  const _ProfileSection({required this.title, required this.children});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 12),
-        BisoGlassCard(
-          padding: EdgeInsets.zero,
-          borderRadius: 16,
-
-          child: Column(
-            children: children
-                .expand((widget) => [widget, const Divider(height: 1)])
-                .take(children.length * 2 - 1)
-                .toList(),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProfileInfoTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Widget? trailing;
-
-  const _ProfileInfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return ListTile(
-      leading: Icon(icon, color: AppColors.onSurfaceVariant),
-      title: Text(label),
-      subtitle: Text(
-        value,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      trailing: trailing,
-    );
-  }
-}
-
-class _ProfileActionTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ProfileActionTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.onSurfaceVariant),
-      title: Text(label),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: onTap,
     );
   }
 }
