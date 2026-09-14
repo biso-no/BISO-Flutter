@@ -5,10 +5,21 @@ import 'package:native_liquid_glass_flutter/native_liquid_glass_flutter.dart';
 /// The only third-party material boundary. Content cards never create native
 /// views or capture the Flutter scene. iOS owns just the floating material.
 class BisoChrome extends StatelessWidget {
-  const BisoChrome({super.key, required this.child, this.radius = 32});
+  const BisoChrome({
+    super.key,
+    required this.child,
+    this.radius = 32,
+    this.onImage = false,
+  });
 
   final Widget child;
   final double radius;
+
+  /// True while this chrome floats over a photo with no header band behind
+  /// it yet (see `BisoPageHeader`'s `onImage`). The native liquid-glass
+  /// surface lightens itself over bright content, so a scrim drawn behind
+  /// the header can't guarantee contrast — the capsule itself must darken.
+  final bool onImage;
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +37,8 @@ class BisoChrome extends StatelessWidget {
                 configuration: LiquidGlassConfiguration(
                   role: LiquidGlassSurfaceRole.chrome,
                   cornerRadius: radius,
-                  tintColor: scheme.surface,
-                  tintOpacity: 0,
+                  tintColor: onImage ? Colors.black : scheme.surface,
+                  tintOpacity: onImage ? 0.3 : 0,
                   strokeOpacity: 0,
                   shadowOpacity: 0,
                 ),
@@ -43,7 +54,12 @@ class BisoChrome extends StatelessWidget {
     }
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surface,
+        // The fallback (non-native, or high contrast) surface: an opaque
+        // `scheme.surface` here would be white-on-white against a photo, so
+        // paint a dark translucent fill instead while onImage.
+        color: onImage
+            ? Colors.black.withValues(alpha: 0.35)
+            : scheme.surface,
         borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: scheme.outlineVariant),
         boxShadow: [

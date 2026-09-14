@@ -227,6 +227,8 @@ class _CampusBenefitCardState extends State<CampusBenefitCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.benefits.isEmpty) return const SizedBox.shrink();
+
     final palette = BisoPalette.of(context);
     final theme = Theme.of(context);
     final displayBenefits = _isExpanded

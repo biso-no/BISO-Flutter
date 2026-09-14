@@ -78,6 +78,25 @@ double scrimTopAlpha(WidgetTester tester) {
   return gradient.colors.first.a;
 }
 
+/// Every capsule's [BisoChrome], with its `Element` so a matching fallback
+/// `DecoratedBox` can be found underneath it.
+List<Element> chromeElements(WidgetTester tester) =>
+    tester.elementList(find.byType(BisoChrome)).toList();
+
+/// The fallback (non-native / high-contrast) surface color painted behind
+/// one [BisoChrome] — the path the test platform always takes.
+Color chromeFallbackColor(WidgetTester tester, Element chrome) {
+  final box = tester.widget<DecoratedBox>(
+    find
+        .descendant(
+          of: find.byElementPredicate((e) => e == chrome),
+          matching: find.byType(DecoratedBox),
+        )
+        .first,
+  );
+  return (box.decoration as BoxDecoration).color!;
+}
+
 double bandTintAlpha(WidgetTester tester) {
   final box = tester.widget<DecoratedBox>(
     find
@@ -225,6 +244,69 @@ void main() {
     await tester.pumpWidget(header(offset: ValueNotifier(200)));
     expect(find.byKey(const ValueKey('biso-header-image-scrim')), findsNothing);
   });
+
+  testWidgets(
+    'overImage at offset 0 every capsule darkens itself for legibility',
+    (tester) async {
+      await tester.pumpWidget(
+        header(
+          overImage: true,
+          offset: ValueNotifier(0),
+          leading: const BisoBackButton(),
+          actions: [favorite],
+        ),
+      );
+
+      final chromes = chromeElements(tester);
+      // Leading (back button) and trailing (favorite action) capsules.
+      expect(chromes.length, 2);
+      for (final chrome in chromes) {
+        expect((chrome.widget as BisoChrome).onImage, isTrue);
+        final color = chromeFallbackColor(tester, chrome);
+        expect(color.r, 0);
+        expect(color.g, 0);
+        expect(color.b, 0);
+        expect(color.a, closeTo(0.35, 0.01));
+      }
+    },
+  );
+
+  testWidgets(
+    'once the band is fully in, or when not overImage, capsules use the '
+    'ordinary surface fallback',
+    (tester) async {
+      final scheme = PremiumTheme.build(Brightness.light).colorScheme;
+
+      await tester.pumpWidget(
+        header(
+          overImage: true,
+          offset: ValueNotifier(200),
+          leading: const BisoBackButton(),
+          actions: [favorite],
+        ),
+      );
+      var chromes = chromeElements(tester);
+      expect(chromes.length, 2);
+      for (final chrome in chromes) {
+        expect((chrome.widget as BisoChrome).onImage, isFalse);
+        expect(chromeFallbackColor(tester, chrome), scheme.surface);
+      }
+
+      await tester.pumpWidget(
+        header(
+          offset: ValueNotifier(0),
+          leading: const BisoBackButton(),
+          actions: [favorite],
+        ),
+      );
+      chromes = chromeElements(tester);
+      expect(chromes.length, 2);
+      for (final chrome in chromes) {
+        expect((chrome.widget as BisoChrome).onImage, isFalse);
+        expect(chromeFallbackColor(tester, chrome), scheme.surface);
+      }
+    },
+  );
 
   testWidgets('actions and search share one glass capsule', (tester) async {
     await tester.pumpWidget(

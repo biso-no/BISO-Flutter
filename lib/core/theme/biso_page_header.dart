@@ -49,13 +49,17 @@ class BisoHeaderSearch {
 
 /// Floating native glass holding one or more [BisoCapsuleButton]s.
 class BisoGlassCapsule extends StatelessWidget {
-  const BisoGlassCapsule({super.key, required this.children});
+  const BisoGlassCapsule({super.key, required this.children, this.onImage = false});
 
   final List<Widget> children;
+
+  /// See [BisoChrome.onImage].
+  final bool onImage;
 
   @override
   Widget build(BuildContext context) => BisoChrome(
     radius: 24,
+    onImage: onImage,
     child: SizedBox(
       height: 48,
       child: Row(mainAxisSize: MainAxisSize.min, children: children),
@@ -107,22 +111,45 @@ class BisoCapsuleButton extends StatelessWidget {
 }
 
 class BisoBackButton extends StatelessWidget {
-  const BisoBackButton({super.key, this.onPressed});
+  const BisoBackButton({super.key, this.onPressed, this.onImage = false});
 
   /// Defaults to [Navigator.maybePop]. Routes reached with `context.go` pass
   /// `NavigationUtils.safeGoBack` so there is always somewhere to go.
   final VoidCallback? onPressed;
 
+  /// See [BisoChrome.onImage]. `BisoPageHeader` sets this itself on the
+  /// leading button it renders; screens constructing their own
+  /// `BisoBackButton` never need to pass it.
+  final bool onImage;
+
   @override
   Widget build(BuildContext context) => BisoGlassCapsule(
+    onImage: onImage,
     children: [
       BisoCapsuleButton(
         icon: CupertinoIcons.chevron_back,
         tooltip: MaterialLocalizations.of(context).backButtonTooltip,
         onPressed: onPressed ?? () => Navigator.maybePop(context),
+        color: onImage ? Colors.white : null,
       ),
     ],
   );
+}
+
+/// Re-themes a `leading` widget the header didn't itself construct so its
+/// glass capsule darkens over a photo too. Screens pass a `BisoBackButton`
+/// (the common case) or, rarely, their own `BisoGlassCapsule` directly as
+/// `BisoPage(leading: ...)`; either is rebuilt here with [onImage] set,
+/// preserving its callback/children. Anything else is returned unchanged —
+/// there is nothing generic left to re-theme.
+Widget _paintedOnImage(Widget leading, bool onImage) {
+  if (leading is BisoBackButton) {
+    return BisoBackButton(onPressed: leading.onPressed, onImage: onImage);
+  }
+  if (leading is BisoGlassCapsule) {
+    return BisoGlassCapsule(onImage: onImage, children: leading.children);
+  }
+  return leading;
 }
 
 /// The translucent header of a BisoPage.
@@ -252,8 +279,8 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
                             ? Duration.zero
                             : const Duration(milliseconds: 220),
                         child: searching
-                            ? _searchRow(context)
-                            : _toolbar(context, foreground, titleOpacity),
+                            ? _searchRow(context, onImage)
+                            : _toolbar(context, foreground, titleOpacity, onImage),
                       ),
                     ),
                   ),
@@ -266,7 +293,12 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
     );
   }
 
-  Widget _toolbar(BuildContext context, Color foreground, double titleOpacity) {
+  Widget _toolbar(
+    BuildContext context,
+    Color foreground,
+    double titleOpacity,
+    bool onImage,
+  ) {
     final buttons = <Widget>[
       for (final action in widget.actions)
         BisoCapsuleButton(
@@ -290,7 +322,10 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
       middleSpacing: 12,
       leading: widget.leading == null
           ? null
-          : Align(widthFactor: 1, child: widget.leading),
+          : Align(
+              widthFactor: 1,
+              child: _paintedOnImage(widget.leading!, onImage),
+            ),
       middle: widget.title == null
           ? null
           : Opacity(
@@ -313,12 +348,12 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
           ? null
           : Align(
               widthFactor: 1,
-              child: BisoGlassCapsule(children: buttons),
+              child: BisoGlassCapsule(onImage: onImage, children: buttons),
             ),
     );
   }
 
-  Widget _searchRow(BuildContext context) {
+  Widget _searchRow(BuildContext context, bool onImage) {
     final palette = BisoPalette.of(context);
     final search = widget.search!;
     return Row(
@@ -327,6 +362,7 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
         Expanded(
           child: BisoChrome(
             radius: 24,
+            onImage: onImage,
             child: SizedBox(
               height: 48,
               child: TextField(
@@ -362,12 +398,13 @@ class _BisoPageHeaderState extends State<BisoPageHeader> {
         ),
         const SizedBox(width: 10),
         BisoGlassCapsule(
+          onImage: onImage,
           children: [
             BisoCapsuleButton(
               icon: CupertinoIcons.xmark,
               tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
               onPressed: _closeSearch,
-              color: palette.ink,
+              color: onImage ? Colors.white : palette.ink,
             ),
           ],
         ),

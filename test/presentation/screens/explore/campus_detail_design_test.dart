@@ -314,6 +314,32 @@ void main() {
     expect(find.text('Show Less'), findsOneWidget);
   });
 
+  testWidgets(
+    'an empty benefits list hides its card; a populated one still shows',
+    (tester) async {
+      final campusWithNoStudentBenefits = _campus.copyWith(
+        studentBenefits: const [],
+      );
+      await pumpBisoScreen(
+        tester,
+        const CampusDetailScreen(campusId: _campusId),
+        overrides: [
+          campusProvider(
+            _campusId,
+          ).overrideWith((ref) async => campusWithNoStudentBenefits),
+          boardMembersProvider(
+            _campusId,
+          ).overrideWith((ref) async => _boardMembers),
+        ],
+        routed: true,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('For Students'), findsNothing);
+      expect(find.text('For Business'), findsOneWidget);
+    },
+  );
+
   testWidgets('leadership rows show name and role, and open a detail sheet', (
     tester,
   ) async {
