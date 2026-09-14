@@ -333,6 +333,56 @@ class _QuantityStepper extends StatelessWidget {
   }
 }
 
+/// The bar's subtotal, sized so it is never truncated, scaled down, or
+/// broken mid-number (R11): it measures its own natural single-line width
+/// and, if the bar isn't wide enough for that (a large cart's total at a
+/// large text scale, in `headlineMedium` — the biggest style either screen
+/// uses), splits on `formatNok`'s one space into the currency code and the
+/// number, as two single-line `Text`s in a `Wrap`. That only ever breaks
+/// *between* the code and the number, never inside either one — unlike a
+/// plain, uncapped `Text`, which would happily hard-wrap in the middle of
+/// the digits once nothing softer is left to break on.
+class _SubtotalAmount extends StatelessWidget {
+  const _SubtotalAmount({required this.subtotal});
+
+  final double subtotal;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final style = Theme.of(
+      context,
+    ).textTheme.headlineMedium?.copyWith(color: palette.ink);
+    final amount = formatNok(subtotal);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final painter = TextPainter(
+          text: TextSpan(text: amount, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final fitsOneLine = !maxWidth.isFinite || painter.width <= maxWidth;
+
+        if (fitsOneLine) {
+          return Text(amount, maxLines: 1, softWrap: false, style: style);
+        }
+        return Wrap(
+          alignment: WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 4,
+          children: [
+            for (final piece in amount.split(' '))
+              Text(piece, maxLines: 1, softWrap: false, style: style),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _CartSummary extends StatelessWidget {
   const _CartSummary({
     required this.subtotal,
@@ -363,15 +413,7 @@ class _CartSummary extends StatelessWidget {
           style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
         ),
         const SizedBox(height: 2),
-        // No `maxLines`/`FittedBox`: a realistic subtotal always fits this
-        // bar's width on one line, but letting it wrap (rather than capping
-        // at one line, which would silently clip) if an extreme cart ever
-        // didn't is strictly safer and never worse than clipping — R11.
-        Text(
-          formatNok(subtotal),
-          textAlign: TextAlign.start,
-          style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
-        ),
+        _SubtotalAmount(subtotal: subtotal),
         const SizedBox(height: 4),
         Align(
           alignment: Alignment.centerRight,

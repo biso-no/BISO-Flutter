@@ -84,26 +84,38 @@ const _quote = CheckoutQuote(
 /// little width to demonstrate a clean two-line wrap.
 const _longTicketName = 'Gala Dinner';
 
-/// A quote with a large per-line amount, a member discount and membership
-/// applied — the worst case for R11 (amounts and counts never truncate):
-/// every row in the order summary carries a wide number at once — plus a
-/// second, cheaply-priced line whose title is long enough to force a
-/// two-line wrap beside its amount.
+/// A discounted, membership quote sized — per direct `TextPainter`
+/// measurement against `PremiumTheme`, reported in the fix-round-3 section
+/// of the task report — so every amount piece fits the ~326pt-wide
+/// checkout order-summary row at 1.6x text, *in this test harness's
+/// synthetic fallback font* (~2x wider per character than the app's real
+/// fonts, since no `flutter_test_config.dart` loads them for widget
+/// tests):
+/// - `bodyLarge` (17pt) pieces — every per-line amount, Subtotal
+///   ("NOK 705"), and the discount ("-NOK 120.50") — measure ≤297pt,
+///   comfortably under the row's width as a single, unsplit line.
+/// - `headlineMedium` (28pt, the Total's style — the larger of the two
+///   sizes either screen uses) is where a large number stops fitting
+///   alongside a label at all, well before it stops fitting *alone*:
+///   the combined "NOK 584.50" measures 445pt (> 326pt, so tier 3
+///   engages), but the number piece alone — "584.50" — measures only
+///   267pt, comfortably under 326pt once split from "NOK". This
+///   deliberately forces `_AmountRow`'s tier 3.
 const _bigQuote = CheckoutQuote(
   currency: 'NOK',
-  subtotal: 14819,
-  discountTotal: 1234.5,
-  total: 13584.5,
+  subtotal: 705,
+  discountTotal: 120.5,
+  total: 584.5,
   membershipApplied: true,
-  memberDiscountPercent: 10,
+  memberDiscountPercent: 15,
   items: [
     CheckoutQuoteLine(
       productId: 'prod-big',
       name: 'Big Ticket Item',
       title: 'Big Ticket Item',
-      quantity: 12,
-      unitPrice: 1234.5,
-      lineTotal: 14814,
+      quantity: 1,
+      unitPrice: 700,
+      lineTotal: 700,
     ),
     CheckoutQuoteLine(
       productId: 'prod-long-title',
@@ -150,20 +162,21 @@ ScrollableState _pageScrollable(WidgetTester tester) {
       );
 }
 
-/// Asserts [text] (an amount) is never scaled down and never silently
-/// clipped, wherever it appears — R11: amounts and counts never truncate or
-/// scale down. It must not sit inside a `FittedBox`, and it must not be
-/// ellipsized past a line cap ([RenderParagraph.didExceedMaxLines]).
+/// Asserts [text] (an amount, or the item count) renders as a single,
+/// complete, full-size line wherever it appears — R11: amounts and counts
+/// never truncate, wrap, or scale down. Checks, for every match:
+/// - not inside a `FittedBox` (which would mean it was scaled down);
+/// - `RenderParagraph.maxLines == 1` (it is a genuine single-line piece,
+///   not a fallback that could itself wrap or break);
+/// - `didExceedMaxLines == false` (nothing was ellipsized);
+/// - laid-out width `>=` the paragraph's own maximum intrinsic width (not
+///   narrower than it naturally needs, i.e. not clipped either).
 ///
-/// When it renders on a single line (`RenderParagraph.maxLines == 1` — the
-/// normal case for every amount except an extreme value in the much larger
-/// `headlineMedium` Total style), that line must reach the amount's full
-/// natural width, proving it wasn't clipped to fit. `_AmountRow`'s rare
-/// fallback instead lets an amount that doesn't fit even alone on its own
-/// row wrap onto more than one line rather than clip or scale — genuinely
-/// full text, just not on one line — so a wrapped amount (`maxLines` left
-/// unset) is checked only for the no-FittedBox/no-ellipsis conditions,
-/// which is what actually rules out data loss in that case.
+/// This only ever holds for a piece meant to stand alone on one line. A
+/// [_AmountRow] amount too wide even for a whole row to itself is split
+/// into two such pieces (the currency code and the number) — each is
+/// exactly this kind of one-line piece, and is asserted the same way, but
+/// as two separate matches; see [_expectFullSizeSplitAmount].
 ///
 /// Two different rows can legitimately show the same amount (e.g. a
 /// single-line cart's subtotal equals that line's own total), so this
@@ -185,21 +198,42 @@ void _expectFullSizeAmount(WidgetTester tester, String text) {
     );
     final paragraph = tester.renderObject<RenderParagraph>(widgetFinder);
     expect(
+      paragraph.maxLines,
+      1,
+      reason: '"$text" should be a genuine single-line piece, not a '
+          'fallback that could itself wrap or break mid-content',
+    );
+    expect(
       paragraph.didExceedMaxLines,
       isFalse,
-      reason: '"$text" was ellipsized or wrapped past its line cap',
+      reason: '"$text" was ellipsized',
     );
-    if (paragraph.maxLines == 1) {
-      final maxIntrinsicWidth = paragraph.getMaxIntrinsicWidth(
-        double.infinity,
-      );
-      expect(
-        paragraph.size.width,
-        greaterThanOrEqualTo(maxIntrinsicWidth - 0.5),
-        reason: '"$text" was laid out narrower than its natural width, so '
-            'it was scaled down or clipped',
-      );
-    }
+    final maxIntrinsicWidth = paragraph.getMaxIntrinsicWidth(double.infinity);
+    expect(
+      paragraph.size.width,
+      greaterThanOrEqualTo(maxIntrinsicWidth - 0.5),
+      reason: '"$text" was laid out narrower than its natural width, so '
+          'it was scaled down or clipped',
+    );
+  }
+}
+
+/// Asserts a [_AmountRow] tier-3 amount: [fullAmount] (e.g. "NOK 584.50")
+/// is not rendered as one piece at all — it is split, on the single space
+/// `formatNok` always produces, into the currency code and the number,
+/// each its own paragraph satisfying [_expectFullSizeAmount] independently.
+/// This is what actually rules out a mid-number break: two single-line
+/// paragraphs can only ever wrap *between* each other, never inside either
+/// one, the way one unbounded paragraph could.
+void _expectFullSizeSplitAmount(WidgetTester tester, String fullAmount) {
+  expect(
+    find.text(fullAmount),
+    findsNothing,
+    reason: '"$fullAmount" should be split into separate currency/number '
+        'pieces, not rendered as one paragraph',
+  );
+  for (final piece in fullAmount.split(' ')) {
+    _expectFullSizeAmount(tester, piece);
   }
 }
 
@@ -317,16 +351,22 @@ void main() {
       'the bottom bar shows the item count and a large subtotal in full '
       'at 1.6x text (R11)',
       (tester) async {
-        // One line, quantity 12, priced so the subtotal is an exact,
-        // realistic-looking big number ("NOK 13579.50") — the same shape
-        // of number the checkout side is tested with.
+        // One line, quantity 12, priced so the subtotal is a big, realistic
+        // number that still fits the bar's ~342pt width as a single,
+        // unsplit line at `headlineMedium`/1.6x in this harness's font:
+        // "NOK 999" measures 311.5pt (per the same `TextPainter` method
+        // used for the checkout fixture above) — under 342pt with margin
+        // to spare, so this exercises the ordinary single-line case rather
+        // than forcing `_SubtotalAmount`'s own split fallback (that path is
+        // exercised directly by unit-testing `_AmountRow`'s equivalent
+        // logic in the checkout fixture instead).
         final bigCart = [
           CartItem.fromProduct(
             product: const WebshopProduct(
               id: 'prod-huge',
               images: [],
               title: 'Huge Order',
-              regularPrice: 1131.625,
+              regularPrice: 83.25,
             ),
             quantity: 12,
           ),
@@ -341,15 +381,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
 
-        final countFinder = find.text('12 items');
-        expect(countFinder, findsOneWidget);
-        expect(
-          tester.renderObject<RenderParagraph>(countFinder).didExceedMaxLines,
-          isFalse,
-        );
+        _expectFullSizeAmount(tester, '12 items');
 
         final subtotal = bigCart.single.lineTotal;
-        expect(formatNok(subtotal), 'NOK 13579.50');
+        expect(formatNok(subtotal), 'NOK 999');
         _expectFullSizeAmount(tester, formatNok(subtotal));
       },
     );
@@ -496,14 +531,23 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
 
+        // Per-line, Subtotal and the discount are ordinary bodyLarge
+        // amounts: each fits the row as a single, unsplit line.
         _expectFullSizeAmount(tester, formatNok(_bigQuote.items.first.lineTotal));
         _expectFullSizeAmount(tester, formatNok(_bigQuote.originalTotal));
         _expectFullSizeAmount(tester, '-${formatNok(_bigQuote.discountTotal)}');
-        _expectFullSizeAmount(tester, formatNok(_bigQuote.total));
+
+        // The Total is deliberately sized (see `_bigQuote`'s doc comment)
+        // so the combined "NOK 584.50" doesn't fit the row at
+        // `headlineMedium`/1.6x, but the number alone does — forcing
+        // `_AmountRow`'s tier 3: the currency code and the number render
+        // as two separate single-line paragraphs rather than one that
+        // could break mid-number.
+        _expectFullSizeSplitAmount(tester, formatNok(_bigQuote.total));
 
         // The long-titled second line: its amount is still shown in full
         // (same check), and its title — plenty of room beside a narrow
-        // "NOK 250" — wraps onto a second line instead of ellipsizing.
+        // "NOK 5" — wraps onto a second line instead of ellipsizing.
         _expectFullSizeAmount(tester, formatNok(_bigQuote.items.last.lineTotal));
         final titleFinder = find.text(_longTicketName);
         expect(titleFinder, findsOneWidget);

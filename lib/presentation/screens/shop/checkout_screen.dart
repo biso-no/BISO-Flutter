@@ -574,11 +574,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 ///    width — the amount alone almost always fits a whole row to itself.
 /// 3. Only if it still doesn't (an extreme value in `headlineMedium`, the
 ///    Total's much larger style, at a large text scale) does the amount
-///    wrap onto more than one line. This never triggers for the smaller
-///    per-line/Subtotal/discount amounts in practice — it exists because a
-///    single unbroken line is not always physically wide enough for every
-///    style, and the alternative (silently clipping past the row's edge)
-///    is exactly what R11 forbids. A `FittedBox` (the previous approach)
+///    wrap — but never *inside* the currency code or the number, which
+///    would misread a payment total (e.g. "NOK 135" / "84.50" split mid
+///    digit). Instead it renders the two pieces `formatNok` already
+///    separates with one space — the code and the number — as two
+///    single-line `Text`s in a `Wrap`, which only ever breaks *between*
+///    them. This never triggers for the smaller per-line/Subtotal/discount
+///    amounts in practice — it exists because a single unbroken line is
+///    not always physically wide enough for every style, and the
+///    alternative (silently clipping past the row's edge, or breaking a
+///    number in half) is exactly what R11 forbids. A `FittedBox` (the
+///    previous approach)
 ///    cannot promise full size either way: splitting the row evenly
 ///    between an `Expanded` title and a `Flexible` amount, as
 ///    `BisoListRow` does, caps every amount at about half the row and
@@ -631,13 +637,32 @@ class _AmountRow extends StatelessWidget {
               final fitsOneLine =
                   sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
 
-              final amountText = Text(
-                amount,
-                textAlign: TextAlign.end,
-                maxLines: fitsOneLine ? 1 : null,
-                softWrap: !fitsOneLine,
-                style: amountStyle,
-              );
+              // Tier 3: split on `formatNok`'s one space into the currency
+              // code and the number, and let only *that* gap wrap — each
+              // piece stays single-line, so neither can ever break in the
+              // middle of a number.
+              final amountText = fitsOneLine
+                  ? Text(
+                      amount,
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: amountStyle,
+                    )
+                  : Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        for (final piece in amount.split(' '))
+                          Text(
+                            piece,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: amountStyle,
+                          ),
+                      ],
+                    );
 
               final label = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
