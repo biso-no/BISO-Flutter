@@ -1,21 +1,22 @@
-import '../../../core/theme/biso_navigation.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/utils/navigation_utils.dart';
+import '../../../data/models/job_model.dart';
+import '../../../data/services/job_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
-import '../../../data/services/job_service.dart';
-import '../../../data/models/job_model.dart';
+import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
-// Providers
-final _jobServiceProvider = Provider<JobService>((ref) => JobService());
-// NOTE: Replaced one-shot provider with widget-managed pagination
+// Injectable seam for tests (offline fakes), same runtime behavior as the
+// inline `JobService()` construction it replaces. `_jobsProvider` (were one
+// to exist) and this screen watch/read this instead of constructing the
+// service directly.
+final jobServiceProvider = Provider<JobService>((ref) => JobService());
 
 class JobsScreen extends ConsumerStatefulWidget {
   final String? openJobId;
@@ -90,7 +91,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
 
   Future<void> _fetchPage({required int page, bool replace = false}) async {
     final campusId = ref.read(filterCampusProvider).id;
-    final service = ref.read(_jobServiceProvider);
+    final service = ref.read(jobServiceProvider);
     final locale = ref.read(localeProvider).languageCode;
     final stopwatch = Stopwatch()..start();
     try {
@@ -298,85 +299,55 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.volunteerMessage),
-        leading: IconButton(
-          onPressed: () {
-            // Navigate back to home screen (explore tab)
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/home');
-            }
-          },
-          icon: const Icon(Icons.arrow_back),
-        ),
-        actions: [
-          // IconButton(onPressed: () {}, icon: const Icon(Icons.search)),
-          // IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark_border)),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Builder(
-              builder: (context) {
-                _logJobsState(campusId: campusId);
+    final List<Widget> contentSlivers;
+    if (_isLoading) {
+      contentSlivers = const [SliverToBoxAdapter(child: BisoSkeleton.rows())];
+    } else {
+      // The empty state fills the viewport (via SliverFillRemaining) so a
+      // user looking at an empty campus can still pull to refresh.
+      _logJobsState(campusId: campusId);
+      contentSlivers = _jobs.isEmpty
+          ? [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: BisoEmptyState(
+                  icon: CupertinoIcons.briefcase,
+                  accent: BisoAccent.teal,
+                  title: l10n.noItemsFoundMessage,
+                  message: l10n.checkBackLaterOrSwitchCampusMessage,
+                ),
+              ),
+            ]
+          : [
+              SliverBisoListGroup(
+                dividerIndent: 60,
+                itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= _jobs.length) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final job = _jobs[index];
+                  return _JobRow(
+                    job: job,
+                    onTap: () => _showJobDetails(context, job),
+                  );
+                },
+              ),
+            ];
+    }
 
-                // Covers both "no open roles on this campus" (Trondheim has
-                // none today) and a failed fetch: the catch in _fetchPage
-                // logs and clears the list, so the two are indistinguishable
-                // from the state this screen keeps. The copy is honest for
-                // either, and the empty state is rendered inside the
-                // RefreshIndicator below (via a CustomScrollView so it fills
-                // the viewport and stays scrollable) so pull-to-refresh is
-                // still reachable — exactly when a user staring at an empty
-                // campus would want it.
-                return RefreshIndicator(
-                  onRefresh: _reload,
-                  child: _jobs.isEmpty
-                      ? CustomScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          slivers: [
-                            SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: _EmptyState(
-                                icon: Icons.work_off,
-                                title: l10n.noItemsFoundMessage,
-                                subtitle:
-                                    l10n.checkBackLaterOrSwitchCampusMessage,
-                              ),
-                            ),
-                          ],
-                        )
-                      : ListView.separated(
-                          controller: _scrollController,
-                          padding: BisoNavigationInset.padding(
-                            context,
-                            const EdgeInsets.all(16),
-                          ),
-                          itemCount: _jobs.length + (_isLoadingMore ? 1 : 0),
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            if (index >= _jobs.length) {
-                              return const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
-                            final job = _jobs[index];
-                            return _JobCard(
-                              job: job,
-                              onTap: () => _showJobDetails(context, job),
-                            );
-                          },
-                        ),
-                );
-              },
-            ),
+    return BisoPage(
+      title: l10n.volunteerMessage,
+      leading: BisoBackButton(
+        onPressed: () =>
+            NavigationUtils.safeGoBack(context, fallbackRoute: '/explore'),
+      ),
+      onRefresh: _reload,
+      controller: _scrollController,
+      slivers: contentSlivers,
     );
   }
 
@@ -406,9 +377,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) => DraggableScrollableSheet(
         initialChildSize: 0.7,
         minChildSize: 0.5,
@@ -421,133 +389,62 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 }
 
-class _JobCard extends StatelessWidget {
+/// One row in the jobs list group. Mirrors `BisoJobList`'s row shape in
+/// `discovery_sections.dart` (title/description through the HTML renderer,
+/// trailing chevron), plus a leading `BisoIconTile` as directed by the task
+/// brief. `title`/`description` are HTML (see `JobModel.fromAppwriteRow`),
+/// which is why this can't be a plain `BisoListRow` (string-only title and
+/// subtitle).
+class _JobRow extends StatelessWidget {
   final JobModel job;
   final VoidCallback onTap;
 
-  const _JobCard({required this.job, required this.onTap});
-
-  /// Chips shown on the card: `tags`, de-duplicated case-insensitively so a
-  /// repeated tag doesn't burn two of the three visible slots. Same pattern
-  /// as `_EventCard._chipLabels` in events_screen.dart; jobs have no
-  /// `category` field, so there is nothing to prepend ahead of the tags.
-  List<String> get _chipLabels {
-    final labels = <String>[];
-    final seen = <String>{};
-
-    void add(String label) {
-      final trimmed = label.trim();
-      if (trimmed.isEmpty) return;
-      if (!seen.add(trimmed.toLowerCase())) return;
-      labels.add(trimmed);
-    }
-
-    job.tags.forEach(add);
-
-    return labels;
-  }
+  const _JobRow({required this.job, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final shortDescription = job.shortDescription?.trim() ?? '';
-    final chipLabels = _chipLabels;
+    final palette = BisoPalette.of(context);
 
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+          child: Row(
             children: [
-              job.title.toCompactHtml(
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 2,
-                fontSize: 16,
+              const BisoIconTile(
+                icon: CupertinoIcons.hand_raised,
+                accent: BisoAccent.teal,
               ),
-
-              // shortDescription is plain text (unlike title/description,
-              // which are HTML) — render it as a plain Text, not through
-              // toCompactHtml. Style matches the home job card's description
-              // treatment (_PremiumJobCard in premium_home_screen.dart).
-              if (shortDescription.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  shortDescription,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.stoneGray,
-                    height: 1.2,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-
-              if (chipLabels.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: chipLabels.take(3).map((label) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.gray200,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(label, style: theme.textTheme.labelSmall),
-                    );
-                  }).toList(),
-                ),
-              ],
-
-              const SizedBox(height: 12),
-
-              // Application Deadline
-              Row(
-                children: [
-                  if (job.applicationDeadline != null) ...[
-                    Icon(
-                      Icons.access_time,
-                      size: 14,
-                      color: AppColors.onSurfaceVariant,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    job.title.toCompactHtml(
+                      style: theme.textTheme.titleMedium,
+                      maxLines: 2,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      // job.applicationDeadline parses from an Appwrite
-                      // UTC-offset timestamp, so it carries isUtc == true.
-                      // DateFormat renders the object's own (UTC) fields, so
-                      // without .toLocal() the deadline silently displays
-                      // 1-2 hours early for a Norway-based user. Display
-                      // only — do not add toLocal() to any deadline
-                      // comparison used for filtering/expiry.
-                      'Apply by ${DateFormat('MMM dd').format(job.applicationDeadline!.toLocal())}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
+                    if (job.description.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      job.description.toCompactHtml(
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: palette.muted,
+                        ),
+                        maxLines: 2,
                       ),
-                    ),
+                    ],
                   ],
-                  const Spacer(),
-                  Text(
-                    'View Details',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.defaultBlue,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 12,
-                    color: AppColors.defaultBlue,
-                  ),
-                ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                CupertinoIcons.chevron_forward,
+                size: 17,
+                color: palette.muted,
               ),
             ],
           ),
@@ -566,113 +463,35 @@ class _JobDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.gray300,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      children: [
+        job.title.toFullHtml(
+          style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),
+          fontSize: 20,
+        ),
+
+        const SizedBox(height: 16),
+
+        // Description
+        if (job.description.isNotEmpty) ...[
+          Text(
+            'Description',
+            style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
           ),
-
-          Expanded(
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.all(24),
-              children: [
-                job.title.toFullHtml(
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isDark
-                        ? AppColors.onSurfaceDark
-                        : AppColors.onSurface,
-                  ),
-                  fontSize: 20,
-                ),
-
-                const SizedBox(height: 16),
-
-                // Description
-                if (job.description.isNotEmpty) ...[
-                  Text(
-                    'Description',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  job.description.toFullHtml(
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.5,
-                      color: isDark
-                          ? AppColors.onSurfaceVariantDark
-                          : AppColors.onSurfaceVariant,
-                    ),
-                    fontSize: 16,
-                  ),
-                ],
-              ],
+          const SizedBox(height: 8),
+          job.description.toFullHtml(
+            style: theme.textTheme.bodyLarge?.copyWith(
+              height: 1.5,
+              color: palette.muted,
             ),
+            fontSize: 16,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: AppColors.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: theme.textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }

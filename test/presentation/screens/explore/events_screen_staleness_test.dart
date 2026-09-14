@@ -27,13 +27,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// but only events exposes the two seams a test of this needs as *public*
 /// providers: `eventServiceProvider` (so the service can be replaced with a
 /// `Completer`-gated fake) and `eventsSearchTermProvider` (so the search
-/// axis can be flipped mid-flight). jobs_screen's service provider is
-/// private (`_jobServiceProvider`) and it has no search wiring at all;
-/// marketplace_screen's is private too (`_webshopServiceProvider`) and its
-/// search lives in a private `_search` field rather than a provider, so
-/// neither can be driven from a test without first adding a DI seam to the
-/// screen. One solid test on the screen that is genuinely testable beats
-/// three that need new production seams to exist.
+/// axis can be flipped mid-flight). jobs_screen has no search wiring at all
+/// (its `jobServiceProvider` is public, but there is no query to flip
+/// mid-flight); marketplace_screen's service provider is private
+/// (`_webshopServiceProvider`) and its search lives in a private `_search`
+/// field rather than a provider, so neither can be driven from a test the
+/// way this one is without first adding more seams to the screen. One solid
+/// test on the screen that is genuinely testable beats three that need new
+/// production seams to exist.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 

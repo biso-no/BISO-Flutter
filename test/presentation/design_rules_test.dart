@@ -20,6 +20,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/profile/profile_screen.dart',
   'lib/presentation/screens/explore/units_overview_screen.dart',
   'lib/presentation/screens/explore/unit_detail_screen.dart',
+  'lib/presentation/screens/explore/jobs_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{
