@@ -1,3 +1,5 @@
+import '../../core/utils/department_name.dart';
+
 class DepartmentModel {
   final String id;
   final String name;
@@ -20,7 +22,9 @@ class DepartmentModel {
   factory DepartmentModel.fromMap(Map<String, dynamic> map) {
     return DepartmentModel(
       id: (map['\$id'] ?? map['Id'] ?? '').toString(),
-      name: (map['Name'] ?? map['name'] ?? '').toString(),
+      name: displayDepartmentName(
+        (map['Name'] ?? map['name'] ?? '').toString(),
+      ),
       campusId: (map['campus_id'] ?? '').toString(),
       active: (map['active'] is bool)
           ? map['active'] as bool
@@ -41,7 +45,7 @@ class DepartmentModel {
     final dept = map['department_ref'] as Map<String, dynamic>? ?? {};
     return DepartmentModel(
       id: (dept['\$id'] ?? dept['Id'] ?? '').toString(),
-      name: (map['title'] ?? '').toString(), // Use translated title as name
+      name: displayDepartmentName((map['title'] ?? '').toString()),
       campusId: (dept['campus_id'] ?? '').toString(),
       active: (dept['active'] is bool)
           ? dept['active'] as bool

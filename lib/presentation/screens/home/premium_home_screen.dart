@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/logging/app_logger.dart';
+import '../../../core/theme/biso_navigation.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../presentation/widgets/biso/biso.dart';
 import '../../../providers/auth/auth_provider.dart';
@@ -391,6 +392,8 @@ class _CampusSwitcherModal extends StatelessWidget {
     required this.onCampusSelected,
   });
 
+  static const _spacing = EdgeInsets.fromLTRB(20, 12, 12, 20);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -401,54 +404,53 @@ class _CampusSwitcherModal extends StatelessWidget {
         color: palette.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 12, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: palette.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+      // Like the board member sheet: the floating tab bar overlays this sheet
+      // and strips the bottom safe area, so clear the bar itself.
+      child: Padding(
+        padding: BisoNavigationInset.padding(context, _spacing), // biso:allow
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: palette.hairline,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Select Campus',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: palette.ink,
-                      ),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Select Campus',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: palette.ink,
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(CupertinoIcons.xmark, color: palette.muted),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(CupertinoIcons.xmark, color: palette.muted),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            BisoListGroup(
+              children: [
+                for (final campus in allCampuses)
+                  _CampusModalCard(
+                    campus: campus,
+                    isSelected: campus.id == selectedCampus.id,
+                    onTap: () => onCampusSelected(campus),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              BisoListGroup(
-                children: [
-                  for (final campus in allCampuses)
-                    _CampusModalCard(
-                      campus: campus,
-                      isSelected: campus.id == selectedCampus.id,
-                      onTap: () => onCampusSelected(campus),
-                    ),
-                ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );

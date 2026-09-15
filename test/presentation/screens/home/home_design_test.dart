@@ -1,9 +1,11 @@
+import 'package:biso/core/theme/biso_navigation.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/presentation/screens/home/premium_home_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/large_event/large_event_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,5 +61,52 @@ void main() {
     );
     expect(find.byTooltip('Notifications'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
+  });
+
+  testWidgets('campus switcher keeps the last campus clear of the tab bar', (
+    tester,
+  ) async {
+    CampusModel campus(String name) => CampusModel(
+      id: name.toLowerCase(),
+      name: name,
+      description: '',
+      location: name,
+      imageUrl: '',
+      heroImageUrl: '',
+      stats: const CampusStats(),
+    );
+
+    await pumpBisoScreen(
+      tester,
+      // Mirrors the app's ShellRoute: the page, and the sheets it opens, live
+      // in a navigator beneath the floating tab bar.
+      Navigator(
+        onGenerateRoute: (_) => MaterialPageRoute(
+          builder: (_) => PremiumHomePage(navigateToTab: (_) {}),
+        ),
+      ),
+      routed: true,
+      overrides: [
+        ..._overrides(),
+        switcherCampusesProvider.overrideWith(
+          (_) async => [
+            for (final name in [
+              'Oslo',
+              'Bergen',
+              'Trondheim',
+              'Stavanger',
+              'National',
+            ])
+              campus(name),
+          ],
+        ),
+      ],
+    );
+
+    await tester.tap(find.widgetWithText(TextButton, 'Oslo'));
+    await tester.pumpAndSettle();
+
+    final barTop = tester.getTopLeft(find.byType(BisoNavigationBar)).dy;
+    expect(tester.getBottomLeft(find.text('National')).dy, lessThan(barTop));
   });
 }
