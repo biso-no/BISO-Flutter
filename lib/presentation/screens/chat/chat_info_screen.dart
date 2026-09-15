@@ -345,7 +345,7 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
   }
 
   void _showParticipantOptions(String participantId) {
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       builder: (context) => SafeArea(
         child: Padding(

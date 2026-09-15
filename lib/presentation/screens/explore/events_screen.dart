@@ -373,7 +373,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   }
 
   void _showEventDetails(BuildContext context, EventModel event) {
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
@@ -697,7 +697,13 @@ class _EventDetailSheet extends StatelessWidget {
 
     return ListView(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      // Clears the tab bar; showBisoSheet restores this bottom safe area.
+      padding: EdgeInsets.fromLTRB(
+        24,
+        8,
+        24,
+        24 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         Text(
           event.title,

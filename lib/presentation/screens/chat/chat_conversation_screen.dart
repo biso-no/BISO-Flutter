@@ -521,7 +521,7 @@ class _ChatConversationScreenState
   }
 
   void _showAttachmentOptions() {
-    showModalBottomSheet<void>(
+    showBisoSheet<void>(
       context: context,
       builder: (sheetContext) {
         final palette = BisoPalette.of(sheetContext);
@@ -1198,7 +1198,7 @@ class _MessageBubble extends StatelessWidget {
   }
 
   void _showMessageOptions(BuildContext context) {
-    showModalBottomSheet<void>(
+    showBisoSheet<void>(
       context: context,
       builder: (sheetContext) {
         final palette = BisoPalette.of(sheetContext);
@@ -1273,7 +1273,7 @@ class _MessageBubble extends StatelessWidget {
   void _showReactionPicker(BuildContext context) {
     final reactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
-    showModalBottomSheet<void>(
+    showBisoSheet<void>(
       context: context,
       builder: (sheetContext) {
         final palette = BisoPalette.of(sheetContext);

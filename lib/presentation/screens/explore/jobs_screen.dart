@@ -375,7 +375,7 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
   }
 
   void _showJobDetails(BuildContext context, JobModel job) {
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
@@ -489,7 +489,13 @@ class _JobDetailSheet extends StatelessWidget {
 
     return ListView(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      // Clears the tab bar; showBisoSheet restores this bottom safe area.
+      padding: EdgeInsets.fromLTRB(
+        24,
+        8,
+        24,
+        24 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         job.title.toFullHtml(
           style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),

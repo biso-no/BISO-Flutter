@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/biso_sheet.dart';
 import '../../../data/models/chat_model.dart';
 import '../../../data/services/chat_service.dart';
 import '../../../providers/auth/auth_provider.dart';
@@ -449,7 +450,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   void _showChatOptions(BuildContext context, ChatModel chat) {
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -708,7 +709,10 @@ class _ChatOptionsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: EdgeInsets.only(
+        top: 16,
+        bottom: 16 + MediaQuery.paddingOf(context).bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

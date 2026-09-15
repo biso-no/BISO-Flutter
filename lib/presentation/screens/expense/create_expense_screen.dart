@@ -351,7 +351,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   Future<void> _showCampusPicker() async {
-    await showModalBottomSheet<void>(
+    await showBisoSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) => DraggableScrollableSheet(
@@ -389,7 +389,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   void _showDepartmentPicker() {
     final assignment = _assignment;
     if (assignment == null) return;
-    showModalBottomSheet<void>(
+    showBisoSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) => DraggableScrollableSheet(
@@ -1180,7 +1180,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final zipController = TextEditingController(text: user.zipCode ?? '');
     final cityController = TextEditingController(text: user.city ?? '');
 
-    await showModalBottomSheet<void>(
+    await showBisoSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (sheetContext) {
@@ -1194,7 +1194,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             left: 20,
             right: 20,
             top: 20,
-            bottom: MediaQuery.viewInsetsOf(sheetContext).bottom + 20,
+            bottom:
+                MediaQuery.viewInsetsOf(sheetContext).bottom +
+                MediaQuery.paddingOf(sheetContext).bottom +
+                20,
           ),
           child: SingleChildScrollView(
             child: Column(

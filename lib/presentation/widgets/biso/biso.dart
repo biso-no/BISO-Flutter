@@ -12,6 +12,7 @@ export '../../../core/theme/biso_page_header.dart'
         BisoHeaderAction,
         BisoHeaderSearch,
         kBisoHeaderHeight;
+export '../../../core/theme/biso_sheet.dart';
 export 'biso_bottom_bar.dart';
 export 'biso_form.dart';
 export 'biso_icon_tile.dart';

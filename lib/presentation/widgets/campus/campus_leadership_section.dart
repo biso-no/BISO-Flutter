@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/theme/biso_navigation.dart';
 import '../../../data/models/board_member_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/leadership/leadership_provider.dart';
@@ -167,7 +166,7 @@ class BoardMemberCard extends StatelessWidget {
 
   void _showMemberDetails(BuildContext context) {
     HapticFeedback.selectionClick();
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => _MemberDetailModal(member: member),
@@ -180,116 +179,116 @@ class _MemberDetailModal extends StatelessWidget {
 
   const _MemberDetailModal({required this.member});
 
-  static const _spacing = EdgeInsets.fromLTRB(20, 8, 20, 20);
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
 
-    // The floating tab bar overlays sheets and strips the bottom safe area,
-    // so a SafeArea adds nothing here; clear the bar itself. Sheets sit
-    // outside BisoPage, hence the design-rule exception.
-    return SingleChildScrollView(
-      child: Padding(
-        padding: BisoNavigationInset.padding(context, _spacing), // biso:allow
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: palette.surfaceRaised,
-              child:
-                  (member.profilePhotoUrl != null &&
-                      member.profilePhotoUrl!.isNotEmpty)
-                  ? ClipOval(
-                      child: _SafeAvatarImage(
-                        uri: member.profilePhotoUrl!,
-                        width: 80,
-                        height: 80,
-                        borderRadius: 40,
-                      ),
-                    )
-                  : Icon(
-                      CupertinoIcons.person_fill,
-                      color: palette.muted,
-                      size: 32,
-                    ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              member.name,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: palette.ink,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              member.role,
-              style: theme.textTheme.bodyLarge?.copyWith(color: palette.muted),
-              textAlign: TextAlign.center,
-            ),
-            if (member.officeLocation.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    CupertinoIcons.location_solid,
-                    size: 14,
-                    color: palette.muted,
-                  ),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(
-                      member.officeLocation,
-                      style: theme.textTheme.bodySmall?.copyWith(
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: palette.surfaceRaised,
+                child:
+                    (member.profilePhotoUrl != null &&
+                        member.profilePhotoUrl!.isNotEmpty)
+                    ? ClipOval(
+                        child: _SafeAvatarImage(
+                          uri: member.profilePhotoUrl!,
+                          width: 80,
+                          height: 80,
+                          borderRadius: 40,
+                        ),
+                      )
+                    : Icon(
+                        CupertinoIcons.person_fill,
                         color: palette.muted,
+                        size: 32,
+                      ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                member.name,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: palette.ink,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                member.role,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: palette.muted,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (member.officeLocation.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      CupertinoIcons.location_solid,
+                      size: 14,
+                      color: palette.muted,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        member.officeLocation,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.muted,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
+              if (member.email.isNotEmpty || member.phone.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                BisoListGroup(
+                  children: [
+                    if (member.email.isNotEmpty)
+                      BisoListRow(
+                        leading: const BisoIconTile(icon: CupertinoIcons.mail),
+                        title: 'Email',
+                        subtitle: member.email,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _launchOrCopy(
+                            context,
+                            Uri(scheme: 'mailto', path: member.email),
+                            member.email,
+                            'Email copied',
+                          );
+                        },
+                      ),
+                    if (member.phone.isNotEmpty)
+                      BisoListRow(
+                        leading: const BisoIconTile(icon: CupertinoIcons.phone),
+                        title: 'Call',
+                        subtitle: member.phone,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _launchOrCopy(
+                            context,
+                            Uri(scheme: 'tel', path: member.phone),
+                            member.phone,
+                            'Phone number copied',
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ],
             ],
-            if (member.email.isNotEmpty || member.phone.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              BisoListGroup(
-                children: [
-                  if (member.email.isNotEmpty)
-                    BisoListRow(
-                      leading: const BisoIconTile(icon: CupertinoIcons.mail),
-                      title: 'Email',
-                      subtitle: member.email,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        _launchOrCopy(
-                          context,
-                          Uri(scheme: 'mailto', path: member.email),
-                          member.email,
-                          'Email copied',
-                        );
-                      },
-                    ),
-                  if (member.phone.isNotEmpty)
-                    BisoListRow(
-                      leading: const BisoIconTile(icon: CupertinoIcons.phone),
-                      title: 'Call',
-                      subtitle: member.phone,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        _launchOrCopy(
-                          context,
-                          Uri(scheme: 'tel', path: member.phone),
-                          member.phone,
-                          'Phone number copied',
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

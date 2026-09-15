@@ -407,7 +407,7 @@ class _SellProductScreenState extends ConsumerState<SellProductScreen> {
     required ValueChanged<String> onSelected,
     bool allowNull = false,
   }) {
-    showModalBottomSheet<void>(
+    showBisoSheet<void>(
       context: context,
       builder: (sheetContext) {
         final palette = BisoPalette.of(sheetContext);

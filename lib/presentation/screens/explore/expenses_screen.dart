@@ -174,7 +174,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showMoreSheet(BuildContext context, List<ExpenseModel> expenses) {
-    showModalBottomSheet<void>(
+    showBisoSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
         top: false,
@@ -206,7 +206,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showHistory(BuildContext context, List<ExpenseModel> expenses) {
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       builder: (context) {
         final palette = BisoPalette.of(context);
@@ -291,7 +291,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showExpenseDetails(BuildContext context, ExpenseModel expense) {
-    showModalBottomSheet(
+    showBisoSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) => DraggableScrollableSheet(
@@ -805,7 +805,13 @@ class _ExpenseDetailSheet extends ConsumerWidget {
 
     return ListView(
       controller: scrollController,
-      padding: const EdgeInsets.all(24),
+      // Clears the tab bar; showBisoSheet restores this bottom safe area.
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.paddingOf(context).bottom,
+      ),
       children: [
         // Header
         Row(

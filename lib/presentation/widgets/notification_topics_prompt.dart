@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/notification_topics.dart';
+import '../../core/theme/biso_sheet.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/notification/notification_provider.dart';
 
@@ -337,7 +338,7 @@ Future<void> _showTopicsPrompt(
   if (await service.hasAnsweredTopicPrompt()) return;
   if (!context.mounted) return;
 
-  final skipped = await showModalBottomSheet<bool>(
+  final skipped = await showBisoSheet<bool>(
     context: context,
     isScrollControlled: true,
     isDismissible: false,
