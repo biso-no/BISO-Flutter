@@ -14,6 +14,9 @@
 - The 24SevenOffice customer `Id` is the student number; `ExternalId` is the Azure employee id.
 - BI's Azure tenant is reachable only through Appwrite's OIDC provider. There is no app registration
   the mobile app could sign in with directly.
+- Membership checks enforce expiry: a category counts only while its `memberships` row has not
+  expired.
+- A BI student account can be linked to one BISO account only.
 
 ## Goal
 
@@ -74,9 +77,23 @@ the live project.
     member who, already signed in to Microsoft, would link *their* BI identity to the sender's
     account. The web flow is immune because the linking browser must hold the student's own
     session.
-- **D5 — Membership semantics match the web exactly.** A matched 24SO category means member. The
-  plan row's `expiryDate` is shown as the expiry. Expiry enforcement is not changed here (see
-  Risks).
+- **D5 — Membership expires with its `memberships` row.** A 24SO category on the customer counts
+  only when it matches a `memberships` row that:
+  - has `status == true`, as today; and
+  - has an `expiryDate` on or after today's date in Europe/Oslo. A membership is valid through the
+    whole of its expiry day.
+
+  This is one shared rule, so the web, the member discount, the membership checkout gate and the
+  app all agree. It only ever removes status, never grants it. A row whose `expiryDate` cannot be
+  read counts as expired.
+- **D6 — One BI student account, one BISO account.** A `student_id` may sit on only one `user` row.
+  - A link attempt fails with `already_linked` when another account already holds that student id
+    through a verified link, i.e. that account has an Appwrite OIDC identity for the same BI
+    student.
+  - A claim that no identity backs (written before D1, or by the retired app flow) is not a link.
+    It is cleared, and the verified student's link proceeds.
+  - Existing data is reported and cleaned by the profile lock script. The owner then adds a unique
+    index on `user.student_id` as a database-level guarantee.
 
 ## Phase 1 — Platform hardening (BISO-Sites)
 
@@ -117,7 +134,15 @@ the live project.
 - The `user` table loses `create("users")`. The owner changes this in the Appwrite console and then
   runs `appwrite pull tables`. The repo config is edited to match, so a later push cannot re-add
   the grant.
-- New script `packages/api/scripts/lock-profile-rows.ts`: same shape as 1.1, for `user` rows.
+- New script `packages/api/scripts/lock-profile-rows.ts`, same shape as 1.1, for `user` rows, in
+  three passes:
+  1. Remove the owner write grants.
+  2. Report unverified links: rows with `student_id` set but no Appwrite OIDC identity whose email
+     parses to that student id. With `--clear-unverified-links`, clear `student_id`, `bi_employee_id`,
+     `bi_campus_id` and `bi_linked_at` on those rows.
+  3. Report any `student_id` still present on more than one row.
+
+  Pass 1 runs before pass 2, so a cleared claim cannot be written back.
 
 ### 1.3 24SevenOffice customer ids (D3)
 
@@ -130,6 +155,55 @@ the live project.
 Search failures keep throwing `MembershipCustomerLookupError`, so fulfilment retries instead of
 creating a duplicate. Connector and fulfilment tests, doc comments, and the membership-purchase
 design spec are corrected to the confirmed scheme.
+
+### 1.4 Membership expiry (D5)
+
+**`computeMembershipStatus` in `packages/shared/utils/membership-status.ts`:**
+
+- Still reads `memberships` rows with `status == true`. A row now counts only when its category is
+  on the customer **and** `isMembershipRowActive(row.expiryDate, now)` holds.
+- **`isMembershipRowActive`:**
+  - Takes the `YYYY-MM-DD` prefix of `expiryDate` and compares it with today's date in
+    `Europe/Oslo`.
+  - Returns `false` when there is no such prefix, logging a warning with the row id.
+- **The status gains `expiredMemberships`:** matched rows that have expired, newest expiry first.
+  The app uses this to say when a membership ran out. Existing web callers ignore it.
+- **`isMember` means at least one active match.**
+  - `memberships` now lists only active matches, so the gate's `currentExpiry` reflects only active
+    cover.
+  - A student whose only matches are expired gets `reason: "expired"`.
+- **Caching is unchanged.** A result cached shortly before midnight on an expiry day can stay
+  "member" for up to the 10-minute TTL.
+
+### 1.5 One BI account per BISO account (D6)
+
+**The link write moves to `packages/shared/utils/bi-identity-link.ts`.**
+`linkBiStudentIdentity({ userId, studentId, directoryEmail })` is used by `syncBiStudentIdentity`,
+which keeps its session handling, identity parsing, dev override and cache invalidation.
+
+Before writing, it lists other `user` rows with the same `student_id` (admin client). For each one:
+
+- **The holder has an Appwrite OIDC identity whose email parses to the same student id:**
+  1. Return `{ success: false, error: "already_linked" }` without writing anything.
+  2. Delete the OIDC identity Appwrite just attached to the *current* user
+     (`users.deleteIdentity`), so the current account is not left holding a BI identity with no
+     link.
+- **No such identity backs the holder's claim:** clear `student_id`, `bi_employee_id`,
+  `bi_campus_id` and `bi_linked_at` on that row, log it, and continue.
+
+If nothing blocks, it writes exactly as today (directory enrichment; row created with read-only
+permissions if absent).
+
+**The error reaches the student:**
+
+- `GET /api/auth/bi-link` redirects to `returnTo?link_error=already_linked` instead of `?linked=1`
+  when the sync reports `already_linked`.
+- `/membership/join`, `/membership/link`, `/profile`, `/onboarding` and `/member` show: "This BI
+  student account is already linked to another BISO account. Unlink it there, or contact BISO."
+  Onboarding still lets the student continue without a link.
+
+**Unlinking stays as it is.** `clearBiStudentLink` plus identity deletion frees the student id, so
+a student can move their link between accounts.
 
 ## Phase 2 — API for the app (BISO-Sites)
 
@@ -148,6 +222,7 @@ imports them from there, so the app and the web apply identical rules.
   "studentId": "s1715738",
   "isMember": true,
   "memberships": [{ "id": "…", "name": "…", "category": "113178", "startDate": "…", "expiryDate": "…" }],
+  "expiredMemberships": [{ "id": "…", "name": "…", "category": "113176", "startDate": "…", "expiryDate": "2026-06-30" }],
   "currentExpiry": "2027-06-30",
   "reason": null,
   "checkedAt": "2026-09-15T08:00:00.000Z",
@@ -179,7 +254,7 @@ components, so there is no new linking logic.
 | Situation | Rendered |
 |---|---|
 | Signed out | `SignedOutState`, returning here after sign-in |
-| Signed in, no `student_id` | `NeedsBiLinkState` with `returnTo=/membership/link` |
+| Signed in, no `student_id` | `NeedsBiLinkState` with `returnTo=/membership/link`, plus the `already_linked` message when `?link_error=already_linked` is present (1.5) |
 | Linked, no `bi_employee_id` | `RetryDirectoryState` |
 | Linked with an employee id | "Your BI student account is linked", the BISO account's email (so a student signed in with a different account notices), and "Return to the BISO app" → `biso://membership?linked=1` |
 
@@ -294,7 +369,7 @@ file. Response header: `Cache-Control: public, max-age=0, s-maxage=15`.
   | `membership_check_unavailable` | Cached card if any, plus retry |
   | Member (`already_member` or `eligible` with `isMember`) | Card with name, student id, plan, valid until and "Verified …". Renewal plans if offered. |
   | `no_plans_available` | Message |
-  | `eligible`, not a member | Plans, then campus (default `defaultCampusId`), then provider buttons |
+  | `eligible`, not a member | "Your membership expired on …" when `expiredMemberships` is non-empty; then plans, campus (default `defaultCampusId`) and provider buttons |
 
 - **Provider buttons** come from `availablePaymentProvidersProvider`; only enabled and configured
   providers are shown. With none available, the screen says purchase is temporarily unavailable.
@@ -378,8 +453,19 @@ and Android builds still succeed; otherwise that is left as a follow-up.
   - draft and submit: admin writes and ownership;
   - permission helpers;
   - `upsertMembershipCustomer`: id scheme;
+  - `computeMembershipStatus` expiry:
+    - an active row, a row expiring today and a row that expired yesterday, all with the date
+      taken in Oslo around midnight UTC;
+    - an unreadable date;
+    - expired-only matches;
+    - `status == false` still excluded;
+  - `linkBiStudentIdentity`:
+    - the holder is backed by an identity → `already_linked`, and the current identity is removed;
+    - the holder is unbacked → cleared, and the link proceeds;
+    - no holder → writes as today;
+  - `/api/auth/bi-link` redirects with `link_error`;
   - web `updateProfile` and `syncBiStudentIdentity` against the shared helpers.
-- **Scripts:** the permission filter functions.
+- **Scripts:** the permission filter functions and the unverified-link classification.
 - **Baseline:** `apps/api` 167 tests pass today; all existing suites must stay green.
 
 **BISO-Flutter (`flutter test`, `flutter analyze`)**
@@ -414,7 +500,10 @@ and Android builds still succeed; otherwise that is left as a follow-up.
 4. When the new app build ships, or right away if no older build that writes profiles directly is
    in use:
    - remove `create("users")` from the `user` table in the console, then `appwrite pull tables`;
-   - run `lock-profile-rows` (dry-run, then `--apply`).
+   - run `lock-profile-rows`: dry-run, review the unverified-link and duplicate reports, then
+     `--apply --clear-unverified-links`;
+   - once the duplicate report is empty, add a unique index on `user.student_id` in the console,
+     then `appwrite pull tables`.
 5. Release the app.
 6. **Follow-ups (owner):**
    - Review 24SO for customers created by web membership purchases under the old id scheme.
@@ -427,20 +516,21 @@ and Android builds still succeed; otherwise that is left as a follow-up.
   account as in the app. The link page shows the signed-in account to make a mismatch visible.
   In-app linking needs either a BI-tenant mobile app registration or a hand-off that is not
   forwardable (see D4).
-- **Membership expiry is not enforced by the check.** It relies on `memberships.status`, which
-  nothing maintains since `syncMembershipsFrom24SO` lost its caller. Unchanged here, for parity
-  with the web; worth a follow-up with how categories are removed in 24SO.
-- **One BI identity can be linked to several BISO accounts.** No uniqueness is enforced today.
-  Follow-up.
+- **Expiry depends on the `memberships` rows being current.**
+  `syncMembershipsFrom24SO` has no caller, so each new membership period needs its row (category
+  and dates) added or updated in Appwrite. A member whose only category has no current row shows
+  as not a member.
+- **Students with an unverified link must link again.** This covers claims written before the
+  lockdown, or through the retired app flow: they are cleared, and those students re-link on
+  biso.no.
 - **Feature flags fail open to catalog defaults** when Appwrite is unreadable (`payments_vipps`
   defaults to on).
-- **Out-of-scope breakage noticed:** validator mode calls Functions absent from the config; the AI
-  chat calls `/api/public-assistant`, which BISO-Sites does not implement; marketplace "sell" has
-  no create grant on `products`.
+- **Out-of-scope breakage noticed:** validator mode calls Functions absent from the config;
+  marketplace "sell" has no create grant on `products`.
 
 ## Out of scope
 
 - Recruitment applications in the app.
 - Marketplace, chat, validator mode, AI assistant.
-- Reworking membership expiry, or scheduling the catalog sync.
+- Scheduling the 24SO membership catalog sync.
 - Server-side enforcement of `member_only` products.
