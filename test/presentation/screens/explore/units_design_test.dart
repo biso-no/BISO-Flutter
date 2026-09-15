@@ -1,11 +1,14 @@
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/campus_model.dart';
+import 'package:biso/data/models/board_member_model.dart';
 import 'package:biso/data/models/department_model.dart';
 import 'package:biso/data/services/department_service.dart';
+import 'package:biso/data/services/leadership_service.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/unit_detail_screen.dart';
 import 'package:biso/presentation/screens/explore/units_overview_screen.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
+import 'package:biso/providers/leadership/leadership_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,10 +79,37 @@ class _FakeDepartmentService extends DepartmentService {
   ];
 }
 
-List<Override> _overrides([List<DepartmentModel>? departments]) => [
+/// Replaces the BISO API board route. Records what it was asked for.
+class _FakeLeadershipService extends LeadershipService {
+  _FakeLeadershipService([this.members = const []]);
+
+  final List<BoardMemberModel> members;
+  final requests = <(String, String?)>[];
+
+  @override
+  Future<BoardMembersResponse> getBoardMembers({
+    required String campusId,
+    String? departmentId,
+  }) async {
+    requests.add((campusId, departmentId));
+    return BoardMembersResponse(
+      success: true,
+      members: members,
+      count: members.length,
+    );
+  }
+}
+
+List<Override> _overrides([
+  List<DepartmentModel>? departments,
+  LeadershipService? leadership,
+]) => [
   filterCampusProvider.overrideWithValue(_campus),
   departmentServiceProvider.overrideWithValue(
     _FakeDepartmentService(departments),
+  ),
+  leadershipServiceProvider.overrideWithValue(
+    leadership ?? _FakeLeadershipService(),
   ),
 ];
 
@@ -171,6 +201,67 @@ void main() {
       find.byKey(const ValueKey('biso-compact-title')),
     );
     expect(compactTitle.data, 'Marketing Society');
+  });
+
+  testWidgets("detail page shows the department's board for its campus", (
+    tester,
+  ) async {
+    final leadership = _FakeLeadershipService(const [
+      BoardMemberModel(
+        name: 'Kari Nordmann',
+        email: 'kari@biso.no',
+        phone: '',
+        role: 'Head of Marketing',
+        officeLocation: '',
+      ),
+      BoardMemberModel(
+        name: 'Ola Hansen',
+        email: 'ola@biso.no',
+        phone: '',
+        role: '',
+        officeLocation: 'Oslo',
+      ),
+    ]);
+    await pumpBisoScreen(
+      tester,
+      const UnitDetailScreen(
+        departmentId: 'd1',
+        departmentName: 'Marketing Society',
+      ),
+      overrides: _overrides(null, leadership),
+      routed: true,
+    );
+    await tester.pumpAndSettle();
+
+    expect(leadership.requests, [(_campus.id, 'd1')]);
+    await tester.dragUntilVisible(
+      find.text('Kari Nordmann'),
+      find.byType(CustomScrollView),
+      const Offset(0, -300),
+    );
+    expect(find.text('Board'), findsOneWidget);
+    expect(find.text('Head of Marketing'), findsOneWidget);
+    // Azure users without a job title keep just their office.
+    expect(find.text('Oslo'), findsOneWidget);
+  });
+
+  testWidgets('detail page leaves the board out when it has no members', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const UnitDetailScreen(
+        departmentId: 'd1',
+        departmentName: 'Marketing Society',
+      ),
+      overrides: _overrides(),
+      routed: true,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Board'), findsNothing);
+    expect(find.textContaining('No members found'), findsNothing);
+    expect(find.text('Website'), findsOneWidget);
   });
 
   testWidgets(

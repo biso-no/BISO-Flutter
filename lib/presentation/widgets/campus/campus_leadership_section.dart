@@ -10,23 +10,51 @@ import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/leadership/leadership_provider.dart';
 import '../biso/biso.dart';
 
+/// The board of a campus, or of one department when [departmentId] is set.
 class CampusLeadershipSection extends ConsumerWidget {
   final String campusId;
+  final String? departmentId;
 
-  const CampusLeadershipSection({super.key, required this.campusId});
+  /// Overrides the default "Campus Leadership" heading.
+  final String? title;
+
+  /// Not every department has members in Azure AD; a department page leaves
+  /// the section out rather than announcing an empty board.
+  final bool hideWhenEmpty;
+
+  const CampusLeadershipSection({
+    super.key,
+    required this.campusId,
+    this.departmentId,
+    this.title,
+    this.hideWhenEmpty = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final boardMembersAsync = ref.watch(boardMembersProvider(campusId));
+    final provider = departmentId == null
+        ? boardMembersProvider(campusId)
+        : boardMembersWithDepartmentProvider(
+            BoardMembersParams(campusId: campusId, departmentId: departmentId),
+          );
+    final boardMembersAsync = ref.watch(provider);
+
+    final loaded = boardMembersAsync.valueOrNull;
+    if (hideWhenEmpty &&
+        loaded != null &&
+        loaded.success &&
+        loaded.members.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return BisoSection(
-      title: l10n.campusLeadershipMessage,
+      title: title ?? l10n.campusLeadershipMessage,
       child: boardMembersAsync.when(
         loading: () => const BisoSkeleton.rows(count: 3),
         error: (error, stackTrace) => BisoErrorState(
           message: 'Error loading board members: $error',
-          onRetry: () => ref.invalidate(boardMembersProvider(campusId)),
+          onRetry: () => ref.invalidate(provider),
         ),
         data: (response) {
           if (!response.success) {
@@ -34,7 +62,7 @@ class CampusLeadershipSection extends ConsumerWidget {
               message:
                   'Error loading board members: '
                   '${response.error ?? 'Failed to load board members'}',
-              onRetry: () => ref.invalidate(boardMembersProvider(campusId)),
+              onRetry: () => ref.invalidate(provider),
             );
           }
 
@@ -50,7 +78,9 @@ class CampusLeadershipSection extends ConsumerWidget {
 
           return _BoardMembersList(
             members: response.members,
-            departmentName: response.departmentName,
+            departmentName: departmentId == null
+                ? response.departmentName
+                : null,
           );
         },
       ),
@@ -97,9 +127,10 @@ class BoardMemberCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = BisoPalette.of(context);
-    final subtitle = member.officeLocation.isEmpty
-        ? member.role
-        : '${member.role} · ${member.officeLocation}';
+    final subtitle = [
+      member.role,
+      member.officeLocation,
+    ].where((part) => part.isNotEmpty).join(' · ');
 
     return BisoListRow(
       leading: _buildAvatar(palette),

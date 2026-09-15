@@ -311,7 +311,7 @@ class _CampusBenefitCardState extends State<CampusBenefitCard> {
 }
 
 /// Delegates to [CampusLeadershipSection] (board members loaded from the
-/// leadership Appwrite function). There is no separate department-entity
+/// BISO API board route). There is no separate department-entity
 /// data source behind this widget; see the deviations note in the task
 /// report.
 class CampusDepartmentShowcase extends ConsumerWidget {

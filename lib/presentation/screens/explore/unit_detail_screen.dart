@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/department_model.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/campus/campus_leadership_section.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 import 'units_overview_screen.dart' show departmentServiceProvider;
 
@@ -161,6 +162,15 @@ class UnitDetailScreen extends ConsumerWidget {
                       child: dept.description!.toFullHtml(),
                     ),
                   ),
+                ),
+              ),
+            if (dept.campusId.isNotEmpty)
+              SliverToBoxAdapter(
+                child: CampusLeadershipSection(
+                  campusId: dept.campusId,
+                  departmentId: dept.id,
+                  title: 'Board',
+                  hideWhenEmpty: true,
                 ),
               ),
             SliverToBoxAdapter(
