@@ -1,10 +1,12 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../data/models/chat_model.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../widgets/biso/biso.dart';
 import 'chat_list_screen.dart';
 import 'user_picker_screen.dart';
 
@@ -57,238 +59,257 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
     final authState = ref.watch(authStateProvider);
     final currentUserId = authState.user?.id ?? '';
     final isOwner = widget.chat.metadata['created_by'] == currentUserId;
+    final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          onPressed: () => context.pop(),
-          icon: const Icon(Icons.arrow_back),
-        ),
-        title: const Text('Chat Info'),
-        actions: [
-          if ((widget.chat.isGroup || widget.chat.isTeam) && isOwner)
-            IconButton(
-              onPressed: () => setState(() => _isEditing = !_isEditing),
-              icon: Icon(_isEditing ? Icons.check : Icons.edit),
-            ),
-        ],
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 1,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Chat Avatar and Name
-            Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: AppColors.subtleBlue,
-                    backgroundImage: widget.chat.avatarUrl != null
-                        ? NetworkImage(widget.chat.avatarUrl!)
-                        : null,
-                    child: widget.chat.avatarUrl == null
-                        ? Icon(
-                            _getChatIcon(),
-                            size: 40,
-                            color: AppColors.defaultBlue,
-                          )
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (_isEditing)
-                    TextField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Chat Name',
-                        border: OutlineInputBorder(),
-                      ),
+    return BisoPage(
+      title: 'Chat Info',
+      largeTitle: false,
+      actions: [
+        if ((widget.chat.isGroup || widget.chat.isTeam) && isOwner)
+          BisoHeaderAction(
+            icon: _isEditing ? CupertinoIcons.checkmark : CupertinoIcons.pencil,
+            tooltip: _isEditing ? l10n.saveChangesMessage : l10n.editChatMessage,
+            onPressed: () => setState(() => _isEditing = !_isEditing),
+          ),
+      ],
+      slivers: [
+        SliverToBoxAdapter(
+          child: Builder(
+            builder: (context) {
+              final palette = BisoPalette.of(context);
+              final text = Theme.of(context).textTheme;
+              final insets = BisoPageInsets.maybeOf(context);
+              final scrollPadding = insets != null
+                  ? EdgeInsets.fromLTRB(
+                      20,
+                      insets.top + 20,
+                      20,
+                      insets.bottom + 20,
                     )
-                  else
-                    Text(
-                      widget.chat.name,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                  : const EdgeInsets.all(20);
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: BisoAccent.teal.fill(context),
+                            backgroundImage: widget.chat.avatarUrl != null
+                                ? NetworkImage(widget.chat.avatarUrl!)
+                                : null,
+                            child: widget.chat.avatarUrl == null
+                                ? Icon(
+                                    _getChatIcon(),
+                                    size: 36,
+                                    color: BisoAccent.teal.glyph(context),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          if (!_isEditing)
+                            Text(
+                              widget.chat.name,
+                              textAlign: TextAlign.center,
+                              style: text.headlineMedium?.copyWith(
+                                color: palette.ink,
+                              ),
+                            ),
+                          if (!_isEditing && widget.chat.description != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              widget.chat.description!,
+                              textAlign: TextAlign.center,
+                              style: text.bodyMedium?.copyWith(
+                                color: palette.muted,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                ],
-              ),
+                    if (_isEditing) ...[
+                      const SizedBox(height: 20),
+                      BisoFormGroup(
+                        title: l10n.chatDetailsMessage,
+                        children: [
+                          BisoFormRow(
+                            label: 'Chat Name',
+                            child: TextField(
+                              controller: _nameController,
+                              scrollPadding: scrollPadding,
+                              decoration: bisoInputDecoration(context),
+                            ),
+                          ),
+                          BisoFormRow(
+                            label: 'Description',
+                            child: TextField(
+                              controller: _descriptionController,
+                              maxLines: 3,
+                              scrollPadding: scrollPadding,
+                              decoration: bisoInputDecoration(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Type
+        SliverToBoxAdapter(
+          child: BisoSection(
+            child: BisoListGroup(
+              children: [
+                BisoListRow(title: 'Type', value: _getChatTypeDisplay()),
+              ],
             ),
+          ),
+        ),
 
-            const SizedBox(height: 24),
-
-            // Chat Type
-            _InfoSection(
-              title: 'Type',
-              child: Text(
-                _getChatTypeDisplay(),
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Description
-            if (widget.chat.description != null || _isEditing)
-              _InfoSection(
-                title: 'Description',
-                child: _isEditing
-                    ? TextField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description',
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                      )
-                    : Text(
-                        widget.chat.description ?? 'No description',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-              ),
-
-            const SizedBox(height: 16),
-
-            // Participants
-            _InfoSection(
-              title: 'Participants (${widget.chat.participants.length})',
-              child: Column(
-                children: widget.chat.participants.map((participantId) {
-                  final isCurrentUser = participantId == currentUserId;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: AppColors.subtleBlue,
-                      child: Text(
-                        participantId.substring(0, 1).toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.defaultBlue,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      isCurrentUser
-                          ? 'You'
-                          : (_userNames[participantId] ?? 'Loading...'),
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    subtitle: Text(
-                      _getUserRole(participantId),
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: isOwner && !isCurrentUser
-                        ? IconButton(
-                            icon: const Icon(Icons.more_vert),
-                            onPressed: () =>
-                                _showParticipantOptions(participantId),
-                          )
-                        : null,
-                  );
-                }).toList(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Chat Stats
-            _InfoSection(
-              title: 'Chat Statistics',
-              child: Column(
-                children: [
-                  _StatRow('Created', _formatDate(widget.chat.createdAt)),
-                  _StatRow(
-                    'Last Activity',
-                    _formatDate(widget.chat.lastActivityAt),
+        // Participants
+        SliverToBoxAdapter(
+          child: BisoSection(
+            title: 'Participants (${widget.chat.participants.length})',
+            child: BisoListGroup(
+              children: [
+                for (final participantId in widget.chat.participants)
+                  _buildParticipantRow(
+                    context,
+                    participantId,
+                    currentUserId,
+                    isOwner,
                   ),
-                  _StatRow(
-                    'Messages',
+              ],
+            ),
+          ),
+        ),
+
+        // Chat Statistics
+        SliverToBoxAdapter(
+          child: BisoSection(
+            title: 'Chat Statistics',
+            child: BisoListGroup(
+              children: [
+                BisoListRow(
+                  title: 'Created',
+                  value: _formatDate(widget.chat.createdAt),
+                ),
+                BisoListRow(
+                  title: 'Last Activity',
+                  value: _formatDate(widget.chat.lastActivityAt),
+                ),
+                BisoListRow(
+                  title: 'Messages',
+                  // R11: a message count is a quantity that must never be
+                  // ellipsized, so it renders as a non-flexible trailing
+                  // Text rather than BisoListRow's Flexible `value:`.
+                  trailing: Text(
                     widget.chat.metadata['message_count']?.toString() ?? '0',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: BisoPalette.of(context).muted,
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
+        ),
 
-            const SizedBox(height: 24),
-
-            // Actions
-            if (widget.chat.isGroup || widget.chat.isTeam)
-              Column(
+        // Actions
+        if (widget.chat.isGroup || widget.chat.isTeam)
+          SliverToBoxAdapter(
+            child: BisoSection(
+              child: BisoListGroup(
                 children: [
                   if (!isOwner)
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _leaveChat,
-                        icon: const Icon(
-                          Icons.exit_to_app,
-                          color: AppColors.error,
-                        ),
-                        label: const Text(
-                          'Leave Chat',
-                          style: TextStyle(color: AppColors.error),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.error),
-                        ),
+                    BisoListRow(
+                      leading: const BisoIconTile(
+                        icon: CupertinoIcons.square_arrow_right,
                       ),
+                      title: 'Leave Chat',
+                      destructive: true,
+                      showChevron: false,
+                      onTap: _leaveChat,
                     ),
-
                   if (isOwner) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _addParticipant,
-                        icon: const Icon(Icons.person_add),
-                        label: const Text('Add Participant'),
+                    BisoListRow(
+                      leading: const BisoIconTile(
+                        icon: CupertinoIcons.person_add,
+                        accent: BisoAccent.teal,
                       ),
+                      title: 'Add Participant',
+                      onTap: _addParticipant,
                     ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _deleteChat,
-                        icon: const Icon(Icons.delete, color: AppColors.error),
-                        label: const Text(
-                          'Delete Chat',
-                          style: TextStyle(color: AppColors.error),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.error),
-                        ),
-                      ),
+                    BisoListRow(
+                      leading: const BisoIconTile(icon: CupertinoIcons.trash),
+                      title: 'Delete Chat',
+                      destructive: true,
+                      showChevron: false,
+                      onTap: _deleteChat,
                     ),
                   ],
                 ],
               ),
-          ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildParticipantRow(
+    BuildContext context,
+    String participantId,
+    String currentUserId,
+    bool isOwner,
+  ) {
+    final isCurrentUser = participantId == currentUserId;
+    return BisoListRow(
+      leading: CircleAvatar(
+        backgroundColor: BisoAccent.teal.fill(context),
+        child: Text(
+          participantId.substring(0, 1).toUpperCase(),
+          style: TextStyle(
+            color: BisoAccent.teal.glyph(context),
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
+      title: isCurrentUser ? 'You' : (_userNames[participantId] ?? 'Loading...'),
+      subtitle: _getUserRole(participantId),
+      trailing: isOwner && !isCurrentUser
+          ? IconButton(
+              icon: Icon(
+                CupertinoIcons.ellipsis,
+                color: BisoPalette.of(context).muted,
+              ),
+              onPressed: () => _showParticipantOptions(participantId),
+            )
+          : null,
     );
   }
 
   IconData _getChatIcon() {
     switch (widget.chat.type) {
       case 'direct':
-        return Icons.person;
+        return CupertinoIcons.person_fill;
       case 'group':
-        return Icons.group;
+        return CupertinoIcons.person_2;
       case 'team':
-        return Icons.business;
+        return CupertinoIcons.building_2_fill;
       case 'department':
-        return Icons.domain;
+        return CupertinoIcons.building_2_fill;
       default:
-        return Icons.chat;
+        return CupertinoIcons.bubble_left_fill;
     }
   }
 
@@ -326,23 +347,33 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
   void _showParticipantOptions(String participantId) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.person_remove, color: AppColors.error),
-            title: const Text('Remove from chat'),
-            onTap: () {
-              Navigator.of(context).pop();
-              _removeParticipant(participantId);
-            },
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                leading: const BisoIconTile(
+                  icon: CupertinoIcons.person_badge_minus,
+                  accent: BisoAccent.coral,
+                ),
+                title: 'Remove from chat',
+                destructive: true,
+                showChevron: false,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _removeParticipant(participantId);
+                },
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.xmark),
+                title: 'Cancel',
+                showChevron: false,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.cancel),
-            title: const Text('Cancel'),
-            onTap: () => Navigator.of(context).pop(),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -461,7 +492,9 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: BisoPalette.of(context).error,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete'),
           ),
@@ -488,58 +521,5 @@ class _ChatInfoScreenState extends ConsumerState<ChatInfoScreen> {
         }
       }
     }
-  }
-}
-
-class _InfoSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _InfoSection({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.defaultBlue,
-          ),
-        ),
-        const SizedBox(height: 8),
-        child,
-      ],
-    );
-  }
-}
-
-class _StatRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _StatRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
-              color: AppColors.onSurfaceVariant,
-            ),
-          ),
-          Text(value),
-        ],
-      ),
-    );
   }
 }

@@ -1,13 +1,14 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 // Google "G" multi-color SVG (official Google brand asset)
 const _googleGSvg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18">
@@ -79,7 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not send link: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: BisoPalette.of(context).error,
           ),
         );
       }
@@ -106,7 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: BisoPalette.of(context).error,
           ),
         );
       }
@@ -124,7 +125,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Google sign-in failed: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: BisoPalette.of(context).error,
           ),
         );
       }
@@ -142,7 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Apple sign-in failed: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: BisoPalette.of(context).error,
           ),
         );
       }
@@ -154,21 +155,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
+    // Not a themed color: it only chooses which brand logo asset to draw.
+    final dark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _flow == _AuthFlow.emailSent
-              ? _buildEmailSentView(theme, isDark)
-              : _buildFormView(theme, isDark),
+    return BisoPage(
+      largeTitle: false,
+      automaticallyImplyLeading: false,
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: _flow == _AuthFlow.emailSent
+                ? _buildEmailSentView(theme, palette, dark)
+                : _buildFormView(theme, palette, dark),
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildFormView(ThemeData theme, bool isDark) {
+  Widget _buildFormView(ThemeData theme, BisoPalette palette, bool dark) {
     return Form(
       key: _formKey,
       child: Column(
@@ -180,7 +188,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Column(
             children: [
               Image.asset(
-                isDark ? 'assets/logo-dark.png' : 'assets/logo.png',
+                dark ? 'assets/logo-dark.png' : 'assets/logo.png',
                 height: 72,
                 fit: BoxFit.contain,
               ),
@@ -188,8 +196,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               Text(
                 'Welcome to BISO',
                 style: theme.textTheme.displaySmall?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
+                  color: palette.ink,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -201,7 +208,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // Apple Sign In — iOS only, per Apple App Store guidelines
           if (Platform.isIOS) ...[
             _AppleSignInButton(
-              isDark: isDark,
               isLoading: _isSocialLoading,
               onPressed: _handleAppleSignIn,
             ),
@@ -219,17 +225,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           // Divider
           Row(
             children: [
-              Expanded(child: Divider(color: theme.dividerColor)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'or continue with email',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+              const Expanded(child: Divider()),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'or continue with email',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: palette.muted,
+                    ),
                   ),
                 ),
               ),
-              Expanded(child: Divider(color: theme.dividerColor)),
+              const Expanded(child: Divider()),
             ],
           ),
 
@@ -244,7 +254,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             decoration: const InputDecoration(
               labelText: 'Email',
               hintText: 'your@bi.no',
-              prefixIcon: Icon(Icons.email_outlined),
+              prefixIcon: Icon(CupertinoIcons.mail),
             ),
             onFieldSubmitted: (_) => _handleSendLink(),
           ),
@@ -252,16 +262,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 16),
 
           // Primary CTA
-          ElevatedButton(
+          FilledButton(
             onPressed: _isLoading ? null : _handleSendLink,
             child: _isLoading
                 ? const SizedBox(
                     height: 20,
                     width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Text('Send me a sign-in link'),
           ),
@@ -279,9 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           Text(
             'BI Student Organisation',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -290,7 +295,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildEmailSentView(ThemeData theme, bool isDark) {
+  Widget _buildEmailSentView(ThemeData theme, BisoPalette palette, bool dark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -298,7 +303,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
         Center(
           child: Image.asset(
-            isDark ? 'assets/logo-dark.png' : 'assets/logo.png',
+            dark ? 'assets/logo-dark.png' : 'assets/logo.png',
             height: 72,
             fit: BoxFit.contain,
           ),
@@ -307,18 +312,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(height: 52),
 
         Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.defaultBlue.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.mark_email_read_outlined,
-              size: 40,
-              color: AppColors.defaultBlue,
-            ),
+          child: BisoIconTile(
+            icon: CupertinoIcons.mail_solid,
+            accent: BisoAccent.blue,
+            size: 80,
           ),
         ),
 
@@ -326,10 +323,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
         Text(
           'Check your inbox',
-          style: theme.textTheme.headlineMedium?.copyWith(
-            color: theme.colorScheme.onSurface,
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
           textAlign: TextAlign.center,
         ),
 
@@ -338,7 +332,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Text(
           "We sent a sign-in link to\n$_sentEmail\n\nTap the link in the email to continue.",
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+            color: palette.muted,
             height: 1.6,
           ),
           textAlign: TextAlign.center,
@@ -368,9 +362,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
         Text(
           'BI Student Organisation',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+          style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
@@ -379,55 +371,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// Apple Sign In button styled per Apple's Human Interface Guidelines.
-/// Black background in light mode, white in dark mode.
+/// Apple Sign In button styled per Apple's Human Interface Guidelines: a
+/// black button in light mode, a white one in dark mode — exactly what
+/// [BisoPalette.ink]/[BisoPalette.paper] already give in each theme.
 class _AppleSignInButton extends StatelessWidget {
-  final bool isDark;
   final bool isLoading;
   final VoidCallback? onPressed;
 
-  const _AppleSignInButton({
-    required this.isDark,
-    required this.isLoading,
-    required this.onPressed,
-  });
+  const _AppleSignInButton({required this.isLoading, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isDark ? Colors.white : Colors.black;
-    final fgColor = isDark ? Colors.black : Colors.white;
-    final borderColor = isDark ? const Color(0xFFD1D1D6) : Colors.transparent;
+    final palette = BisoPalette.of(context);
 
     return SizedBox(
       height: 52,
-      child: ElevatedButton(
+      child: FilledButton(
         onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
-          foregroundColor: fgColor,
-          disabledBackgroundColor: bgColor.withValues(alpha: 0.6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: borderColor),
-          ),
-          elevation: 0,
+        style: FilledButton.styleFrom(
+          backgroundColor: palette.ink,
+          foregroundColor: palette.paper,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SvgPicture.string(
-              _appleSvg(fgColor),
-              width: 20,
-              height: 20,
-            ),
+            SvgPicture.string(_appleSvg(palette.paper), width: 20, height: 20),
             const SizedBox(width: 10),
-            Text(
-              'Sign in with Apple',
-              style: TextStyle(
-                color: fgColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.3,
+            const Flexible(
+              child: Text(
+                'Sign in with Apple',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -437,52 +411,30 @@ class _AppleSignInButton extends StatelessWidget {
   }
 }
 
-/// Google Sign In button styled per Google's brand identity guidelines.
-/// White background with subtle border in light mode; dark surface in dark mode.
+/// Google Sign In button styled per Google's brand identity guidelines: a
+/// neutral outlined button carrying the official multi-color "G" mark.
 class _GoogleSignInButton extends StatelessWidget {
   final bool isLoading;
   final VoidCallback? onPressed;
 
-  const _GoogleSignInButton({
-    required this.isLoading,
-    required this.onPressed,
-  });
+  const _GoogleSignInButton({required this.isLoading, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    final bgColor = isDark ? const Color(0xFF131314) : Colors.white;
-    final textColor =
-        isDark ? const Color(0xFFE3E3E3) : const Color(0xFF1F1F1F);
-    final borderColor =
-        isDark ? const Color(0xFF8E918F) : const Color(0xFF747775);
-
     return SizedBox(
       height: 52,
-      child: ElevatedButton(
+      child: OutlinedButton(
         onPressed: isLoading ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: bgColor,
-          foregroundColor: textColor,
-          disabledBackgroundColor: bgColor.withValues(alpha: 0.6),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: borderColor),
-          ),
-          elevation: 0,
-        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SvgPicture.string(_googleGSvg, width: 20, height: 20),
             const SizedBox(width: 10),
-            Text(
-              'Sign in with Google',
-              style: TextStyle(
-                color: textColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
+            const Flexible(
+              child: Text(
+                'Sign in with Google',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

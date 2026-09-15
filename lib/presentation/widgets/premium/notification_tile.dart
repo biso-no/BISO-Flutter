@@ -1,97 +1,73 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../biso/biso.dart';
 
-// Helper function for building premium notification tiles
+/// A settings row toggling one notification preference. [onChanged] may be
+/// null while the underlying async state is loading or failed, which renders
+/// a disabled switch.
 Widget buildNotificationTile({
-  required BuildContext context,
-  required WidgetRef ref,
   required IconData icon,
-  required Color iconColor,
+  BisoAccent accent = BisoAccent.neutral,
   required String title,
   required String subtitle,
   required bool isEnabled,
-  required Function(bool) onChanged,
-  required selectedCampus,
+  required ValueChanged<bool>? onChanged,
 }) {
-  final theme = Theme.of(context);
-  
-  return Container(
-    decoration: const BoxDecoration(
-      color: Colors.transparent,
-    ),
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      leading: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(
-          icon,
-          color: iconColor,
-          size: 24,
-        ),
-      ),
-      title: Text(
-        title,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          color: AppColors.onSurface,
-        ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Text(
-          subtitle,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceVariant,
-            height: 1.3,
-          ),
-        ),
-      ),
-      trailing: Transform.scale(
-        scale: 0.85,
-        child: Switch.adaptive(
-          value: isEnabled,
-          onChanged: onChanged,
-          activeColor: getCampusColorHelper(selectedCampus.id),
-          trackColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return getCampusColorHelper(selectedCampus.id).withValues(alpha: 0.3);
-            }
-            return AppColors.gray300;
-          }),
-        ),
-      ),
-    ),
+  return BisoListRow(
+    leading: BisoIconTile(icon: icon, accent: accent),
+    title: title,
+    subtitle: subtitle,
+    trailing: Switch.adaptive(value: isEnabled, onChanged: onChanged),
   );
 }
 
-// Helper function for building premium dividers
-Widget buildDivider() {
-  return Container(
-    margin: const EdgeInsets.only(left: 88),
-    height: 1,
-    color: AppColors.outline.withValues(alpha: 0.2),
+/// A settings row shown in place of [buildNotificationTile] while its data is
+/// loading.
+Widget buildLoadingTile(String title) {
+  return BisoListRow(
+    leading: const SizedBox(
+      width: 32,
+      height: 32,
+      child: Padding(
+        padding: EdgeInsets.all(4),
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    ),
+    title: title,
   );
 }
 
-// Helper function for campus colors
-Color getCampusColorHelper(String campusId) {
-  switch (campusId) {
-    case 'oslo':
-      return AppColors.defaultBlue;
-    case 'bergen':
-      return AppColors.green9;
-    case 'trondheim':
-      return AppColors.purple9;
-    case 'stavanger':
-      return AppColors.orange9;
-    default:
-      return AppColors.gray400;
-  }
+/// A settings row shown in place of [buildNotificationTile] when its data
+/// failed to load. Unlike [BisoListRow]'s `subtitle` (capped at two lines),
+/// [message] renders in full — error text is not curated copy, and clipping
+/// it can hide the one detail that explains what went wrong.
+Widget buildErrorTile(String title, String message) {
+  return Builder(
+    builder: (context) {
+      final palette = BisoPalette.of(context);
+      final text = Theme.of(context).textTheme;
+      return Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const BisoIconTile(icon: CupertinoIcons.exclamationmark_circle),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title, style: text.titleMedium?.copyWith(color: palette.error)),
+                  const SizedBox(height: 2),
+                  Text(message, style: text.bodyMedium?.copyWith(color: palette.muted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }

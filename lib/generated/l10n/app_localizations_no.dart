@@ -107,6 +107,9 @@ class AppLocalizationsNo extends AppLocalizations {
   String get askAIMessage => 'Spør AI-assistent';
 
   @override
+  String get attachMessage => 'Legg ved';
+
+  @override
   String get attachedFilesMessage => 'Vedlagte filer';
 
   @override
@@ -269,6 +272,9 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get chatDeletedSuccessfully => 'Chat slettet';
+
+  @override
+  String get chatDetailsMessage => 'Chatdetaljer';
 
   @override
   String get chatInfo => 'Chatinfo';
@@ -554,6 +560,9 @@ class AppLocalizationsNo extends AppLocalizations {
   @override
   String get earlyRegistrationForPopularEventsMessage =>
       'Tidlig registrering for populære arrangementer';
+
+  @override
+  String get editChatMessage => 'Rediger chat';
 
   @override
   String get editMessage => 'Rediger';
@@ -1075,6 +1084,9 @@ class AppLocalizationsNo extends AppLocalizations {
   }
 
   @override
+  String get newConversationMessage => 'Ny samtale';
+
+  @override
   String get newExpenseMessage => 'Ny utgift';
 
   @override
@@ -1573,6 +1585,9 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get saveAsDraftMessage => 'Lagre som utkast';
+
+  @override
+  String get saveChangesMessage => 'Lagre endringer';
 
   @override
   String get saveMessage => 'Lagre';
@@ -2118,4 +2133,28 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get bisoWebsiteMessage => 'BISO.no';
+
+  @override
+  String get searchExploreMessage => 'Søk i Utforsk';
+
+  @override
+  String get noSearchResultsMessage => 'Ingen treff';
+
+  @override
+  String get loadingMessage => 'Laster inn';
+
+  @override
+  String get turnFlashOnMessage => 'Slå på blits';
+
+  @override
+  String get turnFlashOffMessage => 'Slå av blits';
+
+  @override
+  String get moreMessage => 'Mer';
+
+  @override
+  String get favoriteMessage => 'Favoritt';
+
+  @override
+  String get changePhotoMessage => 'Bytt bilde';
 }

@@ -223,9 +223,9 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(
-                    initialTab: 3,
-                  ), // Chat tab is index 3
+                  builder: (context) =>
+                      const SettingsSectionPage(section: SettingsSection.chat),
+                  settings: const RouteSettings(name: kSettingsRouteName),
                 ),
               );
             },

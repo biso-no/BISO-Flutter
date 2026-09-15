@@ -1,15 +1,16 @@
 import 'dart:io';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../data/models/campus_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -131,7 +132,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
+            backgroundColor: BisoPalette.of(context).error,
           ),
         );
       }
@@ -142,76 +143,55 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: _currentStep > 0
-            ? IconButton(
-                onPressed: _previousStep,
-                icon: const Icon(Icons.arrow_back),
-              )
-            : null,
-        title: Text('${_currentStep + 1} / 2'),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Progress indicator
-            LinearProgressIndicator(
-              value: (_currentStep + 1) / 2,
-              backgroundColor: AppColors.gray200,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                AppColors.defaultBlue,
-              ),
-            ),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior: Platform.isIOS
-                    ? ScrollViewKeyboardDismissBehavior.manual
-                    : ScrollViewKeyboardDismissBehavior.onDrag,
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.height - 200, // Account for app bar and progress bar
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) => setState(() => _currentStep = index),
-                    children: [
-                      _PersonalInfoStep(
-                        nameController: _nameController,
-                        phoneController: _phoneController,
-                        addressController: _addressController,
-                        cityController: _cityController,
-                        zipController: _zipController,
-                        onNext: _nextStep,
-                      ),
-                      _CampusSelectionStep(
-                        campuses: _campuses,
-                        selectedCampusId: _selectedCampusId,
-                        onCampusSelected: (campusId) {
-                          setState(() => _selectedCampusId = campusId);
-                        },
-                        onNext: _completeOnboarding,
-                        isLoading: authState.isLoading,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+    return BisoPage(
+      title: '${_currentStep + 1} / 2',
+      largeTitle: false,
+      automaticallyImplyLeading: false,
+      leading: _currentStep > 0
+          ? BisoBackButton(onPressed: _previousStep)
+          : null,
+      notificationDepth: 1,
+      body: PageView(
+        controller: _pageController,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          _PersonalInfoStep(
+            nameController: _nameController,
+            phoneController: _phoneController,
+            addressController: _addressController,
+            cityController: _cityController,
+            zipController: _zipController,
+            currentStep: _currentStep,
+            onNext: _nextStep,
+          ),
+          _CampusSelectionStep(
+            campuses: _campuses,
+            selectedCampusId: _selectedCampusId,
+            currentStep: _currentStep,
+            onCampusSelected: (campusId) {
+              setState(() => _selectedCampusId = campusId);
+            },
+            onNext: _completeOnboarding,
+            isLoading: authState.isLoading,
+          ),
+        ],
       ),
     );
   }
 }
 
+/// The step's own scroll view sits below [BisoPage]'s `body:` (a PageView is
+/// not a descendant of the header's internal CustomScrollView, so BisoPage
+/// cannot add clearance for it automatically) — [BisoPageInsets.maybeOf]
+/// resolves from this widget's own build context, which is already inside
+/// [BisoPageInsets] because the PageView that hosts it is BisoPage's `body`.
 class _PersonalInfoStep extends StatefulWidget {
   final TextEditingController nameController;
   final TextEditingController phoneController;
   final TextEditingController addressController;
   final TextEditingController cityController;
   final TextEditingController zipController;
+  final int currentStep;
   final VoidCallback onNext;
 
   const _PersonalInfoStep({
@@ -220,6 +200,7 @@ class _PersonalInfoStep extends StatefulWidget {
     required this.addressController,
     required this.cityController,
     required this.zipController,
+    required this.currentStep,
     required this.onNext,
   });
 
@@ -256,179 +237,231 @@ class _PersonalInfoStepState extends State<_PersonalInfoStep> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final insets = BisoPageInsets.maybeOf(context);
+    final topInset = insets?.top ?? 0.0;
+    final bottomInset = insets?.bottom ?? 0.0;
 
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 20), // Extra space at top for better UX
-            Text(
-              l10n.personalInfoMessage,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: AppColors.strongBlue,
-                fontWeight: FontWeight.bold,
+    return Form(
+      key: _formKey,
+      child: CustomScrollView(
+        keyboardDismissBehavior: Platform.isIOS
+            ? ScrollViewKeyboardDismissBehavior.manual
+            : ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          SliverToBoxAdapter(
+            child: SizedBox(key: const ValueKey('step-top-inset'), height: topInset),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: LinearProgressIndicator(
+                value: (widget.currentStep + 1) / 2,
+                backgroundColor: palette.hairline,
+                valueColor: AlwaysStoppedAnimation<Color>(palette.link),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Tell us a bit about yourself',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            TextFormField(
-              controller: widget.nameController,
-              decoration: InputDecoration(
-                labelText: l10n.nameMessage,
-                prefixIcon: const Icon(Icons.person_outlined),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Name is required';
-                }
-                return null;
-              },
-              textInputAction: TextInputAction.next,
-            ),
-
-            const SizedBox(height: 16),
-
-            Column(
-              children: [
-                TextFormField(
-                  controller: widget.phoneController,
-                  focusNode: _phoneFocusNode,
-                  decoration: InputDecoration(
-                    labelText: l10n.phoneMessage,
-                    prefixIcon: const Icon(Icons.phone_outlined),
-                    hintText: '123 45 678',
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.personalInfoMessage,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: palette.ink,
+                    ),
                   ),
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.next,
-                ),
-                if (Platform.isIOS && _phoneFieldFocused)
-                  Container(
-                    width: double.infinity,
-                    height: 40,
-                    color: AppColors.gray100,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tell us a bit about yourself',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: palette.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: BisoFormGroup(
+                children: [
+                  BisoFormRow(
+                    label: l10n.nameMessage,
+                    child: TextFormField(
+                      controller: widget.nameController,
+                      decoration: bisoInputDecoration(
+                        context,
+                        prefixIcon: const Icon(CupertinoIcons.person),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Name is required';
+                        }
+                        return null;
+                      },
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  BisoFormRow(
+                    label: l10n.phoneMessage,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        TextButton(
-                          onPressed: () => FocusScope.of(context).unfocus(),
-                          child: const Text(
-                            'Done',
-                            style: TextStyle(
-                              color: AppColors.defaultBlue,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        TextFormField(
+                          controller: widget.phoneController,
+                          focusNode: _phoneFocusNode,
+                          decoration: bisoInputDecoration(
+                            context,
+                            prefixIcon: const Icon(CupertinoIcons.phone),
+                            hintText: '123 45 678',
                           ),
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
                         ),
+                        if (Platform.isIOS && _phoneFieldFocused)
+                          _DoneBar(
+                            color: palette.surfaceRaised,
+                            textColor: palette.link,
+                            onDone: () => FocusScope.of(context).unfocus(),
+                          ),
                       ],
                     ),
                   ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            TextFormField(
-              controller: widget.addressController,
-              decoration: InputDecoration(
-                labelText: l10n.addressMessage,
-                prefixIcon: const Icon(Icons.home_outlined),
-              ),
-              textInputAction: TextInputAction.next,
-            ),
-
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: widget.cityController,
-                    decoration: InputDecoration(
-                      labelText: l10n.cityMessage,
-                      prefixIcon: const Icon(Icons.location_city_outlined),
-                    ),
-                    textInputAction: TextInputAction.next,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: widget.zipController,
-                        focusNode: _zipFocusNode,
-                        decoration: InputDecoration(
-                          labelText: l10n.zipCodeMessage,
-                          prefixIcon: const Icon(Icons.local_post_office_outlined),
-                        ),
-                        keyboardType: TextInputType.number,
-                        textInputAction: TextInputAction.done,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(4),
-                        ],
+                  BisoFormRow(
+                    label: l10n.addressMessage,
+                    child: TextFormField(
+                      controller: widget.addressController,
+                      decoration: bisoInputDecoration(
+                        context,
+                        prefixIcon: const Icon(CupertinoIcons.house),
                       ),
-                      if (Platform.isIOS && _zipFieldFocused)
-                        Container(
-                          width: double.infinity,
-                          height: 40,
-                          color: AppColors.gray100,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: BisoFormRow(
+                          label: l10n.cityMessage,
+                          child: TextFormField(
+                            controller: widget.cityController,
+                            decoration: bisoInputDecoration(
+                              context,
+                              prefixIcon: const Icon(
+                                CupertinoIcons.building_2_fill,
+                              ),
+                            ),
+                            textInputAction: TextInputAction.next,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: BisoFormRow(
+                          label: l10n.zipCodeMessage,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              TextButton(
-                                onPressed: () => FocusScope.of(context).unfocus(),
-                                child: const Text(
-                                  'Done',
-                                  style: TextStyle(
-                                    color: AppColors.defaultBlue,
-                                    fontWeight: FontWeight.w600,
+                              TextFormField(
+                                controller: widget.zipController,
+                                focusNode: _zipFocusNode,
+                                decoration: bisoInputDecoration(
+                                  context,
+                                  prefixIcon: const Icon(
+                                    CupertinoIcons.number_square,
                                   ),
                                 ),
+                                keyboardType: TextInputType.number,
+                                textInputAction: TextInputAction.done,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(4),
+                                ],
                               ),
+                              if (Platform.isIOS && _zipFieldFocused)
+                                _DoneBar(
+                                  color: palette.surfaceRaised,
+                                  textColor: palette.link,
+                                  onDone: () =>
+                                      FocusScope.of(context).unfocus(),
+                                ),
                             ],
                           ),
                         ),
+                      ),
                     ],
                   ),
-                ),
-              ],
-            ),
-
-            const Spacer(),
-
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20), // Extra padding for keyboard
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    widget.onNext();
-                  }
-                },
-                child: Text(l10n.continueButtonMessage),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                child: FilledButton(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      widget.onNext();
+                    }
+                  },
+                  child: Text(l10n.continueButtonMessage),
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(child: SizedBox(height: bottomInset + 16)),
+        ],
       ),
     );
   }
 }
 
+/// A small inline "Done" affordance under a focused field, replacing the
+/// keyboard's own accessory bar. [color]/[textColor] come from the caller so
+/// this stays palette-agnostic.
+class _DoneBar extends StatelessWidget {
+  const _DoneBar({
+    required this.color,
+    required this.textColor,
+    required this.onDone,
+  });
+
+  final Color color;
+  final Color textColor;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    height: 40,
+    color: color,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: onDone,
+          child: Text(
+            'Done',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _CampusSelectionStep extends StatelessWidget {
   final List<CampusModel> campuses;
   final String? selectedCampusId;
+  final int currentStep;
   final Function(String) onCampusSelected;
   final VoidCallback onNext;
   final bool isLoading;
@@ -436,6 +469,7 @@ class _CampusSelectionStep extends StatelessWidget {
   const _CampusSelectionStep({
     required this.campuses,
     required this.selectedCampusId,
+    required this.currentStep,
     required this.onCampusSelected,
     required this.onNext,
     required this.isLoading,
@@ -445,121 +479,108 @@ class _CampusSelectionStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final insets = BisoPageInsets.maybeOf(context);
+    final topInset = insets?.top ?? 0.0;
+    final bottomInset = insets?.bottom ?? 0.0;
 
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            l10n.selectCampusMessage,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: AppColors.strongBlue,
-              fontWeight: FontWeight.bold,
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(key: const ValueKey('step-top-inset'), height: topInset),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: LinearProgressIndicator(
+              value: (currentStep + 1) / 2,
+              backgroundColor: palette.hairline,
+              valueColor: AlwaysStoppedAnimation<Color>(palette.link),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose your BI campus location',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          Expanded(
-            child: ListView.separated(
-              itemCount: campuses.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final campus = campuses[index];
-                final isSelected = selectedCampusId == campus.id;
-
-                return Card(
-                  color: isSelected ? AppColors.subtleBlue : null,
-                  child: InkWell(
-                    onTap: () => onCampusSelected(campus.id),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.defaultBlue
-                                  : AppColors.defaultBlue.withValues(
-                                      alpha: 0.1,
-                                    ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.location_city,
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.defaultBlue,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  campus.name,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  campus.description,
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (isSelected)
-                            const Icon(
-                              Icons.check_circle,
-                              color: AppColors.defaultBlue,
-                            ),
-                        ],
-                      ),
-                    ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.selectCampusMessage,
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    color: palette.ink,
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Choose your BI campus location',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: palette.muted,
+                  ),
+                ),
+              ],
             ),
           ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          sliver: SliverBisoListGroup(
+            itemCount: campuses.length,
+            itemBuilder: (context, index) {
+              final campus = campuses[index];
+              final isSelected = selectedCampusId == campus.id;
 
-          const SizedBox(height: 16),
-
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20), // Extra padding for keyboard
-            child: ElevatedButton(
-              onPressed: (selectedCampusId != null && !isLoading)
-                  ? onNext
-                  : null,
-              child: isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white,
+              return ColoredBox(
+                color: isSelected
+                    ? palette.link.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                child: BisoListRow(
+                  leading: BisoIconTile(
+                    icon: CupertinoIcons.building_2_fill,
+                    accent: isSelected ? BisoAccent.blue : BisoAccent.neutral,
+                  ),
+                  title: campus.name,
+                  subtitle: campus.description,
+                  trailing: isSelected
+                      ? Icon(
+                          CupertinoIcons.checkmark_circle_fill,
+                          color: palette.link,
+                        )
+                      : null,
+                  onTap: () => onCampusSelected(campus.id),
+                ),
+              );
+            },
+          ),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+              child: FilledButton(
+                onPressed: (selectedCampusId != null && !isLoading)
+                    ? onNext
+                    : null,
+                child: isLoading
+                    ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            palette.onPrimary,
+                          ),
                         ),
-                      ),
-                    )
-                  : Text(l10n.completeSetupMessage),
+                      )
+                    : Text(l10n.completeSetupMessage),
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+        SliverToBoxAdapter(child: SizedBox(height: bottomInset + 16)),
+      ],
     );
   }
 }

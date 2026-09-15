@@ -1,3 +1,4 @@
+import '../../../core/theme/biso_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -223,7 +224,7 @@ class _StudentIdScreenState extends ConsumerState<StudentIdScreen>
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: BisoNavigationInset.padding(context, const EdgeInsets.all(16)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1088,13 +1089,17 @@ class _AnimatedStudentIdCard extends StatelessWidget {
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                         ),
                                   ),
                                   Text(
                                     'Show this to validators',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                 ],

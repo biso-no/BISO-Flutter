@@ -1,166 +1,251 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../data/models/department_model.dart';
-import '../../../data/services/department_service.dart';
 import '../../../providers/ui/locale_provider.dart';
+import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+import 'units_overview_screen.dart' show departmentServiceProvider;
 
 final _departmentProvider = FutureProvider.family<DepartmentModel?, String>((
   ref,
   id,
 ) async {
+  final service = ref.watch(departmentServiceProvider);
   final locale = ref.watch(localeProvider);
-  final service = DepartmentService();
-  return await service.getDepartmentById(id, locale: locale.languageCode);
+  return service.getDepartmentById(id, locale: locale.languageCode);
 });
 
 final _socialsProvider =
     FutureProvider.family<List<Map<String, dynamic>>, String>((ref, id) async {
-      final service = DepartmentService();
-      return await service.getDepartmentSocials(id);
+      final service = ref.watch(departmentServiceProvider);
+      return service.getDepartmentSocials(id);
     });
 
 class UnitDetailScreen extends ConsumerWidget {
   final String departmentId;
   final String departmentName;
-  const UnitDetailScreen({super.key, required this.departmentId, required this.departmentName});
+  const UnitDetailScreen({
+    super.key,
+    required this.departmentId,
+    required this.departmentName,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncDept = ref.watch(_departmentProvider(departmentId));
     final asyncSocials = ref.watch(_socialsProvider(departmentId));
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
 
-    //Department name
-
-    return Scaffold(
-      appBar: AppBar(title: Text(departmentName)),
-      body: asyncDept.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Failed to load: $e')),
-        data: (dept) {
-          if (dept == null) {
-            return const Center(child: Text('Not found'));
-          }
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Container(
-                    color: AppColors.subtleBlue,
-                    child: (dept.logo != null && dept.logo!.isNotEmpty)
-                        ? Image.network(
-                            dept.logo!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const Center(
-                              child: Icon(
-                                Icons.image_not_supported_outlined,
-                                color: AppColors.defaultBlue,
-                              ),
-                            ),
-                          )
-                        : const Center(
-                            child: Icon(
-                              Icons.apartment_rounded,
-                              color: AppColors.defaultBlue,
-                            ),
-                          ),
-                  ),
+    return asyncDept.when(
+      loading: () => BisoPage(
+        title: departmentName,
+        largeTitle: false,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
+      ),
+      error: (_, _) => BisoPage(
+        title: departmentName,
+        largeTitle: false,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoErrorState(
+              onRetry: () =>
+                  ref.invalidate(_departmentProvider(departmentId)),
+            ),
+          ),
+        ],
+      ),
+      data: (dept) {
+        if (dept == null) {
+          return BisoPage(
+            title: departmentName,
+            largeTitle: false,
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: BisoEmptyState(
+                  icon: CupertinoIcons.person_2,
+                  accent: BisoAccent.teal,
+                  title: 'Not found',
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+              ),
+            ],
+          );
+        }
+
+        final hasLogo = dept.logo != null && dept.logo!.isNotEmpty;
+        final hasType = (dept.type ?? '').isNotEmpty;
+        final hasDescription = (dept.description ?? '').isNotEmpty;
+
+        return BisoPage(
+          title: departmentName,
+          largeTitle: false,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: hasLogo
+                          ? Image.network(
+                              dept.logo!,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => const BisoIconTile(
+                                icon: CupertinoIcons.person_2,
+                                accent: BisoAccent.teal,
+                                size: 64,
+                              ),
+                            )
+                          : const BisoIconTile(
+                              icon: CupertinoIcons.person_2,
+                              accent: BisoAccent.teal,
+                              size: 64,
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
                         dept.name,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: theme.textTheme.headlineMedium,
                       ),
-                      if ((dept.type ?? '').isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Chip(label: Text(dept.type!)),
-                      ],
-                      const SizedBox(height: 12),
-                      if ((dept.description ?? '').isNotEmpty)
-                        PremiumHtmlRenderer.full(
-                          htmlContent: dept.description!,
-                          padding: const EdgeInsets.only(top: 4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (hasType)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
                         ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Find us online',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+                        decoration: BoxDecoration(
+                          color: palette.surfaceRaised,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      asyncSocials.when(
-                        loading: () => const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: LinearProgressIndicator(),
+                        child: Text(
+                          dept.type!,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: palette.muted,
+                          ),
                         ),
-                        error: (e, _) => Text('Failed to load socials: $e'),
-                        data: (socials) {
-                          if (socials.isEmpty) {
-                            return const Text('No social links yet');
-                          }
-                          return Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: socials.map((s) {
-                              final platform = (s['platform'] ?? '').toString();
-                              final link = (s['url'] ?? '').toString();
-                              return ActionChip(
-                                avatar: Icon(_iconForPlatform(platform)),
-                                label: Text(_labelForPlatform(platform)),
-                                onPressed: () {
-                                  if (link.isNotEmpty) {
-                                    launchUrl(
-                                      Uri.parse(link),
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  }
-                                },
-                              );
-                            }).toList(),
-                          );
-                        },
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
+            if (hasDescription)
+              SliverToBoxAdapter(
+                child: BisoSection(
+                  child: Material(
+                    color: palette.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: dept.description!.toFullHtml(),
+                    ),
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: BisoSection(
+                title: 'Find us online',
+                child: asyncSocials.when(
+                  loading: () => const BisoSkeleton.rows(count: 2),
+                  error: (_, _) => Text(
+                    'Failed to load socials',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: palette.muted,
+                    ),
+                  ),
+                  data: (socials) {
+                    if (socials.isEmpty) {
+                      return Text(
+                        'No social links yet',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: palette.muted,
+                        ),
+                      );
+                    }
+                    return BisoListGroup(
+                      children: [
+                        for (final social in socials)
+                          BisoListRow(
+                            leading: BisoIconTile(
+                              icon: _iconForPlatform(
+                                (social['platform'] ?? '').toString(),
+                              ),
+                            ),
+                            title: _labelForPlatform(
+                              (social['platform'] ?? '').toString(),
+                            ),
+                            onTap: () {
+                              final link = (social['url'] ?? '').toString();
+                              if (link.isNotEmpty) {
+                                launchUrl(
+                                  Uri.parse(link),
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              }
+                            },
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
   }
 }
 
+/// R7 has no brand-logo equivalents in `CupertinoIcons`, so each platform
+/// maps to the nearest generic glyph:
+/// - instagram -> `photo` (R7: photo, image -> photo)
+/// - facebook -> `link` (no Cupertino analog; generic external link)
+/// - linkedin -> `briefcase` (R7: work -> briefcase; professional network)
+/// - tiktok -> `play_rectangle` (video sharing)
+/// - x/twitter -> `at` (R7: matches the "@" glyph the old alternate_email
+///   icon stood for)
+/// - website/default -> `globe` (brief: "globe for web")
+/// - email -> `mail` (brief: "mail for email"; not in the original switch)
 IconData _iconForPlatform(String platform) {
   switch (platform.toLowerCase()) {
     case 'instagram':
-      return Icons.camera_alt_outlined;
+      return CupertinoIcons.photo;
     case 'facebook':
-      return Icons.facebook;
+      return CupertinoIcons.link;
     case 'linkedin':
-      return Icons.linked_camera_outlined;
+      return CupertinoIcons.briefcase;
     case 'tiktok':
-      return Icons.play_circle_outline;
+      return CupertinoIcons.play_rectangle;
     case 'x':
     case 'twitter':
-      return Icons.alternate_email;
+      return CupertinoIcons.at;
+    case 'email':
+      return CupertinoIcons.mail;
     case 'website':
     default:
-      return Icons.link;
+      return CupertinoIcons.globe;
   }
 }
 
@@ -177,6 +262,8 @@ String _labelForPlatform(String platform) {
     case 'x':
     case 'twitter':
       return 'X';
+    case 'email':
+      return 'Email';
     case 'website':
     default:
       return 'Website';

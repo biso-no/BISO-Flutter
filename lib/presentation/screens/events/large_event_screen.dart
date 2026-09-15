@@ -1,11 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/large_event_model.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/large_event/large_event_items_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 class LargeEventScreen extends ConsumerWidget {
   final LargeEventModel event;
@@ -15,121 +19,108 @@ class LargeEventScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final campus = ref.watch(filterCampusProvider);
     final cfg = event.campusConfig(campus.id);
-    final gradient = event.gradientColors;
-    // final textColor = event.textColor; // reserved for future use in content blocks
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 220,
-            backgroundColor: Colors.transparent,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(event.name),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (event.backgroundImageUrl != null &&
-                      event.backgroundImageUrl!.isNotEmpty)
-                    Image.network(event.backgroundImageUrl!, fit: BoxFit.cover)
-                  else
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: gradient,
-                        ),
-                      ),
-                    ),
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black54],
-                      ),
-                    ),
-                  ),
+    return BisoPage(
+      overImage: true,
+      title: event.name,
+      largeTitle: false,
+      leading: BisoBackButton(
+        onPressed: () =>
+            NavigationUtils.safeGoBack(context, fallbackRoute: '/explore'),
+      ),
+      slivers: [
+        SliverToBoxAdapter(child: _EventHero(event: event)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: _EventSummary(event: event),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: _DatePills(
+              from: event.startDate,
+              to: event.endDate,
+              color: event.primaryColor, // biso:allow CMS event brand color
+            ),
+          ),
+        ),
+        if (cfg != null) SliverToBoxAdapter(child: _TicketingSection(cfg: cfg)),
+
+        // Prefer subevents from collection; fallback to embedded schedule
+        SliverToBoxAdapter(
+          child: Consumer(
+            builder: (context, ref, _) {
+              final state = ref.watch(
+                largeEventItemsProvider((
+                  eventId: event.id,
+                  campusId: campus.id,
+                )),
+              );
+              final hasItems = state.items.isNotEmpty;
+              final items = hasItems ? state.items : (cfg?.schedule ?? []);
+              if (items.isEmpty) return const SizedBox.shrink();
+              return _ScheduleList(items: items);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The hero band at the top of the page: `event.backgroundImageUrl` (or a
+/// `palette.primary` block when there is none) behind a scrim and the event
+/// name, matching `CampusCover`'s over-image pattern.
+class _EventHero extends StatelessWidget {
+  final LargeEventModel event;
+  const _EventHero({required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final imageUrl = event.backgroundImageUrl;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+
+    return SizedBox(
+      key: const ValueKey('large-event-hero'),
+      height: 360,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (hasImage)
+            CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              memCacheWidth: 1200,
+              errorWidget: (_, _, _) => ColoredBox(color: palette.primary),
+            )
+          else
+            ColoredBox(color: palette.primary),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.45),
                 ],
               ),
             ),
           ),
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (event.logoUrl != null && event.logoUrl!.isNotEmpty)
-                        Container(
-                          width: 64,
-                          height: 64,
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: AppColors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.outlineVariant),
-                          ),
-                          child: Image.network(
-                            event.logoUrl!,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      if (event.logoUrl != null && event.logoUrl!.isNotEmpty)
-                        const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              event.name,
-                              style: Theme.of(context).textTheme.headlineMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(event.description),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-                  _DatePills(
-                    from: event.startDate,
-                    to: event.endDate,
-                    color: event.primaryColor,
-                  ),
-
-                  const SizedBox(height: 24),
-                  if (cfg != null)
-                    _TicketingSection(cfg: cfg, accent: event.primaryColor),
-
-                  const SizedBox(height: 24),
-                  // Prefer subevents from collection; fallback to embedded schedule
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final state = ref.watch(
-                        largeEventItemsProvider((
-                          eventId: event.id,
-                          campusId: campus.id,
-                        )),
-                      );
-                      final hasItems = state.items.isNotEmpty;
-                      final items = hasItems
-                          ? state.items
-                          : (cfg?.schedule ?? []);
-                      if (items.isEmpty) return const SizedBox.shrink();
-                      return _ScheduleList(items: items);
-                    },
-                  ),
-                ],
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 20,
+            child: Text(
+              event.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.displaySmall?.copyWith(
+                color: Colors.white,
               ),
             ),
           ),
@@ -139,35 +130,90 @@ class LargeEventScreen extends ConsumerWidget {
   }
 }
 
+/// The event logo (if any) beside its description.
+class _EventSummary extends StatelessWidget {
+  final LargeEventModel event;
+  const _EventSummary({required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+    final description = Text(
+      event.description,
+      style: theme.textTheme.bodyLarge?.copyWith(color: palette.muted),
+    );
+
+    final logoUrl = event.logoUrl;
+    if (logoUrl == null || logoUrl.isEmpty) return description;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.hairline),
+          ),
+          child: CachedNetworkImage(
+            imageUrl: logoUrl,
+            fit: BoxFit.contain,
+            memCacheWidth: 128,
+            errorWidget: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: description),
+      ],
+    );
+  }
+}
+
 class _DatePills extends StatelessWidget {
   final DateTime from;
   final DateTime to;
   final Color color;
-  const _DatePills({required this.from, required this.to, required this.color});
+  const _DatePills({
+    required this.from,
+    required this.to,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    // `color` is CMS content (`event.primaryColor`) and can be any hex
+    // value, including a light one, so the text can't be a fixed white —
+    // pick whichever of white/navy actually reads on this background.
+    final foreground = _readableForegroundFor(color);
     final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: AppColors.white,
+      color: foreground,
       fontWeight: FontWeight.w600,
     );
-    return Row(
+    // A Wrap rather than a strict Row: at large text scales the two date
+    // pills flow onto another line instead of overflowing the page width.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color,
+            color: color, // biso:allow CMS event brand color
             borderRadius: BorderRadius.circular(24),
           ),
           child: Text('${from.day}.${from.month}.${from.year}', style: style),
         ),
-        const SizedBox(width: 8),
-        const Icon(Icons.arrow_forward, size: 16),
-        const SizedBox(width: 8),
+        Icon(CupertinoIcons.arrow_right, size: 16, color: palette.muted),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: color,
+            color: color, // biso:allow CMS event brand color
             borderRadius: BorderRadius.circular(24),
           ),
           child: Text('${to.day}.${to.month}.${to.year}', style: style),
@@ -177,71 +223,89 @@ class _DatePills extends StatelessWidget {
   }
 }
 
+/// The readable foreground (text and any icon) for a pill painted with
+/// [background] — a CMS-supplied color that can be arbitrarily light or
+/// dark, so a fixed `Colors.white` can't be assumed to read on it.
+Color _readableForegroundFor(Color background) {
+  return ThemeData.estimateBrightnessForColor(background) == Brightness.dark
+      ? Colors.white
+      : AppColors.biNavy;
+}
+
 class _TicketingSection extends StatelessWidget {
   final LargeEventCampusConfig cfg;
-  final Color accent;
-  const _TicketingSection({required this.cfg, required this.accent});
+  const _TicketingSection({required this.cfg});
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
     final theme = Theme.of(context);
     switch (cfg.ticketingModel) {
       case LargeEventTicketingModel.allAccess:
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('All-Access Pass', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text('One ticket grants access to all events on this campus.'),
-                const SizedBox(height: 12),
-                if (cfg.allAccessPassUrl != null)
-                  FilledButton(
-                    onPressed: () =>
-                        launchUrl(Uri.parse(cfg.allAccessPassUrl!)),
-                    style: FilledButton.styleFrom(backgroundColor: accent),
-                    child: const Text('Buy Pass'),
-                  ),
-                if (cfg.ticketPortalUrl != null)
-                  TextButton(
-                    onPressed: () => launchUrl(Uri.parse(cfg.ticketPortalUrl!)),
-                    child: const Text('Open Ticket Portal'),
-                  ),
-              ],
+        final rows = <Widget>[
+          if (cfg.allAccessPassUrl != null)
+            BisoListRow(
+              title: 'Buy Pass',
+              leading: const BisoIconTile(
+                icon: CupertinoIcons.ticket_fill,
+                accent: BisoAccent.gold,
+              ),
+              onTap: () => launchUrl(Uri.parse(cfg.allAccessPassUrl!)),
             ),
+          if (cfg.ticketPortalUrl != null)
+            BisoListRow(
+              title: 'Open Ticket Portal',
+              leading: const BisoIconTile(
+                icon: CupertinoIcons.ticket_fill,
+                accent: BisoAccent.gold,
+              ),
+              onTap: () => launchUrl(Uri.parse(cfg.ticketPortalUrl!)),
+            ),
+        ];
+        return BisoSection(
+          title: 'All-Access Pass',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'One ticket grants access to all events on this campus.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.muted,
+                ),
+              ),
+              if (rows.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                BisoListGroup(children: rows),
+              ],
+            ],
           ),
         );
       case LargeEventTicketingModel.perEvent:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Events & Tickets', style: theme.textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Card(
-              child: Column(
-                children: [
-                  for (final item in cfg.schedule)
-                    ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.event)),
-                      title: Text(item.title),
-                      subtitle: Text(_formatScheduleSubtitle(item)),
-                      trailing: item.ticketUrl != null
-                          ? FilledButton(
-                              onPressed: () =>
-                                  launchUrl(Uri.parse(item.ticketUrl!)),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: accent,
-                              ),
-                              child: const Text('Tickets'),
-                            )
-                          : null,
-                    ),
-                ],
+        if (cfg.schedule.isEmpty) return const SizedBox.shrink();
+        final rows = <Widget>[
+          for (final item in cfg.schedule) ...[
+            BisoListRow(
+              title: item.title,
+              subtitle: _formatScheduleSubtitle(item),
+              leading: const BisoIconTile(
+                icon: CupertinoIcons.calendar,
+                accent: BisoAccent.blue,
               ),
             ),
+            if (item.ticketUrl != null)
+              BisoListRow(
+                title: 'Tickets',
+                leading: const BisoIconTile(
+                  icon: CupertinoIcons.ticket_fill,
+                  accent: BisoAccent.gold,
+                ),
+                onTap: () => launchUrl(Uri.parse(item.ticketUrl!)),
+              ),
           ],
+        ];
+        return BisoSection(
+          title: 'Events & Tickets',
+          child: BisoListGroup(children: rows),
         );
     }
   }
@@ -264,20 +328,21 @@ class _ScheduleList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Schedule', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        for (final item in items)
-          Card(
-            child: ListTile(
-              title: Text(item.title),
-              subtitle: Text(item.subtitle ?? ''),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+    return BisoSection(
+      title: 'Schedule',
+      child: BisoListGroup(
+        children: [
+          for (final item in items)
+            BisoListRow(
+              title: item.title,
+              subtitle: item.subtitle,
+              leading: const BisoIconTile(
+                icon: CupertinoIcons.calendar,
+                accent: BisoAccent.blue,
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

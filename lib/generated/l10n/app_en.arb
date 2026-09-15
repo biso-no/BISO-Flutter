@@ -120,6 +120,10 @@
   "@askAIMessage": {
     "description": "Auto-extracted string"
   },
+  "attachMessage": "Attach",
+  "@attachMessage": {
+    "description": "Tooltip for the chat composer's attach-file button"
+  },
   "attachedFilesMessage": "Attached Files",
   "@attachedFilesMessage": {
     "description": "Auto-extracted string"
@@ -336,6 +340,10 @@
   },
   "chatDeletedSuccessfully": "Chat deleted successfully",
   "@chatDeletedSuccessfully": {
+    "description": "Auto-extracted string"
+  },
+  "chatDetailsMessage": "Chat details",
+  "@chatDetailsMessage": {
     "description": "Auto-extracted string"
   },
   "chatInfo": "Chat Info",
@@ -712,6 +720,10 @@
   },
   "earlyRegistrationForPopularEventsMessage": "Early registration for popular events",
   "@earlyRegistrationForPopularEventsMessage": {
+    "description": "Auto-extracted string"
+  },
+  "editChatMessage": "Edit chat",
+  "@editChatMessage": {
     "description": "Auto-extracted string"
   },
   "editMessage": "Edit",
@@ -1390,6 +1402,10 @@
       }
     }
   },
+  "newConversationMessage": "New conversation",
+  "@newConversationMessage": {
+    "description": "Tooltip for the AI assistant's clear-chat header action"
+  },
   "newExpenseMessage": "New Expense",
   "@newExpenseMessage": {
     "description": "Auto-extracted string (used in 2 files)"
@@ -2038,6 +2054,10 @@
   },
   "saveAsDraftMessage": "Save as Draft",
   "@saveAsDraftMessage": {
+    "description": "Auto-extracted string"
+  },
+  "saveChangesMessage": "Save changes",
+  "@saveChangesMessage": {
     "description": "Auto-extracted string"
   },
   "saveMessage": "Save",
@@ -2729,5 +2749,31 @@
   "bisoWebsiteMessage": "BISO.no",
   "@bisoWebsiteMessage": {
     "description": "Auto-extracted string"
+  },
+  "searchExploreMessage": "Search Explore",
+  "noSearchResultsMessage": "No results found",
+  "loadingMessage": "Loading",
+  "@loadingMessage": {
+    "description": "Accessibility label for skeleton placeholders while content loads"
+  },
+  "turnFlashOnMessage": "Turn flash on",
+  "@turnFlashOnMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash on"
+  },
+  "turnFlashOffMessage": "Turn flash off",
+  "@turnFlashOffMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash off"
+  },
+  "moreMessage": "More",
+  "@moreMessage": {
+    "description": "Tooltip for a header action that opens more options"
+  },
+  "favoriteMessage": "Favorite",
+  "@favoriteMessage": {
+    "description": "Tooltip for the header action that favorites a product"
+  },
+  "changePhotoMessage": "Change photo",
+  "@changePhotoMessage": {
+    "description": "Tooltip for the button that changes the profile photo"
   }
 }

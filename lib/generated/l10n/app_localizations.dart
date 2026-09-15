@@ -280,6 +280,12 @@ abstract class AppLocalizations {
   /// **'Ask AI Assistant'**
   String get askAIMessage;
 
+  /// Tooltip for the chat composer's attach-file button
+  ///
+  /// In en, this message translates to:
+  /// **'Attach'**
+  String get attachMessage;
+
   /// Auto-extracted string
   ///
   /// In en, this message translates to:
@@ -580,6 +586,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Chat deleted successfully'**
   String get chatDeletedSuccessfully;
+
+  /// Auto-extracted string
+  ///
+  /// In en, this message translates to:
+  /// **'Chat details'**
+  String get chatDetailsMessage;
 
   /// Auto-extracted string
   ///
@@ -1093,6 +1105,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Early registration for popular events'**
   String get earlyRegistrationForPopularEventsMessage;
+
+  /// Auto-extracted string
+  ///
+  /// In en, this message translates to:
+  /// **'Edit chat'**
+  String get editChatMessage;
 
   /// Auto-extracted string
   ///
@@ -2020,6 +2038,12 @@ abstract class AppLocalizations {
   /// **'Network error: {e}'**
   String networkErrorMessage(String e);
 
+  /// Tooltip for the AI assistant's clear-chat header action
+  ///
+  /// In en, this message translates to:
+  /// **'New conversation'**
+  String get newConversationMessage;
+
   /// Auto-extracted string (used in 2 files)
   ///
   /// In en, this message translates to:
@@ -2913,6 +2937,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save as Draft'**
   String get saveAsDraftMessage;
+
+  /// Auto-extracted string
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get saveChangesMessage;
 
   /// Auto-extracted string
   ///
@@ -3908,6 +3938,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'BISO.no'**
   String get bisoWebsiteMessage;
+
+  /// No description provided for @searchExploreMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Explore'**
+  String get searchExploreMessage;
+
+  /// No description provided for @noSearchResultsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'No results found'**
+  String get noSearchResultsMessage;
+
+  /// Accessibility label for skeleton placeholders while content loads
+  ///
+  /// In en, this message translates to:
+  /// **'Loading'**
+  String get loadingMessage;
+
+  /// Tooltip for the header action that turns the scanner flash on
+  ///
+  /// In en, this message translates to:
+  /// **'Turn flash on'**
+  String get turnFlashOnMessage;
+
+  /// Tooltip for the header action that turns the scanner flash off
+  ///
+  /// In en, this message translates to:
+  /// **'Turn flash off'**
+  String get turnFlashOffMessage;
+
+  /// Tooltip for a header action that opens more options
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get moreMessage;
+
+  /// Tooltip for the header action that favorites a product
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite'**
+  String get favoriteMessage;
+
+  /// Tooltip for the button that changes the profile photo
+  ///
+  /// In en, this message translates to:
+  /// **'Change photo'**
+  String get changePhotoMessage;
 }
 
 class _AppLocalizationsDelegate

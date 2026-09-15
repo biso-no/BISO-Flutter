@@ -1,5 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+
+import '../biso/biso.dart';
 
 class TypingIndicator extends StatefulWidget {
   const TypingIndicator({super.key});
@@ -10,8 +12,9 @@ class TypingIndicator extends StatefulWidget {
 
 class _TypingIndicatorState extends State<TypingIndicator>
     with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late List<Animation<double>> _dotAnimations;
+  late final AnimationController _animationController;
+  late final List<Animation<double>> _dotAnimations;
+  bool _animating = false;
 
   @override
   void initState() {
@@ -34,8 +37,24 @@ class _TypingIndicatorState extends State<TypingIndicator>
         ),
       );
     });
+  }
 
-    _animationController.repeat();
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // A repeating controller never settles, so `pumpAndSettle` would hang
+    // forever in tests (and reduced-motion users don't want the loop
+    // running); leave the dots at their static starting opacity instead.
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    if (disableAnimations) {
+      if (_animating) {
+        _animationController.stop();
+        _animating = false;
+      }
+    } else if (!_animating) {
+      _animationController.repeat();
+      _animating = true;
+    }
   }
 
   @override
@@ -46,35 +65,24 @@ class _TypingIndicatorState extends State<TypingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildAvatar(isDark),
+        const BisoIconTile(
+          icon: CupertinoIcons.sparkles,
+          accent: BisoAccent.violet,
+          size: 28,
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: (isDark ? AppColors.surfaceDark : AppColors.white)
-                  .withValues(alpha: 0.7),
+              color: palette.surface,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: (isDark ? AppColors.outlineDark : AppColors.outline)
-                    .withValues(alpha: 0.2),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      (isDark ? AppColors.shadowHeavy : AppColors.shadowLight)
-                          .withValues(alpha: 0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -91,7 +99,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: AppColors.crystalBlue,
+                              color: palette.muted,
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -101,11 +109,15 @@ class _TypingIndicatorState extends State<TypingIndicator>
                   );
                 }),
                 const SizedBox(width: 8),
-                Text(
-                  'AI is thinking...',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
+                Flexible(
+                  child: Text(
+                    'AI is thinking...',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.bodySmall?.copyWith(
+                      color: palette.muted,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
               ],
@@ -114,42 +126,6 @@ class _TypingIndicatorState extends State<TypingIndicator>
         ),
         const SizedBox(width: 48), // Right margin for balance
       ],
-    );
-  }
-
-  Widget _buildAvatar(bool isDark) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: [
-            AppColors.crystalBlue.withValues(alpha: 0.8),
-            AppColors.emeraldGreen.withValues(alpha: 0.8),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.crystalBlue.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: AnimatedBuilder(
-        animation: _animationController,
-        builder: (context, child) {
-          return Transform.rotate(
-            angle: _animationController.value * 2 * 3.14159,
-            child: const Icon(
-              Icons.psychology_rounded,
-              color: AppColors.white,
-              size: 20,
-            ),
-          );
-        },
-      ),
     );
   }
 }

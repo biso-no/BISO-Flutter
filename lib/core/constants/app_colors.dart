@@ -56,68 +56,21 @@ class AppColors {
 
   // Extended Blue Spectrum (Legacy - now premium aligned)
   static const Color blue1 = pearl;
-  static const Color blue2 = iceBlue;
-  static const Color blue3 = mistBlue;
-  static const Color blue4 = skyBlue;
-  static const Color blue5 = crystalBlue;
   static const Color blue6 = steelBlue;
-  static const Color blue7 = blueStone;
   static const Color blue8 = midNavy;
   static const Color blue9 = richNavy;
-  static const Color blue10 = deepNavy;
-  static const Color blue11 = charcoalBlack;
 
   // Green Spectrum (Premium forest tones)
   static const Color green1 = Color(0xFFFBFEFC);
-  static const Color green2 = Color(0xFFF2FCF5);
-  static const Color green3 = Color(0xFFE9F9ED);
-  static const Color green4 = Color(0xFFD3F3DC);
-  static const Color green5 = Color(0xFFB8EBC7);
   static const Color green6 = Color(0xFF95DEAA);
-  static const Color green7 = Color(0xFF65CC87);
   static const Color green8 = Color(0xFF30B85B);
   static const Color green9 = emeraldGreen;
-  static const Color green10 = forestGreen;
-  static const Color green11 = Color(0xFF0F3A26);
 
   // Purple Spectrum (Royal sophistication)
-  static const Color purple1 = Color(0xFFFEFCFE);
-  static const Color purple2 = Color(0xFFFBF8FC);
-  static const Color purple3 = Color(0xFFF7F2F9);
-  static const Color purple4 = Color(0xFFF0E9F3);
-  static const Color purple5 = Color(0xFFE6DCEB);
-  static const Color purple6 = Color(0xFFDACAE1);
-  static const Color purple7 = Color(0xFFCBB2D5);
-  static const Color purple8 = Color(0xFFB794C4);
   static const Color purple9 = amethystPurple;
-  static const Color purple10 = royalPurple;
-  static const Color purple11 = Color(0xFF2E0040);
 
   // Orange Spectrum (Warm copper tones)
-  static const Color orange1 = Color(0xFFFFFCFB);
-  static const Color orange2 = Color(0xFFFEF8F4);
-  static const Color orange3 = Color(0xFFFEF2E9);
-  static const Color orange4 = Color(0xFFFDE9D9);
-  static const Color orange5 = Color(0xFFFCDDC4);
-  static const Color orange6 = Color(0xFFFBCEA8);
-  static const Color orange7 = Color(0xFFF9BA85);
-  static const Color orange8 = copperOrange;
   static const Color orange9 = burnishedOrange;
-  static const Color orange10 = Color(0xFFB04400);
-  static const Color orange11 = Color(0xFF8B3300);
-
-  // Pink Spectrum
-  static const Color pink1 = Color(0xFFFFFCFE);
-  static const Color pink2 = Color(0xFFFEF7FB);
-  static const Color pink3 = Color(0xFFFEF0F7);
-  static const Color pink4 = Color(0xFFFDE5F1);
-  static const Color pink5 = Color(0xFFFBD7E8);
-  static const Color pink6 = Color(0xFFF8C5DD);
-  static const Color pink7 = Color(0xFFF4ADCE);
-  static const Color pink8 = Color(0xFFEE8CB9);
-  static const Color pink9 = Color(0xFFE5619A);
-  static const Color pink10 = Color(0xFFD83D82);
-  static const Color pink11 = Color(0xFFBF256C);
 
   // Neutral Colors (Premium sophistication)
   static const Color white = Color(0xFFFFFFFF);

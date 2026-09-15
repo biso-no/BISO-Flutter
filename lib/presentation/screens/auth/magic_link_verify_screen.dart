@@ -1,9 +1,10 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 class MagicLinkVerifyScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -90,7 +91,9 @@ class _MagicLinkVerifyScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
+    // Not a themed color: it only chooses which brand logo asset to draw.
+    final dark = theme.brightness == Brightness.dark;
 
     final titleText = _errorMessage != null
         ? 'Sign In Failed'
@@ -98,112 +101,112 @@ class _MagicLinkVerifyScreenState
             ? 'Signing you in...'
             : 'Welcome back!';
 
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 60),
+    return BisoPage(
+      largeTitle: false,
+      automaticallyImplyLeading: false,
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 60),
 
-              Column(
-                children: [
-                  Image.asset(
-                    isDark ? 'assets/logo-dark.png' : 'assets/logo.png',
-                    height: 64,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    titleText,
-                    style: theme.textTheme.displaySmall?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.bold,
+                Column(
+                  children: [
+                    Image.asset(
+                      dark ? 'assets/logo-dark.png' : 'assets/logo.png',
+                      height: 64,
+                      fit: BoxFit.contain,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  if (_isVerifying && _errorMessage == null)
+                    const SizedBox(height: 24),
                     Text(
-                      'Please wait while we verify your sign-in link...',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      titleText,
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        color: palette.ink,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                ],
-              ),
-
-              const SizedBox(height: 80),
-
-              if (_isVerifying && _errorMessage == null)
-                const Center(child: CircularProgressIndicator()),
-
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.error_outline, color: AppColors.error, size: 24),
-                      const SizedBox(height: 8),
+                    const SizedBox(height: 16),
+                    if (_isVerifying && _errorMessage == null)
                       Text(
-                        _getErrorMessage(),
+                        'Please wait while we verify your sign-in link...',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.error,
+                          color: palette.muted,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                    ],
-                  ),
+                  ],
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 80),
 
-                if (_shouldShowClearSession())
-                  ElevatedButton.icon(
-                    onPressed: _clearSessionAndRetry,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Clear session & try again'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.defaultBlue,
-                      foregroundColor: Colors.white,
+                if (_isVerifying && _errorMessage == null)
+                  const Center(child: CircularProgressIndicator()),
+
+                if (_errorMessage != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: palette.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: palette.error.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          CupertinoIcons.exclamationmark_circle,
+                          color: palette.error,
+                          size: 24,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _getErrorMessage(),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: palette.error,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
 
-                const SizedBox(height: 12),
+                  const SizedBox(height: 24),
 
-                OutlinedButton.icon(
-                  onPressed: _backToLogin,
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back to sign in'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.defaultBlue,
-                    side: const BorderSide(color: AppColors.defaultBlue),
+                  if (_shouldShowClearSession())
+                    FilledButton.icon(
+                      onPressed: _clearSessionAndRetry,
+                      icon: const Icon(CupertinoIcons.arrow_clockwise),
+                      label: const Text('Clear session & try again'),
+                    ),
+
+                  const SizedBox(height: 12),
+
+                  OutlinedButton.icon(
+                    onPressed: _backToLogin,
+                    icon: const Icon(CupertinoIcons.chevron_back),
+                    label: const Text('Back to sign in'),
                   ),
+                ],
+
+                const Spacer(),
+
+                Text(
+                  'BI Student Organisation',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.muted,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
-
-              const Spacer(),
-
-              Text(
-                'BI Student Organisation',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 

@@ -1,9 +1,10 @@
-import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../../data/models/ai_chat_models.dart';
-import '../../../core/constants/app_colors.dart';
+import '../biso/biso.dart';
 import 'markdown_text.dart';
 
 import '../../../core/logging/print_migration.dart';
@@ -63,7 +64,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -72,7 +73,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildAvatar(isDark),
+            _buildAvatar(),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -80,17 +81,17 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
                 children: [
                   // Tool results at the top in compact format
                   if (widget.message.toolParts.isNotEmpty) ...[
-                    _buildCompactToolSummary(theme, isDark),
+                    _buildCompactToolSummary(theme, palette),
                     const SizedBox(height: 8),
                   ],
-                  _buildMessageBubble(theme, isDark),
+                  _buildMessageBubble(theme, palette),
                   // Add sources section if we have SharePoint results
                   if (_hasSharePointSources()) ...[
                     const SizedBox(height: 12),
-                    _buildSourcesSection(theme, isDark),
+                    _buildSourcesSection(theme, palette),
                   ],
                   const SizedBox(height: 4),
-                  _buildTimestamp(theme),
+                  _buildTimestamp(theme, palette),
                 ],
               ),
             ),
@@ -101,32 +102,15 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     );
   }
 
-  Widget _buildAvatar(bool isDark) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          colors: [AppColors.crystalBlue, AppColors.emeraldGreen],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.crystalBlue.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: const Icon(
-        Icons.psychology_rounded,
-        color: AppColors.white,
-        size: 20,
-      ),
+  Widget _buildAvatar() {
+    return const BisoIconTile(
+      icon: CupertinoIcons.sparkles,
+      accent: BisoAccent.violet,
+      size: 28,
     );
   }
 
-  Widget _buildMessageBubble(ThemeData theme, bool isDark) {
+  Widget _buildMessageBubble(ThemeData theme, BisoPalette palette) {
     final textContent = widget.message.textContent;
 
     logPrint('🎨 [AI_BUBBLE] Building bubble for message ${widget.message.id}');
@@ -158,77 +142,50 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
 
     return GestureDetector(
       onLongPress: () => _copyToClipboard(textContent),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: (isDark ? AppColors.surfaceDark : AppColors.white)
-                  .withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: (isDark ? AppColors.outlineDark : AppColors.outline)
-                    .withValues(alpha: 0.2),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      (isDark ? AppColors.shadowHeavy : AppColors.shadowLight)
-                          .withValues(alpha: 0.1),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (textContent.isNotEmpty)
+              MarkdownText(
+                text: textContent,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  height: 1.6,
+                  color: palette.ink,
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (textContent.isNotEmpty)
-                  MarkdownText(
-                    text: textContent,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.6,
-                      color: isDark
-                          ? AppColors.onSurfaceDark
-                          : AppColors.onSurface,
-                    ),
-                  )
-                else if (hasToolParts && !widget.isStreaming)
-                  // Show placeholder when there are tools but no text response
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Found information using search tools:',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color:
-                            (isDark
-                                    ? AppColors.onSurfaceDark
-                                    : AppColors.onSurface)
-                                .withValues(alpha: 0.7),
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
+              )
+            else if (hasToolParts && !widget.isStreaming)
+              // Show placeholder when there are tools but no text response
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Found information using search tools:',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: palette.muted,
+                    fontStyle: FontStyle.italic,
                   ),
-                if (widget.isStreaming && textContent.isNotEmpty)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(width: 4),
-                      _buildStreamingCursor(),
-                    ],
-                  ),
-              ],
-            ),
-          ),
+                ),
+              ),
+            if (widget.isStreaming && textContent.isNotEmpty)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(width: 4),
+                  _buildStreamingCursor(palette),
+                ],
+              ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildStreamingCursor() {
+  Widget _buildStreamingCursor(BisoPalette palette) {
     return AnimatedBuilder(
       animation: _animationController,
       builder: (context, child) {
@@ -238,7 +195,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
             width: 2,
             height: 16,
             decoration: BoxDecoration(
-              color: AppColors.crystalBlue,
+              color: palette.link,
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -247,7 +204,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     );
   }
 
-  Widget _buildCompactToolSummary(ThemeData theme, bool isDark) {
+  Widget _buildCompactToolSummary(ThemeData theme, BisoPalette palette) {
     logPrint(
       '🔧 [AI_BUBBLE] Building compact tool summary for message ${widget.message.id}',
     );
@@ -274,29 +231,22 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.crystalBlue.withValues(alpha: 0.1),
+        color: palette.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.crystalBlue.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        border: Border.all(color: palette.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                Icons.auto_awesome_rounded,
-                size: 16,
-                color: AppColors.crystalBlue,
-              ),
+              Icon(CupertinoIcons.sparkles, size: 16, color: palette.link),
               const SizedBox(width: 8),
               Text(
                 'Used Tools',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.crystalBlue,
+                  color: palette.link,
                 ),
               ),
             ],
@@ -308,16 +258,19 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
             children: [
               // Show completed tools
               ...completedTools.map(
-                (tool) => _buildToolChip(theme, tool, true),
+                (tool) => _buildToolChip(theme, palette, tool, true),
               ),
               // Show running tools
-              ...runningTools.map((tool) => _buildToolChip(theme, tool, false)),
+              ...runningTools.map(
+                (tool) => _buildToolChip(theme, palette, tool, false),
+              ),
             ],
           ),
           // Show search summaries if available
           if (completedTools.any((t) => t.toolName == 'searchSharePoint'))
             _buildSearchSummary(
               theme,
+              palette,
               completedTools.firstWhere(
                 (t) => t.toolName == 'searchSharePoint',
               ),
@@ -326,6 +279,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
           if (completedTools.any((t) => t.toolName == 'searchSiteContent'))
             _buildSearchSummary(
               theme,
+              palette,
               completedTools.firstWhere(
                 (t) => t.toolName == 'searchSiteContent',
               ),
@@ -336,11 +290,16 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     );
   }
 
-  Widget _buildToolChip(ThemeData theme, ToolPart tool, bool isCompleted) {
-    final color = isCompleted ? AppColors.emeraldGreen : AppColors.crystalBlue;
+  Widget _buildToolChip(
+    ThemeData theme,
+    BisoPalette palette,
+    ToolPart tool,
+    bool isCompleted,
+  ) {
+    final color = isCompleted ? palette.success : palette.link;
     final icon = isCompleted
-        ? Icons.check_circle_rounded
-        : Icons.hourglass_empty_rounded;
+        ? CupertinoIcons.checkmark_circle_fill
+        : CupertinoIcons.hourglass;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -367,7 +326,12 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     );
   }
 
-  Widget _buildSearchSummary(ThemeData theme, ToolPart searchTool, String itemType) {
+  Widget _buildSearchSummary(
+    ThemeData theme,
+    BisoPalette palette,
+    ToolPart searchTool,
+    String itemType,
+  ) {
     final result = searchTool.result;
     if (result == null) return const SizedBox.shrink();
 
@@ -380,12 +344,12 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
         padding: const EdgeInsets.only(top: 8),
         child: Row(
           children: [
-            Icon(Icons.search_rounded, size: 14, color: AppColors.emeraldGreen),
+            Icon(CupertinoIcons.search, size: 14, color: palette.success),
             const SizedBox(width: 6),
             Text(
               'Found ${results.length} $itemType${results.length == 1 ? '' : 's'}',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.emeraldGreen,
+                color: palette.success,
                 fontWeight: FontWeight.w500,
                 fontSize: 11,
               ),
@@ -396,7 +360,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
                 child: Text(
                   '• "$query"',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
+                    color: palette.muted,
                     fontSize: 11,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -428,7 +392,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     }
   }
 
-  Widget _buildTimestamp(ThemeData theme) {
+  Widget _buildTimestamp(ThemeData theme, BisoPalette palette) {
     if (widget.message.timestamp == null) {
       return const SizedBox.shrink();
     }
@@ -439,7 +403,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
       child: Text(
         '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
         style: theme.textTheme.bodySmall?.copyWith(
-          color: AppColors.onSurfaceVariant,
+          color: palette.muted,
           fontSize: 11,
         ),
       ),
@@ -478,7 +442,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     return hasSources;
   }
 
-  Widget _buildSourcesSection(ThemeData theme, bool isDark) {
+  Widget _buildSourcesSection(ThemeData theme, BisoPalette palette) {
     final searchTools = widget.message.toolParts
         .where(
           (tool) =>
@@ -504,7 +468,8 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
       for (final item in results) {
         final title = item['title'] as String?;
         // Handle both documentViewerUrl (SharePoint) and url (SiteContent)
-        final url = item['documentViewerUrl'] as String? ?? item['url'] as String?;
+        final url =
+            item['documentViewerUrl'] as String? ?? item['url'] as String?;
         logPrint('📚 [AI_BUBBLE] Source item: title="$title", url="$url"');
         if (title != null && url != null) {
           sources.add({'title': title, 'url': url});
@@ -519,26 +484,22 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: (isDark ? AppColors.stoneGray : AppColors.surfaceVariant)
-            .withValues(alpha: 0.2),
+        color: palette.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: (isDark ? AppColors.outlineDark : AppColors.outline)
-              .withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: palette.hairline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.link_rounded, size: 16, color: AppColors.crystalBlue),
+              Icon(CupertinoIcons.link, size: 16, color: palette.link),
               const SizedBox(width: 8),
               Text(
                 '${sources.length} Source${sources.length == 1 ? '' : 's'}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.crystalBlue,
+                  color: palette.link,
                 ),
               ),
             ],
@@ -549,7 +510,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
             runSpacing: 6,
             children: sources
                 .take(5)
-                .map((source) => _buildSourceChip(theme, source))
+                .map((source) => _buildSourceChip(theme, palette, source))
                 .toList(),
           ),
           if (sources.length > 5) ...[
@@ -557,7 +518,7 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
             Text(
               '+ ${sources.length - 5} more documents',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceVariant,
+                color: palette.muted,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -567,16 +528,20 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
     );
   }
 
-  Widget _buildSourceChip(ThemeData theme, Map<String, String> source) {
+  Widget _buildSourceChip(
+    ThemeData theme,
+    BisoPalette palette,
+    Map<String, String> source,
+  ) {
     return GestureDetector(
       onTap: () => _launchUrl(source['url']!),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.crystalBlue.withValues(alpha: 0.1),
+          color: palette.link.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppColors.crystalBlue.withValues(alpha: 0.3),
+            color: palette.link.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -584,16 +549,16 @@ class _AiMessageBubbleState extends State<AiMessageBubble>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.open_in_new_rounded,
+              CupertinoIcons.arrow_up_right_square,
               size: 12,
-              color: AppColors.crystalBlue,
+              color: palette.link,
             ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
                 source['title']!,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.crystalBlue,
+                  color: palette.link,
                   fontWeight: FontWeight.w500,
                   fontSize: 11,
                 ),

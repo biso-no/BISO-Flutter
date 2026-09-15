@@ -1,19 +1,27 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../data/models/department_model.dart';
+import '../../../data/services/department_service.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
-import '../../../data/services/department_service.dart';
-import '../../../data/models/department_model.dart';
+import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+
+/// Injectable so tests can replace the Appwrite-backed service with a fake.
+/// `_departmentsProvider` (and `unit_detail_screen.dart`'s providers) watch
+/// this instead of constructing `DepartmentService()` directly.
+final departmentServiceProvider = Provider<DepartmentService>(
+  (ref) => DepartmentService(),
+);
 
 final _departmentsProvider =
     FutureProvider.family<List<DepartmentModel>, String>((ref, campusId) async {
+      final service = ref.watch(departmentServiceProvider);
       final locale = ref.watch(localeProvider);
-      final service = DepartmentService();
-      return await service.getActiveDepartmentsForCampus(
+      return service.getActiveDepartmentsForCampus(
         campusId,
         locale: locale.languageCode,
       );
@@ -22,79 +30,68 @@ final _departmentsProvider =
 class UnitsOverviewScreen extends ConsumerWidget {
   const UnitsOverviewScreen({super.key});
 
+  static const _title = 'Units & Departments';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final campus = ref.watch(filterCampusProvider);
     final campusId = campus.id;
     final asyncDepts = ref.watch(_departmentsProvider(campusId));
-    final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Units & Departments')),
-      body: asyncDepts.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Failed to load: $e')),
-        data: (depts) {
-          if (depts.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.groups_outlined,
-                    size: 48,
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                      'No active units here yet',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Check back later or switch campus',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverToBoxAdapter(
-                  child: Text(
-                    'Discover student-driven organizations at ${campus.name}',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.75,
-                  ),
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final d = depts[index];
-                    return _DepartmentCard(dept: d);
-                  }, childCount: depts.length),
-                ),
-              ),
-            ],
-          );
-        },
+    return asyncDepts.when(
+      loading: () => const BisoPage(
+        title: _title,
+        largeTitle: false,
+        slivers: [SliverToBoxAdapter(child: BisoSkeleton.grid())],
       ),
+      error: (_, _) => BisoPage(
+        title: _title,
+        largeTitle: false,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoErrorState(
+              onRetry: () => ref.invalidate(_departmentsProvider(campusId)),
+            ),
+          ),
+        ],
+      ),
+      data: (depts) {
+        final slivers = depts.isEmpty
+            ? [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: BisoEmptyState(
+                    icon: CupertinoIcons.person_2,
+                    accent: BisoAccent.teal,
+                    title: 'No active units here yet',
+                    message: 'Check back later or switch campus',
+                  ),
+                ),
+              ]
+            : [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  sliver: SliverLayoutBuilder(
+                    builder: (context, constraints) => SliverGrid.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        mainAxisExtent: _DepartmentCard.extentFor(
+                          context,
+                          tileWidth: (constraints.crossAxisExtent - 12) / 2,
+                        ),
+                      ),
+                      itemCount: depts.length,
+                      itemBuilder: (context, index) =>
+                          _DepartmentCard(dept: depts[index]),
+                    ),
+                  ),
+                ),
+              ];
+        return BisoPage(title: _title, slivers: slivers);
+      },
     );
   }
 }
@@ -103,35 +100,71 @@ class _DepartmentCard extends StatelessWidget {
   final DepartmentModel dept;
   const _DepartmentCard({required this.dept});
 
+  /// Lines the name may wrap to before it is cut. The full name stays in the
+  /// semantics tree and on the detail page either way.
+  static const titleMaxLines = 3;
+
+  /// The tile height: the original 3:4 tile, grown when the text scale needs
+  /// more room so [titleMaxLines] lines of name plus one line of description
+  /// always fit under the 16:9 logo.
+  static double extentFor(BuildContext context, {required double tileWidth}) {
+    final theme = Theme.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    double lineHeight(TextStyle? style, double fallbackSize) {
+      final size = style?.fontSize ?? fallbackSize;
+      return scaler.scale(size) * (style?.height ?? 1.3);
+    }
+
+    final textHeight =
+        12 +
+        lineHeight(theme.textTheme.titleMedium, 17) * titleMaxLines +
+        6 +
+        // The compact HTML description renders at 14 pt.
+        scaler.scale(14) * 1.5 +
+        12;
+    final needed = tileWidth * 9 / 16 + textHeight;
+    final original = tileWidth / 0.75;
+    return needed > original ? needed : original;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Card(
+    final palette = BisoPalette.of(context);
+    final hasLogo = dept.logo != null && dept.logo!.isNotEmpty;
+    return Material(
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/explore/units/${dept.id}', extra: {'id': dept.id, 'name': dept.name}),
+        onTap: () => context.push(
+          '/explore/units/${dept.id}',
+          extra: {'id': dept.id, 'name': dept.name},
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: Container(
-                color: AppColors.subtleBlue,
-                child: dept.logo != null && dept.logo!.isNotEmpty
+              child: ColoredBox(
+                color: palette.surfaceRaised,
+                child: hasLogo
                     ? Image.network(
                         dept.logo!,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => const Center(
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            color: AppColors.defaultBlue,
+                          child: BisoIconTile(
+                            icon: CupertinoIcons.person_2,
+                            accent: BisoAccent.teal,
+                            size: 48,
                           ),
                         ),
                       )
                     : const Center(
-                        child: Icon(
-                          Icons.apartment_rounded,
-                          color: AppColors.defaultBlue,
+                        child: BisoIconTile(
+                          icon: CupertinoIcons.person_2,
+                          accent: BisoAccent.teal,
+                          size: 48,
                         ),
                       ),
               ),
@@ -144,30 +177,19 @@ class _DepartmentCard extends StatelessWidget {
                   children: [
                     Text(
                       dept.name,
-                      maxLines: 1,
+                      maxLines: titleMaxLines,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: theme.textTheme.titleMedium,
                     ),
-                    if ((dept.type ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        dept.type!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
                     if ((dept.description ?? '').isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Flexible(
                         child: ClipRect(
-                          child: PremiumHtmlRenderer.compact(
-                            htmlContent: dept.description!,
-                            maxLines: 2,
+                          child: dept.description!.toCompactHtml(
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: palette.muted,
+                            ),
+                            maxLines: 1,
                           ),
                         ),
                       ),

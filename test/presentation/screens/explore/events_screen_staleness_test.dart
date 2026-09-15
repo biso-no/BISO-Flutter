@@ -27,13 +27,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// but only events exposes the two seams a test of this needs as *public*
 /// providers: `eventServiceProvider` (so the service can be replaced with a
 /// `Completer`-gated fake) and `eventsSearchTermProvider` (so the search
-/// axis can be flipped mid-flight). jobs_screen's service provider is
-/// private (`_jobServiceProvider`) and it has no search wiring at all;
-/// marketplace_screen's is private too (`_webshopServiceProvider`) and its
-/// search lives in a private `_search` field rather than a provider, so
-/// neither can be driven from a test without first adding a DI seam to the
-/// screen. One solid test on the screen that is genuinely testable beats
-/// three that need new production seams to exist.
+/// axis can be flipped mid-flight). jobs_screen has no search wiring at all
+/// (its `jobServiceProvider` is public, but there is no query to flip
+/// mid-flight); marketplace_screen's service provider is private
+/// (`_webshopServiceProvider`) and its search lives in a private `_search`
+/// field rather than a provider, so neither can be driven from a test the
+/// way this one is without first adding more seams to the screen. One solid
+/// test on the screen that is genuinely testable beats three that need new
+/// production seams to exist.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -115,7 +116,7 @@ void main() {
       final inFlight = Completer<List<EventModel>>();
       service.enqueue(inFlight.future);
 
-      await tester.drag(find.byType(ListView), const Offset(0, -4000));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -10000));
       await tester.pump();
 
       expect(
@@ -136,7 +137,7 @@ void main() {
       // not perturbed by a scroll correction (removing the spinner row
       // shrinks maxScrollExtent, which at the very bottom would clamp the
       // offset, notify _onScroll and legitimately start another page).
-      await tester.drag(find.byType(ListView), const Offset(0, 4000));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 10000));
       await tester.pumpAndSettle();
 
       // --- the user searches while page 2 is still in flight -----------
@@ -154,8 +155,8 @@ void main() {
         reason: 'sanity: the search axis really did change mid-flight',
       );
 
-      // THE REGRESSION. `renderedRowCount` is read off the ListView's
-      // childrenDelegate rather than by hunting for a spinner widget, so it
+      // THE REGRESSION. `renderedRowCount` is read off the SliverList's
+      // delegate rather than by hunting for a spinner widget, so it
       // is independent of where the list happens to be scrolled: a lazily
       // built trailing spinner that is merely off-screen would still be
       // counted here.
@@ -171,7 +172,7 @@ void main() {
       // start a new page. Pre-fix, _onScroll bails on `_isLoadingMore`
       // and this call never happens.
       service.enqueue(Future.value(page('Gala')));
-      await tester.drag(find.byType(ListView), const Offset(0, -4000));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -10000));
 
       // No pumpAndSettle here on purpose. `_onScroll` -> `_loadMore` ->
       // `listEvents` all run synchronously while the drag's scroll
@@ -198,13 +199,13 @@ void main() {
 
 /// Number of `itemBuilder` rows the list is currently configured to build.
 ///
-/// `ListView.separated` interleaves separators, so its delegate reports
+/// `SliverList.separated` interleaves separators, so its delegate reports
 /// `2 * items - 1`. Reading it back gives the screen's
 /// `_events.length + (_isLoadingMore ? 1 : 0)` exactly, without depending
 /// on which rows happen to be laid out.
 int renderedRowCount(WidgetTester tester) {
-  final list = tester.widget<ListView>(find.byType(ListView));
-  final delegateCount = list.childrenDelegate.estimatedChildCount!;
+  final list = tester.widget<SliverList>(find.byType(SliverList));
+  final delegateCount = list.delegate.estimatedChildCount!;
   return (delegateCount + 1) ~/ 2;
 }
 

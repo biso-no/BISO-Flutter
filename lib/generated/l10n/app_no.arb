@@ -120,6 +120,10 @@
   "@askAIMessage": {
     "description": "Auto-extracted string"
   },
+  "attachMessage": "Legg ved",
+  "@attachMessage": {
+    "description": "Tooltip for the chat composer's attach-file button"
+  },
   "attachedFilesMessage": "Vedlagte filer",
   "@attachedFilesMessage": {
     "description": "Auto-extracted string"
@@ -336,6 +340,10 @@
   },
   "chatDeletedSuccessfully": "Chat slettet",
   "@chatDeletedSuccessfully": {
+    "description": "Auto-extracted string"
+  },
+  "chatDetailsMessage": "Chatdetaljer",
+  "@chatDetailsMessage": {
     "description": "Auto-extracted string"
   },
   "chatInfo": "Chatinfo",
@@ -712,6 +720,10 @@
   },
   "earlyRegistrationForPopularEventsMessage": "Tidlig registrering for populære arrangementer",
   "@earlyRegistrationForPopularEventsMessage": {
+    "description": "Auto-extracted string"
+  },
+  "editChatMessage": "Rediger chat",
+  "@editChatMessage": {
     "description": "Auto-extracted string"
   },
   "editMessage": "Rediger",
@@ -1390,6 +1402,10 @@
       }
     }
   },
+  "newConversationMessage": "Ny samtale",
+  "@newConversationMessage": {
+    "description": "Tooltip for the AI assistant's clear-chat header action"
+  },
   "newExpenseMessage": "Ny utgift",
   "@newExpenseMessage": {
     "description": "Auto-extracted string (used in 2 files)"
@@ -2038,6 +2054,10 @@
   },
   "saveAsDraftMessage": "Lagre som utkast",
   "@saveAsDraftMessage": {
+    "description": "Auto-extracted string"
+  },
+  "saveChangesMessage": "Lagre endringer",
+  "@saveChangesMessage": {
     "description": "Auto-extracted string"
   },
   "saveMessage": "Lagre",
@@ -2729,5 +2749,31 @@
   "bisoWebsiteMessage": "BISO.no",
   "@bisoWebsiteMessage": {
     "description": "Auto-extracted string"
+  },
+  "searchExploreMessage": "Søk i Utforsk",
+  "noSearchResultsMessage": "Ingen treff",
+  "loadingMessage": "Laster inn",
+  "@loadingMessage": {
+    "description": "Accessibility label for skeleton placeholders while content loads"
+  },
+  "turnFlashOnMessage": "Slå på blits",
+  "@turnFlashOnMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash on"
+  },
+  "turnFlashOffMessage": "Slå av blits",
+  "@turnFlashOffMessage": {
+    "description": "Tooltip for the header action that turns the scanner flash off"
+  },
+  "moreMessage": "Mer",
+  "@moreMessage": {
+    "description": "Tooltip for a header action that opens more options"
+  },
+  "favoriteMessage": "Favoritt",
+  "@favoriteMessage": {
+    "description": "Tooltip for the header action that favorites a product"
+  },
+  "changePhotoMessage": "Bytt bilde",
+  "@changePhotoMessage": {
+    "description": "Tooltip for the button that changes the profile photo"
   }
 }

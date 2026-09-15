@@ -1,18 +1,18 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
+
+import '../biso/biso.dart';
 
 class ChatInputField extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final bool enabled;
-  final bool isDark;
 
   const ChatInputField({
     super.key,
     required this.controller,
     required this.onSend,
     this.enabled = true,
-    this.isDark = false,
   });
 
   @override
@@ -94,7 +94,7 @@ class _ChatInputFieldState extends State<ChatInputField>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
 
     return Container(
       constraints: const BoxConstraints(minHeight: 52, maxHeight: 120),
@@ -102,20 +102,20 @@ class _ChatInputFieldState extends State<ChatInputField>
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildActionButton(
-            icon: Icons.attach_file_rounded,
+            palette: palette,
+            icon: CupertinoIcons.paperclip,
             onPressed: _handleAttachment,
-            tooltip: 'Attach file',
           ),
           const SizedBox(width: 8),
-          Expanded(child: _buildTextField(theme)),
+          Expanded(child: _buildTextField(context, palette)),
           const SizedBox(width: 8),
-          _buildSendButton(),
+          _buildSendButton(palette),
         ],
       ),
     );
   }
 
-  Widget _buildTextField(ThemeData theme) {
+  Widget _buildTextField(BuildContext context, BisoPalette palette) {
     return TextField(
       controller: widget.controller,
       focusNode: _focusNode,
@@ -123,33 +123,19 @@ class _ChatInputFieldState extends State<ChatInputField>
       maxLines: null,
       keyboardType: TextInputType.multiline,
       textInputAction: TextInputAction.newline,
-      decoration: InputDecoration(
+      decoration: bisoInputDecoration(
+        context,
         hintText: 'Ask me anything about BISO...',
-        hintStyle: theme.textTheme.bodyLarge?.copyWith(
-          color: widget.isDark
-              ? AppColors.mist.withValues(alpha: 0.7)
-              : AppColors.onSurfaceVariant.withValues(alpha: 0.7),
-        ),
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        focusedErrorBorder: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        filled: false,
       ),
-      style: theme.textTheme.bodyLarge?.copyWith(
-        color: widget.isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
-        height: 1.5,
-      ),
+      style: Theme.of(
+        context,
+      ).textTheme.bodyLarge?.copyWith(color: palette.ink, height: 1.5),
       onSubmitted: (_) => _handleSend(),
     );
   }
 
-  Widget _buildSendButton() {
+  Widget _buildSendButton(BisoPalette palette) {
+    final active = _hasText && widget.enabled;
     return AnimatedBuilder(
       animation: Listenable.merge([_scaleAnimation, _rotationAnimation]),
       builder: (context, child) {
@@ -161,37 +147,17 @@ class _ChatInputFieldState extends State<ChatInputField>
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                gradient: _hasText && widget.enabled
-                    ? const LinearGradient(
-                        colors: [AppColors.crystalBlue, AppColors.defaultBlue],
-                      )
-                    : null,
-                color: !_hasText || !widget.enabled
-                    ? (widget.isDark ? AppColors.stoneGray : AppColors.outline)
-                    : null,
+                color: active ? palette.primary : palette.surfaceRaised,
                 borderRadius: BorderRadius.circular(22),
-                boxShadow: _hasText && widget.enabled
-                    ? [
-                        BoxShadow(
-                          color: AppColors.crystalBlue.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
               ),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(22),
-                  onTap: _hasText && widget.enabled ? _handleSend : null,
+                  onTap: active ? _handleSend : null,
                   child: Icon(
-                    Icons.send_rounded,
-                    color: _hasText && widget.enabled
-                        ? AppColors.white
-                        : (widget.isDark
-                              ? AppColors.mist
-                              : AppColors.onSurfaceVariant),
+                    CupertinoIcons.paperplane_fill,
+                    color: active ? palette.onPrimary : palette.muted,
                     size: 20,
                   ),
                 ),
@@ -204,16 +170,15 @@ class _ChatInputFieldState extends State<ChatInputField>
   }
 
   Widget _buildActionButton({
+    required BisoPalette palette,
     required IconData icon,
     required VoidCallback? onPressed,
-    required String tooltip,
   }) {
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: (widget.isDark ? AppColors.stoneGray : AppColors.outline)
-            .withValues(alpha: 0.5),
+        color: palette.surfaceRaised,
         borderRadius: BorderRadius.circular(22),
       ),
       child: Material(
@@ -221,11 +186,7 @@ class _ChatInputFieldState extends State<ChatInputField>
         child: InkWell(
           borderRadius: BorderRadius.circular(22),
           onTap: onPressed,
-          child: Icon(
-            icon,
-            color: widget.isDark ? AppColors.mist : AppColors.onSurfaceVariant,
-            size: 20,
-          ),
+          child: Icon(icon, color: palette.muted, size: 20),
         ),
       ),
     );

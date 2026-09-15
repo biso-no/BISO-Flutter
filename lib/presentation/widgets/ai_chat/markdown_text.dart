@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../core/constants/app_colors.dart';
+
+import '../../../core/theme/biso_colors.dart';
 
 class MarkdownText extends StatelessWidget {
   final String text;
@@ -12,15 +13,16 @@ class MarkdownText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
     final defaultStyle = style ?? theme.textTheme.bodyLarge;
 
-    return RichText(text: _parseMarkdown(text, defaultStyle!, theme));
+    return RichText(text: _parseMarkdown(text, defaultStyle!, palette));
   }
 
   TextSpan _parseMarkdown(
     String text,
     TextStyle defaultStyle,
-    ThemeData theme,
+    BisoPalette palette,
   ) {
     final List<TextSpan> spans = [];
     final RegExp markdownPattern = RegExp(
@@ -45,7 +47,7 @@ class MarkdownText extends StatelessWidget {
 
       if (matchText.startsWith('```') && matchText.endsWith('```')) {
         // Code block
-        spans.add(_createCodeBlockSpan(matchText, theme));
+        spans.add(_createCodeBlockSpan(matchText, palette));
       } else if (matchText.startsWith('**') && matchText.endsWith('**')) {
         // Bold text
         spans.add(
@@ -64,10 +66,10 @@ class MarkdownText extends StatelessWidget {
         );
       } else if (matchText.startsWith('`') && matchText.endsWith('`')) {
         // Inline code
-        spans.add(_createInlineCodeSpan(matchText, theme));
+        spans.add(_createInlineCodeSpan(matchText, palette));
       } else if (matchText.startsWith('[') && matchText.contains('](')) {
         // Link
-        spans.add(_createLinkSpan(matchText, defaultStyle, theme));
+        spans.add(_createLinkSpan(matchText, defaultStyle, palette));
       } else {
         // Fallback: add as regular text
         spans.add(TextSpan(text: matchText, style: defaultStyle));
@@ -84,36 +86,30 @@ class MarkdownText extends StatelessWidget {
     return TextSpan(children: spans);
   }
 
-  TextSpan _createCodeBlockSpan(String text, ThemeData theme) {
+  TextSpan _createCodeBlockSpan(String text, BisoPalette palette) {
     final codeContent = text.substring(3, text.length - 3).trim();
-    final isDark = theme.brightness == Brightness.dark;
 
     return TextSpan(
       text: '\n$codeContent\n',
       style: TextStyle(
         fontFamily: 'Courier',
         fontSize: 14,
-        color: isDark ? AppColors.onSurfaceDark : AppColors.onSurface,
-        backgroundColor: isDark
-            ? AppColors.stoneGray.withValues(alpha: 0.3)
-            : AppColors.surfaceVariant.withValues(alpha: 0.5),
+        color: palette.ink,
+        backgroundColor: palette.surfaceRaised,
       ),
     );
   }
 
-  TextSpan _createInlineCodeSpan(String text, ThemeData theme) {
+  TextSpan _createInlineCodeSpan(String text, BisoPalette palette) {
     final codeContent = text.substring(1, text.length - 1);
-    final isDark = theme.brightness == Brightness.dark;
 
     return TextSpan(
       text: codeContent,
       style: TextStyle(
         fontFamily: 'Courier',
         fontSize: 14,
-        color: AppColors.crystalBlue,
-        backgroundColor: isDark
-            ? AppColors.stoneGray.withValues(alpha: 0.3)
-            : AppColors.surfaceVariant.withValues(alpha: 0.5),
+        color: palette.link,
+        backgroundColor: palette.surfaceRaised,
       ),
     );
   }
@@ -121,7 +117,7 @@ class MarkdownText extends StatelessWidget {
   TextSpan _createLinkSpan(
     String text,
     TextStyle defaultStyle,
-    ThemeData theme,
+    BisoPalette palette,
   ) {
     final linkRegex = RegExp(r'\[(.*?)\]\((.*?)\)');
     final match = linkRegex.firstMatch(text);
@@ -136,9 +132,9 @@ class MarkdownText extends StatelessWidget {
     return TextSpan(
       text: linkText,
       style: defaultStyle.copyWith(
-        color: AppColors.crystalBlue,
+        color: palette.link,
         decoration: TextDecoration.underline,
-        decorationColor: AppColors.crystalBlue,
+        decorationColor: palette.link,
       ),
       recognizer: TapGestureRecognizer()..onTap = () => _launchUrl(url),
     );

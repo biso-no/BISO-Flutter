@@ -1,9 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/currency.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/checkout_quote.dart';
@@ -12,6 +12,7 @@ import '../../../data/services/shop_api_client.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/shop/cart_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 /// Where the buyer confirms who they are, how they want to pay, and what it
 /// costs — then leaves for Vipps or the card form.
@@ -77,7 +78,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final palette = BisoPalette.of(context);
     final auth = ref.watch(authStateProvider);
     final cart = ref.watch(cartProvider);
 
@@ -87,160 +88,359 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _prefillFromProfile();
     });
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surface,
-        elevation: 0,
-        leading: NavigationUtils.buildBackButton(
-          context,
-          fallbackRoute: '/explore/products/cart',
-        ),
-        title: const Text('Checkout'),
-        centerTitle: true,
+    final leading = BisoBackButton(
+      onPressed: () => NavigationUtils.safeGoBack(
+        context,
+        fallbackRoute: '/explore/products/cart',
       ),
-      body: _buildBody(auth.isAuthenticated, cart.isEmpty, theme),
     );
-  }
 
-  Widget _buildBody(bool isAuthenticated, bool cartIsEmpty, ThemeData theme) {
-    if (!isAuthenticated) {
-      return _SignInPrompt(
-        onSignIn: () => context.push('/auth/login'),
+    if (!auth.isAuthenticated) {
+      return BisoPage(
+        title: 'Checkout',
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.lock,
+              accent: BisoAccent.coral,
+              title: 'Sign in to complete your purchase',
+              message:
+                  'Your order, your receipt and any member discount are '
+                  'tied to your BISO account.',
+              action: FilledButton(
+                onPressed: () => context.push('/auth/login'),
+                child: const Text('Sign in'),
+              ),
+            ),
+          ),
+        ],
       );
     }
-    if (cartIsEmpty) {
-      return _CheckoutMessage(
-        icon: Icons.shopping_bag_outlined,
-        title: 'Your cart is empty',
-        message: 'Add something from the shop to check out.',
-        actionLabel: 'Browse the shop',
-        onAction: () => context.go('/explore/products'),
+
+    if (cart.isEmpty) {
+      return BisoPage(
+        title: 'Checkout',
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.bag,
+              accent: BisoAccent.gold,
+              title: 'Your cart is empty',
+              message: 'Add something from the shop to check out.',
+              action: FilledButton(
+                onPressed: () => context.go('/explore/products'),
+                child: const Text('Browse the shop'),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
     final quote = ref.watch(checkoutQuoteProvider);
 
     return quote.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => _CheckoutMessage(
-        icon: Icons.error_outline_rounded,
-        title: 'We could not price your cart',
-        message: error is ShopApiException
-            ? error.message
-            : 'Something went wrong. Please try again.',
-        actionLabel: 'Back to cart',
-        onAction: () => context.go('/explore/products/cart'),
-        secondaryLabel: 'Try again',
-        onSecondary: () => ref.invalidate(checkoutQuoteProvider),
+      loading: () => BisoPage(
+        title: 'Checkout',
+        largeTitle: false,
+        leading: leading,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.rows(count: 3))],
       ),
-      data: (data) => _buildForm(data, theme),
+      error: (error, _) => BisoPage(
+        title: 'Checkout',
+        largeTitle: false,
+        leading: leading,
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: BisoEmptyState(
+              icon: CupertinoIcons.exclamationmark_triangle,
+              title: 'We could not price your cart',
+              message: error is ShopApiException
+                  ? error.message
+                  : 'Something went wrong. Please try again.',
+              action: FilledButton(
+                onPressed: () => ref.invalidate(checkoutQuoteProvider),
+                child: const Text('Try again'),
+              ),
+            ),
+          ),
+        ],
+      ),
+      data: (data) => _buildForm(data, leading, theme, palette),
     );
   }
 
-  Widget _buildForm(CheckoutQuote quote, ThemeData theme) {
+  Widget _buildForm(
+    CheckoutQuote quote,
+    Widget leading,
+    ThemeData theme,
+    BisoPalette palette,
+  ) {
     final providers = ref.watch(availablePaymentProvidersProvider);
+    final available = providers.valueOrNull ?? const <PaymentProvider>[];
 
     return Form(
       key: _formKey,
       autovalidateMode: AutovalidateMode.onUserInteractionIfError,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          _SectionCard(
-            step: 1,
-            title: 'Your details',
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Full name',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      (value == null || value.trim().isEmpty)
-                      ? 'We need a name for the order'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    helperText: 'Your receipt goes here',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: _validateEmail,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone (optional)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
+      child: BisoPage(
+        title: 'Checkout',
+        leading: leading,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Builder(builder: (context) => _buildContactGroup(context)),
+          ),
+          SliverToBoxAdapter(
+            child: RadioGroup<PaymentProvider>(
+              groupValue: _resolveSelection(available),
+              onChanged: (provider) {
+                if (provider != null) {
+                  setState(() => _selectedProvider = provider);
+                }
+              },
+              child: BisoFormGroup(
+                title: 'How would you like to pay?',
+                children: _paymentRows(providers),
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            step: 2,
-            title: 'How would you like to pay?',
-            child: providers.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (_, _) => _ProviderUnavailable(
-                message:
-                    'We could not reach the payment service. Please try again '
-                    'in a moment.',
-                onRetry: () => ref.invalidate(paymentProvidersProvider),
-              ),
-              data: (available) => available.isEmpty
-                  ? const _ProviderUnavailable(
-                      message:
-                          'Payments are temporarily unavailable. Your cart is '
-                          'saved — please try again later.',
-                    )
-                  : _ProviderPicker(
-                      providers: available,
-                      selected: _resolveSelection(available),
-                      onSelected: (provider) =>
-                          setState(() => _selectedProvider = provider),
-                    ),
+          SliverToBoxAdapter(
+            child: BisoFormGroup(
+              title: 'Order summary',
+              children: _summaryRows(quote, theme, palette),
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
-            step: 3,
-            title: 'Order summary',
-            child: _OrderSummary(quote: quote),
+          if (_error != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _ErrorBanner(message: _error!),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: _buildPayButton(quote, available),
+            ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            _ErrorBanner(message: _error!),
-          ],
-          const SizedBox(height: 24),
-          _buildPayButton(quote, providers.valueOrNull ?? const []),
-          const SizedBox(height: 12),
-          Text(
-            'You will be taken to your payment provider to complete the '
-            'purchase, then brought back here.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceVariant,
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                'You will be taken to your payment provider to complete the '
+                'purchase, then brought back here.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.muted,
+                ),
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// [context] is a descendant of the enclosing [BisoPage], obtained via a
+  /// [Builder] — this state's own context sits above it, so
+  /// [BisoPageInsets.maybeOf] would find nothing there. Without the real
+  /// insets, `EditableText`'s default scroll padding has no idea the
+  /// translucent header (and, on other screens, a floating bottom bar) is
+  /// there, and a focused field can end up tucked behind it once the
+  /// keyboard opens.
+  Widget _buildContactGroup(BuildContext context) {
+    final insets = BisoPageInsets.maybeOf(context);
+    final scrollPadding = insets != null
+        ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
+        : const EdgeInsets.all(20);
+
+    return BisoFormGroup(
+      title: 'Your details',
+      children: [
+        BisoFormRow(
+          label: 'Full name',
+          child: TextFormField(
+            controller: _nameController,
+            textInputAction: TextInputAction.next,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context),
+            validator: (value) => (value == null || value.trim().isEmpty)
+                ? 'We need a name for the order'
+                : null,
+          ),
+        ),
+        BisoFormRow(
+          label: 'Email',
+          child: TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(
+              context,
+            ).copyWith(helperText: 'Your receipt goes here'),
+            validator: _validateEmail,
+          ),
+        ),
+        BisoFormRow(
+          label: 'Phone (optional)',
+          child: TextFormField(
+            controller: _phoneController,
+            keyboardType: TextInputType.phone,
+            scrollPadding: scrollPadding,
+            decoration: bisoInputDecoration(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _paymentRows(AsyncValue<List<PaymentProvider>> providers) {
+    return providers.when(
+      loading: () => const [
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ],
+      error: (_, _) => [
+        _ProviderUnavailable(
+          message:
+              'We could not reach the payment service. Please try again '
+              'in a moment.',
+          onRetry: () => ref.invalidate(paymentProvidersProvider),
+        ),
+      ],
+      data: (available) => available.isEmpty
+          ? const [
+              _ProviderUnavailable(
+                message:
+                    'Payments are temporarily unavailable. Your cart is '
+                    'saved — please try again later.',
+              ),
+            ]
+          : [
+              for (final provider in available)
+                BisoListRow(
+                  title: provider.displayName,
+                  subtitle: provider.description,
+                  leading: BisoIconTile(
+                    icon: provider == PaymentProvider.vipps
+                        ? CupertinoIcons.device_phone_portrait
+                        : CupertinoIcons.creditcard,
+                    accent: BisoAccent.coral,
+                  ),
+                  trailing: Radio<PaymentProvider>.adaptive(value: provider),
+                  onTap: () => setState(() => _selectedProvider = provider),
+                ),
+            ],
+    );
+  }
+
+  List<Widget> _summaryRows(
+    CheckoutQuote quote,
+    ThemeData theme,
+    BisoPalette palette,
+  ) {
+    // A `value:` row renders its amount in a `Flexible` with one line and an
+    // ellipsis, and an evenly-split `Flexible`+`FittedBox` trailing shrinks
+    // the digits rather than truncating them — but shrinking still draws a
+    // large-text-scale Total *smaller* than at 1.0x, defeating the point of
+    // large text. R11 (amounts and counts never truncate) means the amount
+    // must render at its natural size; `_AmountRow` measures it and either
+    // shares the row with the (shrinkable/wrappable) label or, when there
+    // is not enough room, stacks the label above the amount — full size
+    // either way.
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(color: palette.ink);
+    final subtitleStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: palette.muted,
+    );
+    final amountStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.muted,
+    );
+    final discountStyle = theme.textTheme.titleMedium?.copyWith(
+      color: palette.success,
+    );
+    final discountAmountStyle = theme.textTheme.bodyLarge?.copyWith(
+      color: palette.success,
+    );
+
+    final rows = <Widget>[
+      for (final line in quote.items)
+        _AmountRow(
+          title: line.title,
+          subtitle: '${line.quantity} × ${formatNok(line.unitPrice)}',
+          amount: formatNok(line.lineTotal),
+          titleStyle: titleStyle,
+          subtitleStyle: subtitleStyle,
+          amountStyle: amountStyle,
+        ),
+    ];
+
+    if (quote.discountTotal > 0) {
+      rows.add(
+        _AmountRow(
+          title: 'Subtotal',
+          amount: formatNok(quote.originalTotal),
+          titleStyle: titleStyle,
+          amountStyle: amountStyle,
+        ),
+      );
+      rows.add(
+        _AmountRow(
+          title: quote.memberDiscountPercent > 0
+              ? 'Member discount '
+                    '(${quote.memberDiscountPercent.toStringAsFixed(0)}%)'
+              : 'Member discount',
+          amount: '-${formatNok(quote.discountTotal)}',
+          titleStyle: discountStyle,
+          amountStyle: discountAmountStyle,
+        ),
+      );
+    }
+
+    rows.add(
+      _AmountRow(
+        title: 'Total',
+        amount: formatNok(quote.total),
+        titleStyle: titleStyle,
+        amountStyle: theme.textTheme.headlineMedium?.copyWith(
+          color: palette.ink,
+        ),
+      ),
+    );
+
+    if (quote.membershipApplied) {
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Row(
+            children: [
+              Icon(
+                CupertinoIcons.checkmark_seal_fill,
+                size: 16,
+                color: palette.success,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Your BISO membership discount has been applied.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: palette.muted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return rows;
   }
 
   /// Keeps the selection valid: defaults to the first offerable provider, and
@@ -266,17 +466,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Icon(Icons.lock_outline_rounded),
+            : const Icon(CupertinoIcons.lock),
         label: Text(
           _isStarting
               ? 'Starting payment…'
               : provider == null
               ? 'Payments unavailable'
               : 'Pay ${formatNok(quote.total)} with ${provider.displayName}',
-        ),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: AppColors.defaultBlue,
         ),
       ),
     );
@@ -364,144 +560,160 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.step,
+/// One "label — amount" row in the order summary (a line total, Subtotal,
+/// Member discount, or Total), sized so the amount is never scaled down,
+/// and never silently clipped, at any text scale (R11).
+///
+/// [amount] is measured (at the current [MediaQuery.textScalerOf]) against
+/// the width [LayoutBuilder] reports:
+/// 1. If it fits beside the label with the label keeping at least 40% of
+///    the row, they share one line: an [Expanded] label (free to wrap)
+///    beside the amount at its natural width, on one line.
+/// 2. Otherwise the label gets a line to itself and the amount is
+///    right-aligned on its own line below, still on one line at natural
+///    width — the amount alone almost always fits a whole row to itself.
+/// 3. Only if it still doesn't (an extreme value in `headlineMedium`, the
+///    Total's much larger style, at a large text scale) does the amount
+///    wrap — but never *inside* the currency code or the number, which
+///    would misread a payment total (e.g. "NOK 135" / "84.50" split mid
+///    digit). Instead it renders the two pieces `formatNok` already
+///    separates with one space — the code and the number — as two
+///    single-line `Text`s in a `Wrap`, which only ever breaks *between*
+///    them. This never triggers for the smaller per-line/Subtotal/discount
+///    amounts in practice — it exists because a single unbroken line is
+///    not always physically wide enough for every style, and the
+///    alternative (silently clipping past the row's edge, or breaking a
+///    number in half) is exactly what R11 forbids. A `FittedBox` (the
+///    previous approach)
+///    cannot promise full size either way: splitting the row evenly
+///    between an `Expanded` title and a `Flexible` amount, as
+///    `BisoListRow` does, caps every amount at about half the row and
+///    shrinks it to fit, drawing a large-text-scale Total *smaller* than
+///    at 1.0x.
+class _AmountRow extends StatelessWidget {
+  const _AmountRow({
     required this.title,
-    required this.child,
+    this.subtitle,
+    required this.amount,
+    this.titleStyle,
+    this.subtitleStyle,
+    this.amountStyle,
   });
 
-  final int step;
   final String title;
-  final Widget child;
+  final String? subtitle;
+  final String amount;
+  final TextStyle? titleStyle;
+  final TextStyle? subtitleStyle;
+  final TextStyle? amountStyle;
+
+  static const _spacing = 8.0;
+  static const _minLabelFraction = 0.4;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.gray100),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: AppColors.defaultBlue,
-                child: Text(
-                  '$step',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 56),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 10),
+        child: MergeSemantics(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final painter = TextPainter(
+                text: TextSpan(text: amount, style: amountStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              final sideBySide =
+                  maxWidth.isFinite &&
+                  (maxWidth - painter.width - _spacing) >=
+                      maxWidth * _minLabelFraction;
+              // Side by side, the amount fits by construction (the check
+              // above already confirms it fits in ≤60% of the row).
+              // Stacked, it almost always fits the whole row to itself; the
+              // rare exception is tier 3 above.
+              final fitsOneLine =
+                  sideBySide || !maxWidth.isFinite || painter.width <= maxWidth;
+
+              // Tier 3: split on `formatNok`'s one space into the currency
+              // code and the number, and let only *that* gap wrap — each
+              // piece stays single-line, so neither can ever break in the
+              // middle of a number.
+              final amountText = fitsOneLine
+                  ? Text(
+                      amount,
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: amountStyle,
+                    )
+                  : Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      children: [
+                        for (final piece in amount.split(' '))
+                          Text(
+                            piece,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: amountStyle,
+                          ),
+                      ],
+                    );
+
+              final label = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    // Side by side, the label absorbs whatever the amount
+                    // didn't need and may run to a second line; stacked, it
+                    // already has the full row to itself.
+                    maxLines: sideBySide ? 2 : 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: titleStyle,
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _ProviderPicker extends StatelessWidget {
-  const _ProviderPicker({
-    required this.providers,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final List<PaymentProvider> providers;
-  final PaymentProvider? selected;
-  final ValueChanged<PaymentProvider> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        for (final provider in providers)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => onSelected(provider),
-              child: Semantics(
-                selected: provider == selected,
-                button: true,
-                label: '${provider.displayName}. ${provider.description}',
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: provider == selected
-                          ? AppColors.defaultBlue
-                          : AppColors.gray100,
-                      width: provider == selected ? 2 : 1,
+                  if (subtitle != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: subtitleStyle,
+                      ),
                     ),
-                    color: provider == selected
-                        ? AppColors.subtleBlue.withValues(alpha: 0.35)
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        provider == PaymentProvider.vipps
-                            ? Icons.smartphone_rounded
-                            : Icons.credit_card_rounded,
-                        color: AppColors.defaultBlue,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              provider.displayName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              provider.description,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                        provider == selected
-                            ? Icons.radio_button_checked_rounded
-                            : Icons.radio_button_unchecked_rounded,
-                        color: provider == selected
-                            ? AppColors.defaultBlue
-                            : AppColors.mist,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+                ],
+              );
+
+              if (sideBySide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: label),
+                    const SizedBox(width: _spacing),
+                    amountText,
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  label,
+                  const SizedBox(height: 4),
+                  Align(alignment: Alignment.centerRight, child: amountText),
+                ],
+              );
+            },
           ),
-      ],
+        ),
+      ),
     );
   }
 }
@@ -515,150 +727,24 @@ class _ProviderUnavailable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          message,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceVariant,
+    final palette = BisoPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
           ),
-        ),
-        if (onRetry != null) ...[
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Try again'),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _OrderSummary extends StatelessWidget {
-  const _OrderSummary({required this.quote});
-
-  final CheckoutQuote quote;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        for (final line in quote.items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        line.title,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '${line.quantity} × ${formatNok(line.unitPrice)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(formatNok(line.lineTotal)),
-              ],
-            ),
-          ),
-        const Divider(),
-        if (quote.discountTotal > 0) ...[
-          _SummaryRow(
-            label: 'Subtotal',
-            value: formatNok(quote.originalTotal),
-          ),
-          _SummaryRow(
-            label: quote.memberDiscountPercent > 0
-                ? 'Member discount '
-                      '(${quote.memberDiscountPercent.toStringAsFixed(0)}%)'
-                : 'Member discount',
-            value: '-${formatNok(quote.discountTotal)}',
-            highlight: true,
-          ),
-          const SizedBox(height: 4),
-        ],
-        Row(
-          children: [
-            Text(
-              'Total',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            Text(
-              formatNok(quote.total),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppColors.defaultBlue,
-              ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(CupertinoIcons.arrow_clockwise),
+              label: const Text('Try again'),
             ),
           ],
-        ),
-        if (quote.membershipApplied) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(
-                Icons.card_membership_rounded,
-                size: 16,
-                color: AppColors.strongGold,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Your BISO membership discount has been applied.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.highlight = false,
-  });
-
-  final String label;
-  final String value;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final style = theme.textTheme.bodyMedium?.copyWith(
-      color: highlight ? AppColors.green9 : AppColors.onSurfaceVariant,
-      fontWeight: highlight ? FontWeight.w600 : FontWeight.w400,
-    );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Text(label, style: style),
-          const Spacer(),
-          Text(value, style: style),
         ],
       ),
     );
@@ -672,103 +758,28 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
+        color: palette.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        border: Border.all(color: palette.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error),
+          Icon(CupertinoIcons.exclamationmark_circle, color: palette.error),
           const SizedBox(width: 8),
-          Expanded(child: Text(message)),
-        ],
-      ),
-    );
-  }
-}
-
-class _SignInPrompt extends StatelessWidget {
-  const _SignInPrompt({required this.onSignIn});
-
-  final VoidCallback onSignIn;
-
-  @override
-  Widget build(BuildContext context) {
-    return _CheckoutMessage(
-      icon: Icons.lock_outline_rounded,
-      title: 'Sign in to complete your purchase',
-      message:
-          'Your order, your receipt and any member discount are tied to your '
-          'BISO account.',
-      actionLabel: 'Sign in',
-      onAction: onSignIn,
-    );
-  }
-}
-
-class _CheckoutMessage extends StatelessWidget {
-  const _CheckoutMessage({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.actionLabel,
-    required this.onAction,
-    this.secondaryLabel,
-    this.onSecondary,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String actionLabel;
-  final VoidCallback onAction;
-  final String? secondaryLabel;
-  final VoidCallback? onSecondary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: AppColors.mist),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
+          Expanded(
+            child: Text(
               message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceVariant,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: palette.ink),
             ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: onAction,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.defaultBlue,
-              ),
-              child: Text(actionLabel),
-            ),
-            if (secondaryLabel != null && onSecondary != null) ...[
-              const SizedBox(height: 8),
-              TextButton(onPressed: onSecondary, child: Text(secondaryLabel!)),
-            ],
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

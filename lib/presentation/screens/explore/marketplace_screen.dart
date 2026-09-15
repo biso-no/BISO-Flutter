@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/utils/navigation_utils.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../data/models/product_model.dart';
 import '../../../data/services/product_service.dart';
@@ -14,7 +15,8 @@ import '../../../data/services/feature_flag_service.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
-import '../../widgets/shop/cart_icon_button.dart';
+import '../../../providers/shop/cart_provider.dart';
+import '../../widgets/biso/biso.dart';
 
 final _productServiceProvider = Provider<ProductService>(
   (ref) => ProductService(),
@@ -144,7 +146,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   String? _search;
   bool _showFavorites = false;
   Timer? _debounceTimer;
-  final TextEditingController _searchController = TextEditingController();
 
   // Paging state (marketplace mode uses Appwrite with offset; webshop uses page)
   final ScrollController _scrollController = ScrollController();
@@ -172,13 +173,19 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
-    _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() {
+        _search = null;
+        _resetWebshopPaging();
+      });
+      return;
+    }
     _debounceTimer = Timer(const Duration(milliseconds: 500), () {
       final nextSearch = value.trim().isEmpty ? null : value.trim();
       AppLogger.info(
@@ -413,7 +420,6 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
     final campus = ref.watch(filterCampusProvider);
     // The webshop provider resolves translations for this locale, so it is
     // part of the identity of the accumulated pages.
@@ -424,25 +430,21 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
     final flagAsync = ref.watch(marketplaceFeatureEnabledProvider);
 
+    final backButton = BisoBackButton(
+      onPressed: () =>
+          NavigationUtils.safeGoBack(context, fallbackRoute: '/home'),
+    );
+
     // Show loading state before deciding mode
     if (flagAsync.isLoading) {
       AppLogger.debug(
         '[MARKETPLACE_SCREEN] Waiting for marketplace feature flag',
       );
-      return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: Text(l10n.webshopMessage),
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: theme.appBarTheme.backgroundColor,
-          leading: IconButton(
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/home'),
-            icon: const Icon(Icons.arrow_back, color: AppColors.charcoalBlack),
-          ),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+      return BisoPage(
+        title: l10n.webshopMessage,
+        largeTitle: false,
+        leading: backButton,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.grid())],
       );
     }
 
@@ -457,6 +459,9 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
       );
     }
     final effectiveMode = marketplaceEnabled ? _mode : _ShopMode.webshop;
+    final title = effectiveMode == _ShopMode.marketplace
+        ? l10n.marketplaceMessage
+        : l10n.webshopMessage;
 
     if (!isCampusReady) {
       AppLogger.debug(
@@ -467,24 +472,11 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
           'is_initialized': ref.watch(campusInitializedProvider),
         },
       );
-      return Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
-        appBar: AppBar(
-          title: Text(
-            effectiveMode == _ShopMode.marketplace
-                ? l10n.marketplaceMessage
-                : l10n.webshopMessage,
-          ),
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: theme.appBarTheme.backgroundColor,
-          leading: IconButton(
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/home'),
-            icon: const Icon(Icons.arrow_back, color: AppColors.charcoalBlack),
-          ),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+      return BisoPage(
+        title: title,
+        largeTitle: false,
+        leading: backButton,
+        slivers: const [SliverToBoxAdapter(child: BisoSkeleton.grid())],
       );
     }
 
@@ -513,71 +505,61 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     _scrollController.removeListener(_onScroll);
     _scrollController.addListener(_onScroll);
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text(
-          effectiveMode == _ShopMode.marketplace
-              ? l10n.marketplaceMessage
-              : l10n.webshopMessage,
-        ),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        leading: IconButton(
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/home'),
-          icon: const Icon(Icons.arrow_back, color: AppColors.charcoalBlack),
-        ),
-        actions: [
-          if (auth.isAuthenticated && effectiveMode == _ShopMode.marketplace)
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _showFavorites = !_showFavorites;
-                  if (_showFavorites) {
-                    // Clear search when switching to favorites
-                    _searchController.clear();
-                    _search = null;
-                  }
-                });
-              },
-              icon: Icon(
-                _showFavorites ? Icons.favorite : Icons.favorite_border,
-                color: _showFavorites
-                    ? AppColors.error
-                    : AppColors.charcoalBlack,
-              ),
-              tooltip: _showFavorites
-                  ? 'Show all products'
-                  : 'Show favorites only',
+    return BisoPage(
+      title: title,
+      leading: backButton,
+      controller: _scrollController,
+      search: (effectiveMode == _ShopMode.marketplace && _showFavorites)
+          ? null
+          : BisoHeaderSearch(
+              hintText: effectiveMode == _ShopMode.marketplace
+                  ? l10n.searchMarketplaceMessage
+                  : l10n.searchWebshopMessage,
+              initialQuery: _search ?? '',
+              debounce: Duration.zero,
+              onChanged: _onSearchChanged,
             ),
-          // The webshop is the only mode that sells through the BISO cart;
-          // marketplace listings are student-to-student and settled between
-          // the two of them.
-          if (effectiveMode == _ShopMode.webshop)
-            const CartIconButton(color: AppColors.charcoalBlack),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Segmented toggle for modes (shown only when feature flag enabled)
-          if (marketplaceEnabled)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.outlineVariant),
-                ),
-                padding: const EdgeInsets.all(4),
-                child: Row(
-                  children: [
-                    _ModeChip(
-                      label: 'Marketplace',
+      actions: [
+        if (auth.isAuthenticated && effectiveMode == _ShopMode.marketplace)
+          BisoHeaderAction(
+            icon: _showFavorites ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+            tooltip: _showFavorites ? 'Show all products' : 'Show favorites only',
+            onPressed: () {
+              setState(() {
+                _showFavorites = !_showFavorites;
+                if (_showFavorites) {
+                  // Clear search when switching to favorites
+                  _debounceTimer?.cancel();
+                  _search = null;
+                }
+              });
+            },
+          ),
+        // The webshop is the only mode that sells through the BISO cart;
+        // marketplace listings are student-to-student and settled between
+        // the two of them. `cartItemCountProvider` is only watched when
+        // this action actually renders.
+        if (effectiveMode == _ShopMode.webshop) _buildCartAction(),
+        if (effectiveMode == _ShopMode.marketplace)
+          BisoHeaderAction(
+            icon: CupertinoIcons.plus,
+            tooltip: 'Sell Item',
+            onPressed: () => context.go('/explore/products/new'),
+          ),
+      ],
+      slivers: [
+        // Segmented toggle for modes (shown only when feature flag enabled)
+        if (marketplaceEnabled)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ChoiceChip(
+                      label: const Text('Marketplace'),
                       selected: effectiveMode == _ShopMode.marketplace,
-                      onTap: () => setState(() {
+                      onSelected: (_) => setState(() {
                         AppLogger.info(
                           '[MARKETPLACE_SCREEN] Mode changed',
                           extra: {
@@ -586,14 +568,16 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                           },
                         );
                         _mode = _ShopMode.marketplace;
-                        _searchController.clear();
                         _search = null;
                       }),
                     ),
-                    _ModeChip(
-                      label: 'Webshop',
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: const Text('Webshop'),
                       selected: effectiveMode == _ShopMode.webshop,
-                      onTap: () => setState(() {
+                      onSelected: (_) => setState(() {
                         AppLogger.info(
                           '[MARKETPLACE_SCREEN] Mode changed',
                           extra: {
@@ -607,306 +591,150 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
                         _resetWebshopPaging();
                       }),
                     ),
-                  ],
-                ),
-              ),
-            ),
-          // Search field
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextField(
-              controller: _searchController,
-              onChanged:
-                  effectiveMode == _ShopMode.marketplace && _showFavorites
-                  ? null
-                  : _onSearchChanged,
-              enabled:
-                  !(effectiveMode == _ShopMode.marketplace && _showFavorites),
-              decoration: InputDecoration(
-                hintText: effectiveMode == _ShopMode.marketplace
-                    ? (_showFavorites
-                          ? 'Search disabled in favorites'
-                          : 'Search marketplace')
-                    : 'Search webshop',
-                prefixIcon: const Icon(
-                  Icons.search,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                suffixIcon: _search != null
-                    ? IconButton(
-                        onPressed: () {
-                          AppLogger.info(
-                            '[MARKETPLACE_SCREEN] Search cleared',
-                            extra: {
-                              'previous_search': _search,
-                              'mode': effectiveMode.name,
-                            },
-                          );
-                          // A debounce started by the last keystroke would
-                          // otherwise fire ~500ms from now and resurrect the
-                          // search the user just cleared.
-                          _debounceTimer?.cancel();
-                          // TextEditingController.clear() does not fire
-                          // onChanged, so _onSearchChanged — the only other
-                          // place that resets paging on a search change —
-                          // never runs for this path. Without the reset
-                          // here, _computeWebshopList finds a non-empty
-                          // accumulator and keeps serving the previous
-                          // search's products even though the provider has
-                          // refetched under the new key, and _currentPage
-                          // stays advanced from the load-more this clear
-                          // just invalidated.
-                          _searchController.clear();
-                          setState(() {
-                            _search = null;
-                            _resetWebshopPaging();
-                          });
-                        },
-                        icon: const Icon(
-                          Icons.clear,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      )
-                    : null,
-                filled: true,
-                fillColor: AppColors.gray50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.outlineVariant),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.outlineVariant),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: AppColors.defaultBlue,
-                    width: 2,
                   ),
-                ),
+                ],
               ),
-              textInputAction: TextInputAction.search,
             ),
           ),
-
-          // Category Filter – premium pill row (marketplace only)
-          if (effectiveMode == _ShopMode.marketplace)
-            SizedBox(
-              height: 48,
-              child: ListView.separated(
+        // Category filter (marketplace only)
+        if (effectiveMode == _ShopMode.marketplace)
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 44,
+              child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                itemBuilder: (_, i) {
-                  final cat = _categories[i];
-                  final selected = cat == _selectedCategory;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = cat),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.subtleBlue
-                            : theme.colorScheme.surface,
-                        border: Border.all(
-                          color: selected
-                              ? AppColors.defaultBlue
-                              : AppColors.outlineVariant,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _getCategoryDisplayName(cat),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: selected
-                                ? AppColors.defaultBlue
-                                : AppColors.charcoalBlack,
-                            fontWeight: FontWeight.w600,
-                            height: 1.0,
-                          ),
-                        ),
-                      ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                children: [
+                  for (final cat in _categories) ...[
+                    ChoiceChip(
+                      label: Text(_getCategoryDisplayName(cat)),
+                      selected: cat == _selectedCategory,
+                      onSelected: (_) =>
+                          setState(() => _selectedCategory = cat),
                     ),
-                  );
-                },
-                separatorBuilder: (_, _) => const SizedBox(width: 10),
-                itemCount: _categories.length,
+                    const SizedBox(width: 8),
+                  ],
+                ],
               ),
             ),
+          ),
+        ...(effectiveMode == _ShopMode.marketplace ? productsAsync : webshopAsync)
+            .when(
+              data: (products) {
+                final visibleProducts = effectiveMode == _ShopMode.webshop
+                    ? _computeWebshopList(
+                        products as List<WebshopProduct>,
+                        campusId: campus.id,
+                        locale: locale,
+                      )
+                    : products;
+                _logProductsUiState(
+                  mode: effectiveMode,
+                  campusId: campus.id,
+                  campusName: campus.name,
+                  visibleCount: visibleProducts.length,
+                );
 
-          const Divider(height: 1),
+                if (visibleProducts.isEmpty) {
+                  return [
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: BisoEmptyState(
+                        icon: CupertinoIcons.bag,
+                        accent: BisoAccent.gold,
+                        title: _showFavorites
+                            ? 'No favorites yet'
+                            : 'No items found',
+                        message: _showFavorites
+                            ? 'Heart items you like to see them here!'
+                            : 'Try changing your filter or check back later',
+                      ),
+                    ),
+                  ];
+                }
 
-          // Products Grid
-          Expanded(
-            child: (effectiveMode == _ShopMode.marketplace ? productsAsync : webshopAsync)
-                .when(
-                  data: (products) {
-                    final visibleProducts = effectiveMode == _ShopMode.webshop
-                        ? _computeWebshopList(
-                            products as List<WebshopProduct>,
-                            campusId: campus.id,
-                            locale: locale,
-                          )
-                        : products;
-                    _logProductsUiState(
-                      mode: effectiveMode,
-                      campusId: campus.id,
-                      campusName: campus.name,
-                      visibleCount: visibleProducts.length,
-                    );
-
-                    return visibleProducts.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _showFavorites
-                                      ? Icons.favorite_border
-                                      : Icons.shopping_bag_outlined,
-                                  size: 64,
-                                  color: AppColors.onSurfaceVariant,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _showFavorites
-                                      ? 'No favorites yet'
-                                      : 'No items found',
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _showFavorites
-                                      ? 'Heart items you like to see them here!'
-                                      : 'Try changing your filter or check back later',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.onSurfaceVariant,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          )
-                        : GridView.builder(
-                            padding: const EdgeInsets.all(16),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 14,
-                                  mainAxisSpacing: 14,
-                                  childAspectRatio: 0.72,
-                                ),
-                            controller: _scrollController,
-                            itemCount: (effectiveMode == _ShopMode.webshop)
-                                ? _computeWebshopList(
-                                        products as List<WebshopProduct>,
-                                        campusId: campus.id,
-                                        locale: locale,
-                                      ).length +
-                                      (_isLoadingMore ? 1 : 0)
-                                : products.length,
-                            itemBuilder: (context, index) {
-                              if (effectiveMode == _ShopMode.marketplace) {
-                                return _PremiumProductCard(
-                                  product: products[index] as ProductModel,
-                                );
-                              } else {
-                                final list = _computeWebshopList(
+                return [
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverGrid.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        mainAxisExtent: _gridMainAxisExtent(
+                          context,
+                          effectiveMode,
+                        ),
+                      ),
+                      itemCount: (effectiveMode == _ShopMode.webshop)
+                          ? _computeWebshopList(
                                   products as List<WebshopProduct>,
                                   campusId: campus.id,
                                   locale: locale,
-                                );
-                                if (index >= list.length) {
-                                  return const Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    child: Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  );
-                                }
-                                return _WebshopProductCard(
-                                  product: list[index],
-                                );
-                              }
-                            },
+                                ).length +
+                                (_isLoadingMore ? 1 : 0)
+                          : products.length,
+                      itemBuilder: (context, index) {
+                        if (effectiveMode == _ShopMode.marketplace) {
+                          return _PremiumProductCard(
+                            product: products[index] as ProductModel,
                           );
-                  },
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, st) {
-                    AppLogger.error(
-                      '[MARKETPLACE_SCREEN] Products section rendered error',
-                      error: e,
-                      stackTrace: st,
-                      extra: {
-                        'mode': effectiveMode.name,
-                        'campus_id': campus.id,
-                        'campus_name': campus.name,
-                        'search': _search,
-                        'selected_category': _selectedCategory,
-                        'show_favorites': _showFavorites,
+                        } else {
+                          final list = _computeWebshopList(
+                            products as List<WebshopProduct>,
+                            campusId: campus.id,
+                            locale: locale,
+                          );
+                          if (index >= list.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                          return _WebshopProductCard(product: list[index]);
+                        }
                       },
-                    );
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: AppColors.error,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Failed to load',
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            e.toString(),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              if (effectiveMode == _ShopMode.marketplace) {
-                                ref.invalidate(productsProvider(query));
-                              } else {
-                                ref.invalidate(
-                                  webshopProductsProvider(webshopQuery),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Try again'),
-                          ),
-                        ],
-                      ),
-                    );
+                    ),
+                  ),
+                ];
+              },
+              loading: () =>
+                  const [SliverToBoxAdapter(child: BisoSkeleton.grid())],
+              error: (e, st) {
+                AppLogger.error(
+                  '[MARKETPLACE_SCREEN] Products section rendered error',
+                  error: e,
+                  stackTrace: st,
+                  extra: {
+                    'mode': effectiveMode.name,
+                    'campus_id': campus.id,
+                    'campus_name': campus.name,
+                    'search': _search,
+                    'selected_category': _selectedCategory,
+                    'show_favorites': _showFavorites,
                   },
-                ),
-          ),
-        ],
-      ),
-      floatingActionButton: effectiveMode == _ShopMode.marketplace
-          ? FloatingActionButton.extended(
-              onPressed: () => context.go('/explore/products/new'),
-              icon: const Icon(Icons.add),
-              label: const Text('Sell Item'),
-              backgroundColor: AppColors.green9,
-            )
-          : null,
+                );
+                return [
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: BisoErrorState(
+                      onRetry: () {
+                        if (effectiveMode == _ShopMode.marketplace) {
+                          ref.invalidate(productsProvider(query));
+                        } else {
+                          ref.invalidate(
+                            webshopProductsProvider(webshopQuery),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ];
+              },
+            ),
+      ],
     );
   }
 
@@ -955,6 +783,21 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
     }
   }
 
+  /// Reads `cartItemCountProvider` only when the cart header action is
+  /// about to render (webshop mode), rather than unconditionally on every
+  /// build.
+  BisoHeaderAction _buildCartAction() {
+    final count = ref.watch(cartItemCountProvider);
+    return BisoHeaderAction(
+      icon: CupertinoIcons.bag,
+      tooltip: count == 0
+          ? 'Your cart'
+          : 'Your cart, $count ${count == 1 ? 'item' : 'items'}',
+      badge: count,
+      onPressed: () => context.push('/explore/products/cart'),
+    );
+  }
+
   String _getCategoryDisplayName(String category) {
     switch (category) {
       case 'all':
@@ -979,52 +822,98 @@ class _MarketplaceScreenState extends ConsumerState<MarketplaceScreen> {
 
 enum _ShopMode { marketplace, webshop }
 
-class _ModeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+/// Scaled height of one line of [style]. Same approximation as
+/// `_scaledLineHeight` in `lib/presentation/widgets/home/discovery_sections.dart`
+/// (fontSize * height, scaled by the device's text scaler), reproduced here
+/// because that one is private to its own library.
+double _scaledLineHeight(BuildContext context, TextStyle? style) =>
+    MediaQuery.textScalerOf(context).scale(style?.fontSize ?? 14) *
+    (style?.height ?? 1.4);
 
-  const _ModeChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+/// The product grid's `mainAxisExtent`, sized to the card's actual content
+/// at the device's text scale instead of a fixed `childAspectRatio`. No
+/// single ratio fits both text scales and both card shapes: a marketplace
+/// card carries one more text row (seller/condition) than a webshop card,
+/// and 1.6x text overflows a ratio tuned for 1.0x while 1.0x leaves a blank
+/// band under a ratio tuned for 1.6x.
+///
+/// The extent is the image (the grid column is square, per the cards'
+/// `AspectRatio(aspectRatio: 1)`) plus the card's own padding plus every
+/// text line the card renders, each measured with the exact `TextStyle` and
+/// `maxLines` the card uses (mirrors `_WebshopProductCard` and
+/// `_PremiumProductCard` below).
+double _gridMainAxisExtent(BuildContext context, _ShopMode mode) {
+  final theme = Theme.of(context);
+  final width = MediaQuery.sizeOf(context).width;
+  // The SliverPadding around the grid (horizontal: 16) and the grid's own
+  // crossAxisSpacing (14) between the two columns.
+  final columnWidth = (width - 16 * 2 - 14) / 2;
+  final imageHeight = columnWidth;
 
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? Theme.of(context).colorScheme.surface
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: selected
-                ? const [
-                    BoxShadow(
-                      color: AppColors.shadowLight,
-                      blurRadius: 10,
-                      offset: Offset(0, 6),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: selected ? AppColors.defaultBlue : AppColors.onSurface,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+  // EdgeInsets.fromLTRB(12, 8, 12, 8) in both cards' info Padding: only the
+  // vertical 8 + 8 affects the column height.
+  const cardPadding = 8.0 + 8.0;
+  const titlePriceGap = 4.0;
+  final titleHeight =
+      _scaledLineHeight(context, theme.textTheme.titleSmall) * 2; // maxLines: 2
+  final priceHeight = _scaledLineHeight(context, theme.textTheme.titleMedium);
+
+  var extent = imageHeight + cardPadding + titleHeight + titlePriceGap + priceHeight;
+
+  if (mode == _ShopMode.marketplace) {
+    // `_PremiumProductCard` alone adds a seller-name / condition-badge row
+    // below the price. The badge's own vertical padding (2 + 2, not
+    // text-scaled) can outgrow the (text-scaled) seller line at small text
+    // scale, so the row takes whichever of the two is taller.
+    const priceRowGap = 4.0;
+    const badgePadding = 2.0 + 2.0;
+    final sellerRowHeight = _scaledLineHeight(context, theme.textTheme.bodySmall);
+    final badgeRowHeight =
+        badgePadding + _scaledLineHeight(context, theme.textTheme.labelSmall);
+    extent +=
+        priceRowGap +
+        (sellerRowHeight > badgeRowHeight ? sellerRowHeight : badgeRowHeight);
+  }
+
+  return extent;
+}
+
+/// Nearest CupertinoIcons for a marketplace category. Not in the R7 table:
+/// electronics -> device_laptop, furniture -> house_fill, clothes -> tag,
+/// sports -> sportscourt, other/unknown -> bag.
+IconData _categoryIcon(String category) {
+  switch (category) {
+    case 'books':
+      return CupertinoIcons.book;
+    case 'electronics':
+      return CupertinoIcons.device_laptop;
+    case 'furniture':
+      return CupertinoIcons.house_fill;
+    case 'clothes':
+      return CupertinoIcons.tag;
+    case 'sports':
+      return CupertinoIcons.sportscourt;
+    default:
+      return CupertinoIcons.bag;
+  }
+}
+
+/// One color per condition, best to worst. `new`/`like_new` map onto the two
+/// positive meanings the palette has (success/link); `good` has no semantic
+/// meaning of its own so it stays neutral; `fair`/`poor` map onto warning and
+/// error.
+Color _conditionColor(BisoPalette palette, String condition) {
+  switch (condition) {
+    case 'new':
+      return palette.success;
+    case 'like_new':
+      return palette.link;
+    case 'fair':
+      return palette.warning;
+    case 'poor':
+      return palette.error;
+    default:
+      return palette.muted;
   }
 }
 
@@ -1036,84 +925,39 @@ class _WebshopProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
     final priceText = 'NOK ${product.regularPrice.toStringAsFixed(0)}';
 
-    return InkWell(
-      onTap: () {
-        context.pushNamed(
-          'webshop-product-detail',
-          pathParameters: {'productId': product.id},
-          extra: product,
-        );
-      },
+    return Material(
+      color: palette.surface,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: AppColors.shadowLight,
-              blurRadius: 16,
-              offset: Offset(0, 10),
-            ),
-          ],
-          border: Border.all(color: AppColors.gray100),
-        ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          context.pushNamed(
+            'webshop-product-detail',
+            pathParameters: {'productId': product.id},
+            extra: product,
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AspectRatio(
               aspectRatio: 1,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
+              child: product.images.isNotEmpty
+                  ? Image.network(
+                      product.images.first,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _ProductImagePlaceholder(
+                        palette: palette,
+                        icon: CupertinoIcons.bag,
                       ),
-                      child: product.images.isNotEmpty
-                          ? Image.network(
-                              product.images.first,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                color: AppColors.gray100,
-                                child: const Icon(Icons.image_outlined),
-                              ),
-                            )
-                          : Container(
-                              color: AppColors.gray100,
-                              child: const Icon(
-                                Icons.shopping_bag,
-                                size: 48,
-                                color: AppColors.onSurfaceVariant,
-                              ),
-                            ),
+                    )
+                  : _ProductImagePlaceholder(
+                      palette: palette,
+                      icon: CupertinoIcons.bag,
                     ),
-                  ),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        priceText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
             Expanded(
               child: Padding(
@@ -1122,15 +966,20 @@ class _WebshopProductCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Text(
-                        product.title ?? '',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      product.title ?? '',
+                      style: theme.textTheme.titleSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      priceText,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: palette.ink,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -1141,6 +990,21 @@ class _WebshopProductCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProductImagePlaceholder extends StatelessWidget {
+  const _ProductImagePlaceholder({required this.palette, required this.icon});
+
+  final BisoPalette palette;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: palette.surfaceRaised,
+    child: Center(
+      child: BisoIconTile(icon: icon, accent: BisoAccent.gold, size: 48),
+    ),
+  );
 }
 
 class _WebshopQuery {
@@ -1272,115 +1136,67 @@ class _PremiumProductCardState extends ConsumerState<_PremiumProductCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
     final auth = ref.watch(authStateProvider);
 
-    return InkWell(
-      onTap: () => context.go('/explore/products/${widget.product.id}'),
+    return Material(
+      color: palette.surface,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: AppColors.shadowLight,
-              blurRadius: 16,
-              offset: Offset(0, 10),
-            ),
-          ],
-          border: Border.all(color: AppColors.gray100),
-        ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.go('/explore/products/${widget.product.id}'),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image with overlay badges
+            // Image with favorite overlay
             AspectRatio(
               aspectRatio: 1,
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
-                      child: widget.product.images.isNotEmpty
-                          ? Image.network(
-                              widget.product.images.first,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                color: AppColors.gray100,
-                                child: const Icon(Icons.image_outlined),
-                              ),
-                            )
-                          : Container(
-                              color: AppColors.gray100,
-                              child: Icon(
-                                _getCategoryIcon(widget.product.category),
-                                size: 48,
-                                color: AppColors.onSurfaceVariant,
-                              ),
+                    child: widget.product.images.isNotEmpty
+                        ? Image.network(
+                            widget.product.images.first,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _ProductImagePlaceholder(
+                              palette: palette,
+                              icon: _categoryIcon(widget.product.category),
                             ),
-                    ),
+                          )
+                        : _ProductImagePlaceholder(
+                            palette: palette,
+                            icon: _categoryIcon(widget.product.category),
+                          ),
                   ),
-                  // Price pill
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'NOK ${widget.product.price.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Functional favorite icon
                   if (auth.isAuthenticated)
                     Positioned(
-                      bottom: 10,
-                      right: 10,
+                      bottom: 8,
+                      right: 8,
                       child: GestureDetector(
                         onTap: _toggleFavorite,
                         child: Container(
-                          width: 36,
-                          height: 36,
+                          width: 32,
+                          height: 32,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.9),
+                            color: palette.surface,
                             shape: BoxShape.circle,
-                            boxShadow: const [
-                              BoxShadow(
-                                color: AppColors.shadowLight,
-                                blurRadius: 12,
-                              ),
-                            ],
                           ),
                           child: _favoriteLoading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
+                              ? Padding(
+                                  padding: const EdgeInsets.all(8),
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppColors.defaultBlue,
+                                    color: palette.link,
                                   ),
                                 )
                               : Icon(
                                   _isFavorited
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
+                                      ? CupertinoIcons.heart_fill
+                                      : CupertinoIcons.heart,
                                   color: _isFavorited
-                                      ? AppColors.error
-                                      : AppColors.defaultBlue,
-                                  size: 20,
+                                      ? palette.error
+                                      : palette.link,
+                                  size: 18,
                                 ),
                         ),
                       ),
@@ -1389,7 +1205,7 @@ class _PremiumProductCardState extends ConsumerState<_PremiumProductCard> {
               ),
             ),
             // Info - flexible content area
-            Flexible(
+            Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 child: Column(
@@ -1398,10 +1214,17 @@ class _PremiumProductCardState extends ConsumerState<_PremiumProductCard> {
                   children: [
                     Text(
                       widget.product.name,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: theme.textTheme.titleSmall,
                       maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'NOK ${widget.product.price.toStringAsFixed(0)}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: palette.ink,
+                      ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
@@ -1411,7 +1234,7 @@ class _PremiumProductCardState extends ConsumerState<_PremiumProductCard> {
                           child: Text(
                             widget.product.sellerName,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceVariant,
+                              color: palette.muted,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1424,18 +1247,19 @@ class _PremiumProductCardState extends ConsumerState<_PremiumProductCard> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: _getConditionColor(
+                            color: _conditionColor(
+                              palette,
                               widget.product.condition,
-                            ).withValues(alpha: 0.1),
+                            ).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
                             widget.product.displayCondition,
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: _getConditionColor(
+                              color: _conditionColor(
+                                palette,
                                 widget.product.condition,
                               ),
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -1449,40 +1273,6 @@ class _PremiumProductCardState extends ConsumerState<_PremiumProductCard> {
         ),
       ),
     );
-  }
-
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'books':
-        return Icons.book;
-      case 'electronics':
-        return Icons.devices;
-      case 'furniture':
-        return Icons.chair;
-      case 'clothes':
-        return Icons.checkroom;
-      case 'sports':
-        return Icons.sports;
-      default:
-        return Icons.shopping_bag;
-    }
-  }
-
-  Color _getConditionColor(String condition) {
-    switch (condition) {
-      case 'new':
-        return AppColors.success;
-      case 'like_new':
-        return AppColors.accentBlue;
-      case 'good':
-        return AppColors.defaultGold;
-      case 'fair':
-        return AppColors.orange9;
-      case 'poor':
-        return AppColors.error;
-      default:
-        return AppColors.onSurfaceVariant;
-    }
   }
 }
 

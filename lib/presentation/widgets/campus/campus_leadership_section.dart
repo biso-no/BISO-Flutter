@@ -1,250 +1,58 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'package:flutter/services.dart';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../data/models/board_member_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/leadership/leadership_provider.dart';
+import '../biso/biso.dart';
 
 class CampusLeadershipSection extends ConsumerWidget {
   final String campusId;
-  final int animationDelay;
 
-  const CampusLeadershipSection({
-    super.key,
-    required this.campusId,
-    this.animationDelay = 0,
-  });
+  const CampusLeadershipSection({super.key, required this.campusId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final boardMembersAsync = ref.watch(boardMembersProvider(campusId));
 
-    return TweenAnimationBuilder(
-      duration: Duration(milliseconds: 600 + animationDelay),
-      tween: Tween<double>(begin: 0.0, end: 1.0),
-      builder: (context, value, child) {
-        return Transform.translate(
-          offset: Offset(0, 30 * (1 - value)),
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadowLight,
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: AppColors.defaultBlue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.groups_outlined,
-                          color: AppColors.defaultBlue,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          l10n.campusLeadershipMessage,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.defaultBlue,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Content
-                  boardMembersAsync.when(
-                    loading: () => const _LoadingState(),
-                    error: (error, stackTrace) => _ErrorState(
-                      error: error.toString(),
-                      onRetry: () => ref.refresh(boardMembersProvider(campusId)),
-                    ),
-                    data: (response) {
-                      if (!response.success) {
-                        return _ErrorState(
-                          error: response.error ?? 'Failed to load board members',
-                          onRetry: () => ref.refresh(boardMembersProvider(campusId)),
-                        );
-                      }
-
-                      if (response.members.isEmpty) {
-                        return _EmptyState(
-                          departmentName: response.departmentName,
-                        );
-                      }
-
-                      return _BoardMembersList(
-                        members: response.members,
-                        departmentName: response.departmentName,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 200,
-      decoration: BoxDecoration(
-        color: AppColors.outlineVariant.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'Loading board members...',
-              style: TextStyle(
-                color: AppColors.mist,
-                fontSize: 14,
-              ),
-            ),
-          ],
+    return BisoSection(
+      title: l10n.campusLeadershipMessage,
+      child: boardMembersAsync.when(
+        loading: () => const BisoSkeleton.rows(count: 3),
+        error: (error, stackTrace) => BisoErrorState(
+          message: 'Error loading board members: $error',
+          onRetry: () => ref.invalidate(boardMembersProvider(campusId)),
         ),
-      ),
-    );
-  }
-}
+        data: (response) {
+          if (!response.success) {
+            return BisoErrorState(
+              message:
+                  'Error loading board members: '
+                  '${response.error ?? 'Failed to load board members'}',
+              onRetry: () => ref.invalidate(boardMembersProvider(campusId)),
+            );
+          }
 
-class _ErrorState extends StatelessWidget {
-  final String error;
-  final VoidCallback onRetry;
-
-  const _ErrorState({
-    required this.error,
-    required this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.error.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.error_outline,
-            color: AppColors.error,
-            size: 48,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Error loading board members',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.error,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.error,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: AppColors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final String? departmentName;
-
-  const _EmptyState({this.departmentName});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 120,
-      decoration: BoxDecoration(
-        color: AppColors.outlineVariant.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.people_outline,
-              size: 48,
-              color: AppColors.mist,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              departmentName != null
-                  ? 'No members found for $departmentName'
+          if (response.members.isEmpty) {
+            return BisoEmptyState(
+              icon: CupertinoIcons.person_2,
+              accent: BisoAccent.teal,
+              title: response.departmentName != null
+                  ? 'No members found for ${response.departmentName}'
                   : 'No board members found',
-              style: const TextStyle(
-                color: AppColors.mist,
-                fontStyle: FontStyle.italic,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+            );
+          }
+
+          return _BoardMembersList(
+            members: response.members,
+            departmentName: response.departmentName,
+          );
+        },
       ),
     );
   }
@@ -254,202 +62,83 @@ class _BoardMembersList extends StatelessWidget {
   final List<BoardMemberModel> members;
   final String? departmentName;
 
-  const _BoardMembersList({
-    required this.members,
-    this.departmentName,
-  });
+  const _BoardMembersList({required this.members, this.departmentName});
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Department name if available
         if (departmentName != null) ...[
           Text(
             departmentName!,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: AppColors.defaultBlue.withValues(alpha: 0.7),
-            ),
+            style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
         ],
-
-        // Members list
-        ...members.asMap().entries.map((entry) {
-          final index = entry.key;
-          final member = entry.value;
-          
-          return TweenAnimationBuilder(
-            duration: Duration(milliseconds: 200 + (index * 100)),
-            tween: Tween<double>(begin: 0.0, end: 1.0),
-            builder: (context, value, child) {
-              return Transform.translate(
-                offset: Offset(20 * (1 - value), 0),
-                child: Opacity(
-                  opacity: value,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index == members.length - 1 ? 0 : 12,
-                    ),
-                    child: BoardMemberCard(member: member),
-                  ),
-                ),
-              );
-            },
-          );
-        }),
+        BisoListGroup(
+          children: [
+            for (final member in members) BoardMemberCard(member: member),
+          ],
+        ),
       ],
     );
   }
 }
 
-class BoardMemberCard extends StatefulWidget {
+class BoardMemberCard extends StatelessWidget {
   final BoardMemberModel member;
 
-  const BoardMemberCard({
-    super.key,
-    required this.member,
-  });
-
-  @override
-  State<BoardMemberCard> createState() => _BoardMemberCardState();
-}
-
-class _BoardMemberCardState extends State<BoardMemberCard> {
-  bool _isPressed = false;
+  const BoardMemberCard({super.key, required this.member});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
+    final palette = BisoPalette.of(context);
+    final subtitle = member.officeLocation.isEmpty
+        ? member.role
+        : '${member.role} · ${member.officeLocation}';
+
+    return BisoListRow(
+      leading: _buildAvatar(palette),
+      title: member.name,
+      subtitle: subtitle,
       onTap: () => _showMemberDetails(context),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _isPressed
-              ? AppColors.subtleBlue.withValues(alpha: 0.5)
-              : AppColors.subtleBlue.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _isPressed
-                ? AppColors.defaultBlue.withValues(alpha: 0.3)
-                : AppColors.defaultBlue.withValues(alpha: 0.1),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Avatar
-            _buildAvatar(),
-            
-            const SizedBox(width: 12),
-            
-            // Member Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.member.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.strongBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.member.role,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.defaultBlue.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  if (widget.member.officeLocation.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          size: 12,
-                          color: AppColors.stoneGray,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          widget.member.officeLocation,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.stoneGray,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            
-            // Contact Icon
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.defaultBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.contact_mail_outlined,
-                size: 16,
-                color: AppColors.defaultBlue,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget _buildAvatar() {
-    final String? uri = widget.member.profilePhotoUrl?.trim();
+  Widget _buildAvatar(BisoPalette palette) {
+    final String? uri = member.profilePhotoUrl?.trim();
     if (uri != null && uri.isNotEmpty) {
-      final Widget avatarImage = _SafeAvatarImage(
-        uri: uri,
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-      );
-
       return CircleAvatar(
         radius: 24,
-        backgroundColor: AppColors.defaultBlue.withValues(alpha: 0.1),
-        child: ClipOval(child: avatarImage),
+        backgroundColor: palette.surfaceRaised,
+        child: ClipOval(
+          child: _SafeAvatarImage(
+            uri: uri,
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+          ),
+        ),
       );
     }
 
     return CircleAvatar(
       radius: 24,
-      backgroundColor: AppColors.defaultBlue.withValues(alpha: 0.1),
-      child: const Icon(
-        Icons.person,
-        color: AppColors.defaultBlue,
-        size: 20,
-      ),
+      backgroundColor: palette.surfaceRaised,
+      child: Icon(CupertinoIcons.person_fill, color: palette.muted, size: 20),
     );
   }
 
   void _showMemberDetails(BuildContext context) {
     HapticFeedback.selectionClick();
-    
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => _MemberDetailModal(member: widget.member),
+      builder: (context) => _MemberDetailModal(member: member),
     );
   }
 }
@@ -461,130 +150,104 @@ class _MemberDetailModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.cloud,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Avatar
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.defaultBlue.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: (member.profilePhotoUrl != null && member.profilePhotoUrl!.isNotEmpty)
-                  ? _SafeAvatarImage(
-                      uri: member.profilePhotoUrl!,
-                      width: 80,
-                      height: 80,
-                      borderRadius: 40,
-                    )
-                  : const Center(
-                      child: Icon(
-                        Icons.person,
-                        color: AppColors.defaultBlue,
+    final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: palette.surfaceRaised,
+                child:
+                    (member.profilePhotoUrl != null &&
+                        member.profilePhotoUrl!.isNotEmpty)
+                    ? ClipOval(
+                        child: _SafeAvatarImage(
+                          uri: member.profilePhotoUrl!,
+                          width: 80,
+                          height: 80,
+                          borderRadius: 40,
+                        ),
+                      )
+                    : Icon(
+                        CupertinoIcons.person_fill,
+                        color: palette.muted,
                         size: 32,
                       ),
-                    ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Name
-            Text(
-              member.name,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.strongBlue,
               ),
-              textAlign: TextAlign.center,
-            ),
-            
-            const SizedBox(height: 8),
-            
-            // Role
-            Text(
-              member.role,
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.defaultBlue.withValues(alpha: 0.7),
+              const SizedBox(height: 16),
+              Text(
+                member.name,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: palette.ink,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            
-            if (member.officeLocation.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    size: 16,
-                    color: AppColors.stoneGray,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    member.officeLocation,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.stoneGray,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 4),
+              Text(
+                member.role,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: palette.muted,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ],
-            
-            const SizedBox(height: 32),
-            
-            // Contact Actions
-            Row(
-              children: [
-                if (member.email.isNotEmpty) ...[
-                  Expanded(
-                    child: _ContactButton(
-                      icon: Icons.email_outlined,
-                      label: 'Email',
-                      onTap: () => _launchEmail(member.email),
+              if (member.officeLocation.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      CupertinoIcons.location_solid,
+                      size: 14,
+                      color: palette.muted,
                     ),
-                  ),
-                  if (member.phone.isNotEmpty) const SizedBox(width: 12),
-                ],
-                if (member.phone.isNotEmpty) ...[
-                  Expanded(
-                    child: _ContactButton(
-                      icon: Icons.phone_outlined,
-                      label: 'Call',
-                      onTap: () => _launchPhone(member.phone),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        member.officeLocation,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: palette.muted,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ],
-            ),
-            
-            const SizedBox(height: 16),
-          ],
+              if (member.email.isNotEmpty || member.phone.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                BisoListGroup(
+                  children: [
+                    if (member.email.isNotEmpty)
+                      BisoListRow(
+                        leading: const BisoIconTile(icon: CupertinoIcons.mail),
+                        title: 'Email',
+                        subtitle: member.email,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _launchEmail(member.email);
+                        },
+                      ),
+                    if (member.phone.isNotEmpty)
+                      BisoListRow(
+                        leading: const BisoIconTile(icon: CupertinoIcons.phone),
+                        title: 'Call',
+                        subtitle: member.phone,
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          _launchPhone(member.phone);
+                        },
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -602,69 +265,6 @@ class _MemberDetailModal extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     }
-  }
-}
-
-class _ContactButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ContactButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_ContactButton> createState() => _ContactButtonState();
-}
-
-class _ContactButtonState extends State<_ContactButton> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        widget.onTap();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-        decoration: BoxDecoration(
-          color: _isPressed
-              ? AppColors.defaultBlue
-              : AppColors.defaultBlue.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.defaultBlue.withValues(alpha: 0.3),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              widget.icon,
-              color: _isPressed ? AppColors.white : AppColors.defaultBlue,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              widget.label,
-              style: TextStyle(
-                color: _isPressed ? AppColors.white : AppColors.defaultBlue,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -712,6 +312,8 @@ class _SafeAvatarImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+
     if (_isHttpUrl(uri)) {
       return Image.network(
         uri,
@@ -719,11 +321,11 @@ class _SafeAvatarImage extends StatelessWidget {
         height: height,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          return _placeholder();
+          return _placeholder(palette);
         },
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
-          return _loading();
+          return _loading(palette);
         },
       );
     }
@@ -737,40 +339,44 @@ class _SafeAvatarImage extends StatelessWidget {
           height: height,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
-            return _placeholder();
+            return _placeholder(palette);
           },
         );
       }
     }
 
-    return _placeholder();
+    return _placeholder(palette);
   }
 
-  Widget _placeholder() {
-    return Container(
-      width: width,
-      height: height,
-      color: AppColors.cloud,
-      child: const Center(
-        child: Icon(
-          Icons.person,
-          color: AppColors.defaultBlue,
-          size: 20,
+  Widget _placeholder(BisoPalette palette) {
+    return ColoredBox(
+      color: palette.surfaceRaised,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Center(
+          child: Icon(
+            CupertinoIcons.person_fill,
+            color: palette.muted,
+            size: 20,
+          ),
         ),
       ),
     );
   }
 
-  Widget _loading() {
-    return Container(
-      width: width,
-      height: height,
-      color: AppColors.cloud,
-      child: const Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
+  Widget _loading(BisoPalette palette) {
+    return ColoredBox(
+      color: palette.surfaceRaised,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
         ),
       ),
     );

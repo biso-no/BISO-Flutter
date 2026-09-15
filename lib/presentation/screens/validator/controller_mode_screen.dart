@@ -1,16 +1,34 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../../../core/constants/app_colors.dart';
-import '../../../providers/campus/campus_provider.dart';
+import '../../../core/theme/premium_theme.dart';
 import '../../../core/utils/navigation_utils.dart';
-import '../../../data/services/validator_service.dart';
 import '../../../data/models/validation_result_model.dart';
+import '../../../data/services/validator_service.dart';
+import '../../../generated/l10n/app_localizations.dart';
+import '../../widgets/biso/biso.dart';
 
 class ControllerModeScreen extends ConsumerStatefulWidget {
-  const ControllerModeScreen({super.key});
+  const ControllerModeScreen({
+    super.key,
+    this.scannerBuilder,
+    this.validatorService,
+  });
+
+  /// Builds the camera preview. `MobileScanner` needs a platform camera the
+  /// test harness doesn't have, so tests substitute a plain widget here. The
+  /// default is supplied by the State (see `_defaultScanner`) because it
+  /// needs the State-owned `controller` and `qrKey`, which can't be
+  /// referenced from a const constructor default; the default call is
+  /// otherwise identical to the screen's original `MobileScanner` call.
+  final Widget Function(void Function(BarcodeCapture capture) onDetect)?
+  scannerBuilder;
+
+  /// Injectable for tests; defaults to a real [ValidatorService].
+  final ValidatorService? validatorService;
 
   @override
   ConsumerState<ControllerModeScreen> createState() =>
@@ -21,6 +39,8 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
     with TickerProviderStateMixin {
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
   MobileScannerController? controller;
+  late final ValidatorService _validatorService =
+      widget.validatorService ?? ValidatorService();
   bool _isFlashOn = false;
   bool _isProcessing = false;
   ValidationResultModel? _lastResult;
@@ -81,78 +101,54 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
     _scanLineController.repeat(reverse: true);
   }
 
+  Widget _defaultScanner(void Function(BarcodeCapture capture) onDetect) {
+    return MobileScanner(key: qrKey, controller: controller, onDetect: onDetect);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final selectedCampus = ref.watch(selectedCampusProvider);
-    final campusColor = _getCampusColor(selectedCampus.id);
-
-    return Scaffold(
-      backgroundColor: AppColors.charcoalBlack,
-      appBar: AppBar(
-        title: const Text(
-          'Validator Mode',
-          style: TextStyle(color: AppColors.white),
-        ),
-        backgroundColor: AppColors.charcoalBlack,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.white),
+    // The scanner is always dark, regardless of the app's theme mode.
+    return Theme(
+      data: PremiumTheme.darkTheme,
+      child: BisoPage(
+        title: 'Validator Mode',
+        largeTitle: false,
+        overImage: true,
+        leading: BisoBackButton(
           onPressed: () => NavigationUtils.safeGoBack(context),
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              _isFlashOn ? Icons.flash_on : Icons.flash_off,
-              color: AppColors.white,
-            ),
+          BisoHeaderAction(
+            icon: _isFlashOn
+                ? CupertinoIcons.bolt_fill
+                : CupertinoIcons.bolt_slash_fill,
+            tooltip: _isFlashOn
+                ? AppLocalizations.of(context)?.turnFlashOffMessage ??
+                      'Turn flash off'
+                : AppLocalizations.of(context)?.turnFlashOnMessage ??
+                      'Turn flash on',
             onPressed: _toggleFlash,
           ),
         ],
-      ),
-      body: Column(
-        children: [
-          // Header instructions
-          Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Icon(Icons.qr_code_scanner, color: campusColor, size: 48),
-                const SizedBox(height: 16),
-                Text(
-                  'Scan Student QR Code',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Point camera at student\'s QR code to verify membership',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: AppColors.white.withValues(alpha: 0.7)),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
+        body: Builder(
+          builder: (context) {
+            final palette = BisoPalette.of(context);
+            final theme = Theme.of(context);
+            final insets = BisoPageInsets.maybeOf(context);
+            final topInset = insets?.top ?? 0;
+            final bottomInset = insets?.bottom ?? 0;
 
-          // QR Scanner View
-          Expanded(
-            child: Stack(
+            return Stack(
+              fit: StackFit.expand,
               children: [
                 // Camera view
-                MobileScanner(
-                  key: qrKey,
-                  controller: controller,
-                  onDetect: _onQRDetected,
-                ),
+                (widget.scannerBuilder ?? _defaultScanner)(_onQRDetected),
 
                 // Custom overlay
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _ScannerOverlayPainter(
-                      borderColor: campusColor,
+                      borderColor: palette.link,
                       cutOutSize: 280,
                     ),
                   ),
@@ -167,12 +163,20 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                         return CustomPaint(
                           painter: _ScanLinePainter(
                             progress: _scanLineAnimation.value,
-                            color: campusColor,
+                            color: palette.link,
                           ),
                         );
                       },
                     ),
                   ),
+
+                // Instruction card
+                Positioned(
+                  top: topInset + 8,
+                  left: 16,
+                  right: 16,
+                  child: _buildInstructionCard(theme, palette),
+                ),
 
                 // Processing overlay
                 if (_isProcessing)
@@ -180,189 +184,187 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
                     child: Container(
                       color: Colors.black.withValues(alpha: 0.54),
                       child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(color: campusColor),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Verifying membership...',
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                            ],
+                        child: Material(
+                          color: palette.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          clipBehavior: Clip.antiAlias,
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(color: palette.link),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Verifying membership...',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: palette.ink,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
 
-                // Result overlay
+                // Result card
                 if (_lastResult != null || _lastError != null)
-                  Positioned.fill(
+                  Positioned(
+                    bottom: bottomInset + 8,
+                    left: 16,
+                    right: 16,
                     child: AnimatedBuilder(
                       animation: _resultAnimation,
                       builder: (context, child) {
                         return Transform.scale(
                           scale: _resultAnimation.value,
-                          child: Container(
-                            color: Colors.black.withValues(alpha: 0.87),
-                            child: Center(child: _buildResultCard(campusColor)),
-                          ),
+                          alignment: Alignment.bottomCenter,
+                          child: _buildResultCard(theme, palette),
                         );
                       },
                     ),
                   ),
               ],
-            ),
-          ),
-
-          // Bottom status panel
-          Container(
-            padding: const EdgeInsets.all(24),
-            color: AppColors.smokeGray,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Status: ${_isProcessing ? 'Scanning...' : 'Ready'}',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (_lastScanTime != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'Last scan: ${_formatTime(_lastScanTime!)}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.white.withValues(alpha: 0.7)),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (_lastResult != null || _lastError != null)
-                  FilledButton(
-                    onPressed: _clearResult,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: campusColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: const Text('Clear'),
-                  ),
-              ],
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildResultCard(Color campusColor) {
-    final isValid = _lastResult?.result == 'VALID';
-    final backgroundColor = isValid ? AppColors.green9 : AppColors.error;
-    const iconColor = AppColors.white;
-    final icon = isValid ? Icons.check_circle : Icons.error;
-
-    return Container(
-      margin: const EdgeInsets.all(24),
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: backgroundColor.withValues(alpha: 0.3),
-            offset: const Offset(0, 8),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _pulseAnimation.value,
-                child: Icon(icon, size: 80, color: iconColor),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          Text(
-            isValid ? 'VALID MEMBER' : 'INVALID',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: iconColor,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
+  Widget _buildInstructionCard(ThemeData theme, BisoPalette palette) {
+    return Material(
+      key: const Key('controllerModeInstructionCard'),
+      color: palette.surface,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BisoIconTile(
+              icon: CupertinoIcons.qrcode_viewfinder,
+              accent: BisoAccent.blue,
+              size: 48,
             ),
-          ),
-          const SizedBox(height: 16),
-          if (_lastResult?.member != null) ...[
+            const SizedBox(height: 16),
             Text(
-              _lastResult!.member!.displayName,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: iconColor,
-                fontWeight: FontWeight.w600,
+              'Scan Student QR Code',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: palette.ink,
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              _lastResult!.member!.membershipName,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: iconColor.withValues(alpha: 0.9),
+              'Point camera at student\'s QR code to verify membership',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: palette.muted,
               ),
-            ),
-            if (_lastResult!.member!.expiresAt != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Expires: ${_formatDate(_lastResult!.member!.expiresAt!)}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: iconColor.withValues(alpha: 0.8),
-                ),
-              ),
-            ],
-          ] else if (_lastError != null) ...[
-            Text(
-              _lastError!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: iconColor),
               textAlign: TextAlign.center,
             ),
-          ],
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              OutlinedButton(
-                onPressed: _clearResult,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: iconColor,
-                  side: BorderSide(color: iconColor),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+            if (_lastScanTime != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Last scan: ${_formatTime(_lastScanTime!)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: palette.muted,
                 ),
-                child: const Text('Continue Scanning'),
+                textAlign: TextAlign.center,
               ),
             ],
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard(ThemeData theme, BisoPalette palette) {
+    final isValid = _lastResult?.result == 'VALID';
+    final backgroundColor = isValid ? palette.success : palette.error;
+    const iconColor = Colors.white;
+    final icon = isValid
+        ? CupertinoIcons.checkmark_circle_fill
+        : CupertinoIcons.exclamationmark_circle_fill;
+
+    return Material(
+      color: backgroundColor,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _pulseAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _pulseAnimation.value,
+                  child: Icon(icon, size: 56, color: iconColor),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isValid ? 'VALID MEMBER' : 'INVALID',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: iconColor,
+                letterSpacing: 2,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            if (_lastResult?.member != null) ...[
+              Text(
+                _lastResult!.member!.displayName,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: iconColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _lastResult!.member!.membershipName,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: iconColor.withValues(alpha: 0.9),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (_lastResult!.member!.expiresAt != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Expires: ${_formatDate(_lastResult!.member!.expiresAt!)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: iconColor.withValues(alpha: 0.8),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ] else if (_lastError != null) ...[
+              Text(
+                _lastError!,
+                style: theme.textTheme.bodyMedium?.copyWith(color: iconColor),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: _clearResult,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: iconColor,
+                side: const BorderSide(color: iconColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: const Text('Continue Scanning'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -397,8 +399,7 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
       }
 
       // Call verification service
-      final validatorService = ValidatorService();
-      final result = await validatorService.verifyPassToken(
+      final result = await _validatorService.verifyPassToken(
         token: token,
         context: {
           'deviceId': 'flutter_controller',
@@ -472,21 +473,6 @@ class _ControllerModeScreenState extends ConsumerState<ControllerModeScreen>
     });
     _resultController.reset();
     _pulseController.reset();
-  }
-
-  Color _getCampusColor(String campusId) {
-    switch (campusId) {
-      case 'oslo':
-        return AppColors.defaultBlue;
-      case 'bergen':
-        return AppColors.green9;
-      case 'trondheim':
-        return AppColors.purple9;
-      case 'stavanger':
-        return AppColors.orange9;
-      default:
-        return AppColors.gray400;
-    }
   }
 
   String _formatTime(DateTime time) {
@@ -571,7 +557,7 @@ class _ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.charcoalBlack.withValues(alpha: 0.7)
+      ..color = Colors.black.withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     // Calculate center position

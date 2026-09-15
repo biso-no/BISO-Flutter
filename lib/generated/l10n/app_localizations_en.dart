@@ -107,6 +107,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get askAIMessage => 'Ask AI Assistant';
 
   @override
+  String get attachMessage => 'Attach';
+
+  @override
   String get attachedFilesMessage => 'Attached Files';
 
   @override
@@ -269,6 +272,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatDeletedSuccessfully => 'Chat deleted successfully';
+
+  @override
+  String get chatDetailsMessage => 'Chat details';
 
   @override
   String get chatInfo => 'Chat Info';
@@ -555,6 +561,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get earlyRegistrationForPopularEventsMessage =>
       'Early registration for popular events';
+
+  @override
+  String get editChatMessage => 'Edit chat';
 
   @override
   String get editMessage => 'Edit';
@@ -1070,6 +1079,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get newConversationMessage => 'New conversation';
+
+  @override
   String get newExpenseMessage => 'New Expense';
 
   @override
@@ -1566,6 +1578,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saveAsDraftMessage => 'Save as Draft';
+
+  @override
+  String get saveChangesMessage => 'Save changes';
 
   @override
   String get saveMessage => 'Save';
@@ -2112,4 +2127,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bisoWebsiteMessage => 'BISO.no';
+
+  @override
+  String get searchExploreMessage => 'Search Explore';
+
+  @override
+  String get noSearchResultsMessage => 'No results found';
+
+  @override
+  String get loadingMessage => 'Loading';
+
+  @override
+  String get turnFlashOnMessage => 'Turn flash on';
+
+  @override
+  String get turnFlashOffMessage => 'Turn flash off';
+
+  @override
+  String get moreMessage => 'More';
+
+  @override
+  String get favoriteMessage => 'Favorite';
+
+  @override
+  String get changePhotoMessage => 'Change photo';
 }
