@@ -170,4 +170,64 @@ void main() {
       expect(upcomingChipText.style?.color, BisoPalette.light.link);
     },
   );
+
+  testWidgets(
+    'shortening a search below two characters clears the filter instead of '
+    'keeping the old query',
+    (tester) async {
+      final service = _SearchRecordingEventService();
+      await pumpBisoScreen(
+        tester,
+        const EventsScreen(),
+        routed: true,
+        overrides: [
+          eventServiceProvider.overrideWithValue(service),
+          filterCampusProvider.overrideWithValue(_campus),
+          campusInitializedProvider.overrideWithValue(true),
+        ],
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(EventsScreen)),
+      );
+
+      await tester.tap(find.byTooltip('Search'));
+      await tester.pumpAndSettle();
+      final field = find.byType(TextField);
+
+      await tester.enterText(field, 'ga');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(container.read(eventsSearchTermProvider), 'ga');
+      expect(service.searches.last, 'ga');
+
+      await tester.enterText(field, 'g');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(eventsSearchTermProvider),
+        isNull,
+        reason: 'a one-character query is below the API minimum, so the list '
+            'must stop filtering by the previous query',
+      );
+      expect(service.searches.last, isNull);
+    },
+  );
+}
+
+/// Records the search term of every request; always returns one short page.
+class _SearchRecordingEventService extends EventService {
+  final List<String?> searches = [];
+
+  @override
+  Future<List<EventModel>> listEvents({
+    String? campusId,
+    String locale = 'no',
+    int limit = 20,
+    int offset = 0,
+    bool includePast = false,
+    String? search,
+  }) async {
+    searches.add(search);
+    return _page('s', 2);
+  }
 }

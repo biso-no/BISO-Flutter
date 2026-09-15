@@ -389,9 +389,9 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   Future<void> _applySearch(String value) async {
     final trimmed = value.trim();
-    // Preserve the API's minimum query length without a dialog per keystroke.
-    if (trimmed.isNotEmpty && trimmed.length < 2) return;
-    final query = trimmed.isEmpty ? null : trimmed;
+    // The API needs at least two characters. A shorter query clears the
+    // filter rather than leaving the list filtered by the previous one.
+    final query = trimmed.length < 2 ? null : trimmed;
     if (ref.read(eventsSearchTermProvider) == query) return;
     ref.read(eventsSearchTermProvider.notifier).state = query;
     await _reload();
