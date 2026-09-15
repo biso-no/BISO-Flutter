@@ -177,9 +177,9 @@ design spec are corrected to the confirmed scheme.
 
 ### 1.5 One BI account per BISO account (D6)
 
-**The link write moves to `packages/shared/utils/bi-identity-link.ts`.**
-`linkBiStudentIdentity({ userId, studentId, directoryEmail })` is used by `syncBiStudentIdentity`,
-which keeps its session handling, identity parsing, dev override and cache invalidation.
+**The check runs inside the web's `syncBiStudentIdentity`**, the only place a link is written. The
+pure test `identityBacksStudentId(identities, studentId)` lives in
+`packages/shared/utils/bi-student.ts`, where the profile lock script uses it too.
 
 Before writing, it lists other `user` rows with the same `student_id` (admin client). For each one:
 
@@ -459,7 +459,7 @@ and Android builds still succeed; otherwise that is left as a follow-up.
     - an unreadable date;
     - expired-only matches;
     - `status == false` still excluded;
-  - `linkBiStudentIdentity`:
+  - `syncBiStudentIdentity` link uniqueness:
     - the holder is backed by an identity → `already_linked`, and the current identity is removed;
     - the holder is unbacked → cleared, and the link proceeds;
     - no holder → writes as today;
