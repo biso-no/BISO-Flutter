@@ -8,12 +8,20 @@ import '../models/user_model.dart';
 import '../models/student_id_model.dart';
 import 'appwrite_service.dart';
 import 'privacy_service.dart';
+import 'profile_api_client.dart';
 import 'student_service.dart';
 import '../../core/logging/app_logger.dart';
 
 import '../../core/logging/print_migration.dart';
 
 class AuthService {
+  AuthService({ProfileApiClient? profileApi})
+    : _profileApi = profileApi ?? ProfileApiClient();
+
+  /// Profile rows are read-only to their owner; every profile write goes
+  /// through `PUT /api/profile`.
+  final ProfileApiClient _profileApi;
+
   // Using simplified global Appwrite instances
   Account get _account => account;
   TablesDB get _databases => db;
@@ -349,29 +357,19 @@ class AuthService {
     String? bankAccount,
   }) async {
     try {
-      final accountUser = await _account.get();
-
-      final userData = {
+      // The server stamps the account's email on a new row itself.
+      final saved = await _profileApi.upsert({
         'name': name,
-        'email': accountUser.email,
         'phone': phone,
         'address': address,
         'city': city,
         'zip': zipCode,
         'campus_id': campusId,
-        'departments': departments ?? [],
+        'departments': departments ?? <String>[],
         'bank_account': bankAccount,
-      };
-
-      final doc = await _databases.createRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: accountUser.$id,
-        data: userData,
-      );
-
-      return UserModel.fromMap(doc.data);
-    } on AppwriteException catch (e) {
+      });
+      return UserModel.fromMap(saved);
+    } on ProfileApiException catch (e) {
       throw AuthException('Failed to create profile: ${e.message}');
     } catch (e) {
       throw AuthException('Network error occurred');
@@ -420,14 +418,9 @@ class AuthService {
         'bank_account': bankAccount ?? currentUser.bankAccount,
       };
 
-      final doc = await _databases.updateRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: currentUser.id,
-        data: updatedData,
+      final updatedUser = UserModel.fromMap(
+        await _profileApi.upsert(updatedData),
       );
-
-      final updatedUser = UserModel.fromMap(doc.data);
 
       // Sync public profile if user is public
       try {
@@ -441,6 +434,8 @@ class AuthService {
       }
 
       return updatedUser;
+    } on ProfileApiException catch (e) {
+      throw AuthException('Failed to update profile: ${e.message}');
     } on AppwriteException catch (e) {
       throw AuthException('Failed to update profile: ${e.message}');
     } catch (e) {
@@ -641,12 +636,7 @@ class AuthService {
       updateData['swift'] = swift?.isNotEmpty == true ? swift : null;
 
       // Update user document in Appwrite
-      final response = await _databases.updateRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: currentUser.id,
-        data: updateData,
-      );
+      final response = await _profileApi.upsert(updateData);
 
       AppLogger.auth(
         'Payment information updated successfully',
@@ -655,7 +645,9 @@ class AuthService {
       );
 
       // Return updated user model
-      return UserModel.fromDocument(response);
+      return UserModel.fromMap(response);
+    } on ProfileApiException catch (e) {
+      throw AuthException('Failed to update payment information: ${e.message}');
     } on AppwriteException catch (e) {
       throw AuthException('Failed to update payment information: ${e.message}');
     } catch (e) {
