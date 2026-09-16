@@ -9,8 +9,10 @@ import '../../../data/models/expense_attachment_model.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/expenses_unavailable_page.dart';
 import '../expense/create_expense_screen.dart';
 import '../home/premium_home_screen.dart';
 
@@ -49,6 +51,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         description: 'Manage reimbursements',
         icon: CupertinoIcons.doc_text,
       );
+    }
+
+    if (ref.watch(expensesEnabledProvider) == false) {
+      return const ExpensesUnavailablePage();
     }
 
     final expensesState = ref.watch(expensesStateProvider);

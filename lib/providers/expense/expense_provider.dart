@@ -19,7 +19,10 @@ final expenseApiClientProvider = Provider<ExpenseApiClient>(
 // Expenses state provider
 final expensesStateProvider =
     StateNotifierProvider<ExpensesNotifier, ExpensesState>((ref) {
-      return ExpensesNotifier(ref.watch(expenseServiceProvider));
+      return ExpensesNotifier(
+        ref.watch(expenseServiceProvider),
+        ref.watch(expenseApiClientProvider),
+      );
     });
 
 // Filtered expenses provider
@@ -98,8 +101,9 @@ class ExpensesState {
 
 class ExpensesNotifier extends StateNotifier<ExpensesState> {
   final ExpenseServiceV2 _service;
+  final ExpenseApiClient _api;
 
-  ExpensesNotifier(this._service) : super(const ExpensesState()) {
+  ExpensesNotifier(this._service, this._api) : super(const ExpensesState()) {
     loadUserExpenses();
   }
 
@@ -166,111 +170,15 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
     }
   }
 
-  /// Create a new expense
-  Future<ExpenseModel?> createExpense({
-    required String campus,
-    required String department,
-    required String bankAccount,
-    String? description,
-    required double total,
-    double? prepaymentAmount,
-    String status = 'pending',
-    String? eventName,
-  }) async {
-    try {
-      logPrint('💰 ExpensesNotifier: Creating expense');
-      state = state.copyWith(isLoading: true, error: null);
-
-      final expense = await _service.createExpense(
-        campus: campus,
-        department: department,
-        bankAccount: bankAccount,
-        description: description,
-        total: total,
-        prepaymentAmount: prepaymentAmount,
-        status: status,
-        eventName: eventName,
-      );
-
-      // Add to the list
-      final updatedExpenses = [expense, ...state.expenses];
-      state = state.copyWith(
-        expenses: updatedExpenses,
-        isLoading: false,
-        error: null,
-      );
-
-      logPrint('💰 ExpensesNotifier: Created expense ${expense.id}');
-      return expense;
-    } catch (e) {
-      logPrint('💰 ExpensesNotifier: Failed to create expense: $e');
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Failed to create expense: $e',
-      );
-      return null;
-    }
-  }
-
-  /// Update an existing expense
-  Future<ExpenseModel?> updateExpense({
-    required String expenseId,
-    String? campus,
-    String? department,
-    String? bankAccount,
-    String? description,
-    double? total,
-    double? prepaymentAmount,
-    String? status,
-    String? eventName,
-  }) async {
-    try {
-      logPrint('💰 ExpensesNotifier: Updating expense $expenseId');
-      state = state.copyWith(isLoading: true, error: null);
-
-      final expense = await _service.updateExpense(
-        expenseId: expenseId,
-        campus: campus,
-        department: department,
-        bankAccount: bankAccount,
-        description: description,
-        total: total,
-        prepaymentAmount: prepaymentAmount,
-        status: status,
-        eventName: eventName,
-      );
-
-      // Update in the list
-      final updatedExpenses = state.expenses.map((e) {
-        return e.id == expenseId ? expense : e;
-      }).toList();
-
-      state = state.copyWith(
-        expenses: updatedExpenses,
-        selectedExpense: expense,
-        isLoading: false,
-        error: null,
-      );
-
-      logPrint('💰 ExpensesNotifier: Updated expense $expenseId');
-      return expense;
-    } catch (e) {
-      logPrint('💰 ExpensesNotifier: Failed to update expense: $e');
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Failed to update expense: $e',
-      );
-      return null;
-    }
-  }
-
   /// Delete an expense
   Future<bool> deleteExpense(String expenseId) async {
     try {
       logPrint('💰 ExpensesNotifier: Deleting expense $expenseId');
       state = state.copyWith(isLoading: true, error: null);
 
-      await _service.deleteExpense(expenseId);
+      // Students have no delete grant on expense rows; the API checks the
+      // draft is theirs and still a draft before deleting it.
+      await _api.deleteDraft(expenseId);
 
       // Remove from the list
       final updatedExpenses = state.expenses

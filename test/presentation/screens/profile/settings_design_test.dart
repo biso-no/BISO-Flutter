@@ -1,4 +1,5 @@
 import 'package:biso/core/theme/premium_theme.dart';
+import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/notification_service.dart';
@@ -9,6 +10,7 @@ import 'package:biso/presentation/screens/profile/settings_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
+import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:biso/providers/privacy/privacy_provider.dart';
 import 'package:flutter/material.dart';
@@ -176,7 +178,9 @@ void main() {
         const ProfileScreen(),
         overrides: [
           ..._overrides(),
-          expenseFeatureFlagProvider.overrideWith((_) async => true),
+          appConfigProvider.overrideWith(
+            (_) async => const AppConfig(expensesEnabled: true),
+          ),
         ],
         routed: false,
       );

@@ -1,9 +1,11 @@
+import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/presentation/screens/profile/profile_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
+import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -49,7 +51,9 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
 List<Override> _overrides() => [
   authStateProvider.overrideWith((_) => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
-  expenseFeatureFlagProvider.overrideWith((_) async => true),
+  appConfigProvider.overrideWith(
+    (_) async => const AppConfig(expensesEnabled: true),
+  ),
 ];
 
 void main() {

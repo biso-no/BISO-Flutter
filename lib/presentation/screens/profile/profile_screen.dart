@@ -5,26 +5,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/models/user_model.dart';
-import '../../../data/services/feature_flag_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/config/app_config_provider.dart';
 import '../../widgets/biso/biso.dart';
 import 'edit_profile_screen.dart';
 import 'payment_information_screen.dart';
 import 'settings_screen.dart';
-
-// Feature flag provider for expenses
-final _featureFlagServiceProvider = Provider<FeatureFlagService>(
-  (ref) => FeatureFlagService(),
-);
-
-final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((
-  ref,
-) async {
-  final service = ref.watch(_featureFlagServiceProvider);
-  return service.isEnabled('expenses');
-});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -47,8 +35,7 @@ class ProfileScreen extends ConsumerWidget {
     }
 
     final profile = user;
-    final expenseFlagAsync = ref.watch(expenseFeatureFlagProvider);
-    final showExpenseHistory = expenseFlagAsync.valueOrNull ?? false;
+    final showExpenseHistory = ref.watch(expensesEnabledProvider) ?? false;
 
     return BisoPage(
       title: l10n.profile,

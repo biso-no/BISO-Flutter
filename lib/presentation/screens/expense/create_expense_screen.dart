@@ -18,8 +18,10 @@ import '../../../data/services/expense_api_client.dart';
 import '../../../data/services/expense_intake_service.dart';
 import '../../../data/services/expense_service_v2.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/expenses_unavailable_page.dart';
 import '../home/premium_home_screen.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
@@ -195,6 +197,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(expensesEnabledProvider) == false) {
+      return const ExpensesUnavailablePage();
+    }
+
     final user = ref.watch(currentUserProvider);
     final profileReadiness = ExpenseProfileReadiness.fromUser(user);
 
@@ -845,19 +851,25 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   Future<void> _pickCameraReceipt() async {
-    final image = await _imagePicker.pickImage(source: ImageSource.camera);
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 90,
+    );
     if (image != null) await _addFile(File(image.path));
   }
 
   Future<void> _pickImageReceipt() async {
-    final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
     if (image != null) await _addFile(File(image.path));
   }
 
   Future<void> _pickDocumentReceipt() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       allowMultiple: true,
     );
     if (result == null) return;
@@ -870,7 +882,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   Future<void> _pickBankStatement(String parentReceiptId) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       allowMultiple: false,
     );
     if (result == null || result.files.first.path == null) return;
@@ -1398,9 +1410,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     return const {
       'image/jpeg',
       'image/png',
-      'image/webp',
-      'image/heic',
-      'image/heif',
       'application/pdf',
     }.contains(mimeType);
   }
