@@ -192,9 +192,12 @@ void main() {
       c.read(membershipCheckoutControllerProvider.notifier);
       await pumpEventQueue();
 
+      final state = c.read(membershipCheckoutControllerProvider);
+      expect(state.phase, MembershipPurchasePhase.activationDelayed);
       expect(
-        c.read(membershipCheckoutControllerProvider).phase,
-        MembershipPurchasePhase.activationDelayed,
+        state.message,
+        'Your payment is confirmed. Your membership can take a few minutes '
+        'to show up here.',
       );
     },
   );
@@ -234,6 +237,74 @@ void main() {
     expect(
       c.read(membershipCheckoutControllerProvider).phase,
       MembershipPurchasePhase.cancelled,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('membership_pending_order_id'), isNull);
+  });
+
+  test('a deep link for a different order than the pending one leaves the '
+      'marker and state untouched, and the pending order still resolves '
+      'afterwards', () async {
+    final shop = _FakeShopApi(ShopOrderStatus.paid);
+    final membership = _FakeMembershipApi()..isMember = true;
+    final c = container(shop, membership);
+    final controller = c.read(membershipCheckoutControllerProvider.notifier);
+    // Let the (here, no-op — nothing is persisted yet) restore from
+    // construction settle before acting, so it cannot land after `start`
+    // and see a marker `start` only just wrote. This test is about the
+    // different-order guard, not the restore race — that one is covered
+    // separately below.
+    await pumpEventQueue();
+    await controller.start(
+      provider: PaymentProvider.vipps,
+      planId: '71',
+      campusId: '2',
+    );
+    final stateAfterStart = c.read(membershipCheckoutControllerProvider);
+    final prefs = await SharedPreferences.getInstance();
+
+    // 'order-2' is a stale return link for some earlier attempt — not the
+    // order 'start' just recorded as pending.
+    await controller.resolvePending(orderId: 'order-2');
+
+    expect(shop.fetched, isEmpty);
+    expect(c.read(membershipCheckoutControllerProvider), stateAfterStart);
+    expect(prefs.getString('membership_pending_order_id'), 'order-1');
+
+    // The order actually pending is unaffected by the stale link and still
+    // resolves normally.
+    await controller.resolvePending(orderId: 'order-1');
+
+    expect(shop.fetched, ['order-1']);
+    expect(
+      c.read(membershipCheckoutControllerProvider).phase,
+      MembershipPurchasePhase.activated,
+    );
+    expect(prefs.getString('membership_pending_order_id'), isNull);
+  });
+
+  test('a deep link that arrives before the restore has completed still '
+      'resolves that order correctly', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'membership_pending_order_id': 'order-1',
+      'membership_pending_started_at': DateTime.now().millisecondsSinceEpoch,
+    });
+    final shop = _FakeShopApi(ShopOrderStatus.paid);
+    final membership = _FakeMembershipApi()..isMember = true;
+    final c = container(shop, membership);
+
+    final controller = c.read(membershipCheckoutControllerProvider.notifier);
+    // No pump between construction and this call: the constructor's own
+    // restore of the persisted marker is still in flight when the deep
+    // link's resolve lands, exactly as a cold launch straight into the
+    // return deep link races the marker being read back from disk.
+    await controller.resolvePending(orderId: 'order-1');
+    await pumpEventQueue();
+
+    expect(shop.fetched, ['order-1']);
+    expect(
+      c.read(membershipCheckoutControllerProvider).phase,
+      MembershipPurchasePhase.activated,
     );
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('membership_pending_order_id'), isNull);

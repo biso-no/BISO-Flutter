@@ -69,7 +69,12 @@ class MembershipCheckoutController
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(resolvePending()),
     );
-    unawaited(_restorePending());
+    _restored = _restorePending();
+    // A cold launch is not a resume, so resolve now rather than waiting for
+    // the next time the app comes back to the foreground. `resolvePending`
+    // itself waits on `_restored`, so calling it immediately is safe even
+    // though restoration is still in flight.
+    unawaited(resolvePending());
   }
 
   final Ref _ref;
@@ -83,6 +88,14 @@ class MembershipCheckoutController
   static const String _pendingOrderKey = 'membership_pending_order_id';
   static const String _pendingStartedKey = 'membership_pending_started_at';
   static const Duration _pendingMaxAge = Duration(hours: 2);
+
+  /// Completes once the persisted marker, if any, has been read back.
+  ///
+  /// `resolvePending` awaits this first. Without it, a deep link landing at
+  /// cold launch — before the marker has loaded — would be checked against a
+  /// `_pendingOrderId` that is still `null`, collapsing "a different order is
+  /// pending" into "nothing is pending" and defeating the guard below.
+  late final Future<void> _restored;
 
   String? _pendingOrderId;
   bool _resolving = false;
@@ -169,9 +182,24 @@ class MembershipCheckoutController
   /// [orderId] and [cancelled] come from the return deep link; without them
   /// the remembered order is checked. Silent on network failure, so the
   /// marker stays for the next attempt.
+  ///
+  /// A deep link naming an order other than the one actually pending — an
+  /// old return link, flushed late after a newer purchase has already
+  /// started — is ignored outright: the marker and the state both belong to
+  /// whichever order is pending, and neither is touched on the old order's
+  /// behalf.
   Future<void> resolvePending({String? orderId, bool cancelled = false}) async {
+    await _restored;
     final id = orderId ?? _pendingOrderId;
-    if (id == null || _resolving) return;
+    if (id == null) return;
+    if (orderId != null && _pendingOrderId != null && _pendingOrderId != id) {
+      logPrint(
+        '🎫 Ignoring a resolve for $id — $_pendingOrderId is the order '
+        'actually pending.',
+      );
+      return;
+    }
+    if (_resolving) return;
     _resolving = true;
     try {
       final order = await _ref.read(shopApiClientProvider).fetchOrder(id);
@@ -219,6 +247,7 @@ class MembershipCheckoutController
   /// Payment is in; fulfilment has run server-side. Re-verify until the new
   /// membership shows, which proves it reached 24SevenOffice.
   Future<void> _activate(String orderId) async {
+    if (!mounted) return;
     state = MembershipPurchaseState(
       phase: MembershipPurchasePhase.activating,
       orderId: orderId,
@@ -262,9 +291,6 @@ class MembershipCheckoutController
         return;
       }
       _pendingOrderId = orderId;
-      // A cold launch is not a resume, so resolve now rather than waiting for
-      // the next time the app comes back to the foreground.
-      await resolvePending();
     } catch (error) {
       logPrint('🎫 Failed to restore the membership payment: $error');
     }
