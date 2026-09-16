@@ -3746,6 +3746,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `android/app/build.gradle.kts`
 - Modify: `android/app/src/main/AndroidManifest.xml`
 - Modify: generated plugin registrants if they are tracked (`git status` shows them)
+- Modify: `lib/data/services/shop_api_client.dart`
 - Modify: `CLAUDE.md`
 
 **Interfaces:** none (no Dart API changes). After Task 4 nothing imports `package:flutter_appauth`.
@@ -3823,6 +3824,32 @@ In the "💰 Expense Reimbursement System" section, add the bullet:
   access. The screens follow `features.expenses` from `GET /api/config`, which is the admin's
   `expenses_module` switch.
 ```
+
+- [ ] **Step 4b: Point the shop client at the shared API helpers**
+
+`lib/data/services/shop_api_client.dart` still carries its own copies of the two helpers
+`api_auth.dart` now owns: `_authHeaders()` (which calls `account.createJWT()` and swallows the
+failure) and `_apiUri(path, query)` (which trims a trailing slash off `AppConstants.apiBaseUrl`).
+Delete both private methods, add `import 'api_auth.dart';`, and call `apiUri(path, query)` and
+`appwriteJwt()` instead — the header map becomes:
+
+```dart
+      final jwt = await appwriteJwt();
+      final headers = <String, String>{
+        'accept': 'application/json',
+        if (body != null) 'content-type': 'application/json',
+        if (authenticated && jwt != null) 'Authorization': 'Bearer $jwt',
+      };
+      final uri = apiUri(path, query);
+```
+
+(keep the surrounding request building, timeout and `_decode` exactly as they are, and keep the
+class's injectable `http.Client`). Both helpers behave identically to the ones they replace, so
+every existing shop test must pass unchanged — do not edit any test to accommodate this. If one
+fails, revert this step and report it rather than adapting the tests.
+
+Run: `flutter test test/data/services test/providers/shop`
+Expected: all pass.
 
 - [ ] **Step 5: Run the checks**
 
