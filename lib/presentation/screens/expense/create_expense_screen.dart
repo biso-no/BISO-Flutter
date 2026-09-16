@@ -35,6 +35,10 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
   /// they will read it.
   final String? intakeError;
 
+  /// Tells one refusal from the next: two shares refused for the same reason
+  /// carry the same [intakeError], and the second must still be shown.
+  final String? intakeErrorId;
+
   const CreateExpenseScreen({
     super.key,
     this.eventId,
@@ -42,6 +46,7 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
     this.draftExpense,
     this.intakeBatchId,
     this.intakeError,
+    this.intakeErrorId,
   });
 
   @override
@@ -69,6 +74,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   bool _isSummaryLoading = false;
   bool _isImportingIntakeBatch = false;
   String? _flowError;
+
+  /// Why the campus and department lists could not be loaded, while that is
+  /// still the case. Kept apart from [_flowError] so that loading them again
+  /// clears this failure and nothing else.
+  String? _lookupError;
   int _mobileTabIndex = 0;
   final Set<String> _importedIntakeBatchIds = {};
 
@@ -78,7 +88,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _expenseService = ref.read(expenseServiceProvider);
     _apiClient = ref.read(expenseApiClientProvider);
     _draftExpenseId = widget.draftExpense?.id;
-    _flowError = widget.intakeError;
+    if (widget.intakeError != null) {
+      _flowError = widget.intakeError;
+      _mobileTabIndex = 1;
+    }
     _descriptionController.text = widget.draftExpense?.description ?? '';
     _eventController.text =
         widget.eventName ?? widget.draftExpense?.eventName ?? '';
@@ -86,10 +99,36 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant CreateExpenseScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // go_router keeps this State for every /explore/expenses/new URL, so a
+    // share refused while the form is already open arrives here, not in
+    // initState. (A new shared batch needs nothing extra: `build` imports
+    // any batch id it has not imported yet, skipped files included.)
+    final error = widget.intakeError;
+    if (error != null &&
+        (error != oldWidget.intakeError ||
+            widget.intakeErrorId != oldWidget.intakeErrorId)) {
+      _flowError = error;
+      _mobileTabIndex = 1;
+    }
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     _eventController.dispose();
     super.dispose();
+  }
+
+  /// Shows [message] where the student will see it. On a phone the error
+  /// banner lives on the Report tab, so a message set while the Receipts tab
+  /// is showing would otherwise go unread.
+  void _showFlowError(String message) {
+    setState(() {
+      _flowError = message;
+      _mobileTabIndex = 1;
+    });
   }
 
   bool get _hasAssignment => _assignment?.isComplete == true;
@@ -103,7 +142,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       .fold(0, (sum, receipt) => sum + receipt.effectiveAmount);
 
   Future<void> _loadLookups() async {
-    setState(() => _isLoadingLookups = true);
+    setState(() {
+      _isLoadingLookups = true;
+      if (_flowError != null && _flowError == _lookupError) _flowError = null;
+      _lookupError = null;
+    });
     try {
       final rawCampuses = await _expenseService.listCampuses();
       final campuses = rawCampuses
@@ -139,7 +182,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       }
       if (draft != null) _hydrateDraft(draft);
     } catch (e) {
-      _flowError = 'Failed to load campuses: $e';
+      _lookupError = 'Failed to load campuses: $e';
+      _flowError ??= _lookupError;
     } finally {
       if (mounted) setState(() => _isLoadingLookups = false);
     }
@@ -204,6 +248,27 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The lists are fetched when the screen opens, whatever it shows, so an
+    // offline open fails them alongside the config. When "Try again" brings
+    // the config back, fetch them again rather than show a form whose
+    // campus row cannot be used.
+    ref.listen<ExpensesAvailability>(expensesAvailabilityProvider, (
+      previous,
+      next,
+    ) {
+      if (next != ExpensesAvailability.on ||
+          previous == ExpensesAvailability.on ||
+          _lookupError == null ||
+          _isLoadingLookups) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _lookupError != null && !_isLoadingLookups) {
+          _loadLookups();
+        }
+      });
+    });
+
     switch (ref.watch(expensesAvailabilityProvider)) {
       case ExpensesAvailability.off:
         return const ExpensesUnavailablePage();
@@ -359,6 +424,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   if (_flowError != null) ...[
                     const SizedBox(height: 12),
                     Text(_flowError!, style: TextStyle(color: palette.error)),
+                  ],
+                  if (_lookupError != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _loadLookups,
+                      child: const Text('Try again'),
+                    ),
                   ],
                 ],
               ),
@@ -949,10 +1021,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       // Files the intake had to leave out of the batch — the wrong type, or
       // too big. They were shared, so they have to be accounted for.
       if (batch.skippedFileNames.isNotEmpty && mounted) {
-        setState(
-          () => _flowError = ExpenseIntakeService.skippedFilesMessage(
-            batch.skippedFileNames,
-          ),
+        _showFlowError(
+          ExpenseIntakeService.skippedFilesMessage(batch.skippedFileNames),
         );
       }
 
@@ -961,8 +1031,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         // large) for whichever file it rejected; only fall back to a
         // generic message when nothing more specific was set (for example,
         // every file in the batch was missing from disk).
-        setState(
-          () => _flowError ??= 'No shared receipt files could be imported.',
+        _showFlowError(
+          _flowError ?? 'No shared receipt files could be imported.',
         );
       } else {
         _showSnack(
@@ -988,15 +1058,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }) async {
     final mimeType = detectExpenseMimeType(file.path);
     if (!_isSupportedOcrMime(mimeType)) {
-      setState(() {
-        _flowError = 'Unsupported file type for OCR: $mimeType';
-      });
+      _showFlowError('Unsupported file type for OCR: $mimeType');
       return false;
     }
     if (await file.length() > 10 * 1024 * 1024) {
-      setState(() {
-        _flowError = 'Files must be 10 MB or smaller.';
-      });
+      _showFlowError('Files must be 10 MB or smaller.');
       return false;
     }
 

@@ -112,6 +112,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final palette = BisoPalette.of(context);
     final configAsync = ref.watch(appConfigProvider);
     final config = configAsync.valueOrNull ?? const AppConfig();
+    final expenses = ref.watch(expensesAvailabilityProvider);
     final event = ref.watch(featuredLargeEventProvider);
 
     final categories = <_CategoryData>[
@@ -145,7 +146,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         subtitle: l10n.studentOrganizationsMessage,
         onTap: () => context.go('/explore/units'),
       ),
-      if (config.expensesEnabled)
+      if (expenses.showsEntryPoints)
         _CategoryData(
           icon: CupertinoIcons.doc_plaintext,
           accent: BisoAccent.coral,

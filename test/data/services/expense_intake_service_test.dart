@@ -58,6 +58,21 @@ void main() {
       expect(ExpenseIntakeService.isSupportedMimeType('image/webp'), isFalse);
     });
 
+    // The share extensions rename files to these exact extensions before
+    // handing them over — a JPEG iOS calls `.jpe` arrives as `.jpg` — because
+    // this is the list the app checks, and a file it refuses here would be
+    // one the extension had already told the student it added.
+    test('accepts exactly jpg, jpeg, png and pdf as extensions', () {
+      expect(ExpenseIntakeService.supportedExtensions, {
+        'jpeg',
+        'jpg',
+        'pdf',
+        'png',
+      });
+      expect(ExpenseIntakeService.isSupportedExtension('scan.jpe'), isFalse);
+      expect(ExpenseIntakeService.isSupportedExtension('scan.JPG'), isTrue);
+    });
+
     test('creates and reads a batch manifest for supported files', () async {
       final receipt = File('${tempDir.path}/receipt.pdf');
       await receipt.writeAsBytes([1, 2, 3]);
@@ -169,6 +184,32 @@ void main() {
         query['intakeError'],
         ExpenseIntakeService.unsupportedFilesMessage,
       );
+      expect(query['intakeErrorId'], isNotNull);
+    });
+
+    test('a second refusal for the same reason is a new refusal', () async {
+      // The form may still be open from the first one, showing the same
+      // words; only the id tells the screen there is something new to show.
+      final routes = <String>[];
+      final service = ExpenseIntakeService(
+        rootDirectory: tempDir,
+        openRoute: routes.add,
+      );
+      final photo = File('${tempDir.path}/IMG_0001.heic');
+      await photo.writeAsBytes([1, 2, 3]);
+      addTearDown(_clearNativeShare);
+
+      _mockNativeShare([photo.path]);
+      await service.handlePendingNativeEntrypoints();
+      _mockNativeShare([photo.path]);
+      await service.handlePendingNativeEntrypoints();
+
+      final queries = [
+        for (final route in routes) Uri.parse(route).queryParameters,
+      ];
+      expect(queries, hasLength(2));
+      expect(queries[0]['intakeError'], queries[1]['intakeError']);
+      expect(queries[0]['intakeErrorId'], isNot(queries[1]['intakeErrorId']));
     });
 
     test('a share it can take opens that batch', () async {

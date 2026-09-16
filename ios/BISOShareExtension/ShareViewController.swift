@@ -200,22 +200,37 @@ final class ShareViewController: UIViewController {
     return nil
   }
 
+  /// The extensions the app accepts for a type, preferred one first — the
+  /// same list as `ExpenseIntakeService.supportedExtensions`. iOS knows more
+  /// spellings (a JPEG may arrive as `.jpe` or `.jfif`), but the app decides
+  /// by extension, so any other spelling is renamed to the preferred one.
+  private static func acceptedExtensions(for type: UTType) -> [String] {
+    if type.conforms(to: .jpeg) { return ["jpg", "jpeg"] }
+    if type.conforms(to: .png) { return ["png"] }
+    if type.conforms(to: .pdf) { return ["pdf"] }
+    return []
+  }
+
   private func safeFileName(_ original: String, type: UTType) -> String {
-    let fallbackExtension = type.preferredFilenameExtension ?? "dat"
+    let accepted = Self.acceptedExtensions(for: type)
+    let fallbackExtension = accepted.first ?? type.preferredFilenameExtension ?? "dat"
     let cleaned = original
       .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
       .replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
-    let url = URL(fileURLWithPath: cleaned)
-    let base = url.deletingPathExtension().lastPathComponent
+    // Plain string path handling: `URL(fileURLWithPath:)` would resolve a
+    // bare name against the working directory, so "" or ".." would take
+    // that directory's name instead of falling back to "receipt".
+    let name = cleaned as NSString
+    let base = name.deletingPathExtension
     if base.isEmpty || base == "." || base == ".." {
       return "receipt.\(fallbackExtension)"
     }
     // The name travels with the file and the app decides what it accepts by
     // extension, so a HEIC photo that iOS handed over as JPEG must stop
-    // calling itself .heic — otherwise the app refuses the very file this
-    // extension asked iOS to convert.
-    let existing = url.pathExtension.lowercased()
-    if UTType(filenameExtension: existing)?.conforms(to: type) == true {
+    // calling itself .heic, and a JPEG named .jpe must become .jpg —
+    // otherwise the app refuses a file this extension has already said it
+    // added.
+    if accepted.contains(name.pathExtension.lowercased()) {
       return cleaned
     }
     return "\(base).\(fallbackExtension)"

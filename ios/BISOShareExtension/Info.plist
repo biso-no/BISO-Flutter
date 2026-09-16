@@ -29,7 +29,13 @@
 			     could never submit, so the share sheet said "Receipt added"
 			     for a receipt that was then dropped. A HEIC photo from
 			     Photos still matches, because Photos also offers it as
-			     public.jpeg and iOS converts it on load. -->
+			     public.jpeg and iOS converts it on load.
+
+			     The counts keep what the old rule allowed: any number of
+			     shared items, as long as one of them holds a receipt BISO
+			     can take, and at most 20 attachments in all (the old
+			     SupportsFile/ImageWithMaxCount of 20). The extension says
+			     which attachments it could not add. -->
 			<key>NSExtensionActivationRule</key>
 			<string>SUBQUERY (
 				extensionItems,
@@ -41,7 +47,8 @@
 					|| ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.jpeg"
 					|| ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.png"
 				).@count &gt;= 1
-			).@count == 1</string>
+			).@count &gt;= 1
+			AND extensionItems.@sum.attachments.@count &lt;= 20</string>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.share-services</string>

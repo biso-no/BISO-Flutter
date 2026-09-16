@@ -38,7 +38,9 @@ class ProfileScreen extends ConsumerWidget {
     }
 
     final profile = user;
-    final showExpenseHistory = ref.watch(expensesEnabledProvider) ?? false;
+    final showExpenseHistory = ref
+        .watch(expensesAvailabilityProvider)
+        .showsEntryPoints;
 
     return BisoPage(
       title: l10n.profile,

@@ -365,6 +365,7 @@ final _router = GoRouter(
                   builder: (context, state) => CreateExpenseScreen(
                     intakeBatchId: state.uri.queryParameters['batch'],
                     intakeError: state.uri.queryParameters['intakeError'],
+                    intakeErrorId: state.uri.queryParameters['intakeErrorId'],
                   ),
                 ),
               ],

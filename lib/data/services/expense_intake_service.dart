@@ -65,6 +65,9 @@ class ExpenseIntakeService {
   /// Where this service sends the student. The default goes through the
   /// app's navigator; a test passes its own to watch where a share ends up.
   final void Function(String route)? _openRoute;
+
+  /// Refusals routed so far, which makes each one's id unique.
+  int _refusals = 0;
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -321,8 +324,15 @@ class ExpenseIntakeService {
 
   /// Opens the reimbursement screen carrying the reason a share was refused,
   /// so the student reads it where they expected their receipt to be.
+  ///
+  /// Each refusal carries its own id: the screen may already be open, and a
+  /// second share refused for the same reason must not look like the first.
   void _openIntakeError(String message) {
-    _go('/explore/expenses/new?intakeError=${Uri.encodeComponent(message)}');
+    _refusals++;
+    _go(
+      '/explore/expenses/new'
+      '?intakeError=${Uri.encodeComponent(message)}&intakeErrorId=$_refusals',
+    );
   }
 
   void _go(String route) {

@@ -5,6 +5,7 @@ import 'package:biso/data/services/app_config_service.dart';
 import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
 import 'package:biso/presentation/screens/explore/expenses_screen.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
@@ -17,7 +18,8 @@ import '../../../helpers/biso_screen_harness.dart';
 const _user = UserModel(id: 'u1', name: 'Test Student', email: 'student@bi.no');
 
 class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+  _Auth([UserModel user = _user])
+    : super(AuthState(isAuthenticated: true, user: user));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -140,17 +142,96 @@ void main() {
     expect(reads, 2);
   });
 
-  testWidgets('a new expense from a failed config offers a retry too', (
-    tester,
-  ) async {
+  testWidgets('a new expense from a failed config offers a retry that leads '
+      'to a form the student can fill in', (tester) async {
+    // An offline launch: the config fails, and so do the campus and
+    // department lists the form is built from — they are fetched when the
+    // screen opens, whatever it ends up showing.
+    final lookups = _OfflineLookups();
+    var configReads = 0;
     await pumpBisoScreen(
       tester,
       const CreateExpenseScreen(),
-      overrides: _configFailed(),
+      overrides: [
+        authStateProvider.overrideWith((_) => _Auth(_userOnCampus)),
+        expenseServiceProvider.overrideWithValue(lookups),
+        appConfigProvider.overrideWith((_) async {
+          configReads++;
+          if (configReads == 1) throw const AppConfigUnavailableException();
+          return const AppConfig(expensesEnabled: true);
+        }),
+      ],
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Reimbursements are currently unavailable'), findsNothing);
     expect(find.text("We couldn't load reimbursements"), findsOneWidget);
+    expect(lookups.campusReads, 1);
+
+    // Back online.
+    lookups.online = true;
+    await tester.tap(find.widgetWithText(FilledButton, 'Try again'));
+    await tester.pumpAndSettle();
+
+    expect(configReads, 2);
+    expect(find.text('Choose cost allocation'), findsOneWidget);
+    expect(find.textContaining('Failed to load campuses'), findsNothing);
+    final campus = _row(tester, 'Campus');
+    expect(campus.value, 'Oslo');
+    expect(campus.onTap, isNotNull);
+    expect(_row(tester, 'Department').onTap, isNotNull);
+
+    // And it really is usable: choosing the department settles the cost
+    // allocation and opens the receipts.
+    await tester.tap(find.text('Department'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Marketing'));
+    await tester.pumpAndSettle();
+    expect(find.text('Receipt wallet'), findsOneWidget);
   });
 }
+
+const _userOnCampus = UserModel(
+  id: 'u1',
+  name: 'Test Student',
+  email: 'student@bi.no',
+  campusId: 'c1',
+);
+
+/// Campus and department lists that fail until [online] is set.
+class _OfflineLookups extends ExpenseServiceV2 {
+  bool online = false;
+  int campusReads = 0;
+
+  @override
+  Future<List<ExpenseModel>> getUserExpenses({
+    String? userId,
+    List<String> queries = const [],
+  }) async => const [];
+
+  @override
+  Future<List<Map<String, dynamic>>> listCampuses() async {
+    campusReads++;
+    if (!online) throw Exception('offline');
+    return const [
+      {'\$id': 'c1', 'name': 'Oslo'},
+    ];
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listDepartmentsForCampus(
+    String campusId,
+  ) async {
+    if (!online) throw Exception('offline');
+    return const [
+      {'Id': 'd1', 'Name': 'Marketing'},
+    ];
+  }
+}
+
+BisoListRow _row(WidgetTester tester, String title) =>
+    tester.widget<BisoListRow>(
+      find.byWidgetPredicate(
+        (widget) => widget is BisoListRow && widget.title == title,
+      ),
+    );

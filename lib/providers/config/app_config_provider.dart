@@ -25,7 +25,20 @@ final expensesEnabledProvider = Provider<bool?>((ref) {
 /// same thing: [off] is a decision BISO made and the app may say so, while
 /// [unknown] is only the app failing to ask — an offline launch has no
 /// grounds to announce anything about BISO's settings.
-enum ExpensesAvailability { loading, unknown, off, on }
+enum ExpensesAvailability {
+  loading,
+  unknown,
+  off,
+  on;
+
+  /// Whether to offer a way into reimbursements — Explore's category, the
+  /// Profile row. Only BISO switching them off hides those, plus the first
+  /// moment of a launch before any answer, so a row does not flash in and
+  /// out. When the app merely could not ask, they stay: they lead to the page
+  /// that says so and offers to try again, and hiding them would leave the
+  /// student no way to get there for the rest of the session.
+  bool get showsEntryPoints => this == on || this == unknown;
+}
 
 final expensesAvailabilityProvider = Provider<ExpensesAvailability>((ref) {
   final config = ref.watch(appConfigProvider);

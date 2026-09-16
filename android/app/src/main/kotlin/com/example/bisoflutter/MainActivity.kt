@@ -61,12 +61,17 @@ class MainActivity : FlutterActivity() {
         val batchDir = File(filesDir, "expense_intake_native/$batchId")
         batchDir.mkdirs()
         val files = uris.mapNotNull { copySharedUri(it, batchDir) }
+        // Say so whenever a file is left behind. Dropping it here, in a
+        // share that was otherwise fine, is a receipt that vanishes without
+        // a word.
         if (files.isEmpty()) {
-            // Say so. Dropping the share here left the student looking at an
-            // app that opened and did nothing with the receipt they sent it.
             batchDir.delete()
             Toast.makeText(this, UNSUPPORTED_SHARE_MESSAGE, Toast.LENGTH_LONG).show()
             return null
+        }
+        val refused = uris.size - files.size
+        if (refused > 0) {
+            Toast.makeText(this, partlyRefusedMessage(refused), Toast.LENGTH_LONG).show()
         }
         return mapOf(
             "batchId" to batchId,
@@ -172,5 +177,12 @@ class MainActivity : FlutterActivity() {
         private const val UNSUPPORTED_SHARE_MESSAGE =
             "BISO Expenses takes PDF, PNG and JPEG receipts. Add a photo in " +
                 "another format from inside the BISO app \u2014 it converts it for you."
+
+        // Android 12+ shows two lines of a text toast at most, so the count
+        // and the rule come first and nothing else is said.
+        private fun partlyRefusedMessage(refused: Int): String {
+            val files = if (refused == 1) "1 file was" else "$refused files were"
+            return "$files not added. BISO takes PDF, PNG and JPEG."
+        }
     }
 }

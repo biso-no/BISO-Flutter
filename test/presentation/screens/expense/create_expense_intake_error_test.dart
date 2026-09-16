@@ -1,10 +1,12 @@
 import 'package:biso/data/models/app_config.dart';
+import 'package:biso/data/models/expense_model.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,4 +74,91 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // go_router keeps this page's State for every /explore/expenses/new URL,
+  // so a share refused while the form is already open does not build a new
+  // screen — it arrives as new arguments to the one on display.
+  testWidgets('a refusal that arrives while the form is open is shown', (
+    tester,
+  ) async {
+    final overrides = _overrides();
+    await pumpBisoScreen(
+      tester,
+      const CreateExpenseScreen(),
+      overrides: overrides,
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining(_refusal), findsNothing);
+
+    await pumpBisoScreen(
+      tester,
+      const CreateExpenseScreen(intakeError: _refusal, intakeErrorId: '1'),
+      overrides: overrides,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining(_refusal), findsOneWidget);
+  });
+
+  testWidgets('the same refusal twice is shown twice, on the tab that shows '
+      'it', (tester) async {
+    final overrides = _overrides();
+    // A draft with its cost allocation settled opens the receipts/report
+    // split, on the Receipts tab — which does not show errors.
+    final draft = ExpenseModel(
+      id: 'draft-1',
+      userId: 'u1',
+      campus: 'c1',
+      department: 'd1',
+      bankAccount: '',
+      total: 0,
+      status: 'draft',
+    );
+    await pumpBisoScreen(
+      tester,
+      CreateExpenseScreen(draftExpense: draft),
+      overrides: overrides,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Receipt wallet'), findsOneWidget);
+
+    await pumpBisoScreen(
+      tester,
+      CreateExpenseScreen(
+        draftExpense: draft,
+        intakeError: _refusal,
+        intakeErrorId: '1',
+      ),
+      overrides: overrides,
+    );
+    await tester.pumpAndSettle();
+    final shown = find.textContaining(_refusal, skipOffstage: false);
+    expect(shown, findsOneWidget);
+    await tester.ensureVisible(shown);
+    expect(find.textContaining(_refusal), findsOneWidget);
+
+    final dismiss = find.widgetWithText(TextButton, 'Dismiss');
+    await tester.ensureVisible(dismiss);
+    await tester.tap(dismiss);
+    await tester.pumpAndSettle();
+    expect(find.textContaining(_refusal, skipOffstage: false), findsNothing);
+
+    // The student shares another HEIC: same words, new refusal.
+    await pumpBisoScreen(
+      tester,
+      CreateExpenseScreen(
+        draftExpense: draft,
+        intakeError: _refusal,
+        intakeErrorId: '2',
+      ),
+      overrides: overrides,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining(_refusal, skipOffstage: false), findsOneWidget);
+  });
 }
+
+const _refusal =
+    'BISO could not add those files. Receipts must be PDF, PNG or JPEG '
+    'files of 10 MB or less.';

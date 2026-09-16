@@ -149,20 +149,7 @@ class MembershipCheckoutController
         message: error.message,
       );
       if (error.isAlreadyCovered || error.isUnavailable) {
-        // Detached from this call: nothing here awaits it, so nothing here
-        // can catch it either. Handle its error explicitly rather than let
-        // it surface as unhandled — the same background check keeps running
-        // long after `start` has returned.
-        unawaited(
-          _ref.read(membershipOverviewProvider.notifier).refresh().catchError((
-            Object refreshError,
-          ) {
-            logPrint(
-              '🎫 Could not refresh the membership overview after a '
-              'checkout refusal: $refreshError',
-            );
-          }),
-        );
+        _recheckMembership();
       }
       if (error.isProviderDisabled) {
         _ref.invalidate(paymentProvidersProvider);
@@ -183,27 +170,42 @@ class MembershipCheckoutController
   /// the remembered order is checked. Silent on network failure, so the
   /// marker stays for the next attempt.
   ///
-  /// A deep link naming an order other than the one actually pending — an
-  /// old return link, flushed late after a newer purchase has already
-  /// started — is ignored outright: the marker and the state both belong to
-  /// whichever order is pending, and neither is touched on the old order's
-  /// behalf.
+  /// Only the order actually pending may change the state or the marker —
+  /// both belong to it. A deep link naming a different order (an old return
+  /// link, flushed late after a newer purchase started) is ignored outright,
+  /// and an answer that lands after the student started over, or started
+  /// again, is dropped unread. Either way the student may still have paid
+  /// that other order, so the membership is re-checked instead: that is what
+  /// shows them they are a member, and what stops the server offering them a
+  /// plan to pay for twice.
   Future<void> resolvePending({String? orderId, bool cancelled = false}) async {
     await _restored;
     final id = orderId ?? _pendingOrderId;
     if (id == null) return;
-    if (orderId != null && _pendingOrderId != null && _pendingOrderId != id) {
+    if (_pendingOrderId != null && _pendingOrderId != id) {
       logPrint(
         '🎫 Ignoring a resolve for $id — $_pendingOrderId is the order '
         'actually pending.',
       );
+      _recheckMembership();
       return;
     }
     if (_resolving) return;
     _resolving = true;
     try {
+      // Nothing pending (the student started over, or the marker expired)
+      // still fetches: the read makes the server reconcile the order with
+      // the provider, so the re-check below can see a payment that landed.
       final order = await _ref.read(shopApiClientProvider).fetchOrder(id);
       if (!mounted) return;
+      if (_pendingOrderId != id) {
+        logPrint(
+          '🎫 Dropping the answer for $id — it is no longer the order '
+          'pending.',
+        );
+        _recheckMembership();
+        return;
+      }
 
       if (order.status.isSuccessful) {
         await _clearPending();
@@ -248,16 +250,36 @@ class MembershipCheckoutController
   /// can start a new one instead of staring at a disabled Pay button.
   ///
   /// This does not cancel anything: the order lives on the server and only
-  /// the provider can settle it. If it does settle, the return deep link
-  /// still resolves it by id, and the membership re-check still finds the
-  /// new membership — so the app never tells the student the payment is
-  /// cancelled, only that it has stopped waiting.
+  /// the provider can settle it. If it does settle, the membership shows up
+  /// through the re-checks — the one this starts, and the one a late return
+  /// link for that order starts after asking the server to reconcile it — so
+  /// the app never tells the student the payment is cancelled, only that it
+  /// has stopped waiting.
   ///
   /// The state is dropped first, synchronously, so the screen unlocks on the
   /// very next frame rather than after the disk write.
   Future<void> abandonPending() async {
     state = const MembershipPurchaseState();
+    // The payment may have gone through after all, and the student is about
+    // to be offered a plan again: ask now rather than let them pay twice.
+    _recheckMembership();
+    // A marker still being read back from disk must not reappear after this.
+    await _restored;
     await _clearPending();
+  }
+
+  /// Re-verifies the membership in the background, forcing the server past
+  /// its own cache. Detached — nothing here waits on it, so nothing here
+  /// could catch its error either; it is handled explicitly instead.
+  void _recheckMembership() {
+    unawaited(
+      _ref
+          .read(membershipOverviewProvider.notifier)
+          .refresh(force: true)
+          .catchError((Object error) {
+            logPrint('🎫 Could not re-check the membership: $error');
+          }),
+    );
   }
 
   /// Payment is in; fulfilment has run server-side. Re-verify until the new
