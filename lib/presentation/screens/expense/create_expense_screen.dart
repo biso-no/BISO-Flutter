@@ -928,14 +928,18 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       for (final intakeFile in batch.files) {
         if (!mounted) return;
         if (await intakeFile.file.exists()) {
-          await _addFile(intakeFile.file);
-          importedCount += 1;
+          final added = await _addFile(intakeFile.file);
+          if (added) importedCount += 1;
         }
       }
 
       if (importedCount == 0) {
+        // `_addFile` already set a specific reason (unsupported type, too
+        // large) for whichever file it rejected; only fall back to a
+        // generic message when nothing more specific was set (for example,
+        // every file in the batch was missing from disk).
         setState(
-          () => _flowError = 'No shared receipt files could be imported.',
+          () => _flowError ??= 'No shared receipt files could be imported.',
         );
       } else {
         _showSnack(
@@ -951,7 +955,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  Future<void> _addFile(
+  /// Adds [file] as a receipt and returns whether it actually did — callers
+  /// that count imports (for example `_importIntakeBatch`) must only count
+  /// a `true` result, since this can reject the file without throwing.
+  Future<bool> _addFile(
     File file, {
     String purpose = 'receipt',
     String? parentReceiptId,
@@ -961,13 +968,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       setState(() {
         _flowError = 'Unsupported file type for OCR: $mimeType';
       });
-      return;
+      return false;
     }
     if (await file.length() > 10 * 1024 * 1024) {
       setState(() {
         _flowError = 'Files must be 10 MB or smaller.';
       });
-      return;
+      return false;
     }
 
     final receipt =
@@ -989,6 +996,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       _mobileTabIndex = 1;
     });
     await _processReceipt(receipt.localId, purpose: purpose);
+    return true;
   }
 
   Future<void> _processReceipt(String localId, {String? purpose}) async {

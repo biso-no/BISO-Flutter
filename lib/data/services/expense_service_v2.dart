@@ -7,8 +7,6 @@ import 'appwrite_service.dart';
 
 class ExpenseServiceV2 {
   static const String expensesCollectionId = AppConstants.expensesCollectionId;
-  static const String attachmentsCollectionId =
-      AppConstants.expenseAttachmentsCollectionId;
 
   /// Get all expenses for the current user
   /// Note: Due to Appwrite relationship query limitations, we fetch expenses first

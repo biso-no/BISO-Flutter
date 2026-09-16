@@ -16,13 +16,16 @@ void main() {
 
   tearDown(() => tempDir.deleteSync(recursive: true));
 
-  ExpenseApiClient clientReturning(http.Response response) {
+  ExpenseApiClient clientReturning(
+    http.Response response, {
+    String? jwt = 'jwt-1',
+  }) {
     return ExpenseApiClient(
       httpClient: MockClient((request) async {
         sent = request;
         return response;
       }),
-      jwtProvider: () async => 'jwt-1',
+      jwtProvider: () async => jwt,
     );
   }
 
@@ -139,5 +142,25 @@ void main() {
       client.deleteDraft('expense-1'),
       throwsA(isA<ExpenseApiException>()),
     );
+  });
+
+  test('sends no authorization header without a session', () async {
+    final client = clientReturning(
+      http.Response(
+        jsonEncode({'success': false, 'error': 'Authentication required'}),
+        401,
+      ),
+      jwt: null,
+    );
+
+    await expectLater(
+      client.deleteDraft('expense-1'),
+      throwsA(
+        isA<ExpenseApiException>()
+            .having((e) => e.statusCode, 'statusCode', 401)
+            .having((e) => e.message, 'message', 'Authentication required'),
+      ),
+    );
+    expect(sent.headers.containsKey('Authorization'), isFalse);
   });
 }

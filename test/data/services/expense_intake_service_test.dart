@@ -21,7 +21,7 @@ void main() {
 
     test('accepts supported receipt file extensions and MIME types', () {
       expect(ExpenseIntakeService.isSupportedExtension('receipt.pdf'), isTrue);
-      expect(ExpenseIntakeService.isSupportedExtension('receipt.heic'), isTrue);
+      expect(ExpenseIntakeService.isSupportedExtension('receipt.jpg'), isTrue);
       expect(ExpenseIntakeService.isSupportedMimeType('image/png'), isTrue);
       expect(
         ExpenseIntakeService.isSupportedMimeType('application/pdf'),
@@ -32,6 +32,28 @@ void main() {
     test('rejects unsupported file extensions and MIME types', () {
       expect(ExpenseIntakeService.isSupportedExtension('notes.txt'), isFalse);
       expect(ExpenseIntakeService.isSupportedMimeType('text/plain'), isFalse);
+    });
+
+    // The server (and CreateExpenseScreen's own OCR gate) only ever accepts
+    // PDF, PNG and JPEG; a HEIC/WebP photo shared straight from iOS Photos
+    // must be refused here, at the door, rather than admitted into a batch
+    // that CreateExpenseScreen then has to reject file-by-file.
+    test('refuses HEIC, HEIF and WebP — the server does not accept them', () {
+      expect(
+        ExpenseIntakeService.isSupportedExtension('receipt.heic'),
+        isFalse,
+      );
+      expect(
+        ExpenseIntakeService.isSupportedExtension('receipt.heif'),
+        isFalse,
+      );
+      expect(
+        ExpenseIntakeService.isSupportedExtension('receipt.webp'),
+        isFalse,
+      );
+      expect(ExpenseIntakeService.isSupportedMimeType('image/heic'), isFalse);
+      expect(ExpenseIntakeService.isSupportedMimeType('image/heif'), isFalse);
+      expect(ExpenseIntakeService.isSupportedMimeType('image/webp'), isFalse);
     });
 
     test('creates and reads a batch manifest for supported files', () async {

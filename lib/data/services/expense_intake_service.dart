@@ -25,6 +25,9 @@ class ExpenseIntakeService {
   ExpenseIntakeService({Directory? rootDirectory})
     : _rootDirectoryOverride = rootDirectory;
 
+  /// `CreateExpenseScreen` reads this singleton directly rather than through
+  /// Riverpod, and the default instance resolves its storage root through
+  /// `path_provider`, which has no test double.
   static final ExpenseIntakeService instance = ExpenseIntakeService();
   static const MethodChannel _channel = MethodChannel('biso/expense_intake');
   static const int maxFileSizeBytes = 10 * 1024 * 1024;
@@ -32,23 +35,12 @@ class ExpenseIntakeService {
 
   static const Set<String> supportedMimeTypes = {
     'application/pdf',
-    'image/heic',
-    'image/heif',
     'image/jpeg',
     'image/jpg',
     'image/png',
-    'image/webp',
   };
 
-  static const Set<String> supportedExtensions = {
-    'heic',
-    'heif',
-    'jpeg',
-    'jpg',
-    'pdf',
-    'png',
-    'webp',
-  };
+  static const Set<String> supportedExtensions = {'jpeg', 'jpg', 'pdf', 'png'};
 
   final Directory? _rootDirectoryOverride;
   bool _initialized = false;
