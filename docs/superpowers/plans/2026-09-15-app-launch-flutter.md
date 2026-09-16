@@ -2071,7 +2071,7 @@ In `lib/providers/auth/auth_provider.dart`:
 
 `grep -n "studentRecord\|membershipVerification\|_membershipService\|StudentIdModel\|MembershipModel" lib/providers/auth/auth_provider.dart` must print nothing.
 
-In `lib/data/services/auth_service.dart`: remove the `import 'student_service.dart';` and `import 'membership_service.dart';` lines if present, the `_studentService` field, and the methods `registerStudentIdViaOAuth`, `checkMembershipStatus`, `removeStudentId` and `launchMembershipPurchase`.
+In `lib/data/services/auth_service.dart`: remove the `import 'student_service.dart';` and `import 'membership_service.dart';` lines if present, the `_studentService` field, and the methods `registerStudentIdViaOAuth`, `checkMembershipStatus`, `removeStudentId`, `launchMembershipPurchase` and `getStudentIdRecord` (that last one has no callers and is the file's only other use of `StudentIdModel`, `_studentService` and `StudentException`, all of which this task deletes). Afterwards `grep -n "StudentIdModel\|_studentService\|StudentException\|student_service\|membership_service" lib/data/services/auth_service.dart` must print nothing.
 
 In `lib/data/services/validator_service.dart`: remove `issuePassToken` and the `PassTokenResult` class (only the deleted Student ID screen used them). Keep `verifyPassToken`.
 
