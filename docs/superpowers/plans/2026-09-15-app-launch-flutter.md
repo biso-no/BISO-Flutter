@@ -3854,10 +3854,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```bash
 flutter analyze
 flutter test
-dart format --output=none --set-exit-if-changed lib test
+dart format --output=none --set-exit-if-changed $(git diff --name-only e0f357f..HEAD -- '*.dart' | tr '\n' ' ')
 ```
 
-Expected: no analyzer issues; all tests pass (baseline was 721 before this plan — report the new total); formatting clean.
+Expected: the analyzer count is still the ten pre-existing infos and none of them is in a file this plan touched; all tests pass (baseline was 721 before this plan — report the new total); the format check of this plan's own files is clean. Do NOT run `dart format` over `lib test` as a whole: the installed Dart (3.13) uses the new tall-style formatter, so 240 of the repo's 382 files are already "unformatted" at the baseline commit, and reformatting them would bury this plan's changes.
 
 - [ ] **Step 2: Confirm the app no longer writes where it must not**
 
