@@ -16,10 +16,20 @@ final membershipApiClientProvider = Provider<MembershipApiClient>(
 
 /// Whose membership to show: the signed-in account once the session has
 /// resolved, or null. Separate so tests can pin a student.
+///
+/// Deliberately not a plain `state.isLoading ? null : ...`: `AuthNotifier`
+/// also sets `isLoading` for ordinary actions on an already-signed-in
+/// account (`updateProfile`, `updatePaymentInformation`), and those must not
+/// make this provider flicker to null and back — that would collapse the
+/// overview to the signed-out visitor's `AsyncData(null)` for a moment and
+/// trigger a pointless re-fetch. Only "no user resolved yet" (before the
+/// first profile load completes) should read as no-one-to-check-for, which
+/// is what `user == null` — not `isLoading` alone — actually tells us.
 final membershipUserIdProvider = Provider<String?>((ref) {
   return ref.watch(
     authStateProvider.select(
-      (state) => state.isLoading ? null : state.signedInUserId,
+      (state) =>
+          state.isLoading && state.user == null ? null : state.signedInUserId,
     ),
   );
 });
@@ -49,7 +59,7 @@ class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
     final userId = ref.watch(membershipUserIdProvider);
 
     final lifecycle = AppLifecycleListener(
-      onResume: () => unawaited(_onResume()),
+      onResume: () => unawaited(onAppResumed()),
     );
     ref.onDispose(lifecycle.dispose);
 
@@ -63,14 +73,25 @@ class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
     final userId = ref.read(membershipUserIdProvider);
     if (userId == null) return;
     state = const AsyncLoading<MembershipOverview?>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() => _load(userId, refresh: force));
+    final result = await AsyncValue.guard(() => _load(userId, refresh: force));
+    // The signed-in account can change while this fetch is in flight (sign
+    // out, switch accounts) — Riverpod does not guard an imperative
+    // `state =` against a rebuild on its own. A stale result must never
+    // overwrite whatever the current account's state already is.
+    if (ref.read(membershipUserIdProvider) != userId) return;
+    state = result;
   }
 
   /// The student is leaving for biso.no to link their BI account; the next
   /// return to the app re-checks straight away.
   void noteLinkStarted() => _linkStarted = true;
 
-  Future<void> _onResume() async {
+  /// Re-checks membership when the app returns to the foreground: straight
+  /// away after [noteLinkStarted], otherwise only once the current overview
+  /// is stale (see [membershipRecheckAfter]) or was served from the cache.
+  /// Public — rather than a private lifecycle callback — so tests can drive
+  /// it directly instead of faking app-resume events.
+  Future<void> onAppResumed() async {
     if (_linkStarted) {
       _linkStarted = false;
       await refresh(force: true);
@@ -101,7 +122,13 @@ class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
         // shown as cached.
         return await _readCache(userId) ?? fresh;
       }
-      await _writeCache(userId, fresh);
+      // Same race as `refresh()`: this fetch can resolve after [userId] has
+      // signed out or handed off to a different account. A late write must
+      // never repopulate that account's cache entry once it is no longer the
+      // one asking.
+      if (ref.read(membershipUserIdProvider) == userId) {
+        await _writeCache(userId, fresh);
+      }
       return fresh;
     } catch (error) {
       logPrint('🎫 Membership check failed: $error');
