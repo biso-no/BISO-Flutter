@@ -46,7 +46,6 @@ dependencies:
   geocoding: ^3.0.0
   mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
-  flutter_appauth: ^9.0.1
   app_links: ^6.4.1
   appwrite: ^26.1.0
   native_liquid_glass_flutter: 0.0.8

@@ -1,11 +1,4 @@
-## Keep AppAuth and FlutterAppAuth classes and members to avoid stripping state handling
--keep class net.openid.appauth.** { *; }
--dontwarn net.openid.appauth.**
-
--keep class io.crossingthestreams.flutterappauth.** { *; }
--dontwarn io.crossingthestreams.flutterappauth.**
-
-## Keep AndroidX Browser, CustomTabs, and Activity result APIs used by AppAuth
+## Keep AndroidX Browser, CustomTabs, and Activity result APIs used by url_launcher's Custom Tabs flow
 -keep class androidx.browser.** { *; }
 -dontwarn androidx.browser.**
 

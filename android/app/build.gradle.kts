@@ -48,9 +48,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        // Required by flutter_appauth to resolve the RedirectUriReceiverActivity intent-filter
-        // Scheme must match the scheme part of the redirect URI used in the app (e.g. com.biso.no://oauth/callback)
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.biso.no"
     }
 
     buildTypes {

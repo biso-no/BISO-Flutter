@@ -586,6 +586,29 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Routes**: `/explore/products/cart`, `/explore/products/checkout`,
   `/explore/products/order/:orderId`, `/explore/products/orders`
 
+#### 🎫 Membership (verification, BI link, purchase)
+- **Source of truth is 24SevenOffice, read by the server.** `GET /api/membership` returns the
+  live status (a 24SO customer category matched to a `memberships` row that has not expired —
+  valid through its expiry day in Oslo), the same purchase gate as biso.no's join page, and the
+  plans on offer. The app never decides membership itself.
+- **Verified at launch and on return.** `membershipOverviewProvider` loads as soon as a signed-in
+  user is known (`BisoApp.build` listens to it), re-verifies on resume after 10 minutes, and keeps
+  the last verified overview per user for offline display (marked `fromCache`).
+  `hasValidMembershipProvider` trusts a cached answer for 24 hours; prices are always server-side.
+- **BI linking happens on biso.no.** BI's Azure tenant is reachable only through Appwrite's OIDC
+  provider, so the app opens `https://biso.no/membership/link`, and the page returns with
+  `biso://membership?linked=1`. Handing the app's session to a browser was rejected: such a link
+  is forwardable and could attach someone else's BI identity to the sender's account.
+  `student_id` and the `bi_*` columns are server-written only; profile rows are read-only to
+  their owner and profile edits go through `PUT /api/profile`.
+- **Purchase** uses `POST /api/payment/{provider}/membership-checkout` with `client: "app"`,
+  offering only providers `GET /api/payment/providers` reports as available.
+  `MembershipCheckoutController` (built in `BisoApp.build`) persists the order, resolves it at
+  launch, on resume and from `biso://membership?orderId=…`, then re-checks the membership until
+  24SevenOffice shows it.
+- **Location**: `lib/providers/membership/`, `lib/data/services/membership_api_client.dart`,
+  `lib/presentation/screens/profile/membership_screen.dart`. **Route**: `/profile/membership`.
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions
 - **Job Details**: Requirements, descriptions, and application info
@@ -598,6 +621,12 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **File Uploads**: Receipt attachments with camera/gallery integration
 - **Department Selection**: Links expenses to specific departments
 - **Location**: `lib/presentation/screens/expense/create_expense_screen.dart`
+- **Every write goes through `apps/api`**: receipts upload to `POST /api/expenses/attachments`
+  (PDF, PNG or JPEG; photos are re-encoded as JPEG), drafts save and submit through
+  `/api/expenses/draft` and `/api/expenses/submit`, and drafts are deleted with
+  `DELETE /api/expenses/draft`. Expense rows and the `expenses` bucket give students no write
+  access. The screens follow `features.expenses` from `GET /api/config`, which is the admin's
+  `expenses_module` switch.
 
 #### 🔐 Smart Authentication
 - **Public-First Architecture**: No auth walls on content discovery

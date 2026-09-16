@@ -80,18 +80,6 @@
             </intent-filter>
         </activity>
 
-        <!-- AppAuth redirect handler for OAuth callback -->
-        <activity
-            android:name="net.openid.appauth.RedirectUriReceiverActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <!-- Match on scheme only to ensure redirect is always captured -->
-                <data android:scheme="${appAuthRedirectScheme}"/>
-            </intent-filter>
-        </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
