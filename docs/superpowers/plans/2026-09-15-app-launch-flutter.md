@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Repo: BISO-Flutter worktree `/Users/markus/Documents/dev/BISO-Flutter/.claude/worktrees/problem-to-solve-3bff42`, branch `claude/biso-mobile-app-review-7080ff`. All paths below are relative to it.
-- Verify with `flutter test <paths>`, `flutter analyze`, and `dart format --output=none --set-exit-if-changed <paths>`. Baseline before this plan: 721 tests passing.
+- Verify with `flutter test <paths>`, `flutter analyze`, and `dart format --output=none --set-exit-if-changed <paths>`. Baseline before this plan: 721 tests passing, and `flutter analyze` reporting 10 pre-existing info-level issues (in `validator_service.dart` and `settings_screen.dart`). Analyzer acceptance is therefore "no new issues, and none in the files this task touched" — not a clean run — and `flutter analyze` and `flutter test` are run as separate commands, never chained with `&&`, because those pre-existing infos make `flutter analyze` exit non-zero.
 - Screens follow the 2026-09 design system: import `lib/presentation/widgets/biso/biso.dart`, build on `BisoPage`, colors from `BisoPalette.of(context)` / `BisoAccent`, CupertinoIcons only, Museo (display/headline styles) weight 300 only. Every new screen file is added to `migratedFiles` in `test/presentation/design_rules_test.dart`.
 - Copy style: the shop and membership flows use plain English strings in the widget code, as `lib/presentation/screens/shop/*` already does. Do not add ARB keys in this plan.
 - Server contracts are fixed by the platform plan and must be parsed exactly:
@@ -394,6 +394,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `lib/data/services/expense_api_client.dart`
+- Modify: `lib/data/services/expense_service_v2.dart` (delete its direct-write methods; see Step 3)
 - Create: `test/data/services/expense_api_client_test.dart`
 - Modify: `lib/providers/expense/expense_provider.dart`
 - Modify: `lib/providers/config/app_config_provider.dart`
@@ -3861,7 +3862,7 @@ Expected: no analyzer issues; all tests pass (baseline was 721 before this plan 
 - [ ] **Step 2: Confirm the app no longer writes where it must not**
 
 ```bash
-grep -rn "tableId: 'user'" lib | grep -E "updateRow|createRow"
+grep -rn -A4 "\.updateRow(\|\.createRow(" lib | grep "tableId: 'user'"
 grep -rn "bucketId: AppConstants.expensesBucketId" lib
 grep -rn "vipps_checkout\|verify_biso_membership\|issue_pass_token\|biso_membership" lib
 ```
