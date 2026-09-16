@@ -48,6 +48,14 @@ class _RecordingCheckout extends MembershipCheckoutController {
 
   final List<String> started = [];
 
+  /// Explicit `resolvePending(orderId: ..., cancelled: ...)` calls, as
+  /// `_handleArrival` makes them for a payment return. The base
+  /// controller's own constructor also calls `resolvePending()` once with no
+  /// arguments (the "cold launch is not a resume" check), which is not an
+  /// arrival and is not what a test asserting on an arrival cares about, so
+  /// only calls that name an order are recorded here.
+  final List<(String, bool)> resolved = [];
+
   @override
   Future<void> start({
     required PaymentProvider provider,
@@ -56,6 +64,14 @@ class _RecordingCheckout extends MembershipCheckoutController {
   }) async {
     started.add('${provider.id}:$planId:$campusId');
   }
+
+  @override
+  Future<void> resolvePending({String? orderId, bool cancelled = false}) async {
+    if (orderId != null) resolved.add((orderId, cancelled));
+  }
+
+  /// Drives `_PurchaseBanner` directly from a test, without a real payment.
+  void setPhase(MembershipPurchaseState value) => state = value;
 }
 
 final _plan = MembershipPlanOption(
@@ -233,4 +249,67 @@ void main() {
 
     expect(overview.refreshes, 1);
   });
+
+  testWidgets('a payment return resolves the order it names', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(returnedOrderId: 'order-1'),
+      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(checkout.resolved, [('order-1', false)]);
+  });
+
+  testWidgets('a cancelled payment return passes the cancellation through', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(
+        returnedOrderId: 'order-1',
+        returnedCancelled: true,
+      ),
+      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(checkout.resolved, [('order-1', true)]);
+  });
+
+  testWidgets(
+    'an activation-delayed banner shows the message a student actually reads',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const MembershipScreen(),
+        overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+      );
+      await tester.pumpAndSettle();
+
+      // The exact wording MembershipCheckoutController._activate() sets, so
+      // this pins what the student actually reads while their membership
+      // has not shown up yet — the moment they are most likely to think
+      // something went wrong.
+      checkout.setPhase(
+        const MembershipPurchaseState(
+          phase: MembershipPurchasePhase.activationDelayed,
+          orderId: 'order-1',
+          message:
+              'Your payment is confirmed. Your membership can take a few '
+              'minutes to show up here.',
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Payment confirmed'), findsOneWidget);
+      expect(
+        find.text(
+          'Your payment is confirmed. Your membership can take a few '
+          'minutes to show up here.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }
