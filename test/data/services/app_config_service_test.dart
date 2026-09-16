@@ -42,8 +42,8 @@ void main() {
     () async {
       // Returning a default here is what made an offline launch announce that
       // BISO had switched reimbursements off — a claim about BISO's settings
-      // that a failed fetch is no evidence for. Failing loudly keeps
-      // `expensesEnabledProvider` null, which means "we do not know".
+      // that a failed fetch is no evidence for. Failing loudly makes
+      // `expensesAvailabilityProvider` read `unknown`: "we do not know".
       await expectLater(
         offlineService().getConfig(),
         throwsA(isA<AppConfigUnavailableException>()),

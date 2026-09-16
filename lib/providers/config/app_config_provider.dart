@@ -11,15 +11,10 @@ final appConfigProvider = FutureProvider<AppConfig>((ref) async {
   return ref.watch(_appConfigServiceProvider).getConfig();
 });
 
-/// Whether reimbursements are switched on (`expenses_module` in the admin),
-/// or null while the config is still loading — or could not be loaded at
-/// all. The API enforces the same switch; this only decides what the app
-/// offers.
-final expensesEnabledProvider = Provider<bool?>((ref) {
-  return ref.watch(appConfigProvider).valueOrNull?.expensesEnabled;
-});
-
-/// What the app knows about reimbursements right now.
+/// What the app knows about reimbursements right now — whether they are
+/// switched on (`expenses_module` in the admin), and whether the app could
+/// find out. The API enforces the same switch; this only decides what the
+/// app offers.
 ///
 /// [off] and [unknown] are different claims and must never be shown as the
 /// same thing: [off] is a decision BISO made and the app may say so, while

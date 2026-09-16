@@ -54,12 +54,24 @@ class _FakeMembershipApi extends MembershipApiClient {
   /// refresh, as opposed to the ordinary load when the overview is built.
   int forcedChecks = 0;
 
+  /// How many of the next forced checks still answer "not a member", the way
+  /// the server serves a forced refresh from its cache when it re-checked
+  /// the student within the last minute.
+  int staleForcedChecks = 0;
+
   @override
   Future<MembershipOverview> fetchOverview({bool refresh = false}) async {
-    if (refresh) forcedChecks++;
+    var member = isMember;
+    if (refresh) {
+      forcedChecks++;
+      if (staleForcedChecks > 0) {
+        staleForcedChecks--;
+        member = false;
+      }
+    }
     return MembershipOverview(
       state: MembershipGateState.eligible,
-      isMember: isMember,
+      isMember: member,
       checkedAt: DateTime.now(),
     );
   }
@@ -422,37 +434,39 @@ void main() {
     expect(prefs.getString('membership_pending_order_id'), isNull);
   });
 
-  test('a check that lands after a new attempt started leaves that attempt '
-      'alone', () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      'membership_pending_order_id': 'order-1',
-      'membership_pending_started_at': DateTime.now().millisecondsSinceEpoch,
+  for (final status in [ShopOrderStatus.failed, ShopOrderStatus.paid]) {
+    test('a check that lands after a new attempt started leaves that attempt '
+        'alone (${status.name})', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'membership_pending_order_id': 'order-1',
+        'membership_pending_started_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      // Applied, this answer would replace order-2's state and clear its
+      // marker, whether the abandoned order failed or was paid.
+      final shop = _FakeShopApi(status)..gate = Completer<void>();
+      final membership = _FakeMembershipApi()..nextOrderId = 'order-2';
+      final c = container(shop, membership);
+      final controller = c.read(membershipCheckoutControllerProvider.notifier);
+      await pumpEventQueue();
+
+      await controller.abandonPending();
+      await controller.start(
+        provider: PaymentProvider.vipps,
+        planId: '71',
+        campusId: '2',
+      );
+      final pending = c.read(membershipCheckoutControllerProvider);
+      expect(pending.phase, MembershipPurchasePhase.awaitingPayment);
+      expect(pending.orderId, 'order-2');
+
+      shop.gate!.complete();
+      await pumpEventQueue();
+
+      expect(c.read(membershipCheckoutControllerProvider), pending);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('membership_pending_order_id'), 'order-2');
     });
-    // The abandoned order failed. Applied, this answer would show "not
-    // completed" and clear the marker — which by then belongs to order-2.
-    final shop = _FakeShopApi(ShopOrderStatus.failed)..gate = Completer<void>();
-    final membership = _FakeMembershipApi()..nextOrderId = 'order-2';
-    final c = container(shop, membership);
-    final controller = c.read(membershipCheckoutControllerProvider.notifier);
-    await pumpEventQueue();
-
-    await controller.abandonPending();
-    await controller.start(
-      provider: PaymentProvider.vipps,
-      planId: '71',
-      campusId: '2',
-    );
-    final pending = c.read(membershipCheckoutControllerProvider);
-    expect(pending.phase, MembershipPurchasePhase.awaitingPayment);
-    expect(pending.orderId, 'order-2');
-
-    shop.gate!.complete();
-    await pumpEventQueue();
-
-    expect(c.read(membershipCheckoutControllerProvider), pending);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('membership_pending_order_id'), 'order-2');
-  });
+  }
 
   test('starting over re-checks the membership, in case that payment went '
       'through', () async {
@@ -504,8 +518,8 @@ void main() {
     expect(c.read(membershipOverviewProvider).valueOrNull?.isMember, isTrue);
   });
 
-  test('a return link after starting over asks the server about that order '
-      'but leaves the screen alone', () async {
+  test('a paid order that comes back after starting over is still shown '
+      'landing', () async {
     final shop = _FakeShopApi(ShopOrderStatus.paid);
     final membership = _FakeMembershipApi();
     final c = container(shop, membership);
@@ -518,21 +532,104 @@ void main() {
     );
     await controller.abandonPending();
     await pumpEventQueue();
-    final before = membership.forcedChecks;
 
-    // The student paid the order they walked away from after all.
-    membership.isMember = true;
+    // The student paid the order they walked away from after all — the
+    // waiting banner invites exactly that. The server has them as a member,
+    // but "Start over" used up its one-minute refresh window, so the next
+    // two forced checks still answer from its cache.
+    membership
+      ..isMember = true
+      ..staleForcedChecks = 2;
+    final phases = <MembershipPurchasePhase>[];
+    c.listen(
+      membershipCheckoutControllerProvider,
+      (_, next) => phases.add(next.phase),
+    );
     await controller.resolvePending(orderId: 'order-1');
     await pumpEventQueue();
 
-    // The read is still made — it is what has the server reconcile the
-    // order — but its answer is not the screen's to act on any more.
     expect(shop.fetched, ['order-1']);
+    expect(phases, [
+      MembershipPurchasePhase.activating,
+      MembershipPurchasePhase.activated,
+    ]);
     expect(
       c.read(membershipCheckoutControllerProvider),
-      const MembershipPurchaseState(),
+      const MembershipPurchaseState(
+        phase: MembershipPurchasePhase.activated,
+        orderId: 'order-1',
+      ),
     );
-    expect(membership.forcedChecks, before + 1);
-    expect(c.read(membershipOverviewProvider).valueOrNull?.isMember, isTrue);
+    // There was no marker to clear, and none is written.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('membership_pending_order_id'), isNull);
+    expect(prefs.getInt('membership_pending_started_at'), isNull);
   });
+
+  test('a paid return link for an attempt whose marker expired is still '
+      'shown landing', () async {
+    // The marker lasts two hours; a card checkout session can last a day.
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'membership_pending_order_id': 'order-1',
+      'membership_pending_started_at': DateTime.now()
+          .subtract(const Duration(hours: 3))
+          .millisecondsSinceEpoch,
+    });
+    final shop = _FakeShopApi(ShopOrderStatus.paid);
+    final membership = _FakeMembershipApi()..isMember = true;
+    final c = container(shop, membership);
+    final controller = c.read(membershipCheckoutControllerProvider.notifier);
+    await pumpEventQueue();
+    expect(shop.fetched, isEmpty, reason: 'nothing is followed on its own');
+
+    await controller.resolvePending(orderId: 'order-1');
+    await pumpEventQueue();
+
+    expect(shop.fetched, ['order-1']);
+    expect(
+      c.read(membershipCheckoutControllerProvider).phase,
+      MembershipPurchasePhase.activated,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('membership_pending_order_id'), isNull);
+  });
+
+  for (final status in [
+    ShopOrderStatus.pending,
+    ShopOrderStatus.failed,
+    ShopOrderStatus.cancelled,
+    ShopOrderStatus.refunded,
+  ]) {
+    test('an unpaid (${status.name}) order that comes back after starting '
+        'over is left alone', () async {
+      final shop = _FakeShopApi(status);
+      final membership = _FakeMembershipApi();
+      final c = container(shop, membership);
+      final controller = c.read(membershipCheckoutControllerProvider.notifier);
+      await pumpEventQueue();
+      await controller.start(
+        provider: PaymentProvider.vipps,
+        planId: '71',
+        campusId: '2',
+      );
+      await controller.abandonPending();
+      await pumpEventQueue();
+      final before = membership.forcedChecks;
+
+      await controller.resolvePending(orderId: 'order-1');
+      await pumpEventQueue();
+
+      // The student gave that attempt up, and nothing about it changed that:
+      // the screen stays ready for a new one. The membership is still
+      // re-checked, and the read has had the server reconcile the order.
+      expect(shop.fetched, ['order-1']);
+      expect(
+        c.read(membershipCheckoutControllerProvider),
+        const MembershipPurchaseState(),
+      );
+      expect(membership.forcedChecks, before + 1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('membership_pending_order_id'), isNull);
+    });
+  }
 }

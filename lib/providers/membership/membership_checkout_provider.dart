@@ -170,14 +170,20 @@ class MembershipCheckoutController
   /// the remembered order is checked. Silent on network failure, so the
   /// marker stays for the next attempt.
   ///
-  /// Only the order actually pending may change the state or the marker —
-  /// both belong to it. A deep link naming a different order (an old return
-  /// link, flushed late after a newer purchase started) is ignored outright,
-  /// and an answer that lands after the student started over, or started
-  /// again, is dropped unread. Either way the student may still have paid
-  /// that other order, so the membership is re-checked instead: that is what
-  /// shows them they are a member, and what stops the server offering them a
-  /// plan to pay for twice.
+  /// The state and the marker belong to the order actually pending. A deep
+  /// link naming a different one (an old return link, flushed late after a
+  /// newer purchase started) is ignored outright, and an answer that lands
+  /// after a newer purchase started is dropped. Either way the membership is
+  /// re-checked, in case that other order was paid.
+  ///
+  /// With nothing pending — the student started over, or the marker expired
+  /// (it lasts two hours; a card checkout can last a day) — the order is
+  /// still read. An unpaid answer is dropped: that attempt was given up. A
+  /// paid one is shown landing exactly as for the pending order, polling
+  /// until the membership appears. A single re-check would not do: the
+  /// server answers a forced refresh from its cache when it re-checked the
+  /// student within the last minute, and "Start over" and starting a
+  /// checkout both use that minute up.
   Future<void> resolvePending({String? orderId, bool cancelled = false}) async {
     await _restored;
     final id = orderId ?? _pendingOrderId;
@@ -193,15 +199,21 @@ class MembershipCheckoutController
     if (_resolving) return;
     _resolving = true;
     try {
-      // Nothing pending (the student started over, or the marker expired)
-      // still fetches: the read makes the server reconcile the order with
-      // the provider, so the re-check below can see a payment that landed.
+      // With nothing pending this still fetches: the read makes the server
+      // reconcile the order with the provider, and its answer decides below
+      // whether there is a payment to show.
       final order = await _ref.read(shopApiClientProvider).fetchOrder(id);
       if (!mounted) return;
-      if (_pendingOrderId != id) {
+      final pending = _pendingOrderId;
+      if (pending == null && order.status.isSuccessful) {
+        // Paid, with no marker to clear: show it landing all the same.
+        await _activate(id);
+        return;
+      }
+      if (pending != id) {
         logPrint(
-          '🎫 Dropping the answer for $id — it is no longer the order '
-          'pending.',
+          '🎫 Dropping the answer for $id — '
+          '${pending == null ? 'that attempt was given up' : '$pending is the order pending'}.',
         );
         _recheckMembership();
         return;
@@ -250,11 +262,10 @@ class MembershipCheckoutController
   /// can start a new one instead of staring at a disabled Pay button.
   ///
   /// This does not cancel anything: the order lives on the server and only
-  /// the provider can settle it. If it does settle, the membership shows up
-  /// through the re-checks — the one this starts, and the one a late return
-  /// link for that order starts after asking the server to reconcile it — so
-  /// the app never tells the student the payment is cancelled, only that it
-  /// has stopped waiting.
+  /// the provider can settle it. If it does settle, its return link still
+  /// shows the payment landing (see [resolvePending]), and the re-check this
+  /// starts may show the membership sooner — so the app never tells the
+  /// student the payment is cancelled, only that it has stopped waiting.
   ///
   /// The state is dropped first, synchronously, so the screen unlocks on the
   /// very next frame rather than after the disk write.

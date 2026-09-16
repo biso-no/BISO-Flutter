@@ -75,10 +75,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   bool _isImportingIntakeBatch = false;
   String? _flowError;
 
-  /// Why the campus and department lists could not be loaded, while that is
+  /// Why the campus or department list could not be loaded, while that is
   /// still the case. Kept apart from [_flowError] so that loading them again
   /// clears this failure and nothing else.
   String? _lookupError;
+
+  /// The draft's receipts are read in once. A retry of the lookups must not
+  /// read them in again over whatever the student has done since.
+  bool _draftHydrated = false;
   int _mobileTabIndex = 0;
   final Set<String> _importedIntakeBatchIds = {};
 
@@ -141,12 +145,41 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       .where((receipt) => !receipt.isBankStatement)
       .fold(0, (sum, receipt) => sum + receipt.effectiveAmount);
 
+  /// Records why a list could not be loaded. It replaces an earlier lookup
+  /// failure on screen, but never a different message.
+  void _setLookupError(String message) {
+    if (_flowError == null || _flowError == _lookupError) _flowError = message;
+    _lookupError = message;
+  }
+
+  /// Forgets a lookup failure, and takes its message off screen if that is
+  /// the one showing.
+  void _clearLookupError() {
+    if (_flowError != null && _flowError == _lookupError) _flowError = null;
+    _lookupError = null;
+  }
+
+  /// "Try again" on the cost-allocation form: loads what is missing without
+  /// undoing what the student has chosen. With the campus list in hand and a
+  /// campus chosen, only that campus's departments are fetched again — a
+  /// full reload would put the campus back to the default.
+  Future<void> _retryLookups() async {
+    final assignment = _assignment;
+    if (_campuses.isEmpty ||
+        assignment == null ||
+        assignment.campusId.isEmpty) {
+      await _loadLookups();
+      return;
+    }
+    await _selectCampus(assignment.campusId, assignment.campusName);
+  }
+
   Future<void> _loadLookups() async {
     setState(() {
       _isLoadingLookups = true;
-      if (_flowError != null && _flowError == _lookupError) _flowError = null;
-      _lookupError = null;
+      _clearLookupError();
     });
+    var campusesLoaded = false;
     try {
       final rawCampuses = await _expenseService.listCampuses();
       final campuses = rawCampuses
@@ -162,7 +195,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           .toList();
 
       _campuses = campuses;
+      campusesLoaded = true;
       final draft = widget.draftExpense;
+      // Before the departments: the draft does not depend on them, and a
+      // failure there must not leave its receipts behind.
+      if (draft != null && !_draftHydrated) {
+        _hydrateDraft(draft);
+        _draftHydrated = true;
+      }
       final user = ref.read(currentUserProvider);
       final initialCampusId = draft?.campus.isNotEmpty == true
           ? draft!.campus
@@ -180,10 +220,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         );
         await _loadDepartments(initialCampusId);
       }
-      if (draft != null) _hydrateDraft(draft);
     } catch (e) {
-      _lookupError = 'Failed to load campuses: $e';
-      _flowError ??= _lookupError;
+      _setLookupError(
+        campusesLoaded
+            ? 'Failed to load departments: $e'
+            : 'Failed to load campuses: $e',
+      );
     } finally {
       if (mounted) setState(() => _isLoadingLookups = false);
     }
@@ -228,6 +270,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     if (!mounted) return;
     setState(() {
       _departments = mapped;
+      // With the campus list in hand and these departments loaded, an earlier
+      // lookup failure no longer describes anything — and its "Try again"
+      // would only undo the campus the student has chosen since.
+      if (_campuses.isNotEmpty) _clearLookupError();
       final current = _assignment;
       if (current != null && current.departmentId.isNotEmpty) {
         final match = mapped.where(
@@ -264,7 +310,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       }
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _lookupError != null && !_isLoadingLookups) {
-          _loadLookups();
+          _retryLookups();
         }
       });
     });
@@ -426,9 +472,18 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     Text(_flowError!, style: TextStyle(color: palette.error)),
                   ],
                   if (_lookupError != null) ...[
+                    // Said next to its own "Try again", even when a different
+                    // message holds the line above.
+                    if (_lookupError != _flowError) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _lookupError!,
+                        style: TextStyle(color: palette.error),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     TextButton(
-                      onPressed: _loadLookups,
+                      onPressed: _retryLookups,
                       child: const Text('Try again'),
                     ),
                   ],
@@ -474,7 +529,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       );
       _departments = [];
     });
-    await _loadDepartments(campusId);
+    try {
+      await _loadDepartments(campusId);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _setLookupError('Failed to load departments: $e'));
+    }
   }
 
   void _showDepartmentPicker() {
