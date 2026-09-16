@@ -619,12 +619,11 @@ class _WebshopProductDetailScreenState
             formatNok(displayPrice),
             style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
           ),
-          // The spec calls for showing member pricing only to members, via
-          // membership_service. This shows it to everyone: product-level
-          // `member_price`/`member_only` are null on all 50 published
-          // products, and no migration in this trilogy gates on membership
-          // yet. Only variations carry a member price today, and those are
-          // draft-only.
+          // The spec calls for showing member pricing only to members. This
+          // shows it to everyone: product-level `member_price`/`member_only`
+          // are null on all 50 published products, and no migration in this
+          // trilogy gates on membership yet. Only variations carry a member
+          // price today, and those are draft-only.
           if (displayMemberPrice != null) ...[
             const SizedBox(height: 4),
             Text(
