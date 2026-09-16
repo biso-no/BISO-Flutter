@@ -179,6 +179,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
             child: _PurchaseBanner(
               state: purchase,
               onCheckAgain: () => controller.resolvePending(),
+              onStartOver: controller.abandonPending,
               onDismiss: controller.dismissOutcome,
             ),
           ),
@@ -534,14 +535,18 @@ class _NotMemberCard extends StatelessWidget {
           child: const Text('Try again'),
         ),
       ),
+      // The website says the same thing on its own join page: nothing is on
+      // sale, it is not about this student, and BISO can sort it out. The BI
+      // student app does not sell BISO memberships, so it is not a way in.
       MembershipGateState.noPlansAvailable => _InfoCard(
-        icon: CupertinoIcons.star,
+        icon: CupertinoIcons.exclamationmark_triangle,
         accent: BisoAccent.gold,
-        title: "You're not a member",
+        title: "Membership isn't on sale right now",
         message: [
           ?expiredNote,
-          'No memberships are on sale in the app right now. You can still '
-              'join through the BI student app.',
+          'We have no membership open for purchase at the moment. This is '
+              'not about your account — get in touch with BISO and we will '
+              'sort it out.',
         ].join(' '),
       ),
       MembershipGateState.alreadyMember ||
@@ -559,11 +564,16 @@ class _PurchaseBanner extends StatelessWidget {
   const _PurchaseBanner({
     required this.state,
     required this.onCheckAgain,
+    required this.onStartOver,
     required this.onDismiss,
   });
 
   final MembershipPurchaseState state;
   final VoidCallback onCheckAgain;
+
+  /// Stops waiting for a payment the student walked away from. It does not
+  /// cancel the order, so the copy must not say it does.
+  final VoidCallback onStartOver;
   final VoidCallback onDismiss;
 
   @override
@@ -579,10 +589,19 @@ class _PurchaseBanner extends StatelessWidget {
         icon: CupertinoIcons.clock,
         accent: BisoAccent.gold,
         title: 'Waiting for your payment',
-        message: 'Finish paying in Vipps or your browser, then come back here.',
-        action: TextButton(
-          onPressed: onCheckAgain,
-          child: const Text('Check again'),
+        message:
+            'Finish paying in Vipps or your browser, then come back here. '
+            'Changed your mind? Start over — and if that payment does go '
+            'through anyway, your membership still activates.',
+        action: Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: onCheckAgain,
+              child: const Text('Check again'),
+            ),
+            TextButton(onPressed: onStartOver, child: const Text('Start over')),
+          ],
         ),
       ),
       MembershipPurchasePhase.activating => const _InfoCard(

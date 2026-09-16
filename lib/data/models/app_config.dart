@@ -1,5 +1,13 @@
 import 'dart:convert';
 
+/// The feature switches `GET /api/config` reports.
+///
+/// Every field is a statement about BISO's settings, so one of these may
+/// only ever be built from an answer the server actually gave. The defaults
+/// below are the shape of a config nobody has filled in — not a verdict to
+/// fall back on when the fetch fails: `AppConfigService` throws
+/// `AppConfigUnavailableException` for that, so that "we could not ask"
+/// stays distinguishable from "it is switched off".
 class AppConfig {
   final bool departuresEnabled;
   final bool expensesEnabled;

@@ -1,12 +1,14 @@
 import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/expense_model.dart';
 import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/app_config_service.dart';
 import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
 import 'package:biso/presentation/screens/explore/expenses_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,6 +50,17 @@ List<Override> _switchedOff() => [
   expenseServiceProvider.overrideWithValue(_FakeExpenseService()),
 ];
 
+/// The config could not be read at all — an offline cold launch. Nothing is
+/// known about BISO's settings, which is not the same as knowing they are
+/// off.
+List<Override> _configFailed() => [
+  authStateProvider.overrideWith((_) => _Auth()),
+  appConfigProvider.overrideWith(
+    (_) async => throw const AppConfigUnavailableException(),
+  ),
+  expenseServiceProvider.overrideWithValue(_FakeExpenseService()),
+];
+
 void main() {
   testWidgets(
     'the expenses list says reimbursements are off instead of loading',
@@ -82,4 +95,62 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'a config we could not load never claims reimbursements were switched off',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const ExpensesScreen(),
+        overrides: _configFailed(),
+      );
+      await tester.pumpAndSettle();
+
+      // An offline launch knows nothing about BISO's settings, so it must not
+      // report one. The student gets a retry instead.
+      expect(
+        find.text('Reimbursements are currently unavailable'),
+        findsNothing,
+      );
+      expect(find.text("We couldn't load reimbursements"), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Try again'), findsOneWidget);
+    },
+  );
+
+  testWidgets('the retry reads the config again', (tester) async {
+    var reads = 0;
+    await pumpBisoScreen(
+      tester,
+      const ExpensesScreen(),
+      overrides: [
+        authStateProvider.overrideWith((_) => _Auth()),
+        expenseServiceProvider.overrideWithValue(_FakeExpenseService()),
+        appConfigProvider.overrideWith((_) async {
+          reads++;
+          throw const AppConfigUnavailableException();
+        }),
+      ],
+    );
+    await tester.pumpAndSettle();
+    expect(reads, 1);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Try again'));
+    await tester.pumpAndSettle();
+
+    expect(reads, 2);
+  });
+
+  testWidgets('a new expense from a failed config offers a retry too', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const CreateExpenseScreen(),
+      overrides: _configFailed(),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reimbursements are currently unavailable'), findsNothing);
+    expect(find.text("We couldn't load reimbursements"), findsOneWidget);
+  });
 }

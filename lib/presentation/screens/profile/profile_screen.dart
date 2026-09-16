@@ -376,15 +376,29 @@ class _MembershipRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final overview = ref.watch(membershipOverviewProvider).valueOrNull;
     final expiry = overview?.currentMembership?.expiryDate;
+    // Only the states where the server actually established that this
+    // student has no membership may say so. A check that could not be made
+    // — `membership_check_unavailable`, an unreadable BI record, or a
+    // state this app does not know — says exactly that instead: reporting a
+    // failed read as "Not a member" states as fact the one thing nobody
+    // managed to find out.
     final subtitle = switch (overview) {
       null => 'Check your BISO membership',
       final o when o.isMember =>
         expiry == null
             ? 'Active member'
             : 'Active until ${DateFormat.yMMMd().format(expiry)}',
-      final o when o.state == MembershipGateState.needsBiLink =>
-        'Link your BI student account',
-      _ => 'Not a member',
+      final o => switch (o.state) {
+        MembershipGateState.needsBiLink => 'Link your BI student account',
+        MembershipGateState.eligible ||
+        MembershipGateState.noPlansAvailable => 'Not a member',
+        MembershipGateState.needsDirectoryRecord ||
+        MembershipGateState.checkUnavailable ||
+        // `already_member` without an actual membership is a contradiction,
+        // not an answer.
+        MembershipGateState.alreadyMember =>
+          "We couldn't check your membership",
+      },
     };
     return BisoListRow(
       leading: const BisoIconTile(

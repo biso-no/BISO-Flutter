@@ -7,6 +7,17 @@ final class ShareViewController: UIViewController {
   private let addButton = UIButton(type: .system)
   private let cancelButton = UIButton(type: .system)
 
+  /// The only types the reimbursement API accepts, and so the only ones
+  /// this extension may promise to take. Advertising more — HEIC, WebP, or
+  /// `public.image` as a catch-all — got the file copied in and then
+  /// dropped by the app, after the student had already been told the
+  /// receipt was added.
+  private static let acceptedTypes: [UTType] = [.pdf, .jpeg, .png]
+
+  private static let acceptedTypesMessage =
+    "BISO Expenses takes PDF, PNG and JPEG receipts. Add a photo in another "
+      + "format from inside the BISO app — it converts it for you."
+
   override func viewDidLoad() {
     super.viewDidLoad()
     configureView()
@@ -15,7 +26,7 @@ final class ShareViewController: UIViewController {
   private func configureView() {
     view.backgroundColor = .systemBackground
 
-    statusLabel.text = "Add selected receipts to BISO Expenses."
+    statusLabel.text = "Add PDF, PNG or JPEG receipts to BISO Expenses."
     statusLabel.textAlignment = .center
     statusLabel.numberOfLines = 0
     statusLabel.font = .preferredFont(forTextStyle: .headline)
@@ -45,12 +56,14 @@ final class ShareViewController: UIViewController {
     statusLabel.text = "Importing receipts..."
     Task {
       do {
-        let count = try await importAttachments()
+        let result = try await importAttachments()
         await MainActor.run {
-          statusLabel.text = count == 1
-            ? "Receipt added. Open BISO to continue."
-            : "\(count) receipts added. Open BISO to continue."
-          completeAfterDelay()
+          statusLabel.text = Self.addedMessage(
+            imported: result.imported,
+            skipped: result.skipped
+          )
+          // Long enough to read when something was left behind.
+          completeAfterDelay(seconds: result.skipped == 0 ? 0.8 : 4)
         }
       } catch {
         await MainActor.run {
@@ -69,7 +82,23 @@ final class ShareViewController: UIViewController {
     ))
   }
 
-  private func importAttachments() async throws -> Int {
+  /// The message shown once the import is done. A file that was left out
+  /// is said out loud: a receipt that disappears between the share sheet
+  /// and the app is the one failure a student cannot do anything about.
+  private static func addedMessage(imported: Int, skipped: Int) -> String {
+    let added = imported == 1
+      ? "Receipt added."
+      : "\(imported) receipts added."
+    if skipped == 0 {
+      return "\(added) Open BISO to continue."
+    }
+    let left = skipped == 1
+      ? "1 file could not be added."
+      : "\(skipped) files could not be added."
+    return "\(added) \(left) \(acceptedTypesMessage)"
+  }
+
+  private func importAttachments() async throws -> (imported: Int, skipped: Int) {
     guard let container = FileManager.default.containerURL(
       forSecurityApplicationGroupIdentifier: appGroupIdentifier
     ) else {
@@ -90,15 +119,18 @@ final class ShareViewController: UIViewController {
       .flatMap { $0.attachments ?? [] }
     var files: [[String: Any]] = []
 
+    var skipped = 0
     for provider in providers {
       if let imported = try await importProvider(provider, into: batchDirectory) {
         files.append(imported)
+      } else {
+        skipped += 1
       }
     }
 
     guard !files.isEmpty else {
       try? FileManager.default.removeItem(at: batchDirectory)
-      throw ShareImportError("No supported receipt files were selected.")
+      throw ShareImportError("Nothing here could be added. \(Self.acceptedTypesMessage)")
     }
 
     let manifest: [String: Any] = [
@@ -109,7 +141,7 @@ final class ShareViewController: UIViewController {
     ]
     let data = try JSONSerialization.data(withJSONObject: manifest)
     try data.write(to: batchDirectory.appendingPathComponent("batch.json"))
-    return files.count
+    return (files.count, skipped)
   }
 
   private func importProvider(
@@ -152,19 +184,16 @@ final class ShareViewController: UIViewController {
     }
   }
 
+  /// The first type this provider offers that the app can actually take.
+  ///
+  /// A HEIC photo shared from Photos registers `public.jpeg` alongside
+  /// `public.heic`, so this still finds a JPEG for it and iOS does the
+  /// conversion while loading. A file that is only ever HEIC — say, from
+  /// Files — has nothing here and is refused with a reason.
   private func supportedType(for provider: NSItemProvider) -> UTType? {
-    let supported: [UTType] = [
-      .pdf,
-      .jpeg,
-      .png,
-      .webP,
-      .heic,
-      .heif,
-      .image,
-    ]
     for identifier in provider.registeredTypeIdentifiers {
       guard let type = UTType(identifier) else { continue }
-      if supported.contains(where: { type.conforms(to: $0) }) {
+      if Self.acceptedTypes.contains(where: { type.conforms(to: $0) }) {
         return type
       }
     }
@@ -173,17 +202,23 @@ final class ShareViewController: UIViewController {
 
   private func safeFileName(_ original: String, type: UTType) -> String {
     let fallbackExtension = type.preferredFilenameExtension ?? "dat"
-    let fallback = "receipt.\(fallbackExtension)"
     let cleaned = original
       .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
       .replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
-    if cleaned.isEmpty || cleaned == "." || cleaned == ".." {
-      return fallback
+    let url = URL(fileURLWithPath: cleaned)
+    let base = url.deletingPathExtension().lastPathComponent
+    if base.isEmpty || base == "." || base == ".." {
+      return "receipt.\(fallbackExtension)"
     }
-    if cleaned.contains(".") {
+    // The name travels with the file and the app decides what it accepts by
+    // extension, so a HEIC photo that iOS handed over as JPEG must stop
+    // calling itself .heic — otherwise the app refuses the very file this
+    // extension asked iOS to convert.
+    let existing = url.pathExtension.lowercased()
+    if UTType(filenameExtension: existing)?.conforms(to: type) == true {
       return cleaned
     }
-    return "\(cleaned).\(fallbackExtension)"
+    return "\(base).\(fallbackExtension)"
   }
 
   private func uniqueFileName(in directory: URL, requested: String) -> String {
@@ -199,8 +234,8 @@ final class ShareViewController: UIViewController {
     return candidate
   }
 
-  private func completeAfterDelay() {
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+  private func completeAfterDelay(seconds: Double = 0.8) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
       self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
     }
   }

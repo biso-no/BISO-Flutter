@@ -30,12 +30,18 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
   final ExpenseModel? draftExpense;
   final String? intakeBatchId;
 
+  /// Why a share never became a batch — the share sheet already told the
+  /// student their receipt was added, so the refusal has to land somewhere
+  /// they will read it.
+  final String? intakeError;
+
   const CreateExpenseScreen({
     super.key,
     this.eventId,
     this.eventName,
     this.draftExpense,
     this.intakeBatchId,
+    this.intakeError,
   });
 
   @override
@@ -72,6 +78,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _expenseService = ref.read(expenseServiceProvider);
     _apiClient = ref.read(expenseApiClientProvider);
     _draftExpenseId = widget.draftExpense?.id;
+    _flowError = widget.intakeError;
     _descriptionController.text = widget.draftExpense?.description ?? '';
     _eventController.text =
         widget.eventName ?? widget.draftExpense?.eventName ?? '';
@@ -197,8 +204,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (ref.watch(expensesEnabledProvider) == false) {
-      return const ExpensesUnavailablePage();
+    switch (ref.watch(expensesAvailabilityProvider)) {
+      case ExpensesAvailability.off:
+        return const ExpensesUnavailablePage();
+      case ExpensesAvailability.unknown:
+        return const ExpensesCheckFailedPage();
+      case ExpensesAvailability.loading:
+      case ExpensesAvailability.on:
+        break;
     }
 
     final user = ref.watch(currentUserProvider);
@@ -931,6 +944,16 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           final added = await _addFile(intakeFile.file);
           if (added) importedCount += 1;
         }
+      }
+
+      // Files the intake had to leave out of the batch — the wrong type, or
+      // too big. They were shared, so they have to be accounted for.
+      if (batch.skippedFileNames.isNotEmpty && mounted) {
+        setState(
+          () => _flowError = ExpenseIntakeService.skippedFilesMessage(
+            batch.skippedFileNames,
+          ),
+        );
       }
 
       if (importedCount == 0) {

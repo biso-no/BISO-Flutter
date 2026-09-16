@@ -53,8 +53,14 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       );
     }
 
-    if (ref.watch(expensesEnabledProvider) == false) {
-      return const ExpensesUnavailablePage();
+    switch (ref.watch(expensesAvailabilityProvider)) {
+      case ExpensesAvailability.off:
+        return const ExpensesUnavailablePage();
+      case ExpensesAvailability.unknown:
+        return const ExpensesCheckFailedPage();
+      case ExpensesAvailability.loading:
+      case ExpensesAvailability.on:
+        break;
     }
 
     final expensesState = ref.watch(expensesStateProvider);

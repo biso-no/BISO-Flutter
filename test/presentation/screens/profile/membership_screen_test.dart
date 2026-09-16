@@ -312,4 +312,90 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'a student who walked away from a payment can start over and pay again',
+    (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const MembershipScreen(),
+        overrides: overrides(
+          _overview(state: MembershipGateState.eligible, plans: [_plan]),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The student opened Vipps and never came back: the order is still
+      // pending server-side, so the screen is waiting.
+      checkout.setPhase(
+        const MembershipPurchaseState(
+          phase: MembershipPurchasePhase.awaitingPayment,
+          orderId: 'order-1',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Waiting for your payment'), findsOneWidget);
+      expect(_payButton(tester).onPressed, isNull);
+
+      await tester.tap(find.text('Start over'));
+      await tester.pumpAndSettle();
+
+      // The banner is gone and the plan can be paid for again — without the
+      // app ever claiming the abandoned order was cancelled.
+      expect(find.text('Waiting for your payment'), findsNothing);
+      expect(find.text('Payment cancelled'), findsNothing);
+      expect(_payButton(tester).onPressed, isNotNull);
+
+      _scrollPageToBottom(tester);
+      await tester.pumpAndSettle();
+      final pay = find.text('Pay NOK 550 with Vipps');
+      await tester.ensureVisible(pay);
+      await tester.tap(pay);
+      await tester.pumpAndSettle();
+
+      expect(checkout.started, ['vipps:71:2']);
+    },
+  );
+
+  testWidgets('no plans on sale points the student at BISO, not BI', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(),
+      overrides: overrides(
+        _overview(state: MembershipGateState.noPlansAvailable),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text("Membership isn't on sale right now"), findsOneWidget);
+    expect(find.textContaining('get in touch with BISO'), findsOneWidget);
+    // The BI student app does not sell BISO memberships, so it must not be
+    // offered as a way in.
+    expect(find.textContaining('BI student app'), findsNothing);
+  });
 }
+
+/// The membership screen's own scroll view — the tallest one on screen, as
+/// in `cart_checkout_design_test.dart`. The pay button sits below the fold of
+/// this long form, so a test that never scrolls finds nothing to tap.
+void _scrollPageToBottom(WidgetTester tester) {
+  final pageScrollable = find
+      .byType(Scrollable)
+      .evaluate()
+      .map((element) => (element as StatefulElement).state as ScrollableState)
+      .reduce(
+        (a, b) =>
+            a.position.maxScrollExtent > b.position.maxScrollExtent ? a : b,
+      );
+  pageScrollable.position.jumpTo(pageScrollable.position.maxScrollExtent);
+}
+
+/// The pay button, found without scrolling: whether it is enabled is what
+/// decides if a student is locked out, and `skipOffstage: false` reads it
+/// even while it is below the fold.
+FilledButton _payButton(WidgetTester tester) => tester.widget<FilledButton>(
+  find.byType(FilledButton, skipOffstage: false).last,
+);

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:biso/data/services/expense_intake_service.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -9,6 +10,7 @@ void main() {
     late ExpenseIntakeService service;
 
     setUp(() async {
+      TestWidgetsFlutterBinding.ensureInitialized();
       tempDir = await Directory.systemTemp.createTemp('expense_intake_test_');
       service = ExpenseIntakeService(rootDirectory: tempDir);
     });
@@ -83,5 +85,139 @@ void main() {
 
       expect(await service.getBatch(batch.batchId), isNull);
     });
+
+    // The whole point of the finding this pins: a HEIC receipt used to be
+    // copied in by the share extension, dropped here, and logged. The
+    // student saw "Receipt added" and then nothing at all.
+    test('refuses a HEIC share out loud instead of dropping it', () async {
+      final photo = File('${tempDir.path}/IMG_0001.heic');
+      await photo.writeAsBytes([1, 2, 3]);
+
+      await expectLater(
+        service.createBatchFromFiles([photo], source: 'ios-share-extension'),
+        throwsA(
+          isA<ExpenseIntakeException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('PDF'), contains('PNG'), contains('JPEG')),
+          ),
+        ),
+      );
+    });
+
+    test(
+      'a mixed share keeps what it can and names what it could not',
+      () async {
+        final receipt = File('${tempDir.path}/receipt.pdf');
+        await receipt.writeAsBytes([1, 2, 3]);
+        final photo = File('${tempDir.path}/IMG_0001.heic');
+        await photo.writeAsBytes([1, 2, 3]);
+
+        final batch = await service.createBatchFromFiles([
+          receipt,
+          photo,
+        ], source: 'test');
+
+        expect(batch.files, hasLength(1));
+        expect(batch.skippedFileNames, ['IMG_0001.heic']);
+        // And it survives the manifest, so the screen importing the batch
+        // later can still tell the student what was left behind.
+        final loaded = await service.getBatch(batch.batchId);
+        expect(loaded!.skippedFileNames, ['IMG_0001.heic']);
+      },
+    );
+
+    test(
+      'a file over the size limit is named too, not just discarded',
+      () async {
+        final huge = File('${tempDir.path}/receipt.pdf');
+        await huge.writeAsBytes(
+          List<int>.filled(ExpenseIntakeService.maxFileSizeBytes + 1, 0),
+        );
+        final small = File('${tempDir.path}/small.png');
+        await small.writeAsBytes([1, 2, 3]);
+
+        final batch = await service.createBatchFromFiles([
+          huge,
+          small,
+        ], source: 'test');
+
+        expect(batch.files.single.fileName, 'small.png');
+        expect(batch.skippedFileNames, ['receipt.pdf']);
+      },
+    );
+    // End to end over the Dart half of the share path: the native side has
+    // already copied the file in and told the student "Receipt added", so
+    // the app either says why it cannot take it or the receipt is simply
+    // gone. It used to be gone.
+    test('a share it cannot take opens the screen with the reason', () async {
+      final routes = <String>[];
+      final photo = File('${tempDir.path}/IMG_0001.heic');
+      await photo.writeAsBytes([1, 2, 3]);
+      _mockNativeShare([photo.path]);
+      addTearDown(_clearNativeShare);
+
+      await ExpenseIntakeService(
+        rootDirectory: tempDir,
+        openRoute: routes.add,
+      ).handlePendingNativeEntrypoints();
+
+      expect(routes, hasLength(1));
+      final query = Uri.parse(routes.single).queryParameters;
+      expect(query['batch'], isNull);
+      expect(
+        query['intakeError'],
+        ExpenseIntakeService.unsupportedFilesMessage,
+      );
+    });
+
+    test('a share it can take opens that batch', () async {
+      final receipt = File('${tempDir.path}/receipt.pdf');
+      await receipt.writeAsBytes([1, 2, 3]);
+      final routes = <String>[];
+      _mockNativeShare([receipt.path]);
+      addTearDown(_clearNativeShare);
+
+      await ExpenseIntakeService(
+        rootDirectory: tempDir,
+        openRoute: routes.add,
+      ).handlePendingNativeEntrypoints();
+
+      final query = Uri.parse(routes.single).queryParameters;
+      expect(query['batch'], isNotNull);
+      expect(query['intakeError'], isNull);
+    });
   });
+}
+
+const _channel = MethodChannel('biso/expense_intake');
+
+/// Stands in for the share extension having left files in the app group.
+void _mockNativeShare(List<String> paths) {
+  var taken = false;
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(_channel, (call) async {
+        switch (call.method) {
+          case 'takePendingExpenseIntakeBatches':
+            if (taken) return <dynamic>[];
+            taken = true;
+            return <dynamic>[
+              {
+                'source': 'ios-share-extension',
+                'files': [
+                  for (final path in paths) {'filePath': path},
+                ],
+              },
+            ];
+          case 'takePendingShortcutDeepLink':
+            return null;
+          default:
+            return null;
+        }
+      });
+}
+
+void _clearNativeShare() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(_channel, null);
 }

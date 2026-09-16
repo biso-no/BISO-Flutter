@@ -66,16 +66,21 @@
                 <data android:scheme="https" android:host="www.biso.no" android:pathPrefix="/app"/>
             </intent-filter>
             <!-- Receive receipts and statements from Android Sharesheet -->
+            <!-- Only the types the reimbursement API accepts. image/* also
+                 offered BISO for HEIC and WebP photos it had to drop after
+                 telling the student the receipt was added. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="image/*"/>
+                <data android:mimeType="image/jpeg"/>
+                <data android:mimeType="image/png"/>
                 <data android:mimeType="application/pdf"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="image/*"/>
+                <data android:mimeType="image/jpeg"/>
+                <data android:mimeType="image/png"/>
                 <data android:mimeType="application/pdf"/>
             </intent-filter>
         </activity>

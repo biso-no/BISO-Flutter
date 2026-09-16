@@ -4,6 +4,7 @@ import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -60,7 +61,13 @@ class MainActivity : FlutterActivity() {
         val batchDir = File(filesDir, "expense_intake_native/$batchId")
         batchDir.mkdirs()
         val files = uris.mapNotNull { copySharedUri(it, batchDir) }
-        if (files.isEmpty()) return null
+        if (files.isEmpty()) {
+            // Say so. Dropping the share here left the student looking at an
+            // app that opened and did nothing with the receipt they sent it.
+            batchDir.delete()
+            Toast.makeText(this, UNSUPPORTED_SHARE_MESSAGE, Toast.LENGTH_LONG).show()
+            return null
+        }
         return mapOf(
             "batchId" to batchId,
             "source" to "android-share",
@@ -106,43 +113,44 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // The reimbursement API accepts these and nothing else, so neither may
+    // this: a HEIC or WebP photo copied in here was dropped by the app
+    // afterwards, silently.
     private fun isSupportedMimeType(mimeType: String): Boolean {
         return setOf(
             "application/pdf",
-            "image/heic",
-            "image/heif",
             "image/jpeg",
             "image/jpg",
-            "image/png",
-            "image/webp"
+            "image/png"
         ).contains(mimeType.lowercase())
     }
 
     private fun mimeTypeFromName(name: String): String {
         return when (name.substringAfterLast('.', "").lowercase()) {
-            "heic" -> "image/heic"
-            "heif" -> "image/heif"
             "jpg", "jpeg" -> "image/jpeg"
             "pdf" -> "application/pdf"
             "png" -> "image/png"
-            "webp" -> "image/webp"
             else -> "application/octet-stream"
         }
     }
 
     private fun sanitizeFileName(name: String, mimeType: String): String {
-        val cleaned = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
-            .ifBlank { "receipt.${extensionForMimeType(mimeType)}" }
-        return if (cleaned.contains('.')) cleaned else "$cleaned.${extensionForMimeType(mimeType)}"
+        val cleaned = name.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "receipt" }
+        val base = cleaned.substringBeforeLast('.', cleaned).ifBlank { "receipt" }
+        // The app decides what it will accept by file extension, so a name
+        // that disagrees with the type the provider actually handed over
+        // would have it refuse a file it can read perfectly well.
+        return if (mimeTypeFromName(cleaned) == mimeType.lowercase()) {
+            cleaned
+        } else {
+            "$base.${extensionForMimeType(mimeType)}"
+        }
     }
 
     private fun extensionForMimeType(mimeType: String): String {
         return when (mimeType.lowercase()) {
             "application/pdf" -> "pdf"
-            "image/heic" -> "heic"
-            "image/heif" -> "heif"
             "image/png" -> "png"
-            "image/webp" -> "webp"
             else -> "jpg"
         }
     }
@@ -158,5 +166,11 @@ class MainActivity : FlutterActivity() {
             index += 1
         }
         return candidate
+    }
+
+    companion object {
+        private const val UNSUPPORTED_SHARE_MESSAGE =
+            "BISO Expenses takes PDF, PNG and JPEG receipts. Add a photo in " +
+                "another format from inside the BISO app \u2014 it converts it for you."
     }
 }

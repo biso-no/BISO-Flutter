@@ -244,6 +244,22 @@ class MembershipCheckoutController
   /// Returns the screen to its normal state after an outcome was shown.
   void dismissOutcome() => state = const MembershipPurchaseState();
 
+  /// Gives up on following a payment the student walked away from, so they
+  /// can start a new one instead of staring at a disabled Pay button.
+  ///
+  /// This does not cancel anything: the order lives on the server and only
+  /// the provider can settle it. If it does settle, the return deep link
+  /// still resolves it by id, and the membership re-check still finds the
+  /// new membership — so the app never tells the student the payment is
+  /// cancelled, only that it has stopped waiting.
+  ///
+  /// The state is dropped first, synchronously, so the screen unlocks on the
+  /// very next frame rather than after the disk write.
+  Future<void> abandonPending() async {
+    state = const MembershipPurchaseState();
+    await _clearPending();
+  }
+
   /// Payment is in; fulfilment has run server-side. Re-verify until the new
   /// membership shows, which proves it reached 24SevenOffice.
   Future<void> _activate(String orderId) async {
