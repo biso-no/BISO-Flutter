@@ -54,7 +54,10 @@ class _FakeMembershipApi extends MembershipApiClient {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  ProviderContainer container(_FakeMembershipApi api, {String? userId = 'user-1'}) {
+  ProviderContainer container(
+    _FakeMembershipApi api, {
+    String? userId = 'user-1',
+  }) {
     final c = ProviderContainer(
       overrides: [
         membershipApiClientProvider.overrideWithValue(api),
@@ -91,39 +94,49 @@ void main() {
     );
   });
 
-  test('shows the last verified result, marked cached, when the check fails', () async {
-    final saved = overview(checkedAt: DateTime.now().subtract(const Duration(hours: 3)));
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      MembershipOverviewNotifier.cacheKey('user-1'): jsonEncode(saved.toJson()),
-    });
-    final api = _FakeMembershipApi(() async => throw Exception('offline'));
-    final c = container(api);
+  test(
+    'shows the last verified result, marked cached, when the check fails',
+    () async {
+      final saved = overview(
+        checkedAt: DateTime.now().subtract(const Duration(hours: 3)),
+      );
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        MembershipOverviewNotifier.cacheKey('user-1'): jsonEncode(
+          saved.toJson(),
+        ),
+      });
+      final api = _FakeMembershipApi(() async => throw Exception('offline'));
+      final c = container(api);
 
-    final result = await c.read(membershipOverviewProvider.future);
+      final result = await c.read(membershipOverviewProvider.future);
 
-    expect(result?.fromCache, isTrue);
-    expect(result?.isMember, isTrue);
-  });
+      expect(result?.fromCache, isTrue);
+      expect(result?.isMember, isTrue);
+    },
+  );
 
-  test("prefers the cached result over the server's 'cannot verify right now'", () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      MembershipOverviewNotifier.cacheKey('user-1'): jsonEncode(
-        overview().toJson(),
-      ),
-    });
-    final api = _FakeMembershipApi(
-      () async => overview(
-        state: MembershipGateState.checkUnavailable,
-        isMember: false,
-      ),
-    );
-    final c = container(api);
+  test(
+    "prefers the cached result over the server's 'cannot verify right now'",
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        MembershipOverviewNotifier.cacheKey('user-1'): jsonEncode(
+          overview().toJson(),
+        ),
+      });
+      final api = _FakeMembershipApi(
+        () async => overview(
+          state: MembershipGateState.checkUnavailable,
+          isMember: false,
+        ),
+      );
+      final c = container(api);
 
-    final result = await c.read(membershipOverviewProvider.future);
+      final result = await c.read(membershipOverviewProvider.future);
 
-    expect(result?.fromCache, isTrue);
-    expect(result?.isMember, isTrue);
-  });
+      expect(result?.fromCache, isTrue);
+      expect(result?.isMember, isTrue);
+    },
+  );
 
   test("shows 'cannot verify right now' when nothing is cached", () async {
     final api = _FakeMembershipApi(
@@ -152,20 +165,24 @@ void main() {
     expect(c.read(membershipOverviewProvider).valueOrNull?.isMember, isTrue);
   });
 
-  test('member-only products trust a cached membership for a day only', () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      MembershipOverviewNotifier.cacheKey('user-1'): jsonEncode(
-        overview(checkedAt: DateTime.now().subtract(const Duration(hours: 30)))
-            .toJson(),
-      ),
-    });
-    final api = _FakeMembershipApi(() async => throw Exception('offline'));
-    final c = container(api);
+  test(
+    'member-only products trust a cached membership for a day only',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        MembershipOverviewNotifier.cacheKey('user-1'): jsonEncode(
+          overview(
+            checkedAt: DateTime.now().subtract(const Duration(hours: 30)),
+          ).toJson(),
+        ),
+      });
+      final api = _FakeMembershipApi(() async => throw Exception('offline'));
+      final c = container(api);
 
-    await c.read(membershipOverviewProvider.future);
+      await c.read(membershipOverviewProvider.future);
 
-    expect(c.read(hasValidMembershipProvider), isFalse);
-  });
+      expect(c.read(hasValidMembershipProvider), isFalse);
+    },
+  );
 
   test('a freshly verified membership counts', () async {
     final api = _FakeMembershipApi(() async => overview());
