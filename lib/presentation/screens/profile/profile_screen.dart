@@ -2,13 +2,16 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../data/models/membership_overview.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
+import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
 import 'edit_profile_screen.dart';
 import 'payment_information_screen.dart';
@@ -96,9 +99,7 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         CircleAvatar(
                           radius: 28,
-                          backgroundColor: Colors.white.withValues(
-                            alpha: 0.12,
-                          ),
+                          backgroundColor: Colors.white.withValues(alpha: 0.12),
                           backgroundImage: user?.avatarUrl != null
                               ? NetworkImage(user!.avatarUrl!)
                               : null,
@@ -180,16 +181,7 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const BisoListRow(
-                  leading: BisoIconTile(
-                    icon: CupertinoIcons.book,
-                    accent: BisoAccent.gold,
-                  ),
-                  title: 'Student ID',
-                  subtitle:
-                      'We’re improving Student ID. Thanks for your patience.',
-                  showChevron: false,
-                ),
+                const _MembershipRow(),
               ],
             ),
           ),
@@ -373,6 +365,35 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MembershipRow extends ConsumerWidget {
+  const _MembershipRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(membershipOverviewProvider).valueOrNull;
+    final expiry = overview?.currentMembership?.expiryDate;
+    final subtitle = switch (overview) {
+      null => 'Check your BISO membership',
+      final o when o.isMember =>
+        expiry == null
+            ? 'Active member'
+            : 'Active until ${DateFormat.yMMMd().format(expiry)}',
+      final o when o.state == MembershipGateState.needsBiLink =>
+        'Link your BI student account',
+      _ => 'Not a member',
+    };
+    return BisoListRow(
+      leading: const BisoIconTile(
+        icon: CupertinoIcons.checkmark_seal,
+        accent: BisoAccent.gold,
+      ),
+      title: 'Membership',
+      subtitle: subtitle,
+      onTap: () => context.push('/profile/membership'),
     );
   }
 }

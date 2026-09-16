@@ -38,6 +38,7 @@ import 'presentation/screens/explore/unit_detail_screen.dart';
 import 'presentation/screens/explore/departures_screen.dart';
 import 'presentation/screens/explore/campus_detail_screen.dart';
 import 'presentation/screens/ai_chat/ai_chat_screen.dart';
+import 'presentation/screens/profile/membership_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/announcement_detail_screen.dart';
@@ -399,6 +400,20 @@ final _router = GoRouter(
           name: 'profile',
           pageBuilder: (context, state) =>
               const NoTransitionPage(child: _ProfilePage()),
+          routes: [
+            GoRoute(
+              path: '/membership',
+              name: 'membership',
+              builder: (context, state) {
+                final query = state.uri.queryParameters;
+                return MembershipScreen(
+                  returnedOrderId: query['orderId'],
+                  returnedCancelled: query['cancelled'] == '1',
+                  linked: query['linked'] == '1',
+                );
+              },
+            ),
+          ],
         ),
       ],
     ),
