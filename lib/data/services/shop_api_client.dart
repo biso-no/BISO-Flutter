@@ -36,9 +36,12 @@ class ShopApiException implements Exception {
 /// provider availability and payment outcomes are all decided server-side; this
 /// class asks, and never computes.
 class ShopApiClient {
-  ShopApiClient({http.Client? httpClient}) : _httpClient = httpClient;
+  ShopApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
+    : _httpClient = httpClient,
+      _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
+  final ApiJwtProvider _jwtProvider;
 
   static const Duration _timeout = Duration(seconds: 20);
 
@@ -195,11 +198,11 @@ class ShopApiClient {
     final client = _httpClient ?? http.Client();
     final shouldClose = _httpClient == null;
     try {
-      final jwt = await appwriteJwt();
+      final jwt = authenticated ? await _jwtProvider() : null;
       final headers = <String, String>{
         'accept': 'application/json',
         if (body != null) 'content-type': 'application/json',
-        if (authenticated && jwt != null) 'Authorization': 'Bearer $jwt',
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
       };
       final uri = apiUri(path, query);
       final request = http.Request(method, uri)..headers.addAll(headers);
