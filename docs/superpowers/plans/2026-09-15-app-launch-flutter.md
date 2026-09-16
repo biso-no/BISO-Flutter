@@ -3881,10 +3881,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```bash
 flutter analyze
 flutter test
-dart format --output=none --set-exit-if-changed $(git diff --name-only e0f357f..HEAD -- '*.dart' | tr '\n' ' ')
+dart format --output=none --set-exit-if-changed $(git diff --name-only --diff-filter=A e0f357f..HEAD -- '*.dart' | tr '\n' ' ')
 ```
 
-Expected: the analyzer count is still the ten pre-existing infos and none of them is in a file this plan touched; all tests pass (baseline was 721 before this plan — report the new total); the format check of this plan's own files is clean. Do NOT run `dart format` over `lib test` as a whole: the installed Dart (3.13) uses the new tall-style formatter, so 240 of the repo's 382 files are already "unformatted" at the baseline commit, and reformatting them would bury this plan's changes.
+Expected: the analyzer count is still the ten pre-existing infos and none of them is in a file this plan touched; all tests pass (baseline was 721 before this plan — report the new total); the format check of the files this plan CREATED is clean. Files it merely edited are excluded on purpose: they carry pre-existing tall-style dirt on lines this plan never touched, so the check would fail for reasons that have nothing to do with this work. To confirm an edited file's own new lines, intersect `git diff -U0 e0f357f..HEAD -- <file>`'s added line numbers with the ranges `dart format` would change in a copy of it; for this plan that intersection was empty for all eleven edited files. Do NOT run `dart format` over `lib test` as a whole: the installed Dart (3.13) uses the new tall-style formatter, so 240 of the repo's 382 files are already "unformatted" at the baseline commit, and reformatting them would bury this plan's changes.
 
 - [ ] **Step 2: Confirm the app no longer writes where it must not**
 
