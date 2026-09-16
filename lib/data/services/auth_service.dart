@@ -5,11 +5,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/user_model.dart';
-import '../models/student_id_model.dart';
 import 'appwrite_service.dart';
 import 'privacy_service.dart';
 import 'profile_api_client.dart';
-import 'student_service.dart';
 import '../../core/logging/app_logger.dart';
 
 import '../../core/logging/print_migration.dart';
@@ -26,9 +24,6 @@ class AuthService {
   Account get _account => account;
   TablesDB get _databases => db;
   Storage get _storage => storage;
-
-  // Student service for managing student verification
-  final StudentService _studentService = StudentService();
 
   // SharedPreferences keys for local session cache
   static const _cachedUserIdKey = 'session_user_id';
@@ -533,78 +528,6 @@ class AuthService {
       throw AuthException('Apple sign-in failed: ${e.message}');
     } catch (e) {
       throw AuthException('Apple sign-in failed');
-    }
-  }
-
-  /// Register student ID via OAuth (Azure)
-  Future<String> registerStudentIdViaOAuth() async {
-    try {
-      return await _studentService.registerStudentIdViaOAuth();
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Student ID registration failed: $e');
-    }
-  }
-
-  /// Check membership status for a student
-  Future<bool> checkMembershipStatus(String studentNumber) async {
-    try {
-      return await _studentService.checkMembershipStatus(studentNumber);
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to check membership: $e');
-    }
-  }
-
-  /// Get student ID record for current user
-  Future<StudentIdModel?> getStudentIdRecord() async {
-    try {
-      final currentUser = await getCurrentUser();
-      if (currentUser == null) {
-        return null;
-      }
-
-      return await _studentService.getStudentIdRecord(currentUser.id);
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to get student ID: $e');
-    }
-  }
-
-  // Removed write-based membership status updates. Verification is read-only via MembershipService.
-
-  /// Remove student ID
-  Future<void> removeStudentId() async {
-    try {
-      final currentUser = await getCurrentUser();
-      if (currentUser == null) {
-        throw AuthException('User not authenticated');
-      }
-
-      await _studentService.removeStudentId(currentUser.id);
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to remove student ID: $e');
-    }
-  }
-
-  /// Launch membership purchase page
-  Future<void> launchMembershipPurchase() async {
-    try {
-      await _studentService.launchMembershipPurchase();
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to open membership page: $e');
     }
   }
 

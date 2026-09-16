@@ -90,70 +90,6 @@ class ValidatorService {
     }
   }
 
-  /// Issues a new pass token for the current user (for Student ID screen)
-  Future<PassTokenResult> issuePassToken() async {
-    try {
-      final response = await _functions.createExecution(
-        functionId: 'issue_pass_token',
-        body: '', // No body needed, uses authenticated user context
-        xasync: false,
-      );
-
-      if (response.status == aw_enums.ExecutionStatus.completed) {
-        final responseData = json.decode(response.responseBody);
-
-        if (responseData['ok'] == true) {
-          return PassTokenResult(
-            ok: true,
-            token: responseData['token'] as String,
-            ttlSeconds: responseData['ttlSeconds'] as int,
-            serverTime: DateTime.parse(responseData['serverTime'] as String),
-          );
-        } else {
-          throw ValidationException(
-            responseData['error'] as String? ?? 'Failed to issue token',
-            code: responseData['code'] as String? ?? 'TOKEN_ISSUE_FAILED',
-          );
-        }
-      } else if (response.status == aw_enums.ExecutionStatus.failed) {
-        final errorData = json.decode(response.responseBody);
-        throw ValidationException(
-          errorData['error'] as String? ?? 'Function execution failed',
-          code: errorData['code'] as String? ?? 'FUNCTION_FAILED',
-        );
-      } else {
-        throw ValidationException(
-          'Unexpected function status: ${response.status}',
-          code: 'UNEXPECTED_STATUS',
-        );
-      }
-    } on AppwriteException catch (e) {
-      switch (e.code) {
-        case 401:
-          throw ValidationException(
-            'Authentication required',
-            code: 'UNAUTHENTICATED',
-          );
-        case 400:
-          throw ValidationException(
-            'No student ID found for your account',
-            code: 'NO_STUDENT_ID',
-          );
-        default:
-          throw ValidationException(
-            e.message ?? 'Failed to issue token',
-            code: 'TOKEN_ISSUE_ERROR',
-          );
-      }
-    } catch (e) {
-      if (e is ValidationException) rethrow;
-      throw ValidationException(
-        'Network error: ${e.toString()}',
-        code: 'NETWORK_ERROR',
-      );
-    }
-  }
-
   /// Log validation attempts for audit purposes
   Future<void> _logValidationAttempt({
     required String token,
@@ -209,35 +145,6 @@ class ValidatorService {
       // If there's an error (e.g., user not authenticated, no teams access), return false
       return false;
     }
-  }
-}
-
-class PassTokenResult {
-  final bool ok;
-  final String token;
-  final int ttlSeconds;
-  final DateTime serverTime;
-  final String? error;
-  final String? code;
-
-  const PassTokenResult({
-    required this.ok,
-    required this.token,
-    required this.ttlSeconds,
-    required this.serverTime,
-    this.error,
-    this.code,
-  });
-
-  factory PassTokenResult.error({required String error, String? code}) {
-    return PassTokenResult(
-      ok: false,
-      token: '',
-      ttlSeconds: 0,
-      serverTime: DateTime.now(),
-      error: error,
-      code: code,
-    );
   }
 }
 

@@ -53,6 +53,7 @@ import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
 import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
+import 'providers/membership/membership_overview_provider.dart';
 import 'providers/notification/notification_provider.dart';
 import 'providers/shop/checkout_provider.dart';
 
@@ -132,6 +133,10 @@ class BisoApp extends ConsumerWidget {
     // arrives — the rebuild that follows constructs the controller.
     if (!ref.watch(authStateProvider.select((state) => state.isLoading))) {
       ref.watch(checkoutControllerProvider.notifier);
+      // Verify the student's membership at launch, whether or not a
+      // membership screen is ever opened. Listening (not watching) keeps the
+      // overview alive without rebuilding the app on every check.
+      ref.listen(membershipOverviewProvider, (_, _) {});
     }
 
     // Ask a signed-in student which topics they want, once. Gated the same way
