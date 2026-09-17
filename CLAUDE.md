@@ -609,6 +609,37 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Location**: `lib/providers/membership/`, `lib/data/services/membership_api_client.dart`,
   `lib/presentation/screens/profile/membership_screen.dart`. **Route**: `/profile/membership`.
 
+#### 🪪 Member pass and membership scanning
+- **The server signs and decides everything.** `GET /api/member-pass` returns either the pass
+  state (`no_bi_identity`, `not_member`, `expired`, `unavailable`) or an active pass with 20
+  signed `v1` codes (one per 30 s slot), `serverNow`, the day color and wallet flags. The app
+  shows the code for `(now + drift) ~/ 30000`. It refetches below 4 codes, retries every 15 s while
+  offline or low, and refetches on resume and on connectivity changes. A 5xx never removes a pass
+  that still has a usable code; only a 200 or a 401 replaces what is shown. Codes, JWTs and
+  scanned strings stay in memory and are never logged.
+- **Rules live in pure classes:** `MemberPassSession` (pass) and `ScanGate` (20 s repeat
+  filter, keyed by member id) mirror the web `pass-refresh.ts` / `scan-repeat.ts`.
+- **Presentation mode** keeps the screen awake at full app brightness, and undoes both when the
+  app leaves the foreground or the route closes.
+- **The scanner screen stops its camera when the app leaves the foreground** and restarts it on
+  return (unless a result is showing), because `mobile_scanner` only handles lifecycle itself when
+  it owns its controller.
+- **Wallet:** iOS downloads the `.pkpass` and hands it to `PKAddPassesViewController` through the
+  `biso/wallet` channel in `AppDelegate.swift`. Android opens the `saveUrl` from
+  `GET /api/member-pass/google`. The badges are the official assets in `assets/wallet/`; Apple's
+  are converted for flutter_svg by `tool/inline_svg_styles.py`.
+- **Scanning access is a server grant**, given by admins to an email address.
+  `GET /api/member-pass/scanner` (200 or 403) decides both the Explore tile and the
+  `/explore/scan` route guard. `POST /api/member-pass/scan` re-checks the grant on every scan.
+  The old controller mode, the `validators` team check and the
+  `issue_pass_token`/`verify_pass_token` functions are gone from the app.
+- **Before the API deploys**, a 404 from `/api/member-pass` reads as "unavailable" and a 404 from
+  `/scanner` reads as "no access". Nothing else treats 404 that way.
+- **Location**: `lib/providers/member_pass/`, `lib/data/services/member_pass_api_client.dart`,
+  `lib/presentation/screens/profile/member_pass_screen.dart`,
+  `lib/presentation/screens/scanner/`. **Routes**: `/profile/member-pass`, `/explore/scan`.
+- **Spec**: `docs/superpowers/specs/2026-09-17-member-pass-and-scanner-design.md`.
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions
 - **Job Details**: Requirements, descriptions, and application info
