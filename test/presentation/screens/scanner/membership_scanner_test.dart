@@ -214,6 +214,43 @@ void main() {
       },
     );
 
+    testWidgets(
+      "a result's own timer dismissing it while still backgrounded does not "
+      'resume the camera; only the later return to the foreground does',
+      (tester) async {
+        await pumpGate(tester, expiring);
+        camera.read('v1.kari.1.sig');
+        await tester.pump();
+        await tester.pump();
+        expect(find.text('Valid member'), findsOneWidget);
+
+        for (final state in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.hidden,
+          AppLifecycleState.paused,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(state);
+        }
+
+        // Advances the auto-dismiss timer while still backgrounded. Frames
+        // are disabled in this lifecycle state, so the screen itself is not
+        // rebuilt yet (asserting on it would test the harness, not this
+        // fix) — but the provider's own timer still fires and notifies
+        // listeners, which is exactly the path this fix must guard.
+        await tester.pump(ScannerController.resultDuration);
+        expect(camera.resumes, 0);
+
+        for (final state in [
+          AppLifecycleState.hidden,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(state);
+        }
+        expect(camera.resumes, 1);
+      },
+    );
+
     final outcomes = <String, (ScanOutcome, String)>{
       'duplicate': (
         const ScanOutcome(

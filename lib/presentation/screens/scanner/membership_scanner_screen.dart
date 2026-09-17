@@ -30,7 +30,19 @@ class _MembershipScannerScreenState
     extends ConsumerState<MembershipScannerScreen>
     with WidgetsBindingObserver {
   late final ScannerCamera _camera = ref.read(scannerCameraFactoryProvider)();
-  bool _cameraStopped = false;
+
+  /// Whether the camera was stopped for backgrounding specifically (as
+  /// opposed to merely paused for a visible result). Guards repeat stop
+  /// calls across inactive/hidden/paused, and gates the foreground resume.
+  bool _backgroundStopped = false;
+
+  /// Kept in step by [didChangeAppLifecycleState]; a dismiss reached via
+  /// the result's own auto-dismiss timer is not lifecycle-aware, so it
+  /// must consult this rather than assume it is running in the foreground.
+  bool _foreground = _isForeground(WidgetsBinding.instance.lifecycleState);
+
+  static bool _isForeground(AppLifecycleState? state) =>
+      state == null || state == AppLifecycleState.resumed;
 
   @override
   void initState() {
@@ -40,10 +52,11 @@ class _MembershipScannerScreenState
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _resumeCamera();
+    _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) {
+      _resumeFromBackground();
     } else {
-      _stopCamera();
+      _stopForBackground();
     }
   }
 
@@ -54,34 +67,47 @@ class _MembershipScannerScreenState
     super.dispose();
   }
 
-  /// Stops the camera while the app is not in the foreground. Passing our
+  /// Stops the camera the moment the app leaves the foreground. Passing our
   /// own controller to `MobileScanner` opts out of its built-in lifecycle
   /// handling, so this screen must do it. Guards against inactive, hidden
   /// and paused firing in a row.
-  void _stopCamera() {
-    if (_cameraStopped) return;
-    _cameraStopped = true;
-    unawaited(
-      _camera.stop().catchError((_) {
-        // Already stopping or disposed; nothing to do.
-      }),
-    );
+  void _stopForBackground() {
+    if (_backgroundStopped) return;
+    _backgroundStopped = true;
+    unawaited(_guardedCameraCall(_camera.stop()));
   }
 
-  /// Restarts the camera on return to the foreground, unless a result is
-  /// still showing — that keeps the camera paused, and its own dismiss
-  /// resumes it, so resuming here too would double-start it.
-  void _resumeCamera() {
-    if (!_cameraStopped) return;
+  /// Restarts a camera stopped for the background, once the app is back and
+  /// no result currently covers the screen — a visible result keeps the
+  /// camera off regardless, and dismissing it is handled by
+  /// [_resumeFromResult].
+  void _resumeFromBackground() {
+    if (!_backgroundStopped) return;
     if (ref.read(scannerControllerProvider) is ScannerResult) return;
-    _cameraStopped = false;
-    unawaited(
-      _camera.resume().catchError((_) {
-        // Still starting, permission denied, or already disposed; the
-        // next lifecycle change retries.
-      }),
-    );
+    _backgroundStopped = false;
+    unawaited(_guardedCameraCall(_camera.resume()));
   }
+
+  /// A result was dismissed (by a tap or its own auto-dismiss timer, which
+  /// is not lifecycle-aware and can fire while backgrounded). Resumes only
+  /// if the app is actually in the foreground; otherwise the camera stays
+  /// off and [_resumeFromBackground] finishes the job on the next
+  /// `resumed` event.
+  void _resumeFromResult() {
+    if (!_foreground) {
+      _backgroundStopped = true;
+      return;
+    }
+    _backgroundStopped = false;
+    unawaited(_guardedCameraCall(_camera.resume()));
+  }
+
+  /// `MobileScannerController` can throw (still starting, no permission,
+  /// already disposed) from any start/stop call; the next lifecycle or
+  /// scan event retries, so a failure here is silently dropped. Never
+  /// touches scanned data.
+  Future<void> _guardedCameraCall(Future<void> action) =>
+      action.catchError((_) {});
 
   void _close(ScannerCloseReason reason) {
     final l10n = AppLocalizations.of(context)!;
@@ -104,10 +130,9 @@ class _MembershipScannerScreenState
     final controller = ref.read(scannerControllerProvider.notifier);
     ref.listen(scannerControllerProvider, (previous, next) {
       if (next is ScannerResult && previous is! ScannerResult) {
-        unawaited(_camera.pause());
+        unawaited(_guardedCameraCall(_camera.pause()));
       } else if (next is ScannerIdle && previous is ScannerResult) {
-        _cameraStopped = false;
-        unawaited(_camera.resume());
+        _resumeFromResult();
       } else if (next is ScannerClosed) {
         _close(next.reason);
       }
