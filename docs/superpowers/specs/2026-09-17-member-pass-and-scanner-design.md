@@ -170,11 +170,23 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
 - **Google:**
   - Shown only when `Platform.isAndroid` and `wallets.google` is true.
   - Tapping it calls `fetchGoogleSaveUrl()`, then `launchUrl(saveUrl, mode: externalApplication)`.
-- **Button art:** the official badge assets go under `assets/wallet/`, with Norwegian and English
-  variants: Apple's "Add to Apple Wallet" and Google's "Add to Google Wallet" SVGs. **Markus supplies
-  the files** from Apple's and Google's brand pages, because both are licensed downloads. Until then
-  the plan uses a placeholder widget with the same size and label, and a test asserts the asset
-  paths.
+- **Button art:** the official badges Markus supplied, in `assets/wallet/`, with `en` and `no`
+  variants. They are rendered with `flutter_svg`, which is already a dependency.
+  - **Apple:** the app bundles `apple/flutter/add_to_wallet_{en,no}.svg`. These are generated from
+    Apple's Illustrator SVGs by `tool/inline_svg_styles.py`, which moves the `<style>` class rules
+    onto the elements as attributes. `flutter_svg` ignores `<style>`, so the unmodified files render
+    without their fills. The artwork itself is unchanged; this was checked with a render. The
+    original `.svg` and `.eps` files stay in the repo as sources and are not bundled. Only these
+    four files are declared in `pubspec.yaml`, not the whole directory.
+  - **Google:** `google/add_to_wallet_{en,no}.svg` are bundled as they are.
+  - **After adding, Apple:** Apple offers only an "Add" badge, and its guidance is that the app's own
+    UI handles the follow-up. That is the "Added to Wallet" state below.
+  - **After adding, Google:** `google/view_in_wallet_{en,no}.svg` are **not used yet**. The save link
+    never tells the app whether the pass was saved, and the brief's API gives no view URL. They get
+    wired up once `/api/member-pass` reports that the pass is saved and returns a view link, which
+    is a backend follow-up. Until then Android keeps the "Add" button; Google's save page itself
+    shows an already-saved pass.
+  - A widget test pumps each bundled badge, to catch a broken asset path.
 - **iOS channel `biso/wallet`** (`AppDelegate.swift`):
   - `canAddPasses` returns `PKAddPassesViewController.canAddPasses()`.
   - `addPass(bytes)`:
