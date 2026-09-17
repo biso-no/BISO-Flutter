@@ -32,7 +32,7 @@ class _MembershipScannerScreenState
   late final ScannerCamera _camera = ref.read(scannerCameraFactoryProvider)();
 
   /// Whether the camera was stopped for backgrounding specifically (as
-  /// opposed to merely paused for a visible result). Guards repeat stop
+  /// opposed to stopped for a visible result). Guards repeat stop
   /// calls across inactive/hidden/paused, and gates the foreground resume.
   bool _backgroundStopped = false;
 
@@ -130,7 +130,10 @@ class _MembershipScannerScreenState
     final controller = ref.read(scannerControllerProvider.notifier);
     ref.listen(scannerControllerProvider, (previous, next) {
       if (next is ScannerResult && previous is! ScannerResult) {
-        unawaited(_guardedCameraCall(_camera.pause()));
+        // Stopped, not paused: mobile_scanner's stop() does nothing on a
+        // paused camera, so a pause would keep the session while
+        // backgrounded.
+        unawaited(_guardedCameraCall(_camera.stop()));
       } else if (next is ScannerIdle && previous is ScannerResult) {
         _resumeFromResult();
       } else if (next is ScannerClosed) {

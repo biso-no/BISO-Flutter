@@ -128,7 +128,7 @@ void main() {
       expect(find.text('Point the camera at a member pass'), findsOneWidget);
     });
 
-    testWidgets('a valid read fills the screen, pauses, then resumes', (
+    testWidgets('a valid read fills the screen, stops, then resumes', (
       tester,
     ) async {
       await pumpGate(tester, expiring);
@@ -139,7 +139,8 @@ void main() {
       expect(find.text('Valid member'), findsOneWidget);
       expect(find.text('Kari Nordmann'), findsOneWidget);
       expect(find.textContaining('Valid until'), findsOneWidget);
-      expect(camera.pauses, 1);
+      // Stopped, not paused: a paused session would survive backgrounding.
+      expect(camera.stops, 1);
       expect(haptics, [ScanTone.green]);
 
       await tester.pump(ScannerController.resultDuration);
@@ -192,6 +193,7 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(find.text('Valid member'), findsOneWidget);
+        expect(camera.stops, 1);
 
         for (final state in [
           AppLifecycleState.inactive,
@@ -200,7 +202,8 @@ void main() {
         ]) {
           tester.binding.handleAppLifecycleStateChanged(state);
         }
-        expect(camera.stops, 1);
+        // Stopping again is harmless and covers a start that raced it.
+        expect(camera.stops, 2);
 
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.resumed,

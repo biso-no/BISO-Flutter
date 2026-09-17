@@ -9,7 +9,6 @@ abstract interface class ScannerCamera {
     required WidgetBuilder onError,
   });
 
-  Future<void> pause();
   Future<void> resume();
   Future<void> stop();
   Future<void> dispose();
@@ -43,9 +42,6 @@ class MobileScannerCamera implements ScannerCamera {
       errorBuilder: (context, _) => onError(context),
     );
   }
-
-  @override
-  Future<void> pause() => _controller.pause();
 
   @override
   Future<void> resume() => _controller.start();

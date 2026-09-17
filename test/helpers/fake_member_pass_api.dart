@@ -210,7 +210,6 @@ class FakeScreenPresentation implements ScreenPresentation {
 /// A camera that shows a placeholder and reads whatever the test says.
 class FakeScannerCamera implements ScannerCamera {
   void Function(String code)? _onCode;
-  int pauses = 0;
   int resumes = 0;
   int stops = 0;
   bool disposed = false;
@@ -225,9 +224,6 @@ class FakeScannerCamera implements ScannerCamera {
     _onCode = onCode;
     return const SizedBox.expand(key: Key('fake-camera'));
   }
-
-  @override
-  Future<void> pause() async => pauses++;
 
   @override
   Future<void> resume() async => resumes++;
