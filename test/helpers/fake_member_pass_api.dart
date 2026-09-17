@@ -214,6 +214,9 @@ class FakeScannerCamera implements ScannerCamera {
   int stops = 0;
   bool disposed = false;
 
+  /// Thrown from [dispose] when set, as a platform controller can.
+  Object? disposeError;
+
   void read(String code) => _onCode!(code);
 
   @override
@@ -232,5 +235,9 @@ class FakeScannerCamera implements ScannerCamera {
   Future<void> stop() async => stops++;
 
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<void> dispose() async {
+    disposed = true;
+    final error = disposeError;
+    if (error != null) throw error;
+  }
 }

@@ -63,7 +63,7 @@ class _MembershipScannerScreenState
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_camera.dispose());
+    unawaited(_guardedCameraCall(_camera.dispose()));
     super.dispose();
   }
 
@@ -339,6 +339,7 @@ class ScanResultOverlay extends StatelessWidget {
                   if (result.membershipName != null)
                     Text(
                       result.membershipName!,
+                      textAlign: TextAlign.center,
                       style: text.titleMedium?.copyWith(color: ink),
                     ),
                   if (expiry != null)
@@ -346,6 +347,7 @@ class ScanResultOverlay extends StatelessWidget {
                       l10n.memberPassValidUntil(
                         DateFormat.yMMMd(locale).format(expiry),
                       ),
+                      textAlign: TextAlign.center,
                       style: text.titleMedium?.copyWith(color: ink),
                     ),
                   const SizedBox(height: 32),

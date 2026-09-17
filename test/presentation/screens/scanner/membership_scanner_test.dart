@@ -139,6 +139,12 @@ void main() {
       expect(find.text('Valid member'), findsOneWidget);
       expect(find.text('Kari Nordmann'), findsOneWidget);
       expect(find.textContaining('Valid until'), findsOneWidget);
+      for (final detail in [
+        find.text('Semester'),
+        find.textContaining('Valid until'),
+      ]) {
+        expect(tester.widget<Text>(detail).textAlign, TextAlign.center);
+      }
       // Stopped, not paused: a paused session would survive backgrounding.
       expect(camera.stops, 1);
       expect(haptics, [ScanTone.green]);
@@ -147,6 +153,16 @@ void main() {
       await tester.pump();
       expect(find.text('Valid member'), findsNothing);
       expect(camera.resumes, 1);
+    });
+
+    testWidgets('a camera that fails to dispose is not an error', (
+      tester,
+    ) async {
+      await pumpGate(tester, expiring);
+      camera.disposeError = StateError('already disposed');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      expect(camera.disposed, isTrue);
     });
 
     testWidgets('a tap dismisses the result', (tester) async {
