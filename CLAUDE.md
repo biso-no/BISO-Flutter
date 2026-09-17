@@ -614,9 +614,10 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   state (`no_bi_identity`, `not_member`, `expired`, `unavailable`) or an active pass with 20
   signed `v1` codes (one per 30 s slot), `serverNow`, the day color and wallet flags. The app
   shows the code for `(now + drift) ~/ 30000`. It refetches below 4 codes, retries every 15 s while
-  offline or low, and refetches on resume and on connectivity changes. A 5xx never removes a pass
-  that still has a usable code; only a 200 or a 401 replaces what is shown. Codes, JWTs and
-  scanned strings stay in memory and are never logged.
+  offline or low, and refetches on resume and on connectivity changes. Network errors keep what
+  is shown (offline); other failures keep an active pass only while it has a usable code,
+  otherwise show "unavailable"; a 401 shows sign-in. Codes, JWTs and scanned strings stay in
+  memory and are never logged.
 - **Rules live in pure classes:** `MemberPassSession` (pass) and `ScanGate` (20 s repeat
   filter, keyed by member id) mirror the web `pass-refresh.ts` / `scan-repeat.ts`.
 - **Presentation mode** keeps the screen awake at full app brightness, and undoes both when the

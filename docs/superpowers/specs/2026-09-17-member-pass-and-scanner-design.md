@@ -88,10 +88,18 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
   - Replaces the view.
   - For an `ActivePass`, sets `drift = serverNow - localNowMs` and `offline = false`.
 - `applyUnauthorized()` sets the view to signed-out and clears the codes.
-- `applyTransientFailure(int nowMs)`
-  - If an active pass still has a usable code (see `current`), it keeps the pass and sets
-    `offline = true`.
-  - Otherwise the view becomes `reconnect` and the codes are cleared.
+- `applyNetworkFailure(int nowMs)` — no answer came back at all
+  (`MemberPassApiException.statusCode == null`). If an active pass still has a usable code (see
+  `hasUsableCode`), it keeps the pass and sets `offline = true`. Otherwise, when nothing usable can
+  be shown, the view becomes `reconnect` and the codes are cleared; a `noPass`, `signedOut` or
+  `reconnect` view stays as it is, with `offline` set.
+- `applyServerFailure(int nowMs)` — the server answered but refused the request (any status but
+  401: 5xx, 403, 400, the client's 502 `invalid_response`, etc.). It keeps the pass only if it is
+  `active` and has a usable code, in which case `offline` is left unchanged since this is not a
+  connectivity problem. Otherwise it replaces the view with `NoPass(unavailable)` and clears
+  `offline`, even when the previous view was `noPass` (e.g. `not_member` becoming `unavailable`).
+- `hasUsableCode(nowMs)` is true when at least one code has a slot at or after `slotAt(nowMs)` —
+  not necessarily a code for the exact current slot.
 - `slotAt(nowMs) = (nowMs + drift) ~/ 30000`.
 - `current(nowMs)` returns the `PassCode` whose slot equals `slotAt(nowMs)`, or null. It also returns
   `msUntilNextSlot = 30000 - ((nowMs + drift) % 30000)`.
@@ -115,6 +123,9 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
 - `retry()` is called by the Try again buttons and fetches immediately.
 - **Signed-out:** watches `membershipUserIdProvider`. Signing out rebuilds the notifier to
   signed-out.
+- **Picking the failure:** on a failed fetch, `isUnauthorized` (401) calls `applyUnauthorized`;
+  `statusCode == null` (no answer came back) calls `applyNetworkFailure`; anything else calls
+  `applyServerFailure`.
 
 ### View states → UI
 
@@ -136,7 +147,9 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
   - A new Profile row, "Member pass" / "Medlemskort", placed next to the Membership row.
   - A "Show member pass" button on `membership_screen.dart` when the membership is active.
 - **`PassCard`** (`lib/presentation/widgets/member_pass/`):
-  - "MEDLEM" / "MEMBER" in large Museo Sans 300, with the term label beneath.
+  - "MEDLEM" / "MEMBER" in large Museo Sans 300, with the term label beneath — or, when
+    `holder.term` is null, the raw `membershipName` in that same position (web parity), and in
+    that case the lower details block does not repeat `membershipName`.
   - **Holographic band:** a `CustomPainter` sweeping a gradient shader.
     - The loop is 6 s normally. When `MediaQuery.disableAnimations` is set it slows to 24 s but never
       stops.
@@ -249,10 +262,12 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
 It mirrors the web `scan-repeat.ts`.
 
 - **`memberKey(code)`:**
-  - The code is split on `.`.
-  - For a `v1` or `a1` code with at least 4 parts, the key is `parts[1 .. len-2]` joined with `.`.
-  - For a `g1` code with at least 3 parts, the key is `parts[1 .. len-1]` joined with `.`.
-  - Anything else keys on the whole string.
+  - The raw string is trimmed first, then split on `.`.
+  - For a `v1` or `a1` code with at least 4 parts, the id is `parts[1 .. len-2]` joined with `.`.
+  - For a `g1` code with at least 3 parts, the id is `parts[1 .. len-1]` joined with `.`.
+  - When an id was computed and is non-empty, the key is `member:` plus that id.
+  - Otherwise — the prefix isn't recognised, or the computed id is empty — the key is the whole
+    trimmed string.
 - **`admit(code, nowMs)`**:
   - **While a request is in flight or a result is showing:** returns false, and refreshes
     `lastSeen[key]` only if that member is already in the map. A different person glimpsed during
@@ -270,10 +285,12 @@ It mirrors the web `scan-repeat.ts`.
   - The day color swatch and its localized name.
   - "Access until {date time}" when `expiresAt` is set, shown in Oslo time.
 - **On a detected string:**
-  1. `ScanGate.admit` must pass.
-  2. A string longer than 256 characters produces a local `denied/badCode` result, with no network
-     call.
-  3. Otherwise the app calls `api.scan(code)`.
+  1. The raw read is trimmed; an empty trimmed read is ignored outright (no gate touch, no
+     network call).
+  2. `ScanGate.admit` must pass.
+  3. A trimmed string longer than 256 characters produces a local `denied/badCode` result, with no
+     network call.
+  4. Otherwise the app calls `api.scan(code)` with the trimmed code.
 - **Full-screen results:**
 
 | Outcome | Color | Text |
@@ -286,6 +303,9 @@ It mirrors the web `scan-repeat.ts`.
 | `denied` + `expired` | red | "Membership has ended" |
 | `denied` + `notMember` | red | "Not a member" |
 | `denied` + `notLinked` | red | "No linked student account" |
+
+The server includes `name` on `not_linked` / `not_member` / `expired` denials, and `mapScanOutcome`
+passes it through, so the overlay shows who was scanned even when the scan was refused.
 | `unavailable`, a network error or 5xx, or a 503 | grey | "Couldn't check — try again" |
 | 400 `invalid_body` (should not happen, given the local length check) | red | "Not a BISO pass" |
 | 429 | grey | "Too many scans — wait a moment" |
@@ -362,8 +382,9 @@ These are fixed semantic colors. They are declared in one file,
   - `msUntilNextSlot` at the edges;
   - `needsRefetch` with 4 and 3 codes remaining;
   - the `shouldRetry` 15 s spacing and in-flight rule;
-  - a transient failure keeps a usable active pass (marked offline), or becomes `reconnect` when no
-    code is left;
+  - a network failure keeps a usable active pass (marked offline), or becomes `reconnect` when no
+    code is left; a server failure keeps a usable active pass without marking it offline, or
+    otherwise replaces the view with `NoPass(unavailable)`;
   - a 401 clears the pass, and a 200 `NoPass` replaces an active pass;
   - a clock before the first code triggers a refetch.
 - **`member_pass_notifier_test`**, with a fake API and a fake clock/timers via `fakeAsync`:
