@@ -48,6 +48,7 @@ import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
 import 'presentation/screens/events/large_event_screen.dart';
+import 'presentation/screens/scanner/scanner_route.dart';
 import 'presentation/screens/validator/controller_mode_screen.dart';
 import 'data/models/large_event_model.dart';
 import 'data/services/large_event_service.dart';
@@ -297,6 +298,8 @@ final _router = GoRouter(
       name: 'onboarding',
       builder: (context, state) => const OnboardingScreen(),
     ),
+
+    membershipScannerRoute(),
 
     // Main app shell with tab navigation
     ShellRoute(

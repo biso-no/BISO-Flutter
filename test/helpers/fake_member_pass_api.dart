@@ -3,10 +3,12 @@ import 'dart:typed_data';
 
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/services/member_pass_api_client.dart';
+import 'package:biso/data/services/scanner_camera.dart';
 import 'package:biso/data/services/screen_presentation.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/member_pass/scanner_access_provider.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const testDayColor = DayColor(name: 'teal', hex: '#12A594');
@@ -171,4 +173,32 @@ class FakeScreenPresentation implements ScreenPresentation {
 
   @override
   Future<void> exit() async => exits++;
+}
+
+/// A camera that shows a placeholder and reads whatever the test says.
+class FakeScannerCamera implements ScannerCamera {
+  void Function(String code)? _onCode;
+  int pauses = 0;
+  int resumes = 0;
+  bool disposed = false;
+
+  void read(String code) => _onCode!(code);
+
+  @override
+  Widget preview({
+    required void Function(String code) onCode,
+    required WidgetBuilder onError,
+  }) {
+    _onCode = onCode;
+    return const SizedBox.expand(key: Key('fake-camera'));
+  }
+
+  @override
+  Future<void> pause() async => pauses++;
+
+  @override
+  Future<void> resume() async => resumes++;
+
+  @override
+  Future<void> dispose() async => disposed = true;
 }
