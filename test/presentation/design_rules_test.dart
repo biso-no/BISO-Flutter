@@ -59,6 +59,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/auth/magic_link_verify_screen.dart',
   'lib/presentation/screens/onboarding/onboarding_screen.dart',
   'lib/presentation/screens/validator/controller_mode_screen.dart',
+  'lib/presentation/widgets/member_pass/pass_card.dart',
 ];
 
 final _lineRules = <String, RegExp>{
