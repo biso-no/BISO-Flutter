@@ -1,9 +1,11 @@
+import 'dart:async';
+import 'dart:io' show Platform;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:io' show Platform;
 
 import '../../../data/models/app_config.dart';
 import '../../../data/models/large_event_model.dart';
@@ -12,8 +14,10 @@ import '../../../providers/campus/campus_data_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/large_event/large_event_provider.dart';
+import '../../../providers/member_pass/scanner_access_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../scanner/scanner_route.dart';
 
 class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
@@ -24,6 +28,15 @@ class ExploreScreen extends ConsumerStatefulWidget {
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(ref.read(scannerAccessProvider.notifier).ensureFresh());
+    });
+  }
 
   Future<void> _openDirections(String address) async {
     final encoded = Uri.encodeComponent(address);
@@ -114,8 +127,18 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final config = configAsync.valueOrNull ?? const AppConfig();
     final expenses = ref.watch(expensesAvailabilityProvider);
     final event = ref.watch(featuredLargeEventProvider);
+    final canScan =
+        ref.watch(scannerAccessProvider).valueOrNull is ScannerGranted;
 
     final categories = <_CategoryData>[
+      if (canScan)
+        _CategoryData(
+          icon: CupertinoIcons.qrcode_viewfinder,
+          accent: BisoAccent.gold,
+          title: l10n.scannerTitle,
+          subtitle: l10n.scannerSubtitle,
+          onTap: () => context.push(membershipScannerPath),
+        ),
       _CategoryData(
         icon: CupertinoIcons.calendar,
         accent: BisoAccent.blue,
@@ -317,7 +340,8 @@ class _LargeEventBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.push('/events/large/${event.slug}', extra: event),
+          onTap: () =>
+              context.push('/events/large/${event.slug}', extra: event),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -343,10 +367,9 @@ class _LargeEventBanner extends StatelessWidget {
                         event.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(
-                              color: event.textColor.withValues(alpha: 0.9),
-                            ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: event.textColor.withValues(alpha: 0.9),
+                        ),
                       ),
                     ],
                   ),

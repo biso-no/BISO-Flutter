@@ -10,12 +10,14 @@ import 'package:biso/providers/campus/campus_data_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/large_event/large_event_provider.dart';
+import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
+import '../../../helpers/fake_member_pass_api.dart';
 
 /// Where a student finds reimbursements. After an offline launch the app
 /// does not know whether BISO has them switched on — which is not the same
@@ -69,6 +71,9 @@ List<Override> _explore(Override config) => [
   currentCampusDataProvider.overrideWithValue(const AsyncValue.data(null)),
   featuredLargeEventProvider.overrideWithValue(null),
   localeProvider.overrideWith((ref) => _Locale()),
+  scannerAccessProvider.overrideWith(
+    () => FixedScannerAccess(const ScannerDenied()),
+  ),
   config,
 ];
 
