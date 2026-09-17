@@ -96,25 +96,29 @@ void main() {
     );
   });
 
-  test('a transient failure keeps a usable pass and marks it offline', () {
-    final session = activeSession(localNow: t0, serverNow: t0);
-    session.applyTransientFailure(t0 + 1000);
+  test('a network failure keeps a pass with no current code but future codes, '
+      'offline and still active', () {
+    // count: 2 means only 2 codes remain at t0, still usable past the
+    // current slot until they run out.
+    final session = activeSession(localNow: t0, serverNow: t0, count: 2);
+    session.applyNetworkFailure(t0 + 1 * passSlotMs);
     expect(session.status, PassStatus.active);
     expect(session.offline, isTrue);
-    expect(session.view(t0 + 1000).code, isNotNull);
+    expect(session.hasUsableCode(t0 + 1 * passSlotMs), isTrue);
     expect(
       session.shouldRetry(
-        t0 + 16000,
-        lastAttemptMs: t0 + 1000,
+        t0 + 1 * passSlotMs + 16000,
+        lastAttemptMs: t0 + 1 * passSlotMs,
         inFlight: false,
       ),
       isTrue,
     );
   });
 
-  test('a transient failure without a usable code asks to reconnect', () {
+  test('a network failure with no usable code asks to reconnect', () {
     final session = activeSession(localNow: t0, serverNow: t0, count: 2);
-    session.applyTransientFailure(t0 + 3 * passSlotMs);
+    expect(session.hasUsableCode(t0 + 3 * passSlotMs), isFalse);
+    session.applyNetworkFailure(t0 + 3 * passSlotMs);
     expect(session.status, PassStatus.reconnect);
     expect(session.pass, isNull);
     expect(session.offline, isTrue);
@@ -128,17 +132,72 @@ void main() {
     );
   });
 
-  test('a first fetch that fails asks to reconnect', () {
-    final session = MemberPassSession()..applyTransientFailure(t0);
+  test('a network failure keeps noPass, with offline set', () {
+    final session = MemberPassSession()
+      ..apply(const NoPass(NoPassState.notMember), t0)
+      ..applyNetworkFailure(t0 + 1000);
+    expect(session.status, PassStatus.noPass);
+    expect(session.noPassState, NoPassState.notMember);
+    expect(session.offline, isTrue);
+  });
+
+  test('a first fetch that fails on the network asks to reconnect', () {
+    final session = MemberPassSession()..applyNetworkFailure(t0);
     expect(session.status, PassStatus.reconnect);
+    expect(session.offline, isTrue);
   });
 
   test('a later success clears offline', () {
     final session = activeSession(localNow: t0, serverNow: t0)
-      ..applyTransientFailure(t0);
+      ..applyNetworkFailure(t0);
     session.apply(activePassAt(t0 + 1000), t0 + 1000);
     expect(session.offline, isFalse);
   });
+
+  test('a server failure keeps a usable pass without setting offline', () {
+    final session = activeSession(localNow: t0, serverNow: t0);
+    session.applyServerFailure(t0 + 1000);
+    expect(session.status, PassStatus.active);
+    expect(session.offline, isFalse);
+    expect(session.view(t0 + 1000).code, isNotNull);
+  });
+
+  test('a server failure with no usable code shows NoPass(unavailable), '
+      'offline false', () {
+    final session = activeSession(localNow: t0, serverNow: t0, count: 2);
+    session.applyServerFailure(t0 + 3 * passSlotMs);
+    expect(session.status, PassStatus.noPass);
+    expect(session.noPassState, NoPassState.unavailable);
+    expect(session.pass, isNull);
+    expect(session.offline, isFalse);
+  });
+
+  test('a server failure turns noPass(notMember) into unavailable', () {
+    final session = MemberPassSession()
+      ..apply(const NoPass(NoPassState.notMember), t0)
+      ..applyServerFailure(t0 + 1000);
+    expect(session.status, PassStatus.noPass);
+    expect(session.noPassState, NoPassState.unavailable);
+    expect(session.offline, isFalse);
+  });
+
+  test('a server failure while loading shows unavailable', () {
+    final session = MemberPassSession()..applyServerFailure(t0);
+    expect(session.status, PassStatus.noPass);
+    expect(session.noPassState, NoPassState.unavailable);
+    expect(session.offline, isFalse);
+  });
+
+  test(
+    'a server failure keeps offline unchanged when it was already offline',
+    () {
+      final session = activeSession(localNow: t0, serverNow: t0)
+        ..applyNetworkFailure(t0)
+        ..applyServerFailure(t0 + 1000);
+      expect(session.status, PassStatus.active);
+      expect(session.offline, isTrue);
+    },
+  );
 
   test('a 401 clears the pass', () {
     final session = activeSession(localNow: t0, serverNow: t0)

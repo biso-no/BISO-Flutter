@@ -139,7 +139,7 @@ MemberPassView activeView({
 }) {
   final session = MemberPassSession()
     ..apply(activePassAt(testPassNow, wallets: wallets), testPassNow);
-  if (offline) session.applyTransientFailure(testPassNow);
+  if (offline) session.applyNetworkFailure(testPassNow);
   return session.view(testPassNow);
 }
 

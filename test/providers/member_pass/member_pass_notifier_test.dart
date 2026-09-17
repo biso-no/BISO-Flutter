@@ -118,13 +118,28 @@ void main() {
     });
   });
 
-  test('a first fetch that fails asks to reconnect', () {
+  test('a first fetch that fails on the network asks to reconnect', () {
     fakeAsync((async) {
       api.onFetchPass = () => throw network;
       final c = container(async);
       c.listen(memberPassProvider, (_, _) {});
       async.flushMicrotasks();
       expect(c.read(memberPassProvider).status, PassStatus.reconnect);
+      expect(c.read(memberPassProvider).offline, isTrue);
+    });
+  });
+
+  test('a 503 on first fetch shows NoPass(unavailable), not reconnect', () {
+    fakeAsync((async) {
+      api.onFetchPass = () =>
+          throw const MemberPassApiException('not_configured', statusCode: 503);
+      final c = container(async);
+      c.listen(memberPassProvider, (_, _) {});
+      async.flushMicrotasks();
+      final view = c.read(memberPassProvider);
+      expect(view.status, PassStatus.noPass);
+      expect(view.noPassState, NoPassState.unavailable);
+      expect(view.offline, isFalse);
     });
   });
 

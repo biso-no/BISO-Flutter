@@ -135,8 +135,10 @@ class MemberPassNotifier extends AutoDisposeNotifier<MemberPassView> {
       _session.apply(response, now);
     } else if (failure!.isUnauthorized) {
       _session.applyUnauthorized();
+    } else if (failure.statusCode == null) {
+      _session.applyNetworkFailure(now);
     } else {
-      _session.applyTransientFailure(now);
+      _session.applyServerFailure(now);
     }
     state = _session.view(now);
   }

@@ -99,15 +99,30 @@ class MemberPassSession {
     _offline = false;
   }
 
-  /// A 5xx or network failure keeps a pass that can still be shown.
-  void applyTransientFailure(int nowMs) {
+  /// No answer came back at all: this says nothing about the server, only
+  /// that the device could not reach it. Keeps whatever is shown and marks
+  /// it offline; only falls back to reconnect when nothing usable can be
+  /// shown right now.
+  void applyNetworkFailure(int nowMs) {
     _offline = true;
-    if (_status == PassStatus.active && current(nowMs) != null) return;
+    if (_status == PassStatus.active && hasUsableCode(nowMs)) return;
     if (_status == PassStatus.noPass || _status == PassStatus.signedOut) {
       return;
     }
     _status = PassStatus.reconnect;
     _pass = null;
+  }
+
+  /// The server answered but refused the request (any status but 401).
+  /// Keeps an active pass only while it still has a usable code; otherwise
+  /// this is not a connectivity problem, so it replaces the view with
+  /// `NoPass(unavailable)` and clears offline.
+  void applyServerFailure(int nowMs) {
+    if (_status == PassStatus.active && hasUsableCode(nowMs)) return;
+    _status = PassStatus.noPass;
+    _noPassState = NoPassState.unavailable;
+    _pass = null;
+    _offline = false;
   }
 
   int slotAt(int nowMs) => (nowMs + _drift) ~/ passSlotMs;
@@ -130,6 +145,10 @@ class MemberPassSession {
     final slot = slotAt(nowMs);
     return pass.codes.where((code) => code.slot >= slot).length;
   }
+
+  /// At least one code with a slot at or after the current one — not
+  /// necessarily one for this exact slot.
+  bool hasUsableCode(int nowMs) => remainingCodes(nowMs) > 0;
 
   bool needsRefetch(int nowMs) =>
       _status == PassStatus.active &&

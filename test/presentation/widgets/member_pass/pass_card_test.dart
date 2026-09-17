@@ -15,7 +15,7 @@ void main() {
 
   MemberPassView viewAt(int now, {bool offline = false, bool withCode = true}) {
     final session = MemberPassSession()..apply(activePassAt(t0), t0);
-    if (offline) session.applyTransientFailure(t0);
+    if (offline) session.applyNetworkFailure(t0);
     final view = session.view(now);
     return withCode
         ? view
