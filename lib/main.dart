@@ -39,6 +39,7 @@ import 'presentation/screens/explore/departures_screen.dart';
 import 'presentation/screens/explore/campus_detail_screen.dart';
 import 'presentation/screens/ai_chat/ai_chat_screen.dart';
 import 'presentation/screens/profile/membership_screen.dart';
+import 'presentation/screens/profile/member_pass_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/announcement_detail_screen.dart';
@@ -414,6 +415,11 @@ final _router = GoRouter(
                   linked: query['linked'] == '1',
                 );
               },
+            ),
+            GoRoute(
+              path: '/member-pass',
+              name: 'member-pass',
+              builder: (context, state) => const MemberPassScreen(),
             ),
           ],
         ),

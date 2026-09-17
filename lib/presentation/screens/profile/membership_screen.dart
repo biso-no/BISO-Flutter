@@ -8,11 +8,13 @@ import '../../../core/utils/currency.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/membership_overview.dart';
 import '../../../data/models/payment_provider.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/membership/membership_checkout_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/member_pass/member_pass_row.dart';
 
 /// Where a student links their BI account. BI's tenant is reachable only
 /// through Appwrite's OIDC provider, in a browser holding the student's own
@@ -473,6 +475,14 @@ class _MembershipCard extends StatelessWidget {
               title: 'Student ID',
               value: overview.studentId,
             ),
+          BisoListRow(
+            leading: const BisoIconTile(
+              icon: CupertinoIcons.qrcode,
+              accent: BisoAccent.gold,
+            ),
+            title: AppLocalizations.of(context)!.memberPassShowAction,
+            onTap: () => context.push(memberPassPath),
+          ),
         ],
       ),
     );

@@ -107,10 +107,13 @@ class PassCard extends StatelessWidget {
                                 progress: view.msUntilNextSlot / passSlotMs,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                l10n.memberPassNextCodeIn(seconds),
-                                style: text.bodySmall?.copyWith(
-                                  color: PassColors.cardMuted,
+                              Flexible(
+                                child: Text(
+                                  l10n.memberPassNextCodeIn(seconds),
+                                  style: text.bodySmall?.copyWith(
+                                    color: PassColors.cardMuted,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               if (view.offline) ...[

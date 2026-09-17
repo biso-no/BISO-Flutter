@@ -13,6 +13,7 @@ import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/member_pass/member_pass_row.dart';
 import 'edit_profile_screen.dart';
 import 'payment_information_screen.dart';
 import 'settings_screen.dart';
@@ -190,6 +191,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                 ),
                 const _MembershipRow(),
+                const MemberPassRow(),
               ],
             ),
           ),
