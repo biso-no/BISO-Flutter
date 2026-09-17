@@ -99,6 +99,10 @@ flutter:
     - assets/
     - assets/images/
     - assets/images/campus/
+    - assets/wallet/apple/flutter/add_to_wallet_en.svg
+    - assets/wallet/apple/flutter/add_to_wallet_no.svg
+    - assets/wallet/google/add_to_wallet_en.svg
+    - assets/wallet/google/add_to_wallet_no.svg
    # - assets/icons/
    # - assets/animations/
    # - assets/translations/

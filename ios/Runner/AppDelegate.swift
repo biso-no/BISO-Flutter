@@ -1,4 +1,5 @@
 import Flutter
+import PassKit
 import UIKit
 
 @main
@@ -7,6 +8,10 @@ import UIKit
   private let expenseIntakeChannelName = "biso/expense_intake"
   private let pendingDeepLinkKey = "pendingDeepLink"
   private var expenseIntakeChannel: FlutterMethodChannel?
+  private let walletChannelName = "biso/wallet"
+  private var walletChannel: FlutterMethodChannel?
+  private var pendingWalletResult: FlutterResult?
+  private var pendingWalletPass: PKPass?
 
   override func application(
     _ application: UIApplication,
@@ -29,6 +34,15 @@ import UIKit
           return
         }
         result(FlutterMethodNotImplemented)
+      }
+
+      let wallet = FlutterMethodChannel(
+        name: walletChannelName,
+        binaryMessenger: controller.binaryMessenger
+      )
+      walletChannel = wallet
+      wallet.setMethodCallHandler { [weak self] call, result in
+        self?.handleWalletCall(call, result: result)
       }
     }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -82,5 +96,59 @@ import UIKit
     }
     defaults.removeObject(forKey: pendingDeepLinkKey)
     return value
+  }
+}
+
+// MARK: - Apple Wallet
+
+extension AppDelegate: PKAddPassesViewControllerDelegate {
+  fileprivate func handleWalletCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "canAddPasses":
+      result(PKAddPassesViewController.canAddPasses())
+    case "addPass":
+      guard pendingWalletResult == nil else {
+        result(FlutterError(code: "busy", message: nil, details: nil))
+        return
+      }
+      guard
+        let args = call.arguments as? [String: Any],
+        let data = args["pass"] as? FlutterStandardTypedData,
+        let pass = try? PKPass(data: data.data),
+        let sheet = PKAddPassesViewController(pass: pass)
+      else {
+        result(FlutterError(code: "invalid_pass", message: nil, details: nil))
+        return
+      }
+      guard let presenter = topViewController() else {
+        result(FlutterError(code: "no_presenter", message: nil, details: nil))
+        return
+      }
+      sheet.delegate = self
+      pendingWalletResult = result
+      pendingWalletPass = pass
+      presenter.present(sheet, animated: true)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  func addPassesViewControllerDidFinish(_ controller: PKAddPassesViewController) {
+    controller.dismiss(animated: true)
+    // containsPass only sees pass types listed in the app's entitlements.
+    // Without that capability this reports "cancelled" and the Add button
+    // simply stays visible.
+    let added = pendingWalletPass.map { PKPassLibrary().containsPass($0) } ?? false
+    pendingWalletResult?(added ? "added" : "cancelled")
+    pendingWalletResult = nil
+    pendingWalletPass = nil
+  }
+
+  private func topViewController() -> UIViewController? {
+    var top = window?.rootViewController
+    while let presented = top?.presentedViewController {
+      top = presented
+    }
+    return top
   }
 }

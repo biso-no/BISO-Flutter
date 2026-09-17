@@ -14,6 +14,7 @@ import '../../../providers/membership/membership_checkout_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/pass_card.dart';
+import '../../widgets/member_pass/wallet_buttons.dart';
 import 'member_pass_presentation.dart';
 import 'membership_screen.dart' show membershipLinkUrl;
 
@@ -89,6 +90,8 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
             view: view,
             onTap: () => unawaited(showPassPresentation(context)),
           ),
+          const SizedBox(height: 16),
+          WalletButtons(wallets: view.pass!.wallets),
         ],
       ),
       PassStatus.signedOut => message(

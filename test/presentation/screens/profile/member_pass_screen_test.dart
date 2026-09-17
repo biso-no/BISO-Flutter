@@ -54,6 +54,7 @@ void main() {
         return true;
       }),
       screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
+      canAddApplePassesProvider.overrideWith((ref) async => false),
     ];
   }
 

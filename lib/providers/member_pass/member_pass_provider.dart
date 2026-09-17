@@ -7,11 +7,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/member_pass.dart';
 import '../../data/services/member_pass_api_client.dart';
 import '../../data/services/screen_presentation.dart';
+import '../../data/services/wallet_channel.dart';
 import '../membership/membership_overview_provider.dart';
 import 'member_pass_session.dart';
 
 final memberPassApiProvider = Provider<MemberPassApi>(
   (ref) => MemberPassApiClient(),
+);
+
+final walletChannelProvider = Provider<WalletChannel>(
+  (ref) => const WalletChannel(),
+);
+
+final canAddApplePassesProvider = FutureProvider.autoDispose<bool>(
+  (ref) => ref.watch(walletChannelProvider).canAddPasses(),
 );
 
 /// The local clock in Unix milliseconds. Separate so tests can move time.
