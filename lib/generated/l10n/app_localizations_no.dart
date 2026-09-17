@@ -1714,9 +1714,6 @@ class AppLocalizationsNo extends AppLocalizations {
   }
 
   @override
-  String get showThisToValidatorsMessage => 'Vis dette til validatorer';
-
-  @override
   String get showYourLastSeenStatusMessage => 'Vis din sist sett-status';
 
   @override

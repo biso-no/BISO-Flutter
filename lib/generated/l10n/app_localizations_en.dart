@@ -1708,9 +1708,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get showThisToValidatorsMessage => 'Show this to validators';
-
-  @override
   String get showYourLastSeenStatusMessage => 'Show your last seen status';
 
   @override

@@ -2230,10 +2230,6 @@
       }
     }
   },
-  "showThisToValidatorsMessage": "Show this to validators",
-  "@showThisToValidatorsMessage": {
-    "description": "Auto-extracted string"
-  },
   "showYourLastSeenStatusMessage": "Show your last seen status",
   "@showYourLastSeenStatusMessage": {
     "description": "Auto-extracted string"

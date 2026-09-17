@@ -1,11 +1,9 @@
-import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/data/services/privacy_service.dart';
-import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/profile/profile_screen.dart';
 import 'package:biso/presentation/screens/profile/settings_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
@@ -18,7 +16,6 @@ import 'package:biso/providers/privacy/privacy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -129,12 +126,9 @@ class _NoMembership extends MembershipOverviewNotifier {
   Future<MembershipOverview?> build() async => null;
 }
 
-List<Override> _overrides({bool controllerPermissions = false}) => [
+List<Override> _overrides() => [
   authStateProvider.overrideWith((_) => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
-  controllerPermissionsProvider.overrideWith(
-    (_) async => controllerPermissions,
-  ),
   notificationServiceProvider.overrideWithValue(_FakeNotificationService()),
   privacyServiceProvider.overrideWithValue(_FakePrivacyService()),
   membershipOverviewProvider.overrideWith(_NoMembership.new),
@@ -231,45 +225,15 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Validator Mode row pushes /controller-mode when the user is permitted',
-    (tester) async {
-      final router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, _) =>
-                const SettingsSectionPage(section: SettingsSection.general),
-          ),
-          GoRoute(
-            path: '/controller-mode',
-            builder: (context, _) =>
-                const Scaffold(body: Text('Controller Mode Screen')),
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: _overrides(controllerPermissions: true),
-          child: MaterialApp.router(
-            theme: PremiumTheme.build(Brightness.light),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            routerConfig: router,
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 600));
-
-      await tester.tap(find.widgetWithText(BisoListRow, 'Open Validator Mode'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Controller Mode Screen'), findsOneWidget);
-    },
-  );
+  testWidgets('Settings no longer offers Validator Mode', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const SettingsSectionPage(section: SettingsSection.general),
+      overrides: _overrides(),
+    );
+    expect(find.text('Validator Mode'), findsNothing);
+    expect(find.text('Open Validator Mode'), findsNothing);
+  });
 
   testWidgets(
     'a permissionDenied outcome shows its snackbar and setTopic was called with the '

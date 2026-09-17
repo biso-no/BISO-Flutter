@@ -3175,12 +3175,6 @@ abstract class AppLocalizations {
   /// Auto-extracted string
   ///
   /// In en, this message translates to:
-  /// **'Show this to validators'**
-  String get showThisToValidatorsMessage;
-
-  /// Auto-extracted string
-  ///
-  /// In en, this message translates to:
   /// **'Show your last seen status'**
   String get showYourLastSeenStatusMessage;
 

@@ -2230,10 +2230,6 @@
       }
     }
   },
-  "showThisToValidatorsMessage": "Vis dette til validatorer",
-  "@showThisToValidatorsMessage": {
-    "description": "Auto-extracted string"
-  },
   "showYourLastSeenStatusMessage": "Vis din sist sett-status",
   "@showYourLastSeenStatusMessage": {
     "description": "Auto-extracted string"

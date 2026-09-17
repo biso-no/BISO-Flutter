@@ -49,7 +49,6 @@ import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
 import 'presentation/screens/events/large_event_screen.dart';
 import 'presentation/screens/scanner/scanner_route.dart';
-import 'presentation/screens/validator/controller_mode_screen.dart';
 import 'data/models/large_event_model.dart';
 import 'data/services/large_event_service.dart';
 import 'data/services/notification_service.dart';
@@ -442,11 +441,6 @@ final _router = GoRouter(
         final slug = state.pathParameters['slug'] ?? '';
         return _LargeEventLoader(slug: slug);
       },
-    ),
-    GoRoute(
-      path: '/controller-mode',
-      name: 'controller-mode',
-      builder: (context, state) => const ControllerModeScreen(),
     ),
     GoRoute(
       path: '/notifications',
