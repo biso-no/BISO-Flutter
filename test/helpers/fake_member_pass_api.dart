@@ -168,11 +168,43 @@ class FakeScreenPresentation implements ScreenPresentation {
   int enters = 0;
   int exits = 0;
 
-  @override
-  Future<void> enter() async => enters++;
+  /// Every call in the order it started.
+  final List<String> calls = [];
+
+  /// When set, each call waits for its completer in [pendingCalls].
+  bool deferCalls = false;
+  final List<Completer<void>> pendingCalls = [];
+
+  /// The most calls that were ever running at once.
+  int maxConcurrent = 0;
+  int _running = 0;
 
   @override
-  Future<void> exit() async => exits++;
+  Future<void> enter() {
+    enters++;
+    return _record('enter');
+  }
+
+  @override
+  Future<void> exit() {
+    exits++;
+    return _record('exit');
+  }
+
+  Future<void> _record(String name) async {
+    calls.add(name);
+    _running++;
+    if (_running > maxConcurrent) maxConcurrent = _running;
+    try {
+      if (deferCalls) {
+        final completer = Completer<void>();
+        pendingCalls.add(completer);
+        await completer.future;
+      }
+    } finally {
+      _running--;
+    }
+  }
 }
 
 /// A camera that shows a placeholder and reads whatever the test says.

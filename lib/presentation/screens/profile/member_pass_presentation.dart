@@ -40,6 +40,11 @@ class _MemberPassPresentationState extends ConsumerState<MemberPassPresentation>
   late final ScreenPresentation _screen;
   bool _applied = false;
 
+  /// The screen call still running, if any. Calls run one at a time in the
+  /// order they were made, so the last one — which always matches
+  /// [_applied] — is what the screen ends up in.
+  Future<void>? _screenCall;
+
   @override
   void initState() {
     super.initState();
@@ -69,13 +74,32 @@ class _MemberPassPresentationState extends ConsumerState<MemberPassPresentation>
   void _apply() {
     if (_applied) return;
     _applied = true;
-    unawaited(_screen.enter());
+    _queueScreenCall(_screen.enter);
   }
 
   void _restore() {
     if (!_applied) return;
     _applied = false;
-    unawaited(_screen.exit());
+    _queueScreenCall(_screen.exit);
+  }
+
+  void _queueScreenCall(Future<void> Function() call) {
+    Future<void> run() async {
+      try {
+        await call();
+      } catch (_) {
+        // The pass still shows; the next call runs regardless.
+      }
+    }
+
+    final previous = _screenCall;
+    final next = previous == null ? run() : previous.then((_) => run());
+    _screenCall = next;
+    unawaited(
+      next.whenComplete(() {
+        if (identical(_screenCall, next)) _screenCall = null;
+      }),
+    );
   }
 
   void _close() => unawaited(Navigator.of(context).maybePop());
