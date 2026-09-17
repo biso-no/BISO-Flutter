@@ -11,10 +11,14 @@ abstract interface class ScannerCamera {
 
   Future<void> pause();
   Future<void> resume();
+  Future<void> stop();
   Future<void> dispose();
 }
 
-/// QR codes only. `mobile_scanner` itself pauses in the background.
+/// QR codes only. This controller is passed to [MobileScanner] explicitly,
+/// so `mobile_scanner` does not manage the app lifecycle itself (its
+/// `useAppLifecycleState` only applies when it owns the controller); the
+/// screen that holds this camera handles backgrounding instead.
 class MobileScannerCamera implements ScannerCamera {
   final MobileScannerController _controller = MobileScannerController(
     formats: const [BarcodeFormat.qrCode],
@@ -45,6 +49,9 @@ class MobileScannerCamera implements ScannerCamera {
 
   @override
   Future<void> resume() => _controller.start();
+
+  @override
+  Future<void> stop() => _controller.stop();
 
   @override
   Future<void> dispose() => _controller.dispose();

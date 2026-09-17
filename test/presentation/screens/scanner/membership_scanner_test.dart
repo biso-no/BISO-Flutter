@@ -159,6 +159,61 @@ void main() {
       expect(camera.resumes, 1);
     });
 
+    testWidgets('the camera stops while backgrounded and resumes on return', (
+      tester,
+    ) async {
+      await pumpGate(tester, expiring);
+
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      expect(camera.stops, 1);
+
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      expect(camera.resumes, 1);
+    });
+
+    testWidgets(
+      'a result showing keeps the camera off until it is dismissed, even '
+      'after a background and return',
+      (tester) async {
+        await pumpGate(tester, expiring);
+        camera.read('v1.kari.1.sig');
+        await tester.pump();
+        await tester.pump();
+        expect(find.text('Valid member'), findsOneWidget);
+
+        for (final state in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.hidden,
+          AppLifecycleState.paused,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(state);
+        }
+        expect(camera.stops, 1);
+
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        expect(camera.resumes, 0);
+
+        await tester.pump(ScannerController.resultDuration);
+        await tester.pump();
+        expect(find.text('Valid member'), findsNothing);
+        expect(camera.resumes, 1);
+      },
+    );
+
     final outcomes = <String, (ScanOutcome, String)>{
       'duplicate': (
         const ScanOutcome(

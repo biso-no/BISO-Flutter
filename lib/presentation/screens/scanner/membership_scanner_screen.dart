@@ -27,13 +27,60 @@ class MembershipScannerScreen extends ConsumerStatefulWidget {
 }
 
 class _MembershipScannerScreenState
-    extends ConsumerState<MembershipScannerScreen> {
+    extends ConsumerState<MembershipScannerScreen>
+    with WidgetsBindingObserver {
   late final ScannerCamera _camera = ref.read(scannerCameraFactoryProvider)();
+  bool _cameraStopped = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _resumeCamera();
+    } else {
+      _stopCamera();
+    }
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_camera.dispose());
     super.dispose();
+  }
+
+  /// Stops the camera while the app is not in the foreground. Passing our
+  /// own controller to `MobileScanner` opts out of its built-in lifecycle
+  /// handling, so this screen must do it. Guards against inactive, hidden
+  /// and paused firing in a row.
+  void _stopCamera() {
+    if (_cameraStopped) return;
+    _cameraStopped = true;
+    unawaited(
+      _camera.stop().catchError((_) {
+        // Already stopping or disposed; nothing to do.
+      }),
+    );
+  }
+
+  /// Restarts the camera on return to the foreground, unless a result is
+  /// still showing — that keeps the camera paused, and its own dismiss
+  /// resumes it, so resuming here too would double-start it.
+  void _resumeCamera() {
+    if (!_cameraStopped) return;
+    if (ref.read(scannerControllerProvider) is ScannerResult) return;
+    _cameraStopped = false;
+    unawaited(
+      _camera.resume().catchError((_) {
+        // Still starting, permission denied, or already disposed; the
+        // next lifecycle change retries.
+      }),
+    );
   }
 
   void _close(ScannerCloseReason reason) {
@@ -59,6 +106,7 @@ class _MembershipScannerScreenState
       if (next is ScannerResult && previous is! ScannerResult) {
         unawaited(_camera.pause());
       } else if (next is ScannerIdle && previous is ScannerResult) {
+        _cameraStopped = false;
         unawaited(_camera.resume());
       } else if (next is ScannerClosed) {
         _close(next.reason);

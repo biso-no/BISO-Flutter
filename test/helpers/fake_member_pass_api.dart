@@ -180,6 +180,7 @@ class FakeScannerCamera implements ScannerCamera {
   void Function(String code)? _onCode;
   int pauses = 0;
   int resumes = 0;
+  int stops = 0;
   bool disposed = false;
 
   void read(String code) => _onCode!(code);
@@ -198,6 +199,9 @@ class FakeScannerCamera implements ScannerCamera {
 
   @override
   Future<void> resume() async => resumes++;
+
+  @override
+  Future<void> stop() async => stops++;
 
   @override
   Future<void> dispose() async => disposed = true;
