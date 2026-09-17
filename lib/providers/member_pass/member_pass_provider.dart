@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/member_pass.dart';
 import '../../data/services/member_pass_api_client.dart';
+import '../../data/services/screen_presentation.dart';
 import '../membership/membership_overview_provider.dart';
 import 'member_pass_session.dart';
 
@@ -23,6 +24,10 @@ final memberPassClockProvider = Provider<int Function()>(
 /// interface does not mean the internet works.
 final connectivityChangesProvider = Provider<Stream<Object?>>(
   (ref) => Connectivity().onConnectivityChanged,
+);
+
+final screenPresentationProvider = Provider<ScreenPresentation>(
+  (ref) => DeviceScreenPresentation(),
 );
 
 final memberPassProvider =

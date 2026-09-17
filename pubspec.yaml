@@ -51,6 +51,8 @@ dependencies:
   native_liquid_glass_flutter: 0.0.8
   cupertino_icons: ^1.0.9
   connectivity_plus: ^7.3.1
+  wakelock_plus: ^1.5.2
+  screen_brightness: ^2.1.11
 
 dev_dependencies:
   flutter_test:

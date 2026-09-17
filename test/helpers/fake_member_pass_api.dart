@@ -3,7 +3,11 @@ import 'dart:typed_data';
 
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/services/member_pass_api_client.dart';
+import 'package:biso/data/services/screen_presentation.dart';
+import 'package:biso/providers/member_pass/member_pass_provider.dart';
+import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/member_pass/scanner_access_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const testDayColor = DayColor(name: 'teal', hex: '#12A594');
 
@@ -120,3 +124,51 @@ class FixedScannerAccess extends ScannerAccessNotifier {
 }
 
 const grantedAccess = ScannerGranted(ScannerAccess(dayColor: testDayColor));
+
+/// 10:00:00 UTC on 17 September 2026, the moment test passes are made for.
+final testPassNow = DateTime.utc(2026, 9, 17, 10).millisecondsSinceEpoch;
+
+MemberPassView activeView({
+  bool offline = false,
+  WalletAvailability wallets = const WalletAvailability(
+    apple: true,
+    google: true,
+  ),
+}) {
+  final session = MemberPassSession()
+    ..apply(activePassAt(testPassNow, wallets: wallets), testPassNow);
+  if (offline) session.applyTransientFailure(testPassNow);
+  return session.view(testPassNow);
+}
+
+/// A pass notifier that shows [view] and never starts timers or fetches.
+class FixedMemberPass extends MemberPassNotifier {
+  FixedMemberPass(this.view);
+
+  final MemberPassView view;
+  int retries = 0;
+  int holds = 0;
+
+  @override
+  MemberPassView build() => view;
+
+  @override
+  Future<void> retry() async => retries++;
+
+  @override
+  KeepAliveLink hold() {
+    holds++;
+    return super.hold();
+  }
+}
+
+class FakeScreenPresentation implements ScreenPresentation {
+  int enters = 0;
+  int exits = 0;
+
+  @override
+  Future<void> enter() async => enters++;
+
+  @override
+  Future<void> exit() async => exits++;
+}
