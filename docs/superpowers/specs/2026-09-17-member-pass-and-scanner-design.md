@@ -164,11 +164,12 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
 ## Wallet
 
 - **Apple:**
-  - Shown only when `Platform.isIOS`, `wallets.apple` is true and `WalletChannel.canAddPasses()`
-    returns true.
+  - Shown only when `defaultTargetPlatform == TargetPlatform.iOS`, `wallets.apple` is true and
+    `WalletChannel.canAddPasses()` returns true. `defaultTargetPlatform` rather than `Platform`, so
+    widget tests can switch platforms.
   - Tapping it calls `fetchApplePass()` and then `WalletChannel.addPass(bytes)`.
 - **Google:**
-  - Shown only when `Platform.isAndroid` and `wallets.google` is true.
+  - Shown only when `defaultTargetPlatform == TargetPlatform.android` and `wallets.google` is true.
   - Tapping it calls `fetchGoogleSaveUrl()`, then `launchUrl(saveUrl, mode: externalApplication)`.
 - **Button art:** the official badges Markus supplied, in `assets/wallet/`, with `en` and `no`
   variants. They are rendered with `flutter_svg`, which is already a dependency.
@@ -198,6 +199,10 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
   label for the rest of that screen's life. There is no check when the screen opens, because that
   would mean downloading the pass. "View in Wallet" through `shoebox://` is left out, because the
   scheme is undocumented.
+- **Entitlement caveat:** `PKPassLibrary.containsPass` can only see passes whose pass type identifier
+  is in the app's entitlements. Until the Wallet capability with the server's pass type ID is added
+  to `Runner.entitlements`, the check returns false and the sheet reports `cancelled`. The only
+  effect is that the Add button stays visible. Adding the capability is a manual step for Markus.
 - **Error messages:**
   - 403: "Your membership isn't active"
   - 404: "Wallet isn't available yet"
@@ -220,7 +225,7 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
   - It is refreshed whenever the scanner screen opens, so "Access until …" is current.
   - A new user id rebuilds it.
 - **Explore:** the tile is shown only for `granted`.
-  - Icon `CupertinoIcons.qrcode_viewfinder`, accent teal.
+  - Icon `CupertinoIcons.qrcode_viewfinder`, accent gold (the design system's membership accent).
   - Text: "Scan memberships" / "Skann medlemskap", with the subtitle "Check member passes at the
     door" / "Sjekk medlemskort i døra".
   - Route: `/explore/scan`.
@@ -229,6 +234,8 @@ It has no timers, no Flutter imports, and takes `now` as an argument. It mirrors
 
 - **`ScannerGate`** is what `/explore/scan` builds. Because the route itself renders it, cold starts
   and deep links are guarded the same way.
+- The route is a **top-level** `GoRoute` declared before the tab `ShellRoute`, so the camera is full
+  screen with no tab bar. The Explore tile opens it with `context.push`.
 - **Before access is known:** a spinner. The camera is never created.
 - **Other states:**
   - `granted`: `MembershipScannerScreen`.
@@ -246,13 +253,13 @@ It mirrors the web `scan-repeat.ts`.
   - For a `v1` or `a1` code with at least 4 parts, the key is `parts[1 .. len-2]` joined with `.`.
   - For a `g1` code with at least 3 parts, the key is `parts[1 .. len-1]` joined with `.`.
   - Anything else keys on the whole string.
-- **`admit(code, nowMs)`** returns false in two cases:
-  - A request is in flight.
-  - The key was last seen less than 20 s ago.
-
-  Either way it records `lastSeen[key] = nowMs`, so the window restarts every time. When it returns
-  true, it also sets in-flight.
-- `finish()` clears in-flight.
+- **`admit(code, nowMs)`**:
+  - **While a request is in flight or a result is showing:** returns false, and refreshes
+    `lastSeen[key]` only if that member is already in the map. A different person glimpsed during
+    that time is not recorded, so they can be checked the moment the result clears.
+  - **Otherwise:** records `lastSeen[key] = nowMs`, so the window restarts on every read. It then
+    returns false if the member was seen less than 20 s ago. If not, it sets busy and returns true.
+- `finish()` clears busy. It is called when the result is dismissed.
 - Entries older than 20 s are pruned on each call.
 
 ### `MembershipScannerScreen`
@@ -279,7 +286,8 @@ It mirrors the web `scan-repeat.ts`.
 | `denied` + `expired` | red | "Membership has ended" |
 | `denied` + `notMember` | red | "Not a member" |
 | `denied` + `notLinked` | red | "No linked student account" |
-| `unavailable`, a network error or 5xx, a 503, or a 400 | grey | "Couldn't check — try again" |
+| `unavailable`, a network error or 5xx, or a 503 | grey | "Couldn't check — try again" |
+| 400 `invalid_body` (should not happen, given the local length check) | red | "Not a BISO pass" |
 | 429 | grey | "Too many scans — wait a moment" |
 
 - **Haptics:**
