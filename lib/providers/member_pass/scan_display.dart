@@ -121,6 +121,8 @@ ScannerResult mapScanOutcome(ScanOutcome outcome) => switch (outcome.result) {
       DenyReason.notLinked => ScanMessage.notLinked,
       DenyReason.other || null => ScanMessage.notValid,
     },
+    // The server includes a name on not_linked / not_member / expired.
+    name: outcome.name,
   ),
   ScanResult.unavailable => _unavailable,
 };

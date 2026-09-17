@@ -312,6 +312,23 @@ void main() {
       });
     });
 
+    testWidgets('a denied result shows the name the server sent', (
+      tester,
+    ) async {
+      await pumpGate(tester, expiring);
+      api.onScan = (_) => const ScanOutcome(
+        result: ScanResult.denied,
+        reason: DenyReason.notMember,
+        name: 'Kari Nordmann',
+      );
+      camera.read('v1.kari.1.sig');
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Not a member'), findsOneWidget);
+      expect(find.text('Kari Nordmann'), findsOneWidget);
+      await tester.pump(ScannerController.resultDuration);
+    });
+
     testWidgets('a rate limit says to wait', (tester) async {
       await pumpGate(tester, expiring);
       api.onScan = (_) =>

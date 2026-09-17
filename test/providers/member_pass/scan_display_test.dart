@@ -65,6 +65,17 @@ void main() {
     }
   });
 
+  test('a denied result carries the server-supplied name through', () {
+    final result = mapScanOutcome(
+      const ScanOutcome(
+        result: ScanResult.denied,
+        reason: DenyReason.notMember,
+        name: 'Kari',
+      ),
+    );
+    expect(result.name, 'Kari');
+  });
+
   test('unavailable is grey', () {
     expect(
       mapScanOutcome(const ScanOutcome(result: ScanResult.unavailable)),
