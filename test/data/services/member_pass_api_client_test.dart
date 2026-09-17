@@ -210,6 +210,67 @@ void main() {
     });
   });
 
+  group('an expired token', () {
+    test('retries once with a fresh token after a 401', () async {
+      final tokens = <String?>[];
+      var issued = 0;
+      var cleared = 0;
+      final client = MemberPassApiClient(
+        httpClient: MockClient((request) async {
+          tokens.add(request.headers['Authorization']);
+          return tokens.length == 1
+              ? json({'error': 'not_authenticated'}, 401)
+              : json({'state': 'not_member'}, 200);
+        }),
+        jwtProvider: () async => 'jwt-${++issued}',
+        invalidateJwt: () => cleared++,
+      );
+      expect(await client.fetchPass(), const NoPass(NoPassState.notMember));
+      expect(tokens, ['Bearer jwt-1', 'Bearer jwt-2']);
+      expect(cleared, 1);
+    });
+
+    test('surfaces the second 401 without retrying again', () async {
+      final bodies = <String>[];
+      var issued = 0;
+      var cleared = 0;
+      final client = MemberPassApiClient(
+        httpClient: MockClient((request) async {
+          bodies.add(request.body);
+          return json({'error': 'not_authenticated'}, 401);
+        }),
+        jwtProvider: () async => 'jwt-${++issued}',
+        invalidateJwt: () => cleared++,
+      );
+      await expectLater(
+        client.scan('code-1'),
+        failsWith(401, 'not_authenticated'),
+      );
+      expect(bodies, hasLength(2));
+      expect(bodies.last, jsonEncode({'code': 'code-1'}));
+      expect(cleared, 1);
+    });
+
+    test('does not retry a request that carried no token', () async {
+      var requests = 0;
+      var cleared = 0;
+      final client = MemberPassApiClient(
+        httpClient: MockClient((request) async {
+          requests++;
+          return json({'error': 'not_authenticated'}, 401);
+        }),
+        jwtProvider: () async => null,
+        invalidateJwt: () => cleared++,
+      );
+      await expectLater(
+        client.fetchPass(),
+        failsWith(401, 'not_authenticated'),
+      );
+      expect(requests, 1);
+      expect(cleared, 0);
+    });
+  });
+
   test('exceptions never carry a code, token or body', () async {
     final client = clientReturning(
       json({'error': 'v1.user.1.SIG jwt-secret-1'}, 400),

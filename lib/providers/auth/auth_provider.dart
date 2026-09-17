@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/user_model.dart';
+import '../../data/services/api_auth.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/appwrite_service.dart';
 import '../../data/services/notification_service.dart';
@@ -432,7 +433,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Re-check auth state from the server — called after OAuth callbacks.
-  Future<void> refreshAuthState() async => _checkAuthState();
+  /// The callback may have created a new session, so a kept API token is
+  /// dropped first.
+  Future<void> refreshAuthState() async {
+    clearAppwriteJwtCache();
+    await _checkAuthState();
+  }
 
   /// Sign in with Google via Appwrite OAuth2 (opens browser).
   Future<void> signInWithGoogle() async {

@@ -49,12 +49,17 @@ class MemberPassApiException implements Exception {
 }
 
 class MemberPassApiClient implements MemberPassApi {
-  MemberPassApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  MemberPassApiClient({
+    http.Client? httpClient,
+    ApiJwtProvider? jwtProvider,
+    ApiJwtInvalidator? invalidateJwt,
+  }) : _httpClient = httpClient,
+       _jwtProvider = jwtProvider ?? appwriteJwt,
+       _invalidateJwt = invalidateJwt ?? clearAppwriteJwtCache;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;
+  final ApiJwtInvalidator _invalidateJwt;
 
   static const Duration _timeout = Duration(seconds: 20);
   static final RegExp _safeError = RegExp(r'^[a-z_]{1,40}$');
@@ -105,6 +110,8 @@ class MemberPassApiClient implements MemberPassApi {
     return ScanOutcome.fromJson(_json(_ok(response)));
   }
 
+  /// Sends the request, and once more with a new token when a token that
+  /// was sent is refused: a reused token can expire or outlive its session.
   Future<http.Response> _send(
     String method,
     String path, {
@@ -114,16 +121,11 @@ class MemberPassApiClient implements MemberPassApi {
     final shouldClose = _httpClient == null;
     try {
       final jwt = await _jwtProvider();
-      final request = http.Request(method, apiUri(path))
-        ..headers.addAll({
-          'accept': 'application/json',
-          if (body != null) 'content-type': 'application/json',
-          if (jwt != null) 'Authorization': 'Bearer $jwt',
-        });
-      if (body != null) request.body = jsonEncode(body);
-      return await http.Response.fromStream(
-        await client.send(request).timeout(_timeout),
-      ).timeout(_timeout);
+      final response = await _sendOnce(client, method, path, body, jwt);
+      if (response.statusCode != 401 || jwt == null) return response;
+      _invalidateJwt();
+      final fresh = await _jwtProvider();
+      return await _sendOnce(client, method, path, body, fresh);
     } on TimeoutException {
       throw const MemberPassApiException(MemberPassApiException.network);
     } on http.ClientException {
@@ -133,6 +135,25 @@ class MemberPassApiClient implements MemberPassApi {
     } finally {
       if (shouldClose) client.close();
     }
+  }
+
+  Future<http.Response> _sendOnce(
+    http.Client client,
+    String method,
+    String path,
+    Map<String, Object?>? body,
+    String? jwt,
+  ) async {
+    final request = http.Request(method, apiUri(path))
+      ..headers.addAll({
+        'accept': 'application/json',
+        if (body != null) 'content-type': 'application/json',
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
+      });
+    if (body != null) request.body = jsonEncode(body);
+    return http.Response.fromStream(
+      await client.send(request).timeout(_timeout),
+    ).timeout(_timeout);
   }
 
   http.Response _ok(http.Response response) {

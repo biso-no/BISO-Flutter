@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/user_model.dart';
+import 'api_auth.dart';
 import 'appwrite_service.dart';
 import 'privacy_service.dart';
 import 'profile_api_client.dart';
@@ -55,6 +56,8 @@ class AuthService {
   }
 
   Future<void> _clearSessionCache() async {
+    // A kept API token must never outlive the session it was made for.
+    clearAppwriteJwtCache();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cachedUserIdKey);
@@ -159,6 +162,7 @@ class AuthService {
         userId: userId,
         secret: secret,
       );
+      clearAppwriteJwtCache();
       logPrint('🔗 DEBUG: Magic link session created successfully!');
       logPrint('🔗 DEBUG: Session ID: ${session.$id}');
       logPrint('🔗 DEBUG: Session userId: ${session.userId}');
@@ -223,6 +227,7 @@ class AuthService {
         userId: userId,
         secret: secret,
       );
+      clearAppwriteJwtCache();
       logPrint('🔥 DEBUG: Session created successfully!');
       logPrint('🔥 DEBUG: Session ID: ${session.$id}');
       logPrint('🔥 DEBUG: Session userId: ${session.userId}');
@@ -507,6 +512,7 @@ class AuthService {
         success: 'biso://auth/oauth-callback',
         failure: 'biso://auth/oauth-failed',
       );
+      clearAppwriteJwtCache();
     } on AppwriteException catch (e) {
       throw AuthException('Google sign-in failed: ${e.message}');
     } catch (e) {
@@ -524,6 +530,7 @@ class AuthService {
         success: 'biso://auth/oauth-callback',
         failure: 'biso://auth/oauth-failed',
       );
+      clearAppwriteJwtCache();
     } on AppwriteException catch (e) {
       throw AuthException('Apple sign-in failed: ${e.message}');
     } catch (e) {
