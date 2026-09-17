@@ -56,4 +56,12 @@ class AppConstants {
   static const String bergenId = '2';
   static const String trondheimId = '3';
   static const String stavangerId = '4';
+
+  /// Display names by campus id, in the order campuses are listed.
+  static const Map<String, String> campusNames = {
+    osloId: 'Oslo',
+    bergenId: 'Bergen',
+    trondheimId: 'Trondheim',
+    stavangerId: 'Stavanger',
+  };
 }

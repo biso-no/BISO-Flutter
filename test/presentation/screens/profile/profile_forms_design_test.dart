@@ -1,3 +1,4 @@
+import 'package:biso/core/constants/app_constants.dart';
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
@@ -52,6 +53,7 @@ class _RecordingAuth extends StateNotifier<AuthState> implements AuthNotifier {
       );
 
   int updateProfileCalls = 0;
+  String? lastCampusId;
 
   @override
   Future<void> updateProfile({
@@ -65,6 +67,7 @@ class _RecordingAuth extends StateNotifier<AuthState> implements AuthNotifier {
     dynamic avatarFile,
   }) async {
     updateProfileCalls++;
+    lastCampusId = campusId;
   }
 
   @override
@@ -212,4 +215,59 @@ void main() {
       expect(size.height, greaterThanOrEqualTo(44));
     },
   );
+
+  testWidgets("Edit profile saves the campus picked on the screen", (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    final auth = _RecordingAuth();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [authStateProvider.overrideWith((_) => auth)],
+        child: MaterialApp(
+          theme: PremiumTheme.build(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final bergen = find.text('Bergen');
+    await tester.scrollUntilVisible(
+      bergen,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(bergen);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Save'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(auth.updateProfileCalls, 1);
+    expect(auth.lastCampusId, AppConstants.bergenId);
+  });
 }

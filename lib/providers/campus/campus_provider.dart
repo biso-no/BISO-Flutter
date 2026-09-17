@@ -216,20 +216,8 @@ class FilterCampusNotifier extends StateNotifier<CampusState> {
     }
   }
 
-  String _displayNameForCampusId(String campusId) {
-    switch (campusId) {
-      case AppConstants.osloId:
-        return 'Oslo';
-      case AppConstants.bergenId:
-        return 'Bergen';
-      case AppConstants.trondheimId:
-        return 'Trondheim';
-      case AppConstants.stavangerId:
-        return 'Stavanger';
-      default:
-        return campusId;
-    }
-  }
+  String _displayNameForCampusId(String campusId) =>
+      AppConstants.campusNames[campusId] ?? campusId;
 
   Future<void> selectFilterCampus(CampusModel campus) async {
     try {

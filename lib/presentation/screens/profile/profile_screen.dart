@@ -5,11 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../data/models/membership_overview.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
-import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
@@ -26,7 +26,8 @@ class ProfileScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
-    final selectedCampus = ref.watch(selectedCampusProvider);
+    // The campus saved on the profile, not the one the app filters by.
+    final campusName = AppConstants.campusNames[user?.campusId];
 
     // Show loading while initializing user data
     if (authState.isLoading) {
@@ -85,7 +86,7 @@ class ProfileScreen extends ConsumerWidget {
                         const SizedBox(width: 16),
                         Expanded(
                           child: Text(
-                            'BI ${selectedCampus.name}',
+                            campusName != null ? 'BI $campusName' : '',
                             textAlign: TextAlign.end,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -158,7 +159,12 @@ class ProfileScreen extends ConsumerWidget {
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () => context.push('/onboarding'),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EditProfileScreen(),
+                          ),
+                        ),
                         child: const Text('Complete Profile'),
                       ),
                     ),
@@ -228,7 +234,7 @@ class ProfileScreen extends ConsumerWidget {
                     icon: CupertinoIcons.location_solid,
                   ),
                   title: 'Campus',
-                  value: 'BI ${selectedCampus.name}',
+                  value: campusName != null ? 'BI $campusName' : 'Not set',
                 ),
                 if (profile?.departments.isNotEmpty == true)
                   BisoListRow(
