@@ -129,6 +129,49 @@ void main() {
     });
   });
 
+  test('a padded code is sent trimmed', () {
+    fakeAsync((async) {
+      final c = container(async);
+      controller(c).onDetected('  $alice  ');
+      async.flushMicrotasks();
+      expect(api.scanned, [alice]);
+    });
+  });
+
+  test(
+    'a code whose raw length is over 256 but trimmed length is not is sent',
+    () {
+      fakeAsync((async) {
+        final code = 'x' * 256;
+        final c = container(async);
+        controller(c).onDetected('  $code  ');
+        async.flushMicrotasks();
+        expect(api.scanned, [code]);
+      });
+    },
+  );
+
+  test('an exactly-256-character trimmed code is sent', () {
+    fakeAsync((async) {
+      final code = 'x' * 256;
+      final c = container(async);
+      controller(c).onDetected(code);
+      async.flushMicrotasks();
+      expect(api.scanned, [code]);
+    });
+  });
+
+  test('a whitespace-only read does nothing: no gate, no request', () {
+    fakeAsync((async) {
+      final c = container(async);
+      controller(c).onDetected('   \n\t  ');
+      async.flushMicrotasks();
+      expect(api.scanned, isEmpty);
+      expect(c.read(scannerControllerProvider), const ScannerIdle());
+      expect(haptics, isEmpty);
+    });
+  });
+
   test('a 403 closes the scanner and re-checks access', () {
     fakeAsync((async) {
       api.onScan = (_) =>

@@ -3,15 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('memberKey', () {
-    test('v1 and a1 drop the prefix and the last two parts', () {
-      expect(memberKey('v1.user1.59654564.sig'), 'user1');
-      expect(memberKey('a1.user1.20260917.sig'), 'user1');
-      expect(memberKey('v1.user.with.dots.1.sig'), 'user.with.dots');
+    test('v1 and a1 drop the prefix and the last two parts, keyed member:', () {
+      expect(memberKey('v1.user1.59654564.sig'), 'member:user1');
+      expect(memberKey('a1.user1.20260917.sig'), 'member:user1');
+      expect(memberKey('v1.user.with.dots.1.sig'), 'member:user.with.dots');
     });
 
-    test('g1 drops the prefix and the last part', () {
-      expect(memberKey('g1.user1.123456'), 'user1');
-      expect(memberKey('g1.a.b.123456'), 'a.b');
+    test('g1 drops the prefix and the last part, keyed member:', () {
+      expect(memberKey('g1.user1.123456'), 'member:user1');
+      expect(memberKey('g1.a.b.123456'), 'member:a.b');
     });
 
     test('the same member has one key across pass kinds', () {
@@ -19,7 +19,17 @@ void main() {
       expect(memberKey('a1.u.20260917.s'), memberKey('g1.u.123456'));
     });
 
-    test('anything else keys on the whole string', () {
+    test('trims the raw string first', () {
+      expect(memberKey('  v1.user1.1.sig  '), 'member:user1');
+      expect(memberKey('\nhttps://example.com\t'), 'https://example.com');
+    });
+
+    test('an empty computed id falls back to the whole trimmed string', () {
+      expect(memberKey('v1..1.sig'), 'v1..1.sig');
+      expect(memberKey('g1..123456'), 'g1..123456');
+    });
+
+    test('an unrecognised prefix keys on the whole trimmed string', () {
       expect(memberKey('https://example.com'), 'https://example.com');
       expect(memberKey('v1.too.short'), 'v1.too.short');
       expect(memberKey('g1.short'), 'g1.short');

@@ -1,18 +1,22 @@
 /// The member a pass code belongs to, so one person holding their pass up
 /// is one scan. Mirrors the web `scan-repeat.ts`.
 ///
-/// `v1.<id>.<slot>.<sig>` and `a1.<id>.<date>.<sig>` drop the last two parts;
-/// `g1.<id>.<totp>` drops the last one. Ids may contain dots. Anything else
-/// is its own key.
+/// The raw string is trimmed first. `v1.<id>.<slot>.<sig>` and
+/// `a1.<id>.<date>.<sig>` drop the last two parts; `g1.<id>.<totp>` drops the
+/// last one; either way the key is `member:` plus the id, which may itself
+/// contain dots. When the prefix isn't recognised, or the computed id is
+/// empty, the key is the whole trimmed string.
 String memberKey(String code) {
-  final parts = code.split('.');
-  switch (parts.first) {
-    case 'v1' || 'a1' when parts.length >= 4:
-      return parts.sublist(1, parts.length - 2).join('.');
-    case 'g1' when parts.length >= 3:
-      return parts.sublist(1, parts.length - 1).join('.');
-  }
-  return code;
+  final trimmed = code.trim();
+  final parts = trimmed.split('.');
+  final id = switch (parts.first) {
+    'v1' ||
+    'a1' when parts.length >= 4 => parts.sublist(1, parts.length - 2).join('.'),
+    'g1' when parts.length >= 3 => parts.sublist(1, parts.length - 1).join('.'),
+    _ => null,
+  };
+  if (id == null || id.isEmpty) return trimmed;
+  return 'member:$id';
 }
 
 /// Decides which camera reads become scans.

@@ -48,8 +48,10 @@ class ScannerController extends AutoDisposeNotifier<ScannerDisplay> {
   }
 
   Future<void> onDetected(String raw) async {
-    if (!_gate.admit(raw, ref.read(memberPassClockProvider)())) return;
-    if (raw.length > maxScanCodeLength) {
+    final code = raw.trim();
+    if (code.isEmpty) return;
+    if (!_gate.admit(code, ref.read(memberPassClockProvider)())) return;
+    if (code.length > maxScanCodeLength) {
       _show(overlongCodeResult);
       return;
     }
@@ -57,7 +59,7 @@ class ScannerController extends AutoDisposeNotifier<ScannerDisplay> {
     final api = ref.read(memberPassApiProvider);
     ScannerDisplay next;
     try {
-      next = mapScanOutcome(await api.scan(raw));
+      next = mapScanOutcome(await api.scan(code));
     } catch (error) {
       next = mapScanError(error);
     }
