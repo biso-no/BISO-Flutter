@@ -80,6 +80,10 @@ class ScannerAccessNotifier extends AsyncNotifier<ScannerAccessState> {
 
   /// Asks the server again if the answer is older than [maxAge], failed, or
   /// [force] is set. The previous answer stays visible meanwhile.
+  ///
+  /// Like the pass, only a definitive answer replaces a grant: when the
+  /// server cannot be asked, the scanner keeps working and the next call asks
+  /// again.
   Future<void> ensureFresh({bool force = false}) async {
     if (ref.read(membershipUserIdProvider) == null) return;
     if (state.isLoading) return;
@@ -91,10 +95,15 @@ class ScannerAccessNotifier extends AsyncNotifier<ScannerAccessState> {
     if (fresh && !force) return;
 
     final generation = _generation;
+    final previous = state.valueOrNull;
     state = const AsyncLoading<ScannerAccessState>().copyWithPrevious(state);
     final next = await _check(generation);
     if (generation != _generation) return;
-    state = AsyncData(next);
+    state = AsyncData(
+      next is ScannerCheckFailed && previous is ScannerGranted
+          ? previous
+          : next,
+    );
   }
 
   Future<ScannerAccessState> _check(int generation) async {
@@ -116,7 +125,10 @@ class ScannerAccessNotifier extends AsyncNotifier<ScannerAccessState> {
     } catch (_) {
       result = const ScannerCheckFailed();
     }
-    if (generation == _generation) _checkedAtMs = startedAt;
+    if (generation == _generation) {
+      // A check that could not be made leaves nothing fresh.
+      _checkedAtMs = result is ScannerCheckFailed ? null : startedAt;
+    }
     return result;
   }
 }

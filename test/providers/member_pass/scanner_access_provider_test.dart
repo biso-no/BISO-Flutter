@@ -3,6 +3,7 @@ import 'package:biso/data/services/member_pass_api_client.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -117,5 +118,108 @@ void main() {
       c.read(scannerAccessProvider).valueOrNull,
       const ScannerGranted(access),
     );
+  });
+
+  group('a grant survives a check that could not be made', () {
+    void failWith(int? status) =>
+        api.onFetchScannerAccess = () =>
+            throw MemberPassApiException('x', statusCode: status);
+
+    test('a stale grant stays when the re-check fails', () async {
+      api.onFetchScannerAccess = () => access;
+      final c = container();
+      await c.read(scannerAccessProvider.future);
+
+      for (final status in [null, 500, 502]) {
+        failWith(status);
+        await c.read(scannerAccessProvider.notifier).ensureFresh(force: true);
+        expect(
+          c.read(scannerAccessProvider),
+          const AsyncData<ScannerAccessState>(ScannerGranted(access)),
+          reason: '$status',
+        );
+      }
+    });
+
+    test('the kept grant is not treated as fresh', () async {
+      api.onFetchScannerAccess = () => access;
+      final c = container();
+      await c.read(scannerAccessProvider.future);
+
+      now += const Duration(minutes: 6).inMilliseconds;
+      failWith(null);
+      await c.read(scannerAccessProvider.notifier).ensureFresh();
+      expect(api.scannerAccessCalls, 2);
+
+      // Straight away, without waiting for the five minutes again.
+      await c.read(scannerAccessProvider.notifier).ensureFresh();
+      expect(api.scannerAccessCalls, 3);
+      expect(
+        c.read(scannerAccessProvider).valueOrNull,
+        const ScannerGranted(access),
+      );
+
+      // A definitive answer still replaces it.
+      failWith(403);
+      await c.read(scannerAccessProvider.notifier).ensureFresh();
+      expect(c.read(scannerAccessProvider).valueOrNull, const ScannerDenied());
+    });
+
+    test('a resume after five minutes on a bad network keeps the grant, '
+        'and a later answer updates it', () async {
+      final binding = TestWidgetsFlutterBinding.instance;
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      addTearDown(
+        () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+      );
+      Future<void> backgroundAndResume() async {
+        for (final state in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.hidden,
+          AppLifecycleState.paused,
+          AppLifecycleState.hidden,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ]) {
+          binding.handleAppLifecycleStateChanged(state);
+        }
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      api.onFetchScannerAccess = () => access;
+      final c = container();
+      final sub = c.listen(scannerAccessProvider, (_, _) {});
+      addTearDown(sub.close);
+      await c.read(scannerAccessProvider.future);
+
+      now += const Duration(minutes: 6).inMilliseconds;
+      failWith(null);
+      await backgroundAndResume();
+      expect(api.scannerAccessCalls, 2);
+      expect(
+        c.read(scannerAccessProvider),
+        const AsyncData<ScannerAccessState>(ScannerGranted(access)),
+      );
+
+      const other = ScannerAccess(campusId: '2', dayColor: testDayColor);
+      api.onFetchScannerAccess = () => other;
+      await backgroundAndResume();
+      expect(api.scannerAccessCalls, 3);
+      expect(
+        c.read(scannerAccessProvider).valueOrNull,
+        const ScannerGranted(other),
+      );
+
+      now += const Duration(minutes: 6).inMilliseconds;
+      failWith(401);
+      await backgroundAndResume();
+      expect(api.scannerAccessCalls, 4);
+      expect(
+        c.read(scannerAccessProvider).valueOrNull,
+        const ScannerSignedOut(),
+      );
+    });
   });
 }
