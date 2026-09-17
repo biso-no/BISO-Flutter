@@ -34,10 +34,14 @@ class PassCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final text = Theme.of(context).textTheme;
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final term = holder.term?.label(
-      spring: l10n.memberPassSeasonSpring,
-      fall: l10n.memberPassSeasonFall,
-    );
+    // Web: a null term falls back to the raw membership name in the term
+    // position, which is then not repeated in the details block below.
+    final term =
+        holder.term?.label(
+          spring: l10n.memberPassSeasonSpring,
+          fall: l10n.memberPassSeasonFall,
+        ) ??
+        holder.membershipName;
     final expiry = holder.expiryDate;
     final seconds = (view.msUntilNextSlot / 1000).ceil();
 
@@ -71,7 +75,7 @@ class PassCard extends StatelessWidget {
                                 letterSpacing: 2,
                               ),
                             ),
-                            if (term != null)
+                            if (term.isNotEmpty)
                               Text(
                                 term,
                                 style: text.titleMedium?.copyWith(
@@ -138,12 +142,15 @@ class PassCard extends StatelessWidget {
                           color: PassColors.cardInk,
                         ),
                       ),
-                      Text(
-                        holder.membershipName,
-                        style: text.bodyMedium?.copyWith(
-                          color: PassColors.cardMuted,
+                      // A null term already shows the membership name above,
+                      // in the term position — do not repeat it here.
+                      if (holder.term != null)
+                        Text(
+                          holder.membershipName,
+                          style: text.bodyMedium?.copyWith(
+                            color: PassColors.cardMuted,
+                          ),
                         ),
-                      ),
                       if (expiry != null)
                         Text(
                           l10n.memberPassValidUntil(

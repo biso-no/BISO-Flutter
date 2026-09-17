@@ -13,8 +13,14 @@ import '../../../helpers/fake_member_pass_api.dart';
 void main() {
   final t0 = DateTime.utc(2026, 9, 17, 10).millisecondsSinceEpoch;
 
-  MemberPassView viewAt(int now, {bool offline = false, bool withCode = true}) {
-    final session = MemberPassSession()..apply(activePassAt(t0), t0);
+  MemberPassView viewAt(
+    int now, {
+    bool offline = false,
+    bool withCode = true,
+    PassTerm? term = testTerm,
+  }) {
+    final session = MemberPassSession()
+      ..apply(activePassAt(t0, term: term), t0);
     if (offline) session.applyNetworkFailure(t0);
     final view = session.view(now);
     return withCode
@@ -75,6 +81,23 @@ void main() {
     expect(find.text('Høst 2026'), findsOneWidget);
     expect(find.text('BLÅGRØNN'), findsOneWidget);
   });
+
+  testWidgets(
+    'a null term shows the membership name in the term position, exactly '
+    'once',
+    (tester) async {
+      await pump(tester, PassCard(view: viewAt(t0, term: null)));
+      expect(find.text('Semester'), findsOneWidget);
+      final style = tester.widget<Text>(find.text('Semester')).style;
+      final textTheme = Theme.of(
+        tester.element(find.text('Semester')),
+      ).textTheme;
+      // The term position uses titleMedium; the lower details block (which
+      // this must not repeat into) uses bodyMedium.
+      expect(style?.fontSize, textTheme.titleMedium?.fontSize);
+      expect(style?.fontSize, isNot(textTheme.bodyMedium?.fontSize));
+    },
+  );
 
   testWidgets('shows the offline chip', (tester) async {
     await pump(tester, PassCard(view: viewAt(t0, offline: true)));
