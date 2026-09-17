@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/services/member_pass_api_client.dart';
+import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 
 const testDayColor = DayColor(name: 'teal', hex: '#12A594');
 
@@ -95,3 +96,27 @@ class FakeMemberPassApi implements MemberPassApi {
     return onScan(code);
   }
 }
+
+/// A scanner access answer that never touches the network. A null value
+/// stays loading forever.
+class FixedScannerAccess extends ScannerAccessNotifier {
+  FixedScannerAccess(this.value);
+
+  final ScannerAccessState? value;
+  int freshCalls = 0;
+  int builds = 0;
+
+  @override
+  Future<ScannerAccessState> build() {
+    builds++;
+    final value = this.value;
+    return value == null
+        ? Completer<ScannerAccessState>().future
+        : Future.value(value);
+  }
+
+  @override
+  Future<void> ensureFresh({bool force = false}) async => freshCalls++;
+}
+
+const grantedAccess = ScannerGranted(ScannerAccess(dayColor: testDayColor));
