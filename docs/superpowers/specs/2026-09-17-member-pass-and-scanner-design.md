@@ -303,12 +303,12 @@ It mirrors the web `scan-repeat.ts`.
 | `denied` + `expired` | red | "Membership has ended" |
 | `denied` + `notMember` | red | "Not a member" |
 | `denied` + `notLinked` | red | "No linked student account" |
-
-The server includes `name` on `not_linked` / `not_member` / `expired` denials, and `mapScanOutcome`
-passes it through, so the overlay shows who was scanned even when the scan was refused.
 | `unavailable`, a network error or 5xx, or a 503 | grey | "Couldn't check — try again" |
 | 400 `invalid_body` (should not happen, given the local length check) | red | "Not a BISO pass" |
 | 429 | grey | "Too many scans — wait a moment" |
+
+The server includes `name` on `not_linked` / `not_member` / `expired` denials, and `mapScanOutcome`
+passes it through, so the overlay shows who was scanned even when the scan was refused.
 
 - **Haptics:**
   - `valid`: `HapticFeedback.mediumImpact`

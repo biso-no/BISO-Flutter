@@ -169,6 +169,12 @@ void main() {
       expect(api.scanned, isEmpty);
       expect(c.read(scannerControllerProvider), const ScannerIdle());
       expect(haptics, isEmpty);
+
+      // The gate was never touched by the whitespace-only read, so a real
+      // code right after is still admitted and sent.
+      controller(c).onDetected(alice);
+      async.flushMicrotasks();
+      expect(api.scanned, [alice]);
     });
   });
 

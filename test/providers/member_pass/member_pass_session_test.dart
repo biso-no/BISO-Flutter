@@ -98,21 +98,36 @@ void main() {
 
   test('a network failure keeps a pass with no current code but future codes, '
       'offline and still active', () {
-    // count: 2 means only 2 codes remain at t0, still usable past the
-    // current slot until they run out.
-    final session = activeSession(localNow: t0, serverNow: t0, count: 2);
-    session.applyNetworkFailure(t0 + 1 * passSlotMs);
+    // firstSlotOffset: 1 means both codes are for slots after the current
+    // one, so current(t0) is null but hasUsableCode(t0) is true — the case
+    // "usable" must mean "a code at or after now", not "a code for now".
+    final session = MemberPassSession()
+      ..apply(activePassAt(t0, count: 2, firstSlotOffset: 1), t0);
+    expect(session.current(t0), isNull);
+    expect(session.hasUsableCode(t0), isTrue);
+
+    session.applyNetworkFailure(t0);
+
     expect(session.status, PassStatus.active);
     expect(session.offline, isTrue);
-    expect(session.hasUsableCode(t0 + 1 * passSlotMs), isTrue);
-    expect(
-      session.shouldRetry(
-        t0 + 1 * passSlotMs + 16000,
-        lastAttemptMs: t0 + 1 * passSlotMs,
-        inFlight: false,
-      ),
-      isTrue,
-    );
+    expect(session.hasUsableCode(t0), isTrue);
+    expect(session.view(t0).code, isNull);
+    expect(session.view(t0).pass, isNotNull);
+  });
+
+  test('a server failure keeps a pass with no current code but future codes, '
+      'without setting offline', () {
+    final session = MemberPassSession()
+      ..apply(activePassAt(t0, count: 2, firstSlotOffset: 1), t0);
+    expect(session.current(t0), isNull);
+    expect(session.hasUsableCode(t0), isTrue);
+
+    session.applyServerFailure(t0);
+
+    expect(session.status, PassStatus.active);
+    expect(session.offline, isFalse);
+    expect(session.view(t0).code, isNull);
+    expect(session.view(t0).pass, isNotNull);
   });
 
   test('a network failure with no usable code asks to reconnect', () {
