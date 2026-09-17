@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../../data/models/entur_models.dart';
 import '../../data/services/entur_service.dart';
 import '../campus/campus_provider.dart';
@@ -13,7 +14,17 @@ final enturServiceProvider = Provider<EnturService>((ref) {
 final stopPlacesForCampusProvider = FutureProvider<List<StopPlaceModel>>((ref) async {
   final campus = ref.watch(filterCampusProvider);
   final entur = ref.watch(enturServiceProvider);
-  return entur.getStopPlacesForCampus(campus.id);
+  try {
+    return await entur.getStopPlacesForCampus(campus.id);
+  } catch (e, stackTrace) {
+    AppLogger.error(
+      'Failed to load stop places',
+      error: e,
+      stackTrace: stackTrace,
+      extra: {'campus_id': campus.id},
+    );
+    rethrow;
+  }
 });
 
 class EnturUiState {
