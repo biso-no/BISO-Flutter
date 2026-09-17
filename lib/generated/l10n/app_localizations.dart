@@ -3986,6 +3986,408 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Change photo'**
   String get changePhotoMessage;
+
+  /// Member pass / scanner: memberPassTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Member pass'**
+  String get memberPassTitle;
+
+  /// Member pass / scanner: memberPassRowSubtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Show your pass at events'**
+  String get memberPassRowSubtitle;
+
+  /// Member pass / scanner: memberPassShowAction
+  ///
+  /// In en, this message translates to:
+  /// **'Show member pass'**
+  String get memberPassShowAction;
+
+  /// Member pass / scanner: memberPassMemberLabel
+  ///
+  /// In en, this message translates to:
+  /// **'MEMBER'**
+  String get memberPassMemberLabel;
+
+  /// Member pass / scanner: memberPassSeasonSpring
+  ///
+  /// In en, this message translates to:
+  /// **'Spring'**
+  String get memberPassSeasonSpring;
+
+  /// Member pass / scanner: memberPassSeasonFall
+  ///
+  /// In en, this message translates to:
+  /// **'Fall'**
+  String get memberPassSeasonFall;
+
+  /// Member pass / scanner: memberPassValidUntil
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until {date}'**
+  String memberPassValidUntil(String date);
+
+  /// Member pass / scanner: memberPassOffline
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get memberPassOffline;
+
+  /// Member pass / scanner: memberPassUpdating
+  ///
+  /// In en, this message translates to:
+  /// **'Updating…'**
+  String get memberPassUpdating;
+
+  /// Member pass / scanner: memberPassTapToPresent
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to show full screen'**
+  String get memberPassTapToPresent;
+
+  /// Member pass / scanner: memberPassNextCodeIn
+  ///
+  /// In en, this message translates to:
+  /// **'New code in {seconds}s'**
+  String memberPassNextCodeIn(int seconds);
+
+  /// Member pass / scanner: memberPassLinkTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Link your BI student account'**
+  String get memberPassLinkTitle;
+
+  /// Member pass / scanner: memberPassLinkMessage
+  ///
+  /// In en, this message translates to:
+  /// **'Your pass needs a linked BI account. You link it once, on biso.no.'**
+  String get memberPassLinkMessage;
+
+  /// Member pass / scanner: memberPassLinkAction
+  ///
+  /// In en, this message translates to:
+  /// **'Link on biso.no'**
+  String get memberPassLinkAction;
+
+  /// Member pass / scanner: memberPassLinkFailed
+  ///
+  /// In en, this message translates to:
+  /// **'We could not open biso.no. Please try again.'**
+  String get memberPassLinkFailed;
+
+  /// Member pass / scanner: memberPassNotMemberTitle
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re not a member'**
+  String get memberPassNotMemberTitle;
+
+  /// Member pass / scanner: memberPassExpiredTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership has ended'**
+  String get memberPassExpiredTitle;
+
+  /// Member pass / scanner: memberPassNotMemberMessage
+  ///
+  /// In en, this message translates to:
+  /// **'Become a member to get your pass.'**
+  String get memberPassNotMemberMessage;
+
+  /// Member pass / scanner: memberPassBecomeMember
+  ///
+  /// In en, this message translates to:
+  /// **'Become a member'**
+  String get memberPassBecomeMember;
+
+  /// Member pass / scanner: memberPassUnavailableTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load your pass'**
+  String get memberPassUnavailableTitle;
+
+  /// Member pass / scanner: memberPassUnavailableMessage
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t check your membership right now.'**
+  String get memberPassUnavailableMessage;
+
+  /// Member pass / scanner: memberPassReconnectTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect to show your pass'**
+  String get memberPassReconnectTitle;
+
+  /// Member pass / scanner: memberPassReconnectMessage
+  ///
+  /// In en, this message translates to:
+  /// **'Your pass needs a connection to get new codes.'**
+  String get memberPassReconnectMessage;
+
+  /// Member pass / scanner: memberPassSignedOutTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to see your pass'**
+  String get memberPassSignedOutTitle;
+
+  /// Member pass / scanner: memberPassSignIn
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get memberPassSignIn;
+
+  /// Member pass / scanner: walletAddAppleLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Apple Wallet'**
+  String get walletAddAppleLabel;
+
+  /// Member pass / scanner: walletAddGoogleLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Google Wallet'**
+  String get walletAddGoogleLabel;
+
+  /// Member pass / scanner: walletAdded
+  ///
+  /// In en, this message translates to:
+  /// **'Added to Wallet'**
+  String get walletAdded;
+
+  /// Member pass / scanner: walletErrorNotMember
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership isn\'t active.'**
+  String get walletErrorNotMember;
+
+  /// Member pass / scanner: walletErrorNotConfigured
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet isn\'t available yet.'**
+  String get walletErrorNotConfigured;
+
+  /// Member pass / scanner: walletErrorFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reach Wallet — try again.'**
+  String get walletErrorFailed;
+
+  /// Member pass / scanner: walletErrorInvalid
+  ///
+  /// In en, this message translates to:
+  /// **'The pass couldn\'t be read.'**
+  String get walletErrorInvalid;
+
+  /// Member pass / scanner: dayColorRed
+  ///
+  /// In en, this message translates to:
+  /// **'Red'**
+  String get dayColorRed;
+
+  /// Member pass / scanner: dayColorOrange
+  ///
+  /// In en, this message translates to:
+  /// **'Orange'**
+  String get dayColorOrange;
+
+  /// Member pass / scanner: dayColorYellow
+  ///
+  /// In en, this message translates to:
+  /// **'Yellow'**
+  String get dayColorYellow;
+
+  /// Member pass / scanner: dayColorLime
+  ///
+  /// In en, this message translates to:
+  /// **'Lime'**
+  String get dayColorLime;
+
+  /// Member pass / scanner: dayColorGreen
+  ///
+  /// In en, this message translates to:
+  /// **'Green'**
+  String get dayColorGreen;
+
+  /// Member pass / scanner: dayColorTeal
+  ///
+  /// In en, this message translates to:
+  /// **'Teal'**
+  String get dayColorTeal;
+
+  /// Member pass / scanner: dayColorCyan
+  ///
+  /// In en, this message translates to:
+  /// **'Cyan'**
+  String get dayColorCyan;
+
+  /// Member pass / scanner: dayColorBlue
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get dayColorBlue;
+
+  /// Member pass / scanner: dayColorIndigo
+  ///
+  /// In en, this message translates to:
+  /// **'Indigo'**
+  String get dayColorIndigo;
+
+  /// Member pass / scanner: dayColorPurple
+  ///
+  /// In en, this message translates to:
+  /// **'Purple'**
+  String get dayColorPurple;
+
+  /// Member pass / scanner: dayColorPink
+  ///
+  /// In en, this message translates to:
+  /// **'Pink'**
+  String get dayColorPink;
+
+  /// Member pass / scanner: dayColorBrown
+  ///
+  /// In en, this message translates to:
+  /// **'Brown'**
+  String get dayColorBrown;
+
+  /// Member pass / scanner: scannerTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Scan memberships'**
+  String get scannerTitle;
+
+  /// Member pass / scanner: scannerSubtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Check member passes at the door'**
+  String get scannerSubtitle;
+
+  /// Member pass / scanner: scannerAccessUntil
+  ///
+  /// In en, this message translates to:
+  /// **'Access until {dateTime}'**
+  String scannerAccessUntil(String dateTime);
+
+  /// Member pass / scanner: scannerPointCamera
+  ///
+  /// In en, this message translates to:
+  /// **'Point the camera at a member pass'**
+  String get scannerPointCamera;
+
+  /// Member pass / scanner: scannerChecking
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get scannerChecking;
+
+  /// Member pass / scanner: scannerTapToContinue
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to continue'**
+  String get scannerTapToContinue;
+
+  /// Member pass / scanner: scannerValid
+  ///
+  /// In en, this message translates to:
+  /// **'Valid member'**
+  String get scannerValid;
+
+  /// Member pass / scanner: scannerDuplicateSeconds
+  ///
+  /// In en, this message translates to:
+  /// **'Already scanned {seconds}s ago'**
+  String scannerDuplicateSeconds(int seconds);
+
+  /// Member pass / scanner: scannerDuplicateMinutes
+  ///
+  /// In en, this message translates to:
+  /// **'Already scanned {minutes} min ago'**
+  String scannerDuplicateMinutes(int minutes);
+
+  /// Member pass / scanner: scannerCheckId
+  ///
+  /// In en, this message translates to:
+  /// **'Wallet pass — check ID'**
+  String get scannerCheckId;
+
+  /// Member pass / scanner: scannerBadCode
+  ///
+  /// In en, this message translates to:
+  /// **'Not a BISO pass'**
+  String get scannerBadCode;
+
+  /// Member pass / scanner: scannerStale
+  ///
+  /// In en, this message translates to:
+  /// **'Old code — ask them to reopen the pass'**
+  String get scannerStale;
+
+  /// Member pass / scanner: scannerExpired
+  ///
+  /// In en, this message translates to:
+  /// **'Membership has ended'**
+  String get scannerExpired;
+
+  /// Member pass / scanner: scannerNotMember
+  ///
+  /// In en, this message translates to:
+  /// **'Not a member'**
+  String get scannerNotMember;
+
+  /// Member pass / scanner: scannerNotLinked
+  ///
+  /// In en, this message translates to:
+  /// **'No linked student account'**
+  String get scannerNotLinked;
+
+  /// Member pass / scanner: scannerNotValid
+  ///
+  /// In en, this message translates to:
+  /// **'Not valid'**
+  String get scannerNotValid;
+
+  /// Member pass / scanner: scannerUnavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check — try again'**
+  String get scannerUnavailable;
+
+  /// Member pass / scanner: scannerRateLimited
+  ///
+  /// In en, this message translates to:
+  /// **'Too many scans — wait a moment'**
+  String get scannerRateLimited;
+
+  /// Member pass / scanner: scannerNoAccess
+  ///
+  /// In en, this message translates to:
+  /// **'You don\'t have scanning access. Ask BISO staff for an invitation.'**
+  String get scannerNoAccess;
+
+  /// Member pass / scanner: scannerSignedOut
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve been signed out — sign in again'**
+  String get scannerSignedOut;
+
+  /// Member pass / scanner: scannerNotConfigured
+  ///
+  /// In en, this message translates to:
+  /// **'Scanning isn\'t available right now.'**
+  String get scannerNotConfigured;
+
+  /// Member pass / scanner: scannerCheckFailed
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check your access'**
+  String get scannerCheckFailed;
+
+  /// Member pass / scanner: scannerCameraError
+  ///
+  /// In en, this message translates to:
+  /// **'The camera couldn\'t start. Check camera access in Settings.'**
+  String get scannerCameraError;
 }
 
 class _AppLocalizationsDelegate

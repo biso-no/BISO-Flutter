@@ -2151,4 +2151,221 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get changePhotoMessage => 'Change photo';
+
+  @override
+  String get memberPassTitle => 'Member pass';
+
+  @override
+  String get memberPassRowSubtitle => 'Show your pass at events';
+
+  @override
+  String get memberPassShowAction => 'Show member pass';
+
+  @override
+  String get memberPassMemberLabel => 'MEMBER';
+
+  @override
+  String get memberPassSeasonSpring => 'Spring';
+
+  @override
+  String get memberPassSeasonFall => 'Fall';
+
+  @override
+  String memberPassValidUntil(String date) {
+    return 'Valid until $date';
+  }
+
+  @override
+  String get memberPassOffline => 'Offline';
+
+  @override
+  String get memberPassUpdating => 'Updating…';
+
+  @override
+  String get memberPassTapToPresent => 'Tap to show full screen';
+
+  @override
+  String memberPassNextCodeIn(int seconds) {
+    return 'New code in ${seconds}s';
+  }
+
+  @override
+  String get memberPassLinkTitle => 'Link your BI student account';
+
+  @override
+  String get memberPassLinkMessage =>
+      'Your pass needs a linked BI account. You link it once, on biso.no.';
+
+  @override
+  String get memberPassLinkAction => 'Link on biso.no';
+
+  @override
+  String get memberPassLinkFailed =>
+      'We could not open biso.no. Please try again.';
+
+  @override
+  String get memberPassNotMemberTitle => 'You\'re not a member';
+
+  @override
+  String get memberPassExpiredTitle => 'Your membership has ended';
+
+  @override
+  String get memberPassNotMemberMessage => 'Become a member to get your pass.';
+
+  @override
+  String get memberPassBecomeMember => 'Become a member';
+
+  @override
+  String get memberPassUnavailableTitle => 'Couldn\'t load your pass';
+
+  @override
+  String get memberPassUnavailableMessage =>
+      'We couldn\'t check your membership right now.';
+
+  @override
+  String get memberPassReconnectTitle => 'Reconnect to show your pass';
+
+  @override
+  String get memberPassReconnectMessage =>
+      'Your pass needs a connection to get new codes.';
+
+  @override
+  String get memberPassSignedOutTitle => 'Sign in to see your pass';
+
+  @override
+  String get memberPassSignIn => 'Sign in';
+
+  @override
+  String get walletAddAppleLabel => 'Add to Apple Wallet';
+
+  @override
+  String get walletAddGoogleLabel => 'Add to Google Wallet';
+
+  @override
+  String get walletAdded => 'Added to Wallet';
+
+  @override
+  String get walletErrorNotMember => 'Your membership isn\'t active.';
+
+  @override
+  String get walletErrorNotConfigured => 'Wallet isn\'t available yet.';
+
+  @override
+  String get walletErrorFailed => 'Couldn\'t reach Wallet — try again.';
+
+  @override
+  String get walletErrorInvalid => 'The pass couldn\'t be read.';
+
+  @override
+  String get dayColorRed => 'Red';
+
+  @override
+  String get dayColorOrange => 'Orange';
+
+  @override
+  String get dayColorYellow => 'Yellow';
+
+  @override
+  String get dayColorLime => 'Lime';
+
+  @override
+  String get dayColorGreen => 'Green';
+
+  @override
+  String get dayColorTeal => 'Teal';
+
+  @override
+  String get dayColorCyan => 'Cyan';
+
+  @override
+  String get dayColorBlue => 'Blue';
+
+  @override
+  String get dayColorIndigo => 'Indigo';
+
+  @override
+  String get dayColorPurple => 'Purple';
+
+  @override
+  String get dayColorPink => 'Pink';
+
+  @override
+  String get dayColorBrown => 'Brown';
+
+  @override
+  String get scannerTitle => 'Scan memberships';
+
+  @override
+  String get scannerSubtitle => 'Check member passes at the door';
+
+  @override
+  String scannerAccessUntil(String dateTime) {
+    return 'Access until $dateTime';
+  }
+
+  @override
+  String get scannerPointCamera => 'Point the camera at a member pass';
+
+  @override
+  String get scannerChecking => 'Checking…';
+
+  @override
+  String get scannerTapToContinue => 'Tap to continue';
+
+  @override
+  String get scannerValid => 'Valid member';
+
+  @override
+  String scannerDuplicateSeconds(int seconds) {
+    return 'Already scanned ${seconds}s ago';
+  }
+
+  @override
+  String scannerDuplicateMinutes(int minutes) {
+    return 'Already scanned $minutes min ago';
+  }
+
+  @override
+  String get scannerCheckId => 'Wallet pass — check ID';
+
+  @override
+  String get scannerBadCode => 'Not a BISO pass';
+
+  @override
+  String get scannerStale => 'Old code — ask them to reopen the pass';
+
+  @override
+  String get scannerExpired => 'Membership has ended';
+
+  @override
+  String get scannerNotMember => 'Not a member';
+
+  @override
+  String get scannerNotLinked => 'No linked student account';
+
+  @override
+  String get scannerNotValid => 'Not valid';
+
+  @override
+  String get scannerUnavailable => 'Couldn\'t check — try again';
+
+  @override
+  String get scannerRateLimited => 'Too many scans — wait a moment';
+
+  @override
+  String get scannerNoAccess =>
+      'You don\'t have scanning access. Ask BISO staff for an invitation.';
+
+  @override
+  String get scannerSignedOut => 'You\'ve been signed out — sign in again';
+
+  @override
+  String get scannerNotConfigured => 'Scanning isn\'t available right now.';
+
+  @override
+  String get scannerCheckFailed => 'Couldn\'t check your access';
+
+  @override
+  String get scannerCameraError =>
+      'The camera couldn\'t start. Check camera access in Settings.';
 }

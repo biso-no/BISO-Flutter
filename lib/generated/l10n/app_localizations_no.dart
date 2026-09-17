@@ -2157,4 +2157,223 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get changePhotoMessage => 'Bytt bilde';
+
+  @override
+  String get memberPassTitle => 'Medlemskort';
+
+  @override
+  String get memberPassRowSubtitle => 'Vis kortet ditt på arrangementer';
+
+  @override
+  String get memberPassShowAction => 'Vis medlemskort';
+
+  @override
+  String get memberPassMemberLabel => 'MEDLEM';
+
+  @override
+  String get memberPassSeasonSpring => 'Vår';
+
+  @override
+  String get memberPassSeasonFall => 'Høst';
+
+  @override
+  String memberPassValidUntil(String date) {
+    return 'Gyldig til $date';
+  }
+
+  @override
+  String get memberPassOffline => 'Frakoblet';
+
+  @override
+  String get memberPassUpdating => 'Oppdaterer …';
+
+  @override
+  String get memberPassTapToPresent => 'Trykk for å vise i fullskjerm';
+
+  @override
+  String memberPassNextCodeIn(int seconds) {
+    return 'Ny kode om $seconds s';
+  }
+
+  @override
+  String get memberPassLinkTitle => 'Koble til BI-studentkontoen din';
+
+  @override
+  String get memberPassLinkMessage =>
+      'Medlemskortet krever en tilkoblet BI-konto. Du kobler den til én gang, på biso.no.';
+
+  @override
+  String get memberPassLinkAction => 'Koble til på biso.no';
+
+  @override
+  String get memberPassLinkFailed => 'Vi kunne ikke åpne biso.no. Prøv igjen.';
+
+  @override
+  String get memberPassNotMemberTitle => 'Du er ikke medlem';
+
+  @override
+  String get memberPassExpiredTitle => 'Medlemskapet ditt er utløpt';
+
+  @override
+  String get memberPassNotMemberMessage => 'Bli medlem for å få medlemskortet.';
+
+  @override
+  String get memberPassBecomeMember => 'Bli medlem';
+
+  @override
+  String get memberPassUnavailableTitle => 'Kunne ikke laste medlemskortet';
+
+  @override
+  String get memberPassUnavailableMessage =>
+      'Vi kunne ikke sjekke medlemskapet ditt akkurat nå.';
+
+  @override
+  String get memberPassReconnectTitle =>
+      'Koble til internett for å vise kortet';
+
+  @override
+  String get memberPassReconnectMessage =>
+      'Kortet trenger nett for å hente nye koder.';
+
+  @override
+  String get memberPassSignedOutTitle => 'Logg inn for å se medlemskortet';
+
+  @override
+  String get memberPassSignIn => 'Logg inn';
+
+  @override
+  String get walletAddAppleLabel => 'Legg til i Apple Lommebok';
+
+  @override
+  String get walletAddGoogleLabel => 'Legg til i Google Wallet';
+
+  @override
+  String get walletAdded => 'Lagt til i Lommebok';
+
+  @override
+  String get walletErrorNotMember => 'Medlemskapet ditt er ikke aktivt.';
+
+  @override
+  String get walletErrorNotConfigured => 'Lommebok er ikke tilgjengelig ennå.';
+
+  @override
+  String get walletErrorFailed =>
+      'Fikk ikke kontakt med Lommebok – prøv igjen.';
+
+  @override
+  String get walletErrorInvalid => 'Kortet kunne ikke leses.';
+
+  @override
+  String get dayColorRed => 'Rød';
+
+  @override
+  String get dayColorOrange => 'Oransje';
+
+  @override
+  String get dayColorYellow => 'Gul';
+
+  @override
+  String get dayColorLime => 'Lime';
+
+  @override
+  String get dayColorGreen => 'Grønn';
+
+  @override
+  String get dayColorTeal => 'Blågrønn';
+
+  @override
+  String get dayColorCyan => 'Cyan';
+
+  @override
+  String get dayColorBlue => 'Blå';
+
+  @override
+  String get dayColorIndigo => 'Indigo';
+
+  @override
+  String get dayColorPurple => 'Lilla';
+
+  @override
+  String get dayColorPink => 'Rosa';
+
+  @override
+  String get dayColorBrown => 'Brun';
+
+  @override
+  String get scannerTitle => 'Skann medlemskap';
+
+  @override
+  String get scannerSubtitle => 'Sjekk medlemskort i døra';
+
+  @override
+  String scannerAccessUntil(String dateTime) {
+    return 'Tilgang til $dateTime';
+  }
+
+  @override
+  String get scannerPointCamera => 'Rett kameraet mot et medlemskort';
+
+  @override
+  String get scannerChecking => 'Sjekker …';
+
+  @override
+  String get scannerTapToContinue => 'Trykk for å fortsette';
+
+  @override
+  String get scannerValid => 'Gyldig medlem';
+
+  @override
+  String scannerDuplicateSeconds(int seconds) {
+    return 'Allerede skannet for $seconds s siden';
+  }
+
+  @override
+  String scannerDuplicateMinutes(int minutes) {
+    return 'Allerede skannet for $minutes min siden';
+  }
+
+  @override
+  String get scannerCheckId => 'Lommebokkort – sjekk legitimasjon';
+
+  @override
+  String get scannerBadCode => 'Ikke et BISO-kort';
+
+  @override
+  String get scannerStale => 'Gammel kode – be dem åpne kortet på nytt';
+
+  @override
+  String get scannerExpired => 'Medlemskapet er utløpt';
+
+  @override
+  String get scannerNotMember => 'Ikke medlem';
+
+  @override
+  String get scannerNotLinked => 'Ingen tilkoblet studentkonto';
+
+  @override
+  String get scannerNotValid => 'Ikke gyldig';
+
+  @override
+  String get scannerUnavailable => 'Kunne ikke sjekke – prøv igjen';
+
+  @override
+  String get scannerRateLimited => 'For mange skanninger – vent litt';
+
+  @override
+  String get scannerNoAccess =>
+      'Du har ikke tilgang til å skanne. Be BISO om en invitasjon.';
+
+  @override
+  String get scannerSignedOut => 'Du er logget ut – logg inn igjen';
+
+  @override
+  String get scannerNotConfigured =>
+      'Skanning er ikke tilgjengelig akkurat nå.';
+
+  @override
+  String get scannerCheckFailed => 'Kunne ikke sjekke tilgangen din';
+
+  @override
+  String get scannerCameraError =>
+      'Kameraet kunne ikke starte. Sjekk kameratilgang i Innstillinger.';
 }
