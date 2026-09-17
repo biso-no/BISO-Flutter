@@ -20,7 +20,9 @@ class WalletChannel {
   }
 
   /// Presents Apple's add-pass sheet. Throws a [PlatformException] with code
-  /// `invalid_pass` when PassKit cannot read [bytes].
+  /// `invalid_pass` when PassKit cannot read [bytes], `cannot_add` when this
+  /// device cannot add passes, `no_presenter` when the sheet could not be
+  /// shown, and `busy` while another sheet is on screen.
   Future<WalletAddResult> addPass(Uint8List bytes) async {
     final result = await _channel.invokeMethod<String>('addPass', {
       'pass': bytes,

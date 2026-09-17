@@ -12,6 +12,10 @@ import UIKit
   private var walletChannel: FlutterMethodChannel?
   private var pendingWalletResult: FlutterResult?
   private var pendingWalletPass: PKPass?
+  /// The add sheet the pending result belongs to. Weak: a sheet UIKit never
+  /// presented is released, which marks the pending result as stale.
+  private weak var pendingWalletSheet: PKAddPassesViewController?
+  private var walletRequest = 0
 
   override func application(
     _ application: UIApplication,
@@ -107,17 +111,25 @@ extension AppDelegate: PKAddPassesViewControllerDelegate {
     case "canAddPasses":
       result(PKAddPassesViewController.canAddPasses())
     case "addPass":
-      guard pendingWalletResult == nil else {
-        result(FlutterError(code: "busy", message: nil, details: nil))
-        return
+      if pendingWalletResult != nil {
+        if let sheet = pendingWalletSheet, sheet.presentingViewController != nil {
+          result(FlutterError(code: "busy", message: nil, details: nil))
+          return
+        }
+        // The last sheet went away without its delegate call (or was never
+        // shown): settle that call so it cannot block this one forever.
+        finishWallet("cancelled")
       }
       guard
         let args = call.arguments as? [String: Any],
         let data = args["pass"] as? FlutterStandardTypedData,
-        let pass = try? PKPass(data: data.data),
-        let sheet = PKAddPassesViewController(pass: pass)
+        let pass = try? PKPass(data: data.data)
       else {
         result(FlutterError(code: "invalid_pass", message: nil, details: nil))
+        return
+      }
+      guard let sheet = PKAddPassesViewController(pass: pass) else {
+        result(FlutterError(code: "cannot_add", message: nil, details: nil))
         return
       }
       guard let presenter = topViewController() else {
@@ -125,9 +137,23 @@ extension AppDelegate: PKAddPassesViewControllerDelegate {
         return
       }
       sheet.delegate = self
+      // Swiping the sheet away would skip the delegate call.
+      sheet.isModalInPresentation = true
+      walletRequest += 1
+      let request = walletRequest
       pendingWalletResult = result
       pendingWalletPass = pass
-      presenter.present(sheet, animated: true)
+      pendingWalletSheet = sheet
+      presenter.present(sheet, animated: true) { [weak self, weak sheet] in
+        guard let self, request == self.walletRequest, self.pendingWalletResult != nil else {
+          return
+        }
+        // UIKit declines a presentation (e.g. mid-transition) without an
+        // error; the sheet is then not on screen.
+        if sheet?.presentingViewController == nil {
+          self.finishWallet(FlutterError(code: "no_presenter", message: nil, details: nil))
+        }
+      }
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -135,13 +161,22 @@ extension AppDelegate: PKAddPassesViewControllerDelegate {
 
   func addPassesViewControllerDidFinish(_ controller: PKAddPassesViewController) {
     controller.dismiss(animated: true)
+    // A sheet whose call was already settled must not answer a newer one.
+    guard controller === pendingWalletSheet else { return }
     // containsPass only sees pass types listed in the app's entitlements.
     // Without that capability this reports "cancelled" and the Add button
     // simply stays visible.
     let added = pendingWalletPass.map { PKPassLibrary().containsPass($0) } ?? false
-    pendingWalletResult?(added ? "added" : "cancelled")
+    finishWallet(added ? "added" : "cancelled")
+  }
+
+  /// Answers the pending `addPass` call, once, and clears its state.
+  private func finishWallet(_ value: Any?) {
+    let pending = pendingWalletResult
     pendingWalletResult = nil
     pendingWalletPass = nil
+    pendingWalletSheet = nil
+    pending?(value)
   }
 
   private func topViewController() -> UIViewController? {

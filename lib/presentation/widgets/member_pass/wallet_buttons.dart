@@ -116,10 +116,12 @@ class _WalletButtonsState extends ConsumerState<WalletButtons> {
         _say((l10n) => l10n.walletErrorFailed);
       }
     } on PlatformException catch (error) {
+      // cannot_add, no_presenter, busy and anything else are generic.
       _say(
-        (l10n) => error.code == 'invalid_pass'
-            ? l10n.walletErrorInvalid
-            : l10n.walletErrorFailed,
+        (l10n) => switch (error.code) {
+          'invalid_pass' => l10n.walletErrorInvalid,
+          _ => l10n.walletErrorFailed,
+        },
       );
     } finally {
       if (mounted) setState(() => _busy = false);

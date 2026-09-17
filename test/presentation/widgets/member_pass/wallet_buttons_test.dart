@@ -183,6 +183,22 @@ void main() {
     expect(find.text("The pass couldn't be read."), findsOneWidget);
   });
 
+  platformTest('other Wallet failures are generic', (tester) async {
+    for (final code in ['cannot_add', 'no_presenter', 'busy']) {
+      wallet.addError = PlatformException(code: code);
+      await pump(tester, platform: TargetPlatform.iOS);
+      await tester.tap(find.byType(SvgPicture), warnIfMissed: false);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.text("Couldn't reach Wallet — try again."),
+        findsOneWidget,
+        reason: code,
+      );
+      expect(find.text("The pass couldn't be read."), findsNothing);
+    }
+  });
+
   platformTest('server refusals explain themselves', (tester) async {
     for (final (status, text) in [
       (403, "Your membership isn't active."),
