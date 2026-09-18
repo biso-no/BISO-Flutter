@@ -49,6 +49,11 @@ class CartItem extends Equatable {
   /// Per-order cap from the product metadata, when it sets one.
   final int? maxPerOrder;
 
+  /// Whether the product is sold to BISO members only. Carried on the line so
+  /// checkout can check it again: the product page checks when the line is
+  /// added, but membership can lapse while it sits in the cart.
+  final bool memberOnly;
+
   const CartItem({
     required this.lineId,
     required this.productId,
@@ -64,6 +69,7 @@ class CartItem extends Equatable {
     this.customFieldLabels = const <String, String>{},
     this.stock,
     this.maxPerOrder,
+    this.memberOnly = false,
   });
 
   /// The identity of a cart line: same product, same variation, same answers.
@@ -120,6 +126,7 @@ class CartItem extends Equatable {
       customFieldLabels: labels,
       // A variation carries its own stock; fall back to the product's.
       stock: variation?.stock ?? product.stock,
+      memberOnly: product.memberOnly,
     );
   }
 
@@ -153,6 +160,7 @@ class CartItem extends Equatable {
       customFieldLabels: customFieldLabels,
       stock: stock,
       maxPerOrder: maxPerOrder,
+      memberOnly: memberOnly,
     );
   }
 
@@ -171,6 +179,7 @@ class CartItem extends Equatable {
     'customFieldLabels': customFieldLabels,
     'stock': stock,
     'maxPerOrder': maxPerOrder,
+    'memberOnly': memberOnly,
   };
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
@@ -207,6 +216,7 @@ class CartItem extends Equatable {
       customFieldLabels: stringMap(json['customFieldLabels']),
       stock: (json['stock'] as num?)?.toInt(),
       maxPerOrder: (json['maxPerOrder'] as num?)?.toInt(),
+      memberOnly: json['memberOnly'] == true,
     );
   }
 
@@ -238,5 +248,6 @@ class CartItem extends Equatable {
     customFieldLabels,
     stock,
     maxPerOrder,
+    memberOnly,
   ];
 }

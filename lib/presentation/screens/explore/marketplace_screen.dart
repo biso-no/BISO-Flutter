@@ -945,19 +945,36 @@ class _WebshopProductCard extends StatelessWidget {
           children: [
             AspectRatio(
               aspectRatio: 1,
-              child: product.images.isNotEmpty
-                  ? Image.network(
-                      product.images.first,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _ProductImagePlaceholder(
-                        palette: palette,
-                        icon: CupertinoIcons.bag,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  product.images.isNotEmpty
+                      ? Image.network(
+                          product.images.first,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => _ProductImagePlaceholder(
+                            palette: palette,
+                            icon: CupertinoIcons.bag,
+                          ),
+                        )
+                      : _ProductImagePlaceholder(
+                          palette: palette,
+                          icon: CupertinoIcons.bag,
+                        ),
+                  // On the image, not under the price: the card's height is
+                  // measured from its text lines.
+                  if (product.memberOnly)
+                    const PositionedDirectional(
+                      top: 8,
+                      start: 8,
+                      end: 8,
+                      child: Align(
+                        alignment: AlignmentDirectional.topStart,
+                        child: BisoMembersBadge(),
                       ),
-                    )
-                  : _ProductImagePlaceholder(
-                      palette: palette,
-                      icon: CupertinoIcons.bag,
                     ),
+                ],
+              ),
             ),
             Expanded(
               child: Padding(

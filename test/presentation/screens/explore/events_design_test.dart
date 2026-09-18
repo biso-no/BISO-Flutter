@@ -3,6 +3,8 @@ import 'package:biso/data/models/event_model.dart';
 import 'package:biso/data/services/event_service.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,7 +88,101 @@ class _FixedEventService extends EventService {
   }
 }
 
+/// Signed out, so the detail sheet's personalised trip card renders nothing
+/// and nothing reaches Appwrite. Membership is overridden separately.
+class _SignedOut extends StateNotifier<AuthState> implements AuthNotifier {
+  _SignedOut() : super(const AuthState());
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+EventModel _ticketed({required bool memberOnly}) => EventModel(
+  id: 'gala',
+  title: 'Winter Gala',
+  description: 'desc',
+  startDate: DateTime.now().add(const Duration(days: 10)),
+  campusId: _campus.id,
+  price: 400,
+  memberPrice: 250,
+  pricingMode: 'paid',
+  memberOnly: memberOnly,
+  ticketUrl: 'https://tickets.example/gala',
+);
+
+Future<void> _openGala(
+  WidgetTester tester, {
+  required bool memberOnly,
+  required bool isMember,
+}) async {
+  await pumpBisoScreen(
+    tester,
+    const EventsScreen(),
+    routed: true,
+    overrides: [
+      eventServiceProvider.overrideWithValue(
+        _FixedEventService([_ticketed(memberOnly: memberOnly)]),
+      ),
+      filterCampusProvider.overrideWithValue(_campus),
+      campusInitializedProvider.overrideWithValue(true),
+      authStateProvider.overrideWith((_) => _SignedOut()),
+      hasValidMembershipProvider.overrideWithValue(isMember),
+    ],
+  );
+}
+
+ButtonStyleButton _buttonLabelled(WidgetTester tester, String label) =>
+    tester.widget<ButtonStyleButton>(
+      find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+      ),
+    );
+
 void main() {
+  group('members-only events', () {
+    testWidgets('the card marks the event and shows the member price', (
+      tester,
+    ) async {
+      await _openGala(tester, memberOnly: true, isMember: false);
+
+      expect(find.byType(BisoMembersBadge), findsOneWidget);
+      expect(find.textContaining('Members NOK 250'), findsOneWidget);
+    });
+
+    testWidgets('an open event carries no members badge', (tester) async {
+      await _openGala(tester, memberOnly: false, isMember: false);
+      expect(find.byType(BisoMembersBadge), findsNothing);
+    });
+
+    testWidgets('a non-member cannot reach the tickets', (tester) async {
+      await _openGala(tester, memberOnly: true, isMember: false);
+      await tester.tap(find.text('Winter Gala'));
+      await tester.pumpAndSettle();
+
+      expect(_buttonLabelled(tester, 'Members only').onPressed, isNull);
+      expect(find.text('Get tickets'), findsNothing);
+    });
+
+    testWidgets('a member gets the ticket button', (tester) async {
+      await _openGala(tester, memberOnly: true, isMember: true);
+      await tester.tap(find.text('Winter Gala'));
+      await tester.pumpAndSettle();
+
+      expect(_buttonLabelled(tester, 'Get tickets').onPressed, isNotNull);
+    });
+
+    testWidgets('anyone gets the ticket button for an open event', (
+      tester,
+    ) async {
+      await _openGala(tester, memberOnly: false, isMember: false);
+      await tester.tap(find.text('Winter Gala'));
+      await tester.pumpAndSettle();
+
+      expect(_buttonLabelled(tester, 'Get tickets').onPressed, isNotNull);
+    });
+  });
+
   testWidgets('Events builds on BisoPage in every appearance', (
     tester,
   ) async {

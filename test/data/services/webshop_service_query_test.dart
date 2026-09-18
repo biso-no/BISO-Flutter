@@ -21,6 +21,15 @@ void main() {
       );
     });
 
+    test('hides unlisted products, treating a missing flag as listed', () {
+      // `unlisted` is optional with a default of false, so a row can carry
+      // null. `notEqual(true)` would drop those rows too — null never
+      // compares unequal in SQL — hence equal(false) OR isNull.
+      final q = WebshopService.buildProductQueries();
+      expect(q, hasQuery('or', containing: ['unlisted', 'equal', 'false']));
+      expect(q, hasQuery('or', containing: ['unlisted', 'isNull']));
+    });
+
     test('selects translations, variations and custom fields', () {
       final q = WebshopService.buildProductQueries();
       expect(q, hasQuery('select', containing: ['translation_refs.*']));
@@ -93,6 +102,13 @@ void main() {
       expect(q, hasQuery('equal', containing: ['status', 'published']));
       expect(q, hasQuery('equal', containing: ['campus_id', '"3"']));
     });
+
+    test('does not count unlisted products', () {
+      expect(
+        WebshopService.buildProductCountQueries(),
+        hasQuery('or', containing: ['unlisted', 'isNull']),
+      );
+    });
   });
 
   group('WebshopService.buildProductByIdQueries', () {
@@ -108,6 +124,15 @@ void main() {
       final q = WebshopService.buildProductByIdQueries('product-1');
       expect(q, hasQuery('equal', containing: [r'$id', 'product-1']));
       expect(q, hasQuery('equal', containing: ['status', 'published']));
+    });
+
+    test('still reaches unlisted products, which exist to be linked to', () {
+      expect(
+        WebshopService.buildProductByIdQueries(
+          'product-1',
+        ).any((s) => s.contains('unlisted')),
+        isFalse,
+      );
     });
   });
 }

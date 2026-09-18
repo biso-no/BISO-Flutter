@@ -3,12 +3,14 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/logging/app_logger.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/services/event_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
@@ -592,6 +594,7 @@ class _EventCard extends StatelessWidget {
                         foreground: statusColor,
                         background: statusColor.withValues(alpha: 0.12),
                       ),
+                      if (event.memberOnly) const BisoMembersBadge(),
                       for (final label in _chipLabels.take(3))
                         _Chip(
                           label: label,
@@ -600,12 +603,9 @@ class _EventCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (event.price != null && event.price! > 0) ...[
+                  if (_priceLabel(event) case final price?) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      'NOK ${event.price!.toStringAsFixed(0)}',
-                      style: theme.textTheme.titleSmall,
-                    ),
+                    Text(price, style: theme.textTheme.titleSmall),
                   ],
                 ],
               ),
@@ -615,6 +615,23 @@ class _EventCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The price line for an event, or null when there is nothing to charge.
+///
+/// The member price is shown to everyone: it is what membership gets you.
+/// Tickets are sold by a third party, which is what applies it.
+String? _priceLabel(EventModel event) {
+  String nok(double amount) => 'NOK ${amount.toStringAsFixed(0)}';
+  final price = event.price != null && event.price! > 0 ? event.price : null;
+  final member = event.memberPrice;
+  if (price == null) {
+    return member != null && member > 0 ? 'Members ${nok(member)}' : null;
+  }
+  if (member != null && member < price) {
+    return '${nok(price)} · Members ${nok(member)}';
+  }
+  return nok(price);
 }
 
 class _EventImagePlaceholder extends StatelessWidget {
@@ -658,7 +675,7 @@ class _Chip extends StatelessWidget {
   );
 }
 
-class _EventDetailSheet extends StatelessWidget {
+class _EventDetailSheet extends ConsumerWidget {
   final EventModel event;
   final ScrollController scrollController;
 
@@ -688,12 +705,13 @@ class _EventDetailSheet extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
     final l10n = AppLocalizations.of(context)!;
     final lifecycle = _lifecycleOf(event);
     final statusColor = _statusColor(lifecycle, palette);
+    final price = _priceLabel(event);
 
     return ListView(
       controller: scrollController,
@@ -753,14 +771,36 @@ class _EventDetailSheet extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Status Badge
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: _Chip(
-            label: _lifecycleLabel(lifecycle, l10n),
-            foreground: statusColor,
-            background: statusColor.withValues(alpha: 0.12),
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _Chip(
+              label: _lifecycleLabel(lifecycle, l10n),
+              foreground: statusColor,
+              background: statusColor.withValues(alpha: 0.12),
+            ),
+            if (event.memberOnly) const BisoMembersBadge(),
+          ],
         ),
+
+        if (price != null) ...[
+          const SizedBox(height: 16),
+          Text(
+            price,
+            style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
+          ),
+        ],
+
+        if (_ticketUri(event) case final ticketUri?
+            when event.canRegister && !event.isCancelled) ...[
+          const SizedBox(height: 16),
+          _TicketButton(
+            ticketUri: ticketUri,
+            blockedAsNonMember:
+                event.memberOnly && !ref.watch(hasValidMembershipProvider),
+          ),
+        ],
 
         const SizedBox(height: 24),
 
@@ -793,6 +833,59 @@ class _EventDetailSheet extends StatelessWidget {
             'Organized by ${event.contactName}',
             style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
           ),
+      ],
+    );
+  }
+}
+
+/// The event's ticket page, when it has a usable one.
+Uri? _ticketUri(EventModel event) {
+  final raw = event.ticketUrl?.trim() ?? '';
+  if (raw.isEmpty) return null;
+  final uri = Uri.tryParse(raw);
+  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+  return uri;
+}
+
+/// Opens the third-party ticket page.
+///
+/// A members-only event is refused to non-members here, the same rule the
+/// shop applies. It is presentation only: the ticket seller is what actually
+/// sells the ticket, and it is where the member price is applied.
+class _TicketButton extends StatelessWidget {
+  const _TicketButton({
+    required this.ticketUri,
+    required this.blockedAsNonMember,
+  });
+
+  final Uri ticketUri;
+  final bool blockedAsNonMember;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = BisoPalette.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: blockedAsNonMember
+              ? null
+              : () => launchUrl(ticketUri, mode: LaunchMode.externalApplication),
+          icon: Icon(
+            blockedAsNonMember ? CupertinoIcons.lock : CupertinoIcons.tickets,
+          ),
+          label: Text(blockedAsNonMember ? 'Members only' : 'Get tickets'),
+        ),
+        if (blockedAsNonMember) ...[
+          const SizedBox(height: 8),
+          Text(
+            'This event is for BISO members. If you are a member, check your '
+            'membership under Profile → Membership.',
+            style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
+          ),
+        ],
       ],
     );
   }

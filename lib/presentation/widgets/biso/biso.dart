@@ -17,4 +17,5 @@ export 'biso_bottom_bar.dart';
 export 'biso_form.dart';
 export 'biso_icon_tile.dart';
 export 'biso_list.dart';
+export 'biso_members_badge.dart';
 export 'biso_states.dart';

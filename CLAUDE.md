@@ -570,9 +570,19 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **`member_only` is who a product is for, not a blanket prohibition.** The
   buyer's own verified membership (`hasValidMembershipProvider`) decides, the
   same rule the website applies when it filters those products out of the shop
-  for non-members. Note the server does **not** enforce `member_only` at
-  checkout — on either surface — so this is presentation, not a security
-  boundary.
+  for non-members. The app checks it twice — on the product page and again at
+  checkout, since `CartItem.memberOnly` travels with the line and a membership
+  can lapse while it sits in the cart. The server-side check on orders is
+  what makes it a real boundary; the app's checks are presentation.
+  Membership comes from `hasValidMembershipProvider` in
+  `lib/providers/membership/membership_overview_provider.dart` (see Membership
+  below), never from the auth state.
+- **`unlisted` products are reachable only by link.** List and count reads
+  keep rows where `unlisted` is false or null; the by-id read ignores the
+  flag, because a link is how those products are meant to be opened.
+- **Events are ticketed by a third party** through `ticket_url`. A
+  `member_only` event disables the ticket button for non-members; the member
+  price is shown, and the ticket seller is what applies it.
 - **`addProduct` reports what landed.** The stock hold is written as part of
   the add and the cart is clamped to what the server could hold — per product,
   oldest line first — so the requested configuration can be dropped while

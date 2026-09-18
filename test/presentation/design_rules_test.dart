@@ -11,6 +11,7 @@ const migratedFiles = <String>[
   'lib/presentation/widgets/biso/biso_form.dart',
   'lib/presentation/widgets/biso/biso_icon_tile.dart',
   'lib/presentation/widgets/biso/biso_list.dart',
+  'lib/presentation/widgets/biso/biso_members_badge.dart',
   'lib/presentation/widgets/biso/biso_states.dart',
   'lib/presentation/screens/home/premium_home_screen.dart',
   'lib/presentation/widgets/dynamic_hero_carousel.dart',
