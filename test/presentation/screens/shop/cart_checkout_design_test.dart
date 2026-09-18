@@ -493,8 +493,10 @@ void main() {
     List<Override> overrides({
       required List<PaymentProviderAvailability> providers,
       CheckoutQuote quote = _quote,
+      bool isMember = false,
     }) => [
       authStateProvider.overrideWith((_) => _Auth()),
+      hasValidMembershipProvider.overrideWithValue(isMember),
       cartUserIdProvider.overrideWithValue(_buyerId),
       checkoutQuoteProvider.overrideWith((ref) async => quote),
       paymentProvidersProvider.overrideWith((ref) async => providers),
@@ -523,6 +525,62 @@ void main() {
         configured: true,
       ),
     ];
+
+    const membersHoodie = WebshopProduct(
+      id: 'prod-members',
+      images: [],
+      slug: 'members-hoodie',
+      title: 'Members hoodie',
+      regularPrice: 299,
+      stock: 20,
+      memberOnly: true,
+    );
+
+    testWidgets(
+      'a non-member cannot pay for a cart holding a members-only product',
+      (tester) async {
+        _seedCart([CartItem.fromProduct(product: membersHoodie)]);
+        await pumpBisoScreen(
+          tester,
+          const CheckoutScreen(),
+          overrides: overrides(providers: oneAvailableProvider),
+        );
+        await tester.pumpAndSettle();
+
+        final scrollable = _pageScrollable(tester);
+        scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+
+        expect(
+          find.textContaining('Members hoodie is only for BISO members'),
+          findsOneWidget,
+        );
+        final pay = tester.widget<ButtonStyleButton>(
+          find.ancestor(
+            of: find.text('Members only'),
+            matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+          ),
+        );
+        expect(pay.onPressed, isNull);
+      },
+    );
+
+    testWidgets('a member can pay for a members-only product', (tester) async {
+      _seedCart([CartItem.fromProduct(product: membersHoodie)]);
+      await pumpBisoScreen(
+        tester,
+        const CheckoutScreen(),
+        overrides: overrides(providers: oneAvailableProvider, isMember: true),
+      );
+      await tester.pumpAndSettle();
+
+      final scrollable = _pageScrollable(tester);
+      scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('only for BISO members'), findsNothing);
+      expect(find.text('Pay ${formatNok(100)} with Vipps'), findsOneWidget);
+    });
 
     testWidgets('builds on BisoPage in every appearance', (tester) async {
       _seedCart(_lines(1));

@@ -438,7 +438,10 @@ class _WebshopProductDetailScreenState
     final variations = product.variations;
     final selectedVariation = _selectedVariation;
     final displayPrice = selectedVariation?.regularPrice ?? product.regularPrice;
-    final displayMemberPrice = selectedVariation?.memberPrice;
+    // A variation's own member price wins; otherwise the product's, the same
+    // fallback the cart line uses.
+    final displayMemberPrice =
+        selectedVariation?.memberPrice ?? product.memberPrice;
 
     return Form(
       key: _formKey,
@@ -619,12 +622,15 @@ class _WebshopProductDetailScreenState
             formatNok(displayPrice),
             style: theme.textTheme.headlineMedium?.copyWith(color: palette.ink),
           ),
-          // The spec calls for showing member pricing only to members, via
-          // membership_service. This shows it to everyone: product-level
-          // `member_price`/`member_only` are null on all 50 published
-          // products, and no migration in this trilogy gates on membership
-          // yet. Only variations carry a member price today, and those are
-          // draft-only.
+          if (product.memberOnly) ...[
+            const SizedBox(height: 8),
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: BisoMembersBadge(),
+            ),
+          ],
+          // Shown to everyone, members or not: it is what membership gets
+          // you. The amount actually charged comes from the checkout quote.
           if (displayMemberPrice != null) ...[
             const SizedBox(height: 4),
             Text(

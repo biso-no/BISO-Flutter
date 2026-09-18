@@ -23,14 +23,30 @@ class WebshopService {
   /// The filter clauses every webshop products read shares, list and count
   /// alike.
   ///
+  /// [listedOnly] hides `unlisted` products, which are meant to be reached
+  /// only through a link: browsing (lists and counts) passes true, while the
+  /// by-id read — what a link opens — passes false. `unlisted` is optional
+  /// with a default of false, so null is treated as listed; `notEqual(true)`
+  /// would drop those rows, since null never compares unequal in SQL.
+  ///
   /// Locale is intentionally absent: filtering `translation_refs.locale`
   /// narrows parent rows rather than the nested array, which would hide
   /// products that lack that locale. Locale is resolved client-side instead.
   static List<String> _productFilters({
     String? campusId,
     String? search,
+    bool listedOnly = true,
   }) {
     final queries = <String>[Query.equal('status', 'published')];
+
+    if (listedOnly) {
+      queries.add(
+        Query.or([
+          Query.equal('unlisted', false),
+          Query.isNull('unlisted'),
+        ]),
+      );
+    }
 
     if (campusId != null && campusId.isNotEmpty) {
       queries.add(Query.equal('campus_id', campusId));
@@ -116,11 +132,12 @@ class WebshopService {
   ///
   /// Shares [_productSelect] and [_productFilters] with [buildProductQueries]
   /// and [buildProductCountQueries]: a relation or filter added to one and
-  /// not the other would leave reads silently missing it.
+  /// not the other would leave reads silently missing it. Unlisted products
+  /// are deliberately included — a link is how they are meant to be reached.
   static List<String> buildProductByIdQueries(String id) {
     return [
       Query.equal(r'$id', id),
-      ..._productFilters(),
+      ..._productFilters(listedOnly: false),
       Query.select(_productSelect),
       Query.limit(1),
     ];

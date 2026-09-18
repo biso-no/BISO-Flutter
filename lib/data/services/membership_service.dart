@@ -22,39 +22,7 @@ class MembershipService {
       );
 
       if (execution.responseStatusCode == 200) {
-        final responseBody = execution.responseBody;
-
-        // Parse the JSON response
-        try {
-          final Map<String, dynamic> response = json.decode(responseBody);
-
-          // Check if membership was found
-          if (response.containsKey('membership')) {
-            final membershipData =
-                response['membership'] as Map<String, dynamic>;
-            final membership = MembershipModel.fromMap(membershipData);
-
-            return MembershipVerificationResult(
-              isMember: true,
-              membership: membership,
-            );
-          } else if (response.containsKey('error')) {
-            return MembershipVerificationResult(
-              isMember: false,
-              error: response['error'] as String,
-            );
-          } else {
-            return const MembershipVerificationResult(
-              isMember: false,
-              error: 'No active membership found',
-            );
-          }
-        } catch (parseError) {
-          return MembershipVerificationResult(
-            isMember: false,
-            error: 'Failed to parse membership response: $parseError',
-          );
-        }
+        return parseVerification(execution.responseBody);
       } else {
         return MembershipVerificationResult(
           isMember: false,
@@ -66,6 +34,52 @@ class MembershipService {
       return MembershipVerificationResult(
         isMember: false,
         error: 'Error verifying membership: ${e.toString()}',
+      );
+    }
+  }
+
+  /// Reads a `verify_biso_membership` response body.
+  ///
+  /// The function returns the latest `memberships` catalog row matching the
+  /// buyer's 24SevenOffice categories, and that row can be one whose period is
+  /// over. Only a membership that has not passed its `expiryDate` counts.
+  /// `status` is deliberately not consulted: on the catalog it means the
+  /// option is still offered, and a member whose option has stopped being
+  /// sold is still a member until it expires.
+  static MembershipVerificationResult parseVerification(
+    String responseBody, {
+    DateTime? now,
+  }) {
+    try {
+      final response = json.decode(responseBody) as Map<String, dynamic>;
+
+      if (response.containsKey('membership')) {
+        final membership = MembershipModel.fromMap(
+          response['membership'] as Map<String, dynamic>,
+        );
+        final expiry = membership.expiryDate;
+        final current =
+            expiry == null || expiry.isAfter(now ?? DateTime.now());
+        return MembershipVerificationResult(
+          isMember: current,
+          membership: membership,
+          error: current ? null : 'Membership expired',
+        );
+      } else if (response.containsKey('error')) {
+        return MembershipVerificationResult(
+          isMember: false,
+          error: response['error'] as String,
+        );
+      } else {
+        return const MembershipVerificationResult(
+          isMember: false,
+          error: 'No active membership found',
+        );
+      }
+    } catch (parseError) {
+      return MembershipVerificationResult(
+        isMember: false,
+        error: 'Failed to parse membership response: $parseError',
       );
     }
   }

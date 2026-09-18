@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/biso_colors.dart';
+import '../biso/biso_members_badge.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/models/job_model.dart';
@@ -121,10 +122,26 @@ class BisoWebshopCarousel extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(18),
-                    child: _FeedImage(
-                      url: product.images.firstOrNull,
-                      height: 174,
-                      fallback: CupertinoIcons.bag,
+                    child: Stack(
+                      children: [
+                        _FeedImage(
+                          url: product.images.firstOrNull,
+                          height: 174,
+                          fallback: CupertinoIcons.bag,
+                        ),
+                        // On the image: the carousel's height is measured
+                        // from its text lines.
+                        if (product.memberOnly)
+                          const PositionedDirectional(
+                            top: 8,
+                            start: 8,
+                            end: 8,
+                            child: Align(
+                              alignment: AlignmentDirectional.topStart,
+                              child: BisoMembersBadge(),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 12),

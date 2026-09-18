@@ -183,6 +183,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   ) {
     final providers = ref.watch(availablePaymentProvidersProvider);
     final available = providers.valueOrNull ?? const <PaymentProvider>[];
+    final membersOnly = _membersOnlyBlocked();
 
     return Form(
       key: _formKey,
@@ -214,6 +215,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               children: _summaryRows(quote, theme, palette),
             ),
           ),
+          if (membersOnly.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _ErrorBanner(
+                  message:
+                      '${membersOnly.join(', ')} '
+                      '${membersOnly.length == 1 ? 'is' : 'are'} only for BISO '
+                      'members. Remove '
+                      '${membersOnly.length == 1 ? 'it' : 'them'} from your '
+                      'cart, or add your student ID in your profile if you '
+                      'are a member.',
+                ),
+              ),
+            ),
           if (_error != null)
             SliverToBoxAdapter(
               child: Padding(
@@ -224,7 +240,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-              child: _buildPayButton(quote, available),
+              child: _buildPayButton(
+                quote,
+                available,
+                blockedAsNonMember: membersOnly.isNotEmpty,
+              ),
             ),
           ),
           SliverToBoxAdapter(
@@ -452,9 +472,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return available.first;
   }
 
-  Widget _buildPayButton(CheckoutQuote quote, List<PaymentProvider> available) {
+  /// The names of cart lines the buyer may not buy, because the product is
+  /// for members and the buyer is not one.
+  ///
+  /// Checked here as well as on the product page: a line can sit in the cart
+  /// while the membership that let it in lapses, and the checkout endpoint is
+  /// what the app would otherwise rely on.
+  List<String> _membersOnlyBlocked() {
+    if (ref.watch(hasValidMembershipProvider)) return const <String>[];
+    return ref
+        .watch(cartProvider.select((state) => state.items))
+        .where((line) => line.memberOnly)
+        .map((line) => line.checkoutTitle)
+        .toList(growable: false);
+  }
+
+  Widget _buildPayButton(
+    CheckoutQuote quote,
+    List<PaymentProvider> available, {
+    bool blockedAsNonMember = false,
+  }) {
     final provider = _resolveSelection(available);
-    final canPay = provider != null && !_isStarting;
+    final canPay = provider != null && !_isStarting && !blockedAsNonMember;
 
     return SizedBox(
       width: double.infinity,
@@ -470,6 +509,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         label: Text(
           _isStarting
               ? 'Starting payment…'
+              : blockedAsNonMember
+              ? 'Members only'
               : provider == null
               ? 'Payments unavailable'
               : 'Pay ${formatNok(quote.total)} with ${provider.displayName}',

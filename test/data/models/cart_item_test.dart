@@ -124,6 +124,32 @@ void main() {
     });
   });
 
+  group('CartItem.memberOnly', () {
+    test('is carried from the product, so checkout can check it again', () {
+      const product = WebshopProduct(
+        id: 'prod-m',
+        images: [],
+        title: 'Members hoodie',
+        regularPrice: 299,
+        memberOnly: true,
+      );
+      final line = CartItem.fromProduct(product: product);
+      expect(line.memberOnly, isTrue);
+      expect(CartItem.fromJson(line.toJson()).memberOnly, isTrue);
+      expect(line.copyWith(quantity: 2).memberOnly, isTrue);
+    });
+
+    test('defaults to false for a line stored before the flag existed', () {
+      final restored = CartItem.fromJson(const {
+        'productId': 'prod-1',
+        'name': 'BISO Hoodie',
+        'unitPrice': 399,
+        'quantity': 1,
+      });
+      expect(restored.memberOnly, isFalse);
+    });
+  });
+
   group('CartItem.checkoutTitle', () {
     test('folds the variation in, because the order line is named from it', () {
       final item = CartItem.fromProduct(product: _hoodie, variation: _large);

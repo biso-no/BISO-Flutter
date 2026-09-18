@@ -396,8 +396,7 @@
                 "create(\"team:sg-app-dept-operationsunit\")",
                 "read(\"team:sg-app-dept-operationsunit\")",
                 "update(\"team:sg-app-dept-operationsunit\")",
-                "delete(\"team:sg-app-dept-operationsunit\")",
-                "create(\"users\")"
+                "delete(\"team:sg-app-dept-operationsunit\")"
             ],
             "databaseId": "app",
             "name": "Users",
@@ -3617,6 +3616,15 @@
                     "array": false,
                     "default": null,
                     "format": ""
+                },
+                {
+                    "key": "vat_code",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 }
             ],
             "indexes": [
@@ -4505,6 +4513,14 @@
                     "twoWayKey": "jobs",
                     "onDelete": "setNull",
                     "side": "parent"
+                },
+                {
+                    "key": "scheduled_publish_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
                 }
             ],
             "indexes": [
@@ -4536,6 +4552,19 @@
                     ],
                     "orders": [
                         "ASC"
+                    ]
+                },
+                {
+                    "key": "idx_status_scheduled_publish",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "status",
+                        "scheduled_publish_at"
+                    ],
+                    "orders": [
+                        "asc",
+                        "asc"
                     ]
                 }
             ]
@@ -10076,6 +10105,22 @@
                     "twoWayKey": "product",
                     "onDelete": "cascade",
                     "side": "parent"
+                },
+                {
+                    "key": "sales_type",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "unlisted",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
                 }
             ],
             "indexes": [
@@ -10565,6 +10610,24 @@
                     "default": null,
                     "min": 0,
                     "max": 1000000
+                },
+                {
+                    "key": "finago_vat_code",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "finago_department",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 10,
+                    "default": null,
+                    "encrypt": false
                 }
             ],
             "indexes": []
@@ -11175,6 +11238,350 @@
             "indexes": []
         },
         {
+            "$id": "sales_types",
+            "$permissions": [
+                "create(\"team:sg-app-dept-operationsunit\")",
+                "read(\"team:sg-app-dept-operationsunit\")",
+                "update(\"team:sg-app-dept-operationsunit\")",
+                "delete(\"team:sg-app-dept-operationsunit\")"
+            ],
+            "databaseId": "app",
+            "name": "Sales types",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "label_no",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 80,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "label_en",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 80,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "account_number",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": 1000,
+                    "max": 9999
+                },
+                {
+                    "key": "active",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": true
+                },
+                {
+                    "key": "sort_order",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "default": 0,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "member_pass_scanner_links",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Member Pass Scanner Links",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "label",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 120,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "campus_id",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "token_hash",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 64,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "expires_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "revoked_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "created_by",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "token_hash_unique",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "token_hash"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "expires_at_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "expires_at"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "member_pass_scans",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Member Pass Scans",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "member_user_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "result",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "format": "enum",
+                    "elements": [
+                        "valid",
+                        "duplicate",
+                        "check_id",
+                        "denied",
+                        "unavailable"
+                    ]
+                },
+                {
+                    "key": "reason",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 40,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "code_kind",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": "enum",
+                    "elements": [
+                        "web",
+                        "google",
+                        "apple"
+                    ]
+                },
+                {
+                    "key": "scanner_user_id",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "scanner_link_id",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "member_created_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "member_user_id",
+                        "$createdAt"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "created_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "$createdAt"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "member_pass_scanners",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Member Pass Scanners",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "user_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "email",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 320,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "name",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 120,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "campus_id",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "granted_by",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "expires_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "revoked_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "invited_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "user_id_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "user_id"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "email_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "email"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "campus_id_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "campus_id"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
             "$id": "departments",
             "$permissions": [],
             "databaseId": "24so",
@@ -11233,107 +11640,149 @@
         {
             "$id": "news_oslo",
             "name": "News — Oslo",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "news_bergen",
             "name": "News — Bergen",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "news_trondheim",
             "name": "News — Trondheim",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "news_stavanger",
             "name": "News — Stavanger",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "news_national",
             "name": "News — National",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "events_oslo",
             "name": "Events — Oslo",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "events_bergen",
             "name": "Events — Bergen",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "events_trondheim",
             "name": "Events — Trondheim",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "events_stavanger",
             "name": "Events — Stavanger",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "events_national",
             "name": "Events — National",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "jobs_oslo",
             "name": "Jobs — Oslo",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "jobs_bergen",
             "name": "Jobs — Bergen",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "jobs_trondheim",
             "name": "Jobs — Trondheim",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "jobs_stavanger",
             "name": "Jobs — Stavanger",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "jobs_national",
             "name": "Jobs — National",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "shop_oslo",
             "name": "Shop — Oslo",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "shop_bergen",
             "name": "Shop — Bergen",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "shop_trondheim",
             "name": "Shop — Trondheim",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "shop_stavanger",
             "name": "Shop — Stavanger",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "shop_national",
             "name": "Shop — National",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         },
         {
             "$id": "general",
             "name": "Important announcements",
-            "subscribe": ["users"]
+            "subscribe": [
+                "users"
+            ]
         }
     ]
 }
