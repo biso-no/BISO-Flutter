@@ -5,14 +5,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/app_config.dart';
 
+/// Thrown when the app could not find out how BISO is configured.
+///
+/// It is deliberately not an `AppConfig`: every field of one is a statement
+/// about BISO's settings, and a fetch that failed is evidence for none of
+/// them. Callers must treat this as "we do not know" — never as a feature
+/// being switched off.
+class AppConfigUnavailableException implements Exception {
+  const AppConfigUnavailableException([
+    this.message = 'We could not load the BISO app configuration.',
+  ]);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class AppConfigService {
+  AppConfigService({http.Client? httpClient}) : _httpClient = httpClient;
+
   static const _cacheKey = 'app_config_cache';
   static const _cacheTimestampKey = 'app_config_cache_ts';
   static const _cacheTtl = Duration(hours: 1);
 
+  final http.Client? _httpClient;
+
   Future<AppConfig> getConfig() async {
+    final client = _httpClient ?? http.Client();
+    final shouldClose = _httpClient == null;
     try {
-      final response = await http
+      final response = await client
           .get(Uri.parse('${AppConstants.apiBaseUrl}/api/config'))
           .timeout(const Duration(seconds: 5));
 
@@ -24,10 +47,13 @@ class AppConfigService {
       }
     } catch (_) {
       // fall through to cache
+    } finally {
+      if (shouldClose) client.close();
     }
 
     final cached = await _readCache();
-    return cached ?? const AppConfig();
+    if (cached != null) return cached;
+    throw const AppConfigUnavailableException();
   }
 
   Future<void> _writeCache(AppConfig config) async {

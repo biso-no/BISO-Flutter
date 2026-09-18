@@ -2230,10 +2230,6 @@
       }
     }
   },
-  "showThisToValidatorsMessage": "Vis dette til validatorer",
-  "@showThisToValidatorsMessage": {
-    "description": "Auto-extracted string"
-  },
   "showYourLastSeenStatusMessage": "Vis din sist sett-status",
   "@showYourLastSeenStatusMessage": {
     "description": "Auto-extracted string"
@@ -2775,5 +2771,303 @@
   "changePhotoMessage": "Bytt bilde",
   "@changePhotoMessage": {
     "description": "Tooltip for the button that changes the profile photo"
+  },
+  "memberPassTitle": "Medlemskort",
+  "@memberPassTitle": {
+    "description": "Member pass / scanner: memberPassTitle"
+  },
+  "memberPassRowSubtitle": "Vis kortet ditt på arrangementer",
+  "@memberPassRowSubtitle": {
+    "description": "Member pass / scanner: memberPassRowSubtitle"
+  },
+  "memberPassShowAction": "Vis medlemskort",
+  "@memberPassShowAction": {
+    "description": "Member pass / scanner: memberPassShowAction"
+  },
+  "memberPassMemberLabel": "MEDLEM",
+  "@memberPassMemberLabel": {
+    "description": "Member pass / scanner: memberPassMemberLabel"
+  },
+  "memberPassSeasonSpring": "Vår",
+  "@memberPassSeasonSpring": {
+    "description": "Member pass / scanner: memberPassSeasonSpring"
+  },
+  "memberPassSeasonFall": "Høst",
+  "@memberPassSeasonFall": {
+    "description": "Member pass / scanner: memberPassSeasonFall"
+  },
+  "memberPassValidUntil": "Gyldig til {date}",
+  "@memberPassValidUntil": {
+    "description": "Member pass / scanner: memberPassValidUntil",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "31 Dec 2026"
+      }
+    }
+  },
+  "memberPassOffline": "Frakoblet",
+  "@memberPassOffline": {
+    "description": "Member pass / scanner: memberPassOffline"
+  },
+  "memberPassUpdating": "Oppdaterer …",
+  "@memberPassUpdating": {
+    "description": "Member pass / scanner: memberPassUpdating"
+  },
+  "memberPassTapToPresent": "Trykk for å vise i fullskjerm",
+  "@memberPassTapToPresent": {
+    "description": "Member pass / scanner: memberPassTapToPresent"
+  },
+  "memberPassNextCodeIn": "Ny kode om {seconds} s",
+  "@memberPassNextCodeIn": {
+    "description": "Member pass / scanner: memberPassNextCodeIn",
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "example": "12"
+      }
+    }
+  },
+  "memberPassLinkTitle": "Koble til BI-studentkontoen din",
+  "@memberPassLinkTitle": {
+    "description": "Member pass / scanner: memberPassLinkTitle"
+  },
+  "memberPassLinkMessage": "Medlemskortet krever en tilkoblet BI-konto. Du kobler den til én gang, på biso.no.",
+  "@memberPassLinkMessage": {
+    "description": "Member pass / scanner: memberPassLinkMessage"
+  },
+  "memberPassLinkAction": "Koble til på biso.no",
+  "@memberPassLinkAction": {
+    "description": "Member pass / scanner: memberPassLinkAction"
+  },
+  "memberPassLinkFailed": "Vi kunne ikke åpne biso.no. Prøv igjen.",
+  "@memberPassLinkFailed": {
+    "description": "Member pass / scanner: memberPassLinkFailed"
+  },
+  "memberPassNotMemberTitle": "Du er ikke medlem",
+  "@memberPassNotMemberTitle": {
+    "description": "Member pass / scanner: memberPassNotMemberTitle"
+  },
+  "memberPassExpiredTitle": "Medlemskapet ditt er utløpt",
+  "@memberPassExpiredTitle": {
+    "description": "Member pass / scanner: memberPassExpiredTitle"
+  },
+  "memberPassNotMemberMessage": "Bli medlem for å få medlemskortet.",
+  "@memberPassNotMemberMessage": {
+    "description": "Member pass / scanner: memberPassNotMemberMessage"
+  },
+  "memberPassBecomeMember": "Bli medlem",
+  "@memberPassBecomeMember": {
+    "description": "Member pass / scanner: memberPassBecomeMember"
+  },
+  "memberPassUnavailableTitle": "Kunne ikke laste medlemskortet",
+  "@memberPassUnavailableTitle": {
+    "description": "Member pass / scanner: memberPassUnavailableTitle"
+  },
+  "memberPassUnavailableMessage": "Vi kunne ikke sjekke medlemskapet ditt akkurat nå.",
+  "@memberPassUnavailableMessage": {
+    "description": "Member pass / scanner: memberPassUnavailableMessage"
+  },
+  "memberPassReconnectTitle": "Koble til internett for å vise kortet",
+  "@memberPassReconnectTitle": {
+    "description": "Member pass / scanner: memberPassReconnectTitle"
+  },
+  "memberPassReconnectMessage": "Kortet trenger nett for å hente nye koder.",
+  "@memberPassReconnectMessage": {
+    "description": "Member pass / scanner: memberPassReconnectMessage"
+  },
+  "memberPassSignedOutTitle": "Logg inn for å se medlemskortet",
+  "@memberPassSignedOutTitle": {
+    "description": "Member pass / scanner: memberPassSignedOutTitle"
+  },
+  "memberPassSignIn": "Logg inn",
+  "@memberPassSignIn": {
+    "description": "Member pass / scanner: memberPassSignIn"
+  },
+  "walletAddAppleLabel": "Legg til i Apple Lommebok",
+  "@walletAddAppleLabel": {
+    "description": "Member pass / scanner: walletAddAppleLabel"
+  },
+  "walletAddGoogleLabel": "Legg til i Google Wallet",
+  "@walletAddGoogleLabel": {
+    "description": "Member pass / scanner: walletAddGoogleLabel"
+  },
+  "walletAdded": "Lagt til i Lommebok",
+  "@walletAdded": {
+    "description": "Member pass / scanner: walletAdded"
+  },
+  "walletErrorNotMember": "Medlemskapet ditt er ikke aktivt.",
+  "@walletErrorNotMember": {
+    "description": "Member pass / scanner: walletErrorNotMember"
+  },
+  "walletErrorNotConfigured": "Lommebok er ikke tilgjengelig ennå.",
+  "@walletErrorNotConfigured": {
+    "description": "Member pass / scanner: walletErrorNotConfigured"
+  },
+  "walletErrorFailed": "Fikk ikke kontakt med Lommebok – prøv igjen.",
+  "@walletErrorFailed": {
+    "description": "Member pass / scanner: walletErrorFailed"
+  },
+  "walletErrorInvalid": "Kortet kunne ikke leses.",
+  "@walletErrorInvalid": {
+    "description": "Member pass / scanner: walletErrorInvalid"
+  },
+  "dayColorRed": "Rød",
+  "@dayColorRed": {
+    "description": "Member pass / scanner: dayColorRed"
+  },
+  "dayColorOrange": "Oransje",
+  "@dayColorOrange": {
+    "description": "Member pass / scanner: dayColorOrange"
+  },
+  "dayColorYellow": "Gul",
+  "@dayColorYellow": {
+    "description": "Member pass / scanner: dayColorYellow"
+  },
+  "dayColorLime": "Lime",
+  "@dayColorLime": {
+    "description": "Member pass / scanner: dayColorLime"
+  },
+  "dayColorGreen": "Grønn",
+  "@dayColorGreen": {
+    "description": "Member pass / scanner: dayColorGreen"
+  },
+  "dayColorTeal": "Blågrønn",
+  "@dayColorTeal": {
+    "description": "Member pass / scanner: dayColorTeal"
+  },
+  "dayColorCyan": "Cyan",
+  "@dayColorCyan": {
+    "description": "Member pass / scanner: dayColorCyan"
+  },
+  "dayColorBlue": "Blå",
+  "@dayColorBlue": {
+    "description": "Member pass / scanner: dayColorBlue"
+  },
+  "dayColorIndigo": "Indigo",
+  "@dayColorIndigo": {
+    "description": "Member pass / scanner: dayColorIndigo"
+  },
+  "dayColorPurple": "Lilla",
+  "@dayColorPurple": {
+    "description": "Member pass / scanner: dayColorPurple"
+  },
+  "dayColorPink": "Rosa",
+  "@dayColorPink": {
+    "description": "Member pass / scanner: dayColorPink"
+  },
+  "dayColorBrown": "Brun",
+  "@dayColorBrown": {
+    "description": "Member pass / scanner: dayColorBrown"
+  },
+  "scannerTitle": "Skann medlemskap",
+  "@scannerTitle": {
+    "description": "Member pass / scanner: scannerTitle"
+  },
+  "scannerSubtitle": "Sjekk medlemskort i døra",
+  "@scannerSubtitle": {
+    "description": "Member pass / scanner: scannerSubtitle"
+  },
+  "scannerAccessUntil": "Tilgang til {dateTime}",
+  "@scannerAccessUntil": {
+    "description": "Member pass / scanner: scannerAccessUntil",
+    "placeholders": {
+      "dateTime": {
+        "type": "String",
+        "example": "31 Dec 2026, 14:00"
+      }
+    }
+  },
+  "scannerPointCamera": "Rett kameraet mot et medlemskort",
+  "@scannerPointCamera": {
+    "description": "Member pass / scanner: scannerPointCamera"
+  },
+  "scannerChecking": "Sjekker …",
+  "@scannerChecking": {
+    "description": "Member pass / scanner: scannerChecking"
+  },
+  "scannerTapToContinue": "Trykk for å fortsette",
+  "@scannerTapToContinue": {
+    "description": "Member pass / scanner: scannerTapToContinue"
+  },
+  "scannerValid": "Gyldig medlem",
+  "@scannerValid": {
+    "description": "Member pass / scanner: scannerValid"
+  },
+  "scannerDuplicateSeconds": "Allerede skannet for {seconds} s siden",
+  "@scannerDuplicateSeconds": {
+    "description": "Member pass / scanner: scannerDuplicateSeconds",
+    "placeholders": {
+      "seconds": {
+        "type": "int",
+        "example": "42"
+      }
+    }
+  },
+  "scannerDuplicateMinutes": "Allerede skannet for {minutes} min siden",
+  "@scannerDuplicateMinutes": {
+    "description": "Member pass / scanner: scannerDuplicateMinutes",
+    "placeholders": {
+      "minutes": {
+        "type": "int",
+        "example": "3"
+      }
+    }
+  },
+  "scannerCheckId": "Lommebokkort – sjekk legitimasjon",
+  "@scannerCheckId": {
+    "description": "Member pass / scanner: scannerCheckId"
+  },
+  "scannerBadCode": "Ikke et BISO-kort",
+  "@scannerBadCode": {
+    "description": "Member pass / scanner: scannerBadCode"
+  },
+  "scannerStale": "Gammel kode – be dem åpne kortet på nytt",
+  "@scannerStale": {
+    "description": "Member pass / scanner: scannerStale"
+  },
+  "scannerExpired": "Medlemskapet er utløpt",
+  "@scannerExpired": {
+    "description": "Member pass / scanner: scannerExpired"
+  },
+  "scannerNotMember": "Ikke medlem",
+  "@scannerNotMember": {
+    "description": "Member pass / scanner: scannerNotMember"
+  },
+  "scannerNotLinked": "Ingen tilkoblet studentkonto",
+  "@scannerNotLinked": {
+    "description": "Member pass / scanner: scannerNotLinked"
+  },
+  "scannerNotValid": "Ikke gyldig",
+  "@scannerNotValid": {
+    "description": "Member pass / scanner: scannerNotValid"
+  },
+  "scannerUnavailable": "Kunne ikke sjekke – prøv igjen",
+  "@scannerUnavailable": {
+    "description": "Member pass / scanner: scannerUnavailable"
+  },
+  "scannerRateLimited": "For mange skanninger – vent litt",
+  "@scannerRateLimited": {
+    "description": "Member pass / scanner: scannerRateLimited"
+  },
+  "scannerNoAccess": "Du har ikke tilgang til å skanne. Be BISO om en invitasjon.",
+  "@scannerNoAccess": {
+    "description": "Member pass / scanner: scannerNoAccess"
+  },
+  "scannerSignedOut": "Du er logget ut – logg inn igjen",
+  "@scannerSignedOut": {
+    "description": "Member pass / scanner: scannerSignedOut"
+  },
+  "scannerNotConfigured": "Skanning er ikke tilgjengelig akkurat nå.",
+  "@scannerNotConfigured": {
+    "description": "Member pass / scanner: scannerNotConfigured"
+  },
+  "scannerCheckFailed": "Kunne ikke sjekke tilgangen din",
+  "@scannerCheckFailed": {
+    "description": "Member pass / scanner: scannerCheckFailed"
+  },
+  "scannerCameraError": "Kameraet kunne ikke starte. Sjekk kameratilgang i Innstillinger.",
+  "@scannerCameraError": {
+    "description": "Member pass / scanner: scannerCameraError"
   }
 }

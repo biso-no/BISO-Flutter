@@ -9,7 +9,7 @@ import '../../../data/models/product_custom_field.dart';
 import '../../../data/models/product_variation.dart';
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/services/webshop_service.dart';
-import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/shop/cart_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';

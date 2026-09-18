@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
@@ -27,11 +28,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _zipController = TextEditingController();
   final _zipFocusNode = FocusNode();
 
-  // Preserved across edits though this screen has no UI to change them
-  // (see the migration report: the campus/department picker section was
-  // dead/commented-out code before this migration, referencing undefined
-  // helper state, so no working picker existed to carry forward).
+  // Preserved across edits though this screen has no UI to change them.
   List<String> _selectedDepartments = [];
+
+  // The profile's own campus. Deliberately separate from the campus the home
+  // screen filters by (filterCampusStateProvider), which this screen never
+  // touches.
   String? _selectedCampusId;
   XFile? _selectedImage;
   bool _isLoading = false;
@@ -218,6 +220,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               builder: (context) => _buildPersonalInfoGroup(context),
             ),
           ),
+          SliverToBoxAdapter(child: _buildCampusGroup()),
           SliverToBoxAdapter(
             child: Builder(builder: (context) => _buildAddressGroup(context)),
           ),
@@ -350,6 +353,42 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCampusGroup() {
+    return Builder(
+      builder: (context) {
+        final palette = BisoPalette.of(context);
+        return BisoSection(
+          title: 'Campus',
+          footer:
+              'Your home campus. This does not change which campus the '
+              'home screen shows.',
+          child: BisoListGroup(
+            children: [
+              for (final campus in AppConstants.campusNames.entries)
+                BisoListRow(
+                  leading: BisoIconTile(
+                    icon: CupertinoIcons.building_2_fill,
+                    accent: _selectedCampusId == campus.key
+                        ? BisoAccent.blue
+                        : BisoAccent.neutral,
+                  ),
+                  title: campus.value,
+                  showChevron: false,
+                  trailing: _selectedCampusId == campus.key
+                      ? Icon(
+                          CupertinoIcons.checkmark_circle_fill,
+                          color: palette.link,
+                        )
+                      : null,
+                  onTap: () => setState(() => _selectedCampusId = campus.key),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 

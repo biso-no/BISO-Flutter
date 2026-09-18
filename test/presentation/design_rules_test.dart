@@ -38,10 +38,12 @@ const migratedFiles = <String>[
   'lib/presentation/screens/explore/sell_product_screen.dart',
   'lib/presentation/screens/explore/expenses_screen.dart',
   'lib/presentation/screens/expense/create_expense_screen.dart',
+  'lib/presentation/widgets/expenses_unavailable_page.dart',
   'lib/presentation/screens/profile/payment_information_screen.dart',
   'lib/presentation/screens/profile/edit_profile_screen.dart',
   'lib/presentation/screens/profile/settings_screen.dart',
   'lib/presentation/screens/profile/settings_screen_chat_tab.dart',
+  'lib/presentation/screens/profile/membership_screen.dart',
   'lib/presentation/widgets/premium/notification_tile.dart',
   'lib/presentation/screens/chat/chat_conversation_screen.dart',
   'lib/presentation/screens/chat/chat_info_screen.dart',
@@ -57,7 +59,13 @@ const migratedFiles = <String>[
   'lib/presentation/screens/auth/otp_verification_screen.dart',
   'lib/presentation/screens/auth/magic_link_verify_screen.dart',
   'lib/presentation/screens/onboarding/onboarding_screen.dart',
-  'lib/presentation/screens/validator/controller_mode_screen.dart',
+  'lib/presentation/widgets/member_pass/pass_card.dart',
+  'lib/presentation/screens/profile/member_pass_presentation.dart',
+  'lib/presentation/screens/profile/member_pass_screen.dart',
+  'lib/presentation/widgets/member_pass/member_pass_row.dart',
+  'lib/presentation/widgets/member_pass/wallet_buttons.dart',
+  'lib/presentation/screens/scanner/scanner_gate.dart',
+  'lib/presentation/screens/scanner/membership_scanner_screen.dart',
 ];
 
 final _lineRules = <String, RegExp>{

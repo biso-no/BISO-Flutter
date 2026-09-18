@@ -574,8 +574,9 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   checkout, since `CartItem.memberOnly` travels with the line and a membership
   can lapse while it sits in the cart. The server-side check on orders is
   what makes it a real boundary; the app's checks are presentation.
-  A membership counts only until its `expiryDate`; the catalog's `status`
-  means "still offered", not "active" (`MembershipService.parseVerification`).
+  Membership comes from `hasValidMembershipProvider` in
+  `lib/providers/membership/membership_overview_provider.dart` (see Membership
+  below), never from the auth state.
 - **`unlisted` products are reachable only by link.** List and count reads
   keep rows where `unlisted` is false or null; the by-id read ignores the
   flag, because a link is how those products are meant to be opened.
@@ -595,6 +596,61 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Routes**: `/explore/products/cart`, `/explore/products/checkout`,
   `/explore/products/order/:orderId`, `/explore/products/orders`
 
+#### 🎫 Membership (verification, BI link, purchase)
+- **Source of truth is 24SevenOffice, read by the server.** `GET /api/membership` returns the
+  live status (a 24SO customer category matched to a `memberships` row that has not expired —
+  valid through its expiry day in Oslo), the same purchase gate as biso.no's join page, and the
+  plans on offer. The app never decides membership itself.
+- **Verified at launch and on return.** `membershipOverviewProvider` loads as soon as a signed-in
+  user is known (`BisoApp.build` listens to it), re-verifies on resume after 10 minutes, and keeps
+  the last verified overview per user for offline display (marked `fromCache`).
+  `hasValidMembershipProvider` trusts a cached answer for 24 hours; prices are always server-side.
+- **BI linking happens on biso.no.** BI's Azure tenant is reachable only through Appwrite's OIDC
+  provider, so the app opens `https://biso.no/membership/link`, and the page returns with
+  `biso://membership?linked=1`. Handing the app's session to a browser was rejected: such a link
+  is forwardable and could attach someone else's BI identity to the sender's account.
+  `student_id` and the `bi_*` columns are server-written only; profile rows are read-only to
+  their owner and profile edits go through `PUT /api/profile`.
+- **Purchase** uses `POST /api/payment/{provider}/membership-checkout` with `client: "app"`,
+  offering only providers `GET /api/payment/providers` reports as available.
+  `MembershipCheckoutController` (built in `BisoApp.build`) persists the order, resolves it at
+  launch, on resume and from `biso://membership?orderId=…`, then re-checks the membership until
+  24SevenOffice shows it.
+- **Location**: `lib/providers/membership/`, `lib/data/services/membership_api_client.dart`,
+  `lib/presentation/screens/profile/membership_screen.dart`. **Route**: `/profile/membership`.
+
+#### 🪪 Member pass and membership scanning
+- **The server signs and decides everything.** `GET /api/member-pass` returns either the pass
+  state (`no_bi_identity`, `not_member`, `expired`, `unavailable`) or an active pass with 20
+  signed `v1` codes (one per 30 s slot), `serverNow`, the day color and wallet flags. The app
+  shows the code for `(now + drift) ~/ 30000`. It refetches below 4 codes, retries every 15 s while
+  offline or low, and refetches on resume and on connectivity changes. Network errors keep what
+  is shown (offline); other failures keep an active pass only while it has a usable code,
+  otherwise show "unavailable"; a 401 shows sign-in. Codes, JWTs and scanned strings stay in
+  memory and are never logged.
+- **Rules live in pure classes:** `MemberPassSession` (pass) and `ScanGate` (20 s repeat
+  filter, keyed by member id) mirror the web `pass-refresh.ts` / `scan-repeat.ts`.
+- **Presentation mode** keeps the screen awake at full app brightness, and undoes both when the
+  app leaves the foreground or the route closes.
+- **The scanner screen stops its camera when the app leaves the foreground** and restarts it on
+  return (unless a result is showing), because `mobile_scanner` only handles lifecycle itself when
+  it owns its controller.
+- **Wallet:** iOS downloads the `.pkpass` and hands it to `PKAddPassesViewController` through the
+  `biso/wallet` channel in `AppDelegate.swift`. Android opens the `saveUrl` from
+  `GET /api/member-pass/google`. The badges are the official assets in `assets/wallet/`; Apple's
+  are converted for flutter_svg by `tool/inline_svg_styles.py`.
+- **Scanning access is a server grant**, given by admins to an email address.
+  `GET /api/member-pass/scanner` (200 or 403) decides both the Explore tile and the
+  `/explore/scan` route guard. `POST /api/member-pass/scan` re-checks the grant on every scan.
+  The old controller mode, the `validators` team check and the
+  `issue_pass_token`/`verify_pass_token` functions are gone from the app.
+- **Before the API deploys**, a 404 from `/api/member-pass` reads as "unavailable" and a 404 from
+  `/scanner` reads as "no access". Nothing else treats 404 that way.
+- **Location**: `lib/providers/member_pass/`, `lib/data/services/member_pass_api_client.dart`,
+  `lib/presentation/screens/profile/member_pass_screen.dart`,
+  `lib/presentation/screens/scanner/`. **Routes**: `/profile/member-pass`, `/explore/scan`.
+- **Spec**: `docs/superpowers/specs/2026-09-17-member-pass-and-scanner-design.md`.
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions
 - **Job Details**: Requirements, descriptions, and application info
@@ -607,6 +663,12 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **File Uploads**: Receipt attachments with camera/gallery integration
 - **Department Selection**: Links expenses to specific departments
 - **Location**: `lib/presentation/screens/expense/create_expense_screen.dart`
+- **Every write goes through `apps/api`**: receipts upload to `POST /api/expenses/attachments`
+  (PDF, PNG or JPEG; photos are re-encoded as JPEG), drafts save and submit through
+  `/api/expenses/draft` and `/api/expenses/submit`, and drafts are deleted with
+  `DELETE /api/expenses/draft`. Expense rows and the `expenses` bucket give students no write
+  access. The screens follow `features.expenses` from `GET /api/config`, which is the admin's
+  `expenses_module` switch.
 
 #### 🔐 Smart Authentication
 - **Public-First Architecture**: No auth walls on content discovery

@@ -2,29 +2,21 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../data/models/membership_overview.dart';
 import '../../../data/models/user_model.dart';
-import '../../../data/services/feature_flag_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
-import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/config/app_config_provider.dart';
+import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/member_pass/member_pass_row.dart';
 import 'edit_profile_screen.dart';
 import 'payment_information_screen.dart';
 import 'settings_screen.dart';
-
-// Feature flag provider for expenses
-final _featureFlagServiceProvider = Provider<FeatureFlagService>(
-  (ref) => FeatureFlagService(),
-);
-
-final expenseFeatureFlagProvider = FutureProvider.autoDispose<bool>((
-  ref,
-) async {
-  final service = ref.watch(_featureFlagServiceProvider);
-  return service.isEnabled('expenses');
-});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -35,7 +27,8 @@ class ProfileScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
-    final selectedCampus = ref.watch(selectedCampusProvider);
+    // The campus saved on the profile, not the one the app filters by.
+    final campusName = AppConstants.campusNames[user?.campusId];
 
     // Show loading while initializing user data
     if (authState.isLoading) {
@@ -47,8 +40,9 @@ class ProfileScreen extends ConsumerWidget {
     }
 
     final profile = user;
-    final expenseFlagAsync = ref.watch(expenseFeatureFlagProvider);
-    final showExpenseHistory = expenseFlagAsync.valueOrNull ?? false;
+    final showExpenseHistory = ref
+        .watch(expensesAvailabilityProvider)
+        .showsEntryPoints;
 
     return BisoPage(
       title: l10n.profile,
@@ -93,7 +87,7 @@ class ProfileScreen extends ConsumerWidget {
                         const SizedBox(width: 16),
                         Expanded(
                           child: Text(
-                            'BI ${selectedCampus.name}',
+                            campusName != null ? 'BI $campusName' : '',
                             textAlign: TextAlign.end,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -109,9 +103,7 @@ class ProfileScreen extends ConsumerWidget {
                       children: [
                         CircleAvatar(
                           radius: 28,
-                          backgroundColor: Colors.white.withValues(
-                            alpha: 0.12,
-                          ),
+                          backgroundColor: Colors.white.withValues(alpha: 0.12),
                           backgroundImage: user?.avatarUrl != null
                               ? NetworkImage(user!.avatarUrl!)
                               : null,
@@ -168,7 +160,12 @@ class ProfileScreen extends ConsumerWidget {
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: () => context.push('/onboarding'),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EditProfileScreen(),
+                          ),
+                        ),
                         child: const Text('Complete Profile'),
                       ),
                     ),
@@ -193,16 +190,8 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const BisoListRow(
-                  leading: BisoIconTile(
-                    icon: CupertinoIcons.book,
-                    accent: BisoAccent.gold,
-                  ),
-                  title: 'Student ID',
-                  subtitle:
-                      'We’re improving Student ID. Thanks for your patience.',
-                  showChevron: false,
-                ),
+                const _MembershipRow(),
+                const MemberPassRow(),
               ],
             ),
           ),
@@ -247,7 +236,7 @@ class ProfileScreen extends ConsumerWidget {
                     icon: CupertinoIcons.location_solid,
                   ),
                   title: 'Campus',
-                  value: 'BI ${selectedCampus.name}',
+                  value: campusName != null ? 'BI $campusName' : 'Not set',
                 ),
                 if (profile?.departments.isNotEmpty == true)
                   BisoListRow(
@@ -386,6 +375,49 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MembershipRow extends ConsumerWidget {
+  const _MembershipRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(membershipOverviewProvider).valueOrNull;
+    final expiry = overview?.currentMembership?.expiryDate;
+    // Only the states where the server actually established that this
+    // student has no membership may say so. A check that could not be made
+    // — `membership_check_unavailable`, an unreadable BI record, or a
+    // state this app does not know — says exactly that instead: reporting a
+    // failed read as "Not a member" states as fact the one thing nobody
+    // managed to find out.
+    final subtitle = switch (overview) {
+      null => 'Check your BISO membership',
+      final o when o.isMember =>
+        expiry == null
+            ? 'Active member'
+            : 'Active until ${DateFormat.yMMMd().format(expiry)}',
+      final o => switch (o.state) {
+        MembershipGateState.needsBiLink => 'Link your BI student account',
+        MembershipGateState.eligible ||
+        MembershipGateState.noPlansAvailable => 'Not a member',
+        MembershipGateState.needsDirectoryRecord ||
+        MembershipGateState.checkUnavailable ||
+        // `already_member` without an actual membership is a contradiction,
+        // not an answer.
+        MembershipGateState.alreadyMember =>
+          "We couldn't check your membership",
+      },
+    };
+    return BisoListRow(
+      leading: const BisoIconTile(
+        icon: CupertinoIcons.checkmark_seal,
+        accent: BisoAccent.gold,
+      ),
+      title: 'Membership',
+      subtitle: subtitle,
+      onTap: () => context.push('/profile/membership'),
     );
   }
 }

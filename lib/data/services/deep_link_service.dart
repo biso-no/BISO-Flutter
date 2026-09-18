@@ -8,6 +8,25 @@ import '../../core/logging/print_migration.dart';
 import '../../core/theme/biso_page.dart';
 import '../../providers/auth/auth_provider.dart';
 
+/// The in-app route for a `biso://membership` or `https://biso.no/app/membership`
+/// link. A payment return carries `orderId` (and `cancelled=1` when the
+/// student abandoned it); a finished BI link from biso.no carries `linked=1`.
+/// The status a return link carries is not passed on: the screen verifies the
+/// order itself.
+@visibleForTesting
+String membershipRouteFor(Map<String, String> query) {
+  final orderId = query['orderId'] ?? '';
+  final params = <String, String>{
+    if (orderId.isNotEmpty) 'orderId': orderId,
+    if (query['cancelled'] == '1') 'cancelled': '1',
+    if (query['linked'] == '1') 'linked': '1',
+  };
+  return Uri(
+    path: '/profile/membership',
+    queryParameters: params.isEmpty ? null : params,
+  ).toString();
+}
+
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
@@ -78,6 +97,9 @@ class DeepLinkService {
         case 'announcement':
           _handleAnnouncementDeepLink(uri);
           break;
+        case 'membership':
+          _go(membershipRouteFor(uri.queryParameters));
+          break;
         case 'debug':
           if (kDebugMode) _handleDebugDeepLink(uri);
           break;
@@ -106,7 +128,9 @@ class DeepLinkService {
       final secret = queryParams['secret'];
       if (userId != null && secret != null) {
         logPrint('🔗 Sign-in link universal link received');
-        _go('/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}');
+        _go(
+          '/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}',
+        );
       } else {
         logPrint('ℹ️ Auth universal link without credentials, ignoring: $uri');
       }
@@ -150,6 +174,9 @@ class DeepLinkService {
       case 'profile':
         _go('/profile');
         break;
+      case 'membership':
+        _go(membershipRouteFor(uri.queryParameters));
+        break;
       case 'ai':
       case 'ai-chat':
         _go('/explore/ai-chat');
@@ -175,7 +202,9 @@ class DeepLinkService {
       final userId = queryParams['userId'];
       final secret = queryParams['secret'];
       if (userId != null && secret != null) {
-        _go('/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}');
+        _go(
+          '/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}',
+        );
       } else {
         logPrint('🔴 Missing userId or secret in sign-in link deep link');
         _go('/auth/login');
@@ -194,10 +223,7 @@ class DeepLinkService {
 
     logPrint('🔗 OAuth callback received — refreshing auth state');
     final container = ProviderScope.containerOf(context);
-    container
-        .read(authStateProvider.notifier)
-        .refreshAuthState()
-        .then((_) {
+    container.read(authStateProvider.notifier).refreshAuthState().then((_) {
       final authState = container.read(authStateProvider);
       if (authState.isAuthenticated) {
         _go(authState.needsOnboarding ? '/onboarding' : '/home');
@@ -334,7 +360,9 @@ class DeepLinkService {
       if (context != null) {
         context.go('/announcements/$announcementId');
       } else {
-        logPrint('🔴 No navigation context available for announcement deep link');
+        logPrint(
+          '🔴 No navigation context available for announcement deep link',
+        );
       }
     } else {
       logPrint('🔴 Missing announcement ID in deep link');

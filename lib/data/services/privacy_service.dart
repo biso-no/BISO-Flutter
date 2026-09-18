@@ -3,11 +3,14 @@ import '../../types/users.dart';
 import '../models/user_model.dart';
 import 'public_profile_service.dart';
 import 'appwrite_service.dart';
+import 'profile_api_client.dart';
 
 class PrivacyService {
   static final PrivacyService _instance = PrivacyService._internal();
   factory PrivacyService() => _instance;
   PrivacyService._internal();
+
+  final ProfileApiClient _profileApi = ProfileApiClient();
 
   /// Check if user has set their privacy preference
   /// Returns null if not set, true if public, false if private
@@ -43,12 +46,9 @@ class PrivacyService {
       }
 
       // Update the user's privacy setting
-      await db.updateRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: userId,
-        data: {'is_public': isPublic},
-      );
+      // Profile rows are read-only to their owner; the privacy flag is saved
+      // through the API like every other profile field.
+      await _profileApi.upsert({'is_public': isPublic});
 
       return true;
     } catch (e) {

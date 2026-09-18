@@ -22,9 +22,15 @@ class ExpenseIntakeException implements Exception {
 }
 
 class ExpenseIntakeService {
-  ExpenseIntakeService({Directory? rootDirectory})
-    : _rootDirectoryOverride = rootDirectory;
+  ExpenseIntakeService({
+    Directory? rootDirectory,
+    void Function(String route)? openRoute,
+  }) : _rootDirectoryOverride = rootDirectory,
+       _openRoute = openRoute;
 
+  /// `CreateExpenseScreen` reads this singleton directly rather than through
+  /// Riverpod, and the default instance resolves its storage root through
+  /// `path_provider`, which has no test double.
   static final ExpenseIntakeService instance = ExpenseIntakeService();
   static const MethodChannel _channel = MethodChannel('biso/expense_intake');
   static const int maxFileSizeBytes = 10 * 1024 * 1024;
@@ -32,25 +38,36 @@ class ExpenseIntakeService {
 
   static const Set<String> supportedMimeTypes = {
     'application/pdf',
-    'image/heic',
-    'image/heif',
     'image/jpeg',
     'image/jpg',
     'image/png',
-    'image/webp',
   };
 
-  static const Set<String> supportedExtensions = {
-    'heic',
-    'heif',
-    'jpeg',
-    'jpg',
-    'pdf',
-    'png',
-    'webp',
-  };
+  static const Set<String> supportedExtensions = {'jpeg', 'jpg', 'pdf', 'png'};
+
+  /// What the app can take, in the words the student reads. The API refuses
+  /// anything else, and the in-app camera and gallery picker re-encode to
+  /// JPEG — so an iPhone's HEIC photo still gets in, just through the app
+  /// rather than through the share sheet.
+  static const String unsupportedFilesMessage =
+      'BISO could not add those files. Receipts must be PDF, PNG or JPEG '
+      'files of 10 MB or less. Add the photo from inside the app and BISO '
+      'converts it for you.';
+
+  /// The same, for a share where only some of the files had to be left out.
+  static String skippedFilesMessage(List<String> fileNames) =>
+      'Not added: ${fileNames.join(', ')}. Receipts must be PDF, PNG or '
+      'JPEG files of 10 MB or less. Add the photo from inside the app and '
+      'BISO converts it for you.';
 
   final Directory? _rootDirectoryOverride;
+
+  /// Where this service sends the student. The default goes through the
+  /// app's navigator; a test passes its own to watch where a share ends up.
+  final void Function(String route)? _openRoute;
+
+  /// Refusals routed so far, which makes each one's id unique.
+  int _refusals = 0;
   bool _initialized = false;
 
   Future<void> initialize() async {
@@ -65,39 +82,66 @@ class ExpenseIntakeService {
   }
 
   Future<void> handlePendingNativeEntrypoints() async {
-    final batches = await importNativeBatches(openLatest: true);
-    if (batches.isEmpty) {
-      await _openPendingNativeShortcut();
+    final result = await _importNativeBatches();
+    if (result.batches.isNotEmpty) {
+      _openBatch(result.batches.last);
+      return;
     }
+    final refusal = result.refusal;
+    if (refusal != null) {
+      _openIntakeError(refusal);
+      return;
+    }
+    await _openPendingNativeShortcut();
   }
 
   Future<List<ExpenseIntakeBatch>> importNativeBatches({
     bool openLatest = false,
   }) async {
+    final result = await _importNativeBatches();
+    if (!openLatest) return result.batches;
+    if (result.batches.isNotEmpty) {
+      _openBatch(result.batches.last);
+    } else if (result.refusal != null) {
+      _openIntakeError(result.refusal!);
+    }
+    return result.batches;
+  }
+
+  /// Imports whatever the native share sheet left for us, and reports a
+  /// share it had to refuse outright rather than only logging one.
+  ///
+  /// The native side has already told the student the receipt was added by
+  /// this point, so a file dropped silently here is a receipt that
+  /// disappears: they see a share sheet say yes, then an empty
+  /// reimbursement. The refusal travels back up so a screen can show it.
+  Future<({List<ExpenseIntakeBatch> batches, String? refusal})>
+  _importNativeBatches() async {
+    final imported = <ExpenseIntakeBatch>[];
+    String? refusal;
     try {
       final raw = await _channel.invokeMethod<List<dynamic>>(
         'takePendingExpenseIntakeBatches',
       );
-      if (raw == null || raw.isEmpty) return const [];
+      if (raw == null || raw.isEmpty) return (batches: imported, refusal: null);
 
-      final imported = <ExpenseIntakeBatch>[];
       for (final item in raw) {
         if (item is! Map) continue;
         final source = (item['source'] ?? 'native-share').toString();
         final paths = _pathsFromNativeItem(item);
         if (paths.isEmpty) continue;
-        imported.add(await createBatchFromPaths(paths, source: source));
+        try {
+          imported.add(await createBatchFromPaths(paths, source: source));
+        } on ExpenseIntakeException catch (e) {
+          refusal = e.message;
+        }
       }
-
-      if (openLatest && imported.isNotEmpty) {
-        _openBatch(imported.last);
-      }
-      return imported;
+      return (batches: imported, refusal: refusal);
     } on MissingPluginException {
-      return const [];
+      return (batches: imported, refusal: null);
     } catch (e) {
       logPrint('Expense intake native import failed: $e');
-      return const [];
+      return (batches: imported, refusal: refusal);
     }
   }
 
@@ -127,14 +171,20 @@ class ExpenseIntakeService {
     await batchDirectory.create(recursive: true);
 
     final intakeFiles = <ExpenseIntakeFile>[];
+    final skipped = <String>[];
     for (final file in files) {
+      final sharedName = file.uri.pathSegments.last;
       if (!await file.exists()) continue;
       final size = await file.length();
       final mimeType = normalizeMimeType(file.path);
       if (!isSupportedMimeType(mimeType) || !isSupportedExtension(file.path)) {
+        skipped.add(sharedName);
         continue;
       }
-      if (size > maxFileSizeBytes) continue;
+      if (size > maxFileSizeBytes) {
+        skipped.add(sharedName);
+        continue;
+      }
 
       final destinationName = _uniqueFileName(
         batchDirectory,
@@ -153,9 +203,7 @@ class ExpenseIntakeService {
 
     if (intakeFiles.isEmpty) {
       await batchDirectory.delete(recursive: true);
-      throw const ExpenseIntakeException(
-        'No supported receipt files were shared with BISO.',
-      );
+      throw const ExpenseIntakeException(unsupportedFilesMessage);
     }
 
     final batch = ExpenseIntakeBatch(
@@ -163,6 +211,7 @@ class ExpenseIntakeService {
       source: source,
       createdAt: DateTime.now(),
       files: intakeFiles,
+      skippedFileNames: skipped,
     );
     await _writeManifest(batchDirectory, batch);
     return batch;
@@ -186,6 +235,7 @@ class ExpenseIntakeService {
       source: batch.source,
       createdAt: batch.createdAt,
       files: existingFiles,
+      skippedFileNames: batch.skippedFileNames,
     );
   }
 
@@ -269,11 +319,34 @@ class ExpenseIntakeService {
   }
 
   void _openBatch(ExpenseIntakeBatch batch) {
-    final context = navigatorKey.currentContext;
-    if (context == null) return;
-    context.go(
-      '/explore/expenses/new?batch=${Uri.encodeComponent(batch.batchId)}',
+    _go('/explore/expenses/new?batch=${Uri.encodeComponent(batch.batchId)}');
+  }
+
+  /// Opens the reimbursement screen carrying the reason a share was refused,
+  /// so the student reads it where they expected their receipt to be.
+  ///
+  /// Each refusal carries its own id: the screen may already be open, and a
+  /// second share refused for the same reason must not look like the first.
+  void _openIntakeError(String message) {
+    _refusals++;
+    _go(
+      '/explore/expenses/new'
+      '?intakeError=${Uri.encodeComponent(message)}&intakeErrorId=$_refusals',
     );
+  }
+
+  void _go(String route) {
+    final openRoute = _openRoute;
+    if (openRoute != null) {
+      openRoute(route);
+      return;
+    }
+    final context = navigatorKey.currentContext;
+    if (context == null) {
+      logPrint('Expense intake had nowhere to open $route');
+      return;
+    }
+    context.go(route);
   }
 
   Future<void> _openPendingNativeShortcut() async {

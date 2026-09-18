@@ -2,12 +2,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../../core/constants/app_constants.dart';
 import '../models/cart_item.dart';
 import '../models/checkout_quote.dart';
 import '../models/payment_provider.dart';
 import '../models/shop_order.dart';
-import 'appwrite_service.dart';
+import 'api_auth.dart';
 
 /// A failure reported by the shop API, with the server's own message.
 ///
@@ -37,9 +36,12 @@ class ShopApiException implements Exception {
 /// provider availability and payment outcomes are all decided server-side; this
 /// class asks, and never computes.
 class ShopApiClient {
-  ShopApiClient({http.Client? httpClient}) : _httpClient = httpClient;
+  ShopApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
+    : _httpClient = httpClient,
+      _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
+  final ApiJwtProvider _jwtProvider;
 
   static const Duration _timeout = Duration(seconds: 20);
 
@@ -196,11 +198,13 @@ class ShopApiClient {
     final client = _httpClient ?? http.Client();
     final shouldClose = _httpClient == null;
     try {
+      final jwt = authenticated ? await _jwtProvider() : null;
       final headers = <String, String>{
+        'accept': 'application/json',
         if (body != null) 'content-type': 'application/json',
-        if (authenticated) ...await _authHeaders(),
+        if (jwt != null) 'Authorization': 'Bearer $jwt',
       };
-      final uri = _apiUri(path, query);
+      final uri = apiUri(path, query);
       final request = http.Request(method, uri)..headers.addAll(headers);
       if (body != null) {
         request.body = jsonEncode(body);
@@ -212,29 +216,6 @@ class ShopApiClient {
     } finally {
       if (shouldClose) client.close();
     }
-  }
-
-  Future<Map<String, String>> _authHeaders() async {
-    try {
-      final jwt = await account.createJWT();
-      return {'Authorization': 'Bearer ${jwt.jwt}'};
-    } catch (_) {
-      // No session. Let the request go out unauthenticated so the server
-      // answers with its own 401 and the UI can prompt for sign-in once.
-      return const <String, String>{};
-    }
-  }
-
-  Uri _apiUri(String path, Map<String, String>? query) {
-    final base = AppConstants.apiBaseUrl.endsWith('/')
-        ? AppConstants.apiBaseUrl.substring(
-            0,
-            AppConstants.apiBaseUrl.length - 1,
-          )
-        : AppConstants.apiBaseUrl;
-    return Uri.parse(
-      '$base$path',
-    ).replace(queryParameters: query == null || query.isEmpty ? null : query);
   }
 
   Map<String, dynamic> _decode(String body, int statusCode) {

@@ -4,6 +4,7 @@ import 'package:biso/data/services/event_service.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

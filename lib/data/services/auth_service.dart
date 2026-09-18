@@ -5,22 +5,26 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/user_model.dart';
-import '../models/student_id_model.dart';
+import 'api_auth.dart';
 import 'appwrite_service.dart';
 import 'privacy_service.dart';
-import 'student_service.dart';
+import 'profile_api_client.dart';
 import '../../core/logging/app_logger.dart';
 
 import '../../core/logging/print_migration.dart';
 
 class AuthService {
+  AuthService({ProfileApiClient? profileApi})
+    : _profileApi = profileApi ?? ProfileApiClient();
+
+  /// Profile rows are read-only to their owner; every profile write goes
+  /// through `PUT /api/profile`.
+  final ProfileApiClient _profileApi;
+
   // Using simplified global Appwrite instances
   Account get _account => account;
   TablesDB get _databases => db;
   Storage get _storage => storage;
-
-  // Student service for managing student verification
-  final StudentService _studentService = StudentService();
 
   // SharedPreferences keys for local session cache
   static const _cachedUserIdKey = 'session_user_id';
@@ -52,6 +56,8 @@ class AuthService {
   }
 
   Future<void> _clearSessionCache() async {
+    // A kept API token must never outlive the session it was made for.
+    clearAppwriteJwtCache();
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cachedUserIdKey);
@@ -156,6 +162,7 @@ class AuthService {
         userId: userId,
         secret: secret,
       );
+      clearAppwriteJwtCache();
       logPrint('🔗 DEBUG: Magic link session created successfully!');
       logPrint('🔗 DEBUG: Session ID: ${session.$id}');
       logPrint('🔗 DEBUG: Session userId: ${session.userId}');
@@ -220,6 +227,7 @@ class AuthService {
         userId: userId,
         secret: secret,
       );
+      clearAppwriteJwtCache();
       logPrint('🔥 DEBUG: Session created successfully!');
       logPrint('🔥 DEBUG: Session ID: ${session.$id}');
       logPrint('🔥 DEBUG: Session userId: ${session.userId}');
@@ -349,29 +357,19 @@ class AuthService {
     String? bankAccount,
   }) async {
     try {
-      final accountUser = await _account.get();
-
-      final userData = {
+      // The server stamps the account's email on a new row itself.
+      final saved = await _profileApi.upsert({
         'name': name,
-        'email': accountUser.email,
         'phone': phone,
         'address': address,
         'city': city,
         'zip': zipCode,
         'campus_id': campusId,
-        'departments': departments ?? [],
+        'departments': departments ?? <String>[],
         'bank_account': bankAccount,
-      };
-
-      final doc = await _databases.createRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: accountUser.$id,
-        data: userData,
-      );
-
-      return UserModel.fromMap(doc.data);
-    } on AppwriteException catch (e) {
+      });
+      return UserModel.fromMap(saved);
+    } on ProfileApiException catch (e) {
       throw AuthException('Failed to create profile: ${e.message}');
     } catch (e) {
       throw AuthException('Network error occurred');
@@ -420,14 +418,9 @@ class AuthService {
         'bank_account': bankAccount ?? currentUser.bankAccount,
       };
 
-      final doc = await _databases.updateRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: currentUser.id,
-        data: updatedData,
+      final updatedUser = UserModel.fromMap(
+        await _profileApi.upsert(updatedData),
       );
-
-      final updatedUser = UserModel.fromMap(doc.data);
 
       // Sync public profile if user is public
       try {
@@ -441,6 +434,8 @@ class AuthService {
       }
 
       return updatedUser;
+    } on ProfileApiException catch (e) {
+      throw AuthException('Failed to update profile: ${e.message}');
     } on AppwriteException catch (e) {
       throw AuthException('Failed to update profile: ${e.message}');
     } catch (e) {
@@ -517,6 +512,7 @@ class AuthService {
         success: 'biso://auth/oauth-callback',
         failure: 'biso://auth/oauth-failed',
       );
+      clearAppwriteJwtCache();
     } on AppwriteException catch (e) {
       throw AuthException('Google sign-in failed: ${e.message}');
     } catch (e) {
@@ -534,82 +530,11 @@ class AuthService {
         success: 'biso://auth/oauth-callback',
         failure: 'biso://auth/oauth-failed',
       );
+      clearAppwriteJwtCache();
     } on AppwriteException catch (e) {
       throw AuthException('Apple sign-in failed: ${e.message}');
     } catch (e) {
       throw AuthException('Apple sign-in failed');
-    }
-  }
-
-  /// Register student ID via OAuth (Azure)
-  Future<String> registerStudentIdViaOAuth() async {
-    try {
-      return await _studentService.registerStudentIdViaOAuth();
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Student ID registration failed: $e');
-    }
-  }
-
-  /// Check membership status for a student
-  Future<bool> checkMembershipStatus(String studentNumber) async {
-    try {
-      return await _studentService.checkMembershipStatus(studentNumber);
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to check membership: $e');
-    }
-  }
-
-  /// Get student ID record for current user
-  Future<StudentIdModel?> getStudentIdRecord() async {
-    try {
-      final currentUser = await getCurrentUser();
-      if (currentUser == null) {
-        return null;
-      }
-
-      return await _studentService.getStudentIdRecord(currentUser.id);
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to get student ID: $e');
-    }
-  }
-
-  // Removed write-based membership status updates. Verification is read-only via MembershipService.
-
-  /// Remove student ID
-  Future<void> removeStudentId() async {
-    try {
-      final currentUser = await getCurrentUser();
-      if (currentUser == null) {
-        throw AuthException('User not authenticated');
-      }
-
-      await _studentService.removeStudentId(currentUser.id);
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to remove student ID: $e');
-    }
-  }
-
-  /// Launch membership purchase page
-  Future<void> launchMembershipPurchase() async {
-    try {
-      await _studentService.launchMembershipPurchase();
-    } catch (e) {
-      if (e is StudentException) {
-        throw AuthException(e.message);
-      }
-      throw AuthException('Failed to open membership page: $e');
     }
   }
 
@@ -641,12 +566,7 @@ class AuthService {
       updateData['swift'] = swift?.isNotEmpty == true ? swift : null;
 
       // Update user document in Appwrite
-      final response = await _databases.updateRow(
-        databaseId: AppConstants.databaseId,
-        tableId: 'user',
-        rowId: currentUser.id,
-        data: updateData,
-      );
+      final response = await _profileApi.upsert(updateData);
 
       AppLogger.auth(
         'Payment information updated successfully',
@@ -655,7 +575,9 @@ class AuthService {
       );
 
       // Return updated user model
-      return UserModel.fromDocument(response);
+      return UserModel.fromMap(response);
+    } on ProfileApiException catch (e) {
+      throw AuthException('Failed to update payment information: ${e.message}');
     } on AppwriteException catch (e) {
       throw AuthException('Failed to update payment information: ${e.message}');
     } catch (e) {

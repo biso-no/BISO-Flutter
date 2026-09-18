@@ -40,11 +40,18 @@ class ExpenseIntakeBatch {
   final DateTime createdAt;
   final List<ExpenseIntakeFile> files;
 
+  /// Files that came in with this share but could not be kept — the wrong
+  /// type, or too big. They are carried so the screen importing the batch
+  /// can tell the student what was left behind: a receipt that disappears
+  /// without a word is the one failure a student cannot recover from.
+  final List<String> skippedFileNames;
+
   const ExpenseIntakeBatch({
     required this.batchId,
     required this.source,
     required this.createdAt,
     required this.files,
+    this.skippedFileNames = const [],
   });
 
   bool get isEmpty => files.isEmpty;
@@ -55,6 +62,7 @@ class ExpenseIntakeBatch {
       'source': source,
       'createdAt': createdAt.toIso8601String(),
       'files': files.map((file) => file.toMap()).toList(),
+      'skippedFileNames': skippedFileNames,
     };
   }
 
@@ -73,6 +81,12 @@ class ExpenseIntakeBatch {
           DateTime.tryParse((map['createdAt'] ?? '').toString()) ??
           DateTime.now(),
       files: files,
+      skippedFileNames: map['skippedFileNames'] is List
+          ? (map['skippedFileNames'] as List)
+                .map((name) => name.toString())
+                .where((name) => name.isNotEmpty)
+                .toList()
+          : const [],
     );
   }
 }

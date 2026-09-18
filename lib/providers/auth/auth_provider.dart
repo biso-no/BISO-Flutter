@@ -1,9 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/user_model.dart';
-import '../../data/models/student_id_model.dart';
-import '../../data/models/membership_model.dart';
+import '../../data/services/api_auth.dart';
 import '../../data/services/auth_service.dart';
-import '../../data/services/membership_service.dart';
 import '../../data/services/appwrite_service.dart';
 import '../../data/services/notification_service.dart';
 
@@ -17,8 +15,6 @@ final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
 
 class AuthState {
   final UserModel? user;
-  final StudentIdModel? studentRecord;
-  final MembershipVerificationResult? membershipVerification;
   final bool isLoading;
   final String? error;
   final bool isAuthenticated;
@@ -28,8 +24,6 @@ class AuthState {
 
   const AuthState({
     this.user,
-    this.studentRecord,
-    this.membershipVerification,
     this.isLoading = false,
     this.error,
     this.isAuthenticated = false,
@@ -40,8 +34,6 @@ class AuthState {
 
   AuthState copyWith({
     UserModel? user,
-    StudentIdModel? studentRecord,
-    MembershipVerificationResult? membershipVerification,
     bool? isLoading,
     String? error,
     bool? isAuthenticated,
@@ -51,9 +43,6 @@ class AuthState {
   }) {
     return AuthState(
       user: user ?? this.user,
-      studentRecord: studentRecord ?? this.studentRecord,
-      membershipVerification:
-          membershipVerification ?? this.membershipVerification,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
@@ -63,23 +52,7 @@ class AuthState {
     );
   }
 
-  // Computed properties
-  bool get hasStudentId => studentRecord != null;
-  String? get studentNumber => studentRecord?.studentNumber;
-  bool get isStudentVerified => studentRecord?.isVerified ?? false;
-  bool get isStudentMember => membershipVerification?.isMember ?? false;
-  bool get hasValidMembership => membershipVerification?.isMember ?? false;
-  MembershipModel? get membershipDetails => membershipVerification?.membership;
-  String get membershipStatus {
-    if (!hasStudentId) return 'No Student ID';
-    if (!isStudentVerified) return 'Student ID Pending Verification';
-    if (membershipVerification == null) return 'Membership Not Checked';
-    if (membershipVerification!.isMember) return 'Active Member';
-    return 'Not a Member';
-  }
-
   bool get needsOnboarding => isAuthenticated && !isProfileComplete;
-  bool get needsStudentId => isAuthenticated && !hasStudentId;
 
   /// The signed-in user's id, or null when nobody is signed in.
   ///
@@ -90,7 +63,6 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
-  final MembershipService _membershipService = MembershipService();
 
   /// The [NotificationService] supplied by a test, if any.
   final NotificationService? _notificationServiceOverride;
@@ -172,46 +144,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final profile = UserModel.fromMap(documentData.data);
       logPrint('🔐 AuthProvider: Profile loaded successfully: ${profile.name}');
 
-      // Check if user has student_id in their profile
-      StudentIdModel? studentRecord;
-      MembershipVerificationResult? membershipVerification;
-
-      if (profile.studentId != null && profile.studentId!.isNotEmpty) {
-        // Create StudentIdModel from user profile data
-        studentRecord = StudentIdModel(
-          id: 'profile_${profile.id}', // Synthetic ID since it's from user profile
-          userId: profile.id,
-          studentNumber: profile.studentId!,
-          isVerified: true, // Assume verified since it's in their profile
-          createdAt: profile.createdAt ?? DateTime.now(),
-        );
-        logPrint(
-          '🔐 AuthProvider: Student ID found in profile: ${studentRecord.studentNumber}',
-        );
-
-        // Check membership status using the student number
-        try {
-          membershipVerification = await _membershipService.verifyMembership(
-            studentRecord.studentNumber,
-          );
-          logPrint(
-            '🔐 AuthProvider: Membership verified: ${membershipVerification.isMember}',
-          );
-        } catch (e) {
-          logPrint('🔐 AuthProvider: Error verifying membership: $e');
-        }
-      } else {
-        logPrint('🔐 AuthProvider: No student ID found in user profile');
-      }
-
       final hasProfile = true;
       final isProfileComplete =
           profile.campusId != null && profile.campusId!.isNotEmpty;
 
       state = state.copyWith(
         user: profile,
-        studentRecord: studentRecord,
-        membershipVerification: membershipVerification,
         isAuthenticated: true,
         isLoading: false,
         hasProfile: hasProfile,
@@ -495,7 +433,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// Re-check auth state from the server — called after OAuth callbacks.
-  Future<void> refreshAuthState() async => _checkAuthState();
+  /// The callback may have created a new session, so a kept API token is
+  /// dropped first.
+  Future<void> refreshAuthState() async {
+    clearAppwriteJwtCache();
+    await _checkAuthState();
+  }
 
   /// Sign in with Google via Appwrite OAuth2 (opens browser).
   Future<void> signInWithGoogle() async {
@@ -522,79 +465,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       rethrow;
     }
   }
-
-  /// Register student ID via OAuth
-  Future<void> registerStudentIdViaOAuth() async {
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      await _authService.registerStudentIdViaOAuth();
-
-      // Reload profile to get updated student information
-      final currentUser = state.user;
-      if (currentUser != null) {
-        await _loadCompleteProfile(currentUser.id);
-      }
-
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      final message = e.toString();
-      // Treat user cancellation as a benign outcome
-      if (message.contains('User cancelled flow') ||
-          message.contains('USER_CANCELLED') ||
-          message.contains('FlutterAppAuthUserCancelledException')) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
-      state = state.copyWith(error: message, isLoading: false);
-    }
-  }
-
-  /// Check and update membership status using proper membership verification
-  Future<void> checkMembershipStatus() async {
-    final studentRecord = state.studentRecord;
-    if (studentRecord == null || !studentRecord.isVerified) {
-      return;
-    }
-
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      final membershipVerification = await _membershipService.verifyMembership(
-        studentRecord.studentNumber,
-      );
-      state = state.copyWith(
-        membershipVerification: membershipVerification,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-    }
-  }
-
-  /// Remove student ID
-  Future<void> removeStudentId() async {
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      await _authService.removeStudentId();
-
-      state = state.copyWith(studentRecord: null, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-      rethrow;
-    }
-  }
-
-  /// Launch membership purchase page
-  Future<void> launchMembershipPurchase() async {
-    try {
-      await _authService.launchMembershipPurchase();
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-      rethrow;
-    }
-  }
 }
 
 // Helper providers for simplified access
@@ -618,43 +488,7 @@ final isProfileCompleteProvider = Provider<bool>((ref) {
   return authState.isProfileComplete;
 });
 
-final hasStudentIdProvider = Provider<bool>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.hasStudentId;
-});
-
-final studentNumberProvider = Provider<String?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.studentNumber;
-});
-
 final needsOnboardingProvider = Provider<bool>((ref) {
   final authState = ref.watch(authStateProvider);
   return authState.needsOnboarding;
-});
-
-// Student-related providers
-final studentRecordProvider = Provider<StudentIdModel?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.studentRecord;
-});
-
-final isStudentVerifiedProvider = Provider<bool>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.isStudentVerified;
-});
-
-final isStudentMemberProvider = Provider<bool>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.isStudentMember;
-});
-
-final hasValidMembershipProvider = Provider<bool>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.hasValidMembership;
-});
-
-final membershipStatusProvider = Provider<String>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.membershipStatus;
 });

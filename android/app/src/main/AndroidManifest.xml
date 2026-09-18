@@ -66,32 +66,25 @@
                 <data android:scheme="https" android:host="www.biso.no" android:pathPrefix="/app"/>
             </intent-filter>
             <!-- Receive receipts and statements from Android Sharesheet -->
+            <!-- Only the types the reimbursement API accepts. image/* also
+                 offered BISO for HEIC and WebP photos it had to drop after
+                 telling the student the receipt was added. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="image/*"/>
+                <data android:mimeType="image/jpeg"/>
+                <data android:mimeType="image/png"/>
                 <data android:mimeType="application/pdf"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="image/*"/>
+                <data android:mimeType="image/jpeg"/>
+                <data android:mimeType="image/png"/>
                 <data android:mimeType="application/pdf"/>
             </intent-filter>
         </activity>
 
-        <!-- AppAuth redirect handler for OAuth callback -->
-        <activity
-            android:name="net.openid.appauth.RedirectUriReceiverActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-                <category android:name="android.intent.category.BROWSABLE"/>
-                <!-- Match on scheme only to ensure redirect is always captured -->
-                <data android:scheme="${appAuthRedirectScheme}"/>
-            </intent-filter>
-        </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -10,6 +10,7 @@ import '../../../data/models/checkout_quote.dart';
 import '../../../data/models/payment_provider.dart';
 import '../../../data/services/shop_api_client.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/shop/cart_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
 import '../../widgets/biso/biso.dart';
@@ -225,8 +226,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       '${membersOnly.length == 1 ? 'is' : 'are'} only for BISO '
                       'members. Remove '
                       '${membersOnly.length == 1 ? 'it' : 'them'} from your '
-                      'cart, or add your student ID in your profile if you '
-                      'are a member.',
+                      'cart, or, if you are a member, check your membership '
+                      'under Profile → Membership.',
                 ),
               ),
             ),

@@ -9,7 +9,7 @@ class EnturService {
   TablesDB get _databases => db;
   Realtime get _realtime => realtime;
 
-  static const String enturDatabaseId = 'entur';
+  static const String enturDatabaseId = 'app';
   static const String departuresCollectionId = 'departures';
   static const String stopPlacesCollectionId = 'stop_places';
 

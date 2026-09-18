@@ -10,7 +10,7 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/services/event_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
-import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
@@ -881,8 +881,8 @@ class _TicketButton extends StatelessWidget {
         if (blockedAsNonMember) ...[
           const SizedBox(height: 8),
           Text(
-            'This event is for BISO members. If you are a member, add your '
-            'student ID in your profile.',
+            'This event is for BISO members. If you are a member, check your '
+            'membership under Profile → Membership.',
             style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
           ),
         ],

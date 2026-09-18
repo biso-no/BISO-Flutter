@@ -6,12 +6,14 @@ import 'package:biso/providers/campus/campus_data_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/large_event/large_event_provider.dart';
+import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
+import '../../../helpers/fake_member_pass_api.dart';
 
 const _campus = CampusModel(
   id: 'oslo',
@@ -36,12 +38,13 @@ List<Override> _overrides() => [
   appConfigProvider.overrideWith((ref) async => const AppConfig()),
   featuredLargeEventProvider.overrideWithValue(null),
   localeProvider.overrideWith((ref) => _Locale()),
+  scannerAccessProvider.overrideWith(
+    () => FixedScannerAccess(const ScannerDenied()),
+  ),
 ];
 
 void main() {
-  testWidgets('Explore builds on BisoPage in every appearance', (
-    tester,
-  ) async {
+  testWidgets('Explore builds on BisoPage in every appearance', (tester) async {
     await expectBuildsCleanly(
       tester,
       () => const ExploreScreen(),

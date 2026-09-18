@@ -4,7 +4,7 @@ import 'package:biso/data/models/cart_item.dart';
 import 'package:biso/data/models/product_custom_field.dart';
 import 'package:biso/data/models/webshop_product_model.dart';
 import 'package:biso/presentation/screens/explore/webshop_product_detail_screen.dart';
-import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/data/services/shop_api_client.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter/material.dart';

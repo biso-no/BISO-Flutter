@@ -8,7 +8,6 @@ class AppConstants {
   static const String appwriteWebsocket = 'wss://appwrite.biso.no/v1/realtime';
   // Storage Buckets
   static const String productsBucketId = 'products';
-  static const String expensesBucketId = 'expenses';
 
   // Collections
   static const String expensesCollectionId = 'expense';
@@ -27,9 +26,6 @@ class AppConstants {
   // API Service
   static const String apiBaseUrl = 'https://api.biso.no';
   static const String publicAssistantEndpoint = '/api/public-assistant';
-  // Appwrite Functions (IDs)
-  static const String fnParseReceiptId = 'fn_parse_receipt';
-  static const String fnSummarizeExpenseId = 'fn_summarize_expense';
 
   // Email Domains
   static const List<String> allowedEmailDomains = ['bi.no', 'biso.no'];
@@ -60,4 +56,12 @@ class AppConstants {
   static const String bergenId = '2';
   static const String trondheimId = '3';
   static const String stavangerId = '4';
+
+  /// Display names by campus id, in the order campuses are listed.
+  static const Map<String, String> campusNames = {
+    osloId: 'Oslo',
+    bergenId: 'Bergen',
+    trondheimId: 'Trondheim',
+    stavangerId: 'Stavanger',
+  };
 }

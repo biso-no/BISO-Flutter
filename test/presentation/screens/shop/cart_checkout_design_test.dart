@@ -11,6 +11,7 @@ import 'package:biso/presentation/screens/shop/cart_screen.dart';
 import 'package:biso/presentation/screens/shop/checkout_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';

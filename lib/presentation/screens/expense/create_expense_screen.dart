@@ -18,8 +18,10 @@ import '../../../data/services/expense_api_client.dart';
 import '../../../data/services/expense_intake_service.dart';
 import '../../../data/services/expense_service_v2.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../../widgets/expenses_unavailable_page.dart';
 import '../home/premium_home_screen.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
@@ -28,12 +30,23 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
   final ExpenseModel? draftExpense;
   final String? intakeBatchId;
 
+  /// Why a share never became a batch — the share sheet already told the
+  /// student their receipt was added, so the refusal has to land somewhere
+  /// they will read it.
+  final String? intakeError;
+
+  /// Tells one refusal from the next: two shares refused for the same reason
+  /// carry the same [intakeError], and the second must still be shown.
+  final String? intakeErrorId;
+
   const CreateExpenseScreen({
     super.key,
     this.eventId,
     this.eventName,
     this.draftExpense,
     this.intakeBatchId,
+    this.intakeError,
+    this.intakeErrorId,
   });
 
   @override
@@ -61,6 +74,15 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   bool _isSummaryLoading = false;
   bool _isImportingIntakeBatch = false;
   String? _flowError;
+
+  /// Why the campus or department list could not be loaded, while that is
+  /// still the case. Kept apart from [_flowError] so that loading them again
+  /// clears this failure and nothing else.
+  String? _lookupError;
+
+  /// The draft's receipts are read in once. A retry of the lookups must not
+  /// read them in again over whatever the student has done since.
+  bool _draftHydrated = false;
   int _mobileTabIndex = 0;
   final Set<String> _importedIntakeBatchIds = {};
 
@@ -70,6 +92,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _expenseService = ref.read(expenseServiceProvider);
     _apiClient = ref.read(expenseApiClientProvider);
     _draftExpenseId = widget.draftExpense?.id;
+    if (widget.intakeError != null) {
+      _flowError = widget.intakeError;
+      _mobileTabIndex = 1;
+    }
     _descriptionController.text = widget.draftExpense?.description ?? '';
     _eventController.text =
         widget.eventName ?? widget.draftExpense?.eventName ?? '';
@@ -77,10 +103,36 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant CreateExpenseScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // go_router keeps this State for every /explore/expenses/new URL, so a
+    // share refused while the form is already open arrives here, not in
+    // initState. (A new shared batch needs nothing extra: `build` imports
+    // any batch id it has not imported yet, skipped files included.)
+    final error = widget.intakeError;
+    if (error != null &&
+        (error != oldWidget.intakeError ||
+            widget.intakeErrorId != oldWidget.intakeErrorId)) {
+      _flowError = error;
+      _mobileTabIndex = 1;
+    }
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     _eventController.dispose();
     super.dispose();
+  }
+
+  /// Shows [message] where the student will see it. On a phone the error
+  /// banner lives on the Report tab, so a message set while the Receipts tab
+  /// is showing would otherwise go unread.
+  void _showFlowError(String message) {
+    setState(() {
+      _flowError = message;
+      _mobileTabIndex = 1;
+    });
   }
 
   bool get _hasAssignment => _assignment?.isComplete == true;
@@ -93,8 +145,41 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       .where((receipt) => !receipt.isBankStatement)
       .fold(0, (sum, receipt) => sum + receipt.effectiveAmount);
 
+  /// Records why a list could not be loaded. It replaces an earlier lookup
+  /// failure on screen, but never a different message.
+  void _setLookupError(String message) {
+    if (_flowError == null || _flowError == _lookupError) _flowError = message;
+    _lookupError = message;
+  }
+
+  /// Forgets a lookup failure, and takes its message off screen if that is
+  /// the one showing.
+  void _clearLookupError() {
+    if (_flowError != null && _flowError == _lookupError) _flowError = null;
+    _lookupError = null;
+  }
+
+  /// "Try again" on the cost-allocation form: loads what is missing without
+  /// undoing what the student has chosen. With the campus list in hand and a
+  /// campus chosen, only that campus's departments are fetched again — a
+  /// full reload would put the campus back to the default.
+  Future<void> _retryLookups() async {
+    final assignment = _assignment;
+    if (_campuses.isEmpty ||
+        assignment == null ||
+        assignment.campusId.isEmpty) {
+      await _loadLookups();
+      return;
+    }
+    await _selectCampus(assignment.campusId, assignment.campusName);
+  }
+
   Future<void> _loadLookups() async {
-    setState(() => _isLoadingLookups = true);
+    setState(() {
+      _isLoadingLookups = true;
+      _clearLookupError();
+    });
+    var campusesLoaded = false;
     try {
       final rawCampuses = await _expenseService.listCampuses();
       final campuses = rawCampuses
@@ -110,7 +195,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           .toList();
 
       _campuses = campuses;
+      campusesLoaded = true;
       final draft = widget.draftExpense;
+      // Before the departments: the draft does not depend on them, and a
+      // failure there must not leave its receipts behind.
+      if (draft != null && !_draftHydrated) {
+        _hydrateDraft(draft);
+        _draftHydrated = true;
+      }
       final user = ref.read(currentUserProvider);
       final initialCampusId = draft?.campus.isNotEmpty == true
           ? draft!.campus
@@ -128,9 +220,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         );
         await _loadDepartments(initialCampusId);
       }
-      if (draft != null) _hydrateDraft(draft);
     } catch (e) {
-      _flowError = 'Failed to load campuses: $e';
+      _setLookupError(
+        campusesLoaded
+            ? 'Failed to load departments: $e'
+            : 'Failed to load campuses: $e',
+      );
     } finally {
       if (mounted) setState(() => _isLoadingLookups = false);
     }
@@ -175,6 +270,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     if (!mounted) return;
     setState(() {
       _departments = mapped;
+      // With the campus list in hand and these departments loaded, an earlier
+      // lookup failure no longer describes anything — and its "Try again"
+      // would only undo the campus the student has chosen since.
+      if (_campuses.isNotEmpty) _clearLookupError();
       final current = _assignment;
       if (current != null && current.departmentId.isNotEmpty) {
         final match = mapped.where(
@@ -195,6 +294,37 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The lists are fetched when the screen opens, whatever it shows, so an
+    // offline open fails them alongside the config. When "Try again" brings
+    // the config back, fetch them again rather than show a form whose
+    // campus row cannot be used.
+    ref.listen<ExpensesAvailability>(expensesAvailabilityProvider, (
+      previous,
+      next,
+    ) {
+      if (next != ExpensesAvailability.on ||
+          previous == ExpensesAvailability.on ||
+          _lookupError == null ||
+          _isLoadingLookups) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _lookupError != null && !_isLoadingLookups) {
+          _retryLookups();
+        }
+      });
+    });
+
+    switch (ref.watch(expensesAvailabilityProvider)) {
+      case ExpensesAvailability.off:
+        return const ExpensesUnavailablePage();
+      case ExpensesAvailability.unknown:
+        return const ExpensesCheckFailedPage();
+      case ExpensesAvailability.loading:
+      case ExpensesAvailability.on:
+        break;
+    }
+
     final user = ref.watch(currentUserProvider);
     final profileReadiness = ExpenseProfileReadiness.fromUser(user);
 
@@ -341,6 +471,22 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     const SizedBox(height: 12),
                     Text(_flowError!, style: TextStyle(color: palette.error)),
                   ],
+                  if (_lookupError != null) ...[
+                    // Said next to its own "Try again", even when a different
+                    // message holds the line above.
+                    if (_lookupError != _flowError) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _lookupError!,
+                        style: TextStyle(color: palette.error),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _retryLookups,
+                      child: const Text('Try again'),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -383,7 +529,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       );
       _departments = [];
     });
-    await _loadDepartments(campusId);
+    try {
+      await _loadDepartments(campusId);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _setLookupError('Failed to load departments: $e'));
+    }
   }
 
   void _showDepartmentPicker() {
@@ -845,19 +996,25 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   Future<void> _pickCameraReceipt() async {
-    final image = await _imagePicker.pickImage(source: ImageSource.camera);
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 90,
+    );
     if (image != null) await _addFile(File(image.path));
   }
 
   Future<void> _pickImageReceipt() async {
-    final image = await _imagePicker.pickImage(source: ImageSource.gallery);
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 90,
+    );
     if (image != null) await _addFile(File(image.path));
   }
 
   Future<void> _pickDocumentReceipt() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       allowMultiple: true,
     );
     if (result == null) return;
@@ -870,7 +1027,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   Future<void> _pickBankStatement(String parentReceiptId) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
       allowMultiple: false,
     );
     if (result == null || result.files.first.path == null) return;
@@ -916,14 +1073,26 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       for (final intakeFile in batch.files) {
         if (!mounted) return;
         if (await intakeFile.file.exists()) {
-          await _addFile(intakeFile.file);
-          importedCount += 1;
+          final added = await _addFile(intakeFile.file);
+          if (added) importedCount += 1;
         }
       }
 
+      // Files the intake had to leave out of the batch — the wrong type, or
+      // too big. They were shared, so they have to be accounted for.
+      if (batch.skippedFileNames.isNotEmpty && mounted) {
+        _showFlowError(
+          ExpenseIntakeService.skippedFilesMessage(batch.skippedFileNames),
+        );
+      }
+
       if (importedCount == 0) {
-        setState(
-          () => _flowError = 'No shared receipt files could be imported.',
+        // `_addFile` already set a specific reason (unsupported type, too
+        // large) for whichever file it rejected; only fall back to a
+        // generic message when nothing more specific was set (for example,
+        // every file in the batch was missing from disk).
+        _showFlowError(
+          _flowError ?? 'No shared receipt files could be imported.',
         );
       } else {
         _showSnack(
@@ -939,23 +1108,22 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  Future<void> _addFile(
+  /// Adds [file] as a receipt and returns whether it actually did — callers
+  /// that count imports (for example `_importIntakeBatch`) must only count
+  /// a `true` result, since this can reject the file without throwing.
+  Future<bool> _addFile(
     File file, {
     String purpose = 'receipt',
     String? parentReceiptId,
   }) async {
     final mimeType = detectExpenseMimeType(file.path);
     if (!_isSupportedOcrMime(mimeType)) {
-      setState(() {
-        _flowError = 'Unsupported file type for OCR: $mimeType';
-      });
-      return;
+      _showFlowError('Unsupported file type for OCR: $mimeType');
+      return false;
     }
     if (await file.length() > 10 * 1024 * 1024) {
-      setState(() {
-        _flowError = 'Files must be 10 MB or smaller.';
-      });
-      return;
+      _showFlowError('Files must be 10 MB or smaller.');
+      return false;
     }
 
     final receipt =
@@ -977,6 +1145,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       _mobileTabIndex = 1;
     });
     await _processReceipt(receipt.localId, purpose: purpose);
+    return true;
   }
 
   Future<void> _processReceipt(String localId, {String? purpose}) async {
@@ -1398,9 +1567,6 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     return const {
       'image/jpeg',
       'image/png',
-      'image/webp',
-      'image/heic',
-      'image/heif',
       'application/pdf',
     }.contains(mimeType);
   }

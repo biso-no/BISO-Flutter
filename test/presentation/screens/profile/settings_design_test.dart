@@ -1,20 +1,21 @@
-import 'package:biso/core/theme/premium_theme.dart';
+import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
+import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/data/services/privacy_service.dart';
-import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/profile/profile_screen.dart';
 import 'package:biso/presentation/screens/profile/settings_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
+import 'package:biso/providers/config/app_config_provider.dart';
+import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:biso/providers/privacy/privacy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -119,12 +120,18 @@ class _FakeTopicIntentNotifier extends TopicIntentNotifier {
   }
 }
 
-List<Override> _overrides({bool controllerPermissions = false}) => [
+/// No membership loaded, so `_MembershipRow` never makes a real Appwrite call.
+class _NoMembership extends MembershipOverviewNotifier {
+  @override
+  Future<MembershipOverview?> build() async => null;
+}
+
+List<Override> _overrides() => [
   authStateProvider.overrideWith((_) => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
-  controllerPermissionsProvider.overrideWith((_) async => controllerPermissions),
   notificationServiceProvider.overrideWithValue(_FakeNotificationService()),
   privacyServiceProvider.overrideWithValue(_FakePrivacyService()),
+  membershipOverviewProvider.overrideWith(_NoMembership.new),
 ];
 
 void main() {
@@ -133,7 +140,9 @@ void main() {
   // throws (no platform channel handler is registered in flutter_test).
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
-  testWidgets('Settings builds on BisoPage in every appearance', (tester) async {
+  testWidgets('Settings builds on BisoPage in every appearance', (
+    tester,
+  ) async {
     await expectBuildsCleanly(
       tester,
       () => const SettingsScreen(),
@@ -142,25 +151,40 @@ void main() {
   });
 
   for (final section in SettingsSection.values) {
-    testWidgets('${section.name} section page builds on BisoPage in every appearance', (
-      tester,
-    ) async {
-      await expectBuildsCleanly(
-        tester,
-        () => SettingsSectionPage(section: section),
-        overrides: _overrides(),
-      );
-    });
+    testWidgets(
+      '${section.name} section page builds on BisoPage in every appearance',
+      (tester) async {
+        await expectBuildsCleanly(
+          tester,
+          () => SettingsSectionPage(section: section),
+          overrides: _overrides(),
+        );
+      },
+    );
   }
 
-  testWidgets('settings lists five sections and each opens its page', (tester) async {
-    await pumpBisoScreen(tester, const SettingsScreen(), overrides: _overrides());
-    for (final title in ['General', 'Notifications', 'Privacy', 'Chat', 'Language']) {
+  testWidgets('settings lists five sections and each opens its page', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const SettingsScreen(),
+      overrides: _overrides(),
+    );
+    for (final title in [
+      'General',
+      'Notifications',
+      'Privacy',
+      'Chat',
+      'Language',
+    ]) {
       await tester.tap(find.widgetWithText(BisoListRow, title));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('biso-compact-title')), findsOneWidget);
       expect(
-        tester.widget<Text>(find.byKey(const ValueKey('biso-compact-title'))).data,
+        tester
+            .widget<Text>(find.byKey(const ValueKey('biso-compact-title')))
+            .data,
         title,
       );
       await tester.tap(find.byTooltip('Back'));
@@ -176,7 +200,9 @@ void main() {
         const ProfileScreen(),
         overrides: [
           ..._overrides(),
-          expenseFeatureFlagProvider.overrideWith((_) async => true),
+          appConfigProvider.overrideWith(
+            (_) async => const AppConfig(expensesEnabled: true),
+          ),
         ],
         routed: false,
       );
@@ -199,42 +225,14 @@ void main() {
     },
   );
 
-  testWidgets('Validator Mode row pushes /controller-mode when the user is permitted', (
-    tester,
-  ) async {
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, _) =>
-              const SettingsSectionPage(section: SettingsSection.general),
-        ),
-        GoRoute(
-          path: '/controller-mode',
-          builder: (context, _) => const Scaffold(body: Text('Controller Mode Screen')),
-        ),
-      ],
+  testWidgets('Settings no longer offers Validator Mode', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const SettingsSectionPage(section: SettingsSection.general),
+      overrides: _overrides(),
     );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: _overrides(controllerPermissions: true),
-        child: MaterialApp.router(
-          theme: PremiumTheme.build(Brightness.light),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          routerConfig: router,
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
-
-    await tester.tap(find.widgetWithText(BisoListRow, 'Open Validator Mode'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Controller Mode Screen'), findsOneWidget);
+    expect(find.text('Validator Mode'), findsNothing);
+    expect(find.text('Open Validator Mode'), findsNothing);
   });
 
   testWidgets(
@@ -245,14 +243,19 @@ void main() {
       await pumpBisoScreen(
         tester,
         const SettingsSectionPage(section: SettingsSection.notifications),
-        overrides: [..._overrides(), topicIntentProvider.overrideWith((ref) => fake)],
+        overrides: [
+          ..._overrides(),
+          topicIntentProvider.overrideWith((ref) => fake),
+        ],
       );
 
       final newsRow = find.ancestor(
         of: find.text('News'),
         matching: find.byType(BisoListRow),
       );
-      await tester.tap(find.descendant(of: newsRow, matching: find.byType(Switch)));
+      await tester.tap(
+        find.descendant(of: newsRow, matching: find.byType(Switch)),
+      );
       await tester.pumpAndSettle();
 
       expect(

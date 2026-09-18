@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/notification_topics.dart';
@@ -14,7 +13,6 @@ import '../../../providers/ui/locale_provider.dart';
 import '../../../providers/ui/theme_mode_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../../data/services/notification_service.dart' show ReconcileOutcome;
-import '../../../data/services/validator_service.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/notification_tile.dart';
 import 'settings_screen_chat_tab.dart';
@@ -24,12 +22,6 @@ final appSettingsProvider =
     StateNotifierProvider<AppSettingsNotifier, AppSettingsState>((ref) {
       return AppSettingsNotifier();
     });
-
-// Controller permissions provider
-final controllerPermissionsProvider = FutureProvider<bool>((ref) async {
-  final validatorService = ValidatorService();
-  return await validatorService.hasControllerPermissions();
-});
 
 class AppSettingsState {
   final bool darkMode;
@@ -364,31 +356,6 @@ class _GeneralSettingsBody extends ConsumerWidget {
             ],
           ),
         ),
-
-        // Controller Mode Section (only show if user has permissions)
-        ref
-            .watch(controllerPermissionsProvider)
-            .when(
-              data: (hasPermissions) => hasPermissions
-                  ? BisoSection(
-                      title: 'Validator Mode',
-                      child: BisoListGroup(
-                        children: [
-                          BisoListRow(
-                            leading: const BisoIconTile(
-                              icon: CupertinoIcons.qrcode_viewfinder,
-                            ),
-                            title: 'Open Validator Mode',
-                            subtitle: 'Scan student QR codes to verify membership',
-                            onTap: () => context.push('/controller-mode'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
-            ),
 
         BisoSection(
           title: 'Data & Storage',

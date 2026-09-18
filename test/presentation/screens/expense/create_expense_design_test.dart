@@ -1,3 +1,4 @@
+import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/expense_attachment_model.dart';
 import 'package:biso/data/models/expense_model.dart';
 import 'package:biso/data/models/user_model.dart';
@@ -5,6 +6,7 @@ import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -78,6 +80,9 @@ List<Override> _overrides({
   authStateProvider.overrideWith((_) => _Auth(user)),
   expenseServiceProvider.overrideWithValue(
     _FakeExpenseService(campuses: campuses, departments: departments),
+  ),
+  appConfigProvider.overrideWith(
+    (_) async => const AppConfig(expensesEnabled: true),
   ),
 ];
 

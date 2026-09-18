@@ -38,6 +38,8 @@ import 'presentation/screens/explore/unit_detail_screen.dart';
 import 'presentation/screens/explore/departures_screen.dart';
 import 'presentation/screens/explore/campus_detail_screen.dart';
 import 'presentation/screens/ai_chat/ai_chat_screen.dart';
+import 'presentation/screens/profile/membership_screen.dart';
+import 'presentation/screens/profile/member_pass_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/announcement_detail_screen.dart';
@@ -46,13 +48,15 @@ import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
 import 'presentation/screens/events/large_event_screen.dart';
-import 'presentation/screens/validator/controller_mode_screen.dart';
+import 'presentation/screens/scanner/scanner_route.dart';
 import 'data/models/large_event_model.dart';
 import 'data/services/large_event_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
 import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
+import 'providers/membership/membership_checkout_provider.dart';
+import 'providers/membership/membership_overview_provider.dart';
 import 'providers/notification/notification_provider.dart';
 import 'providers/shop/checkout_provider.dart';
 
@@ -132,6 +136,13 @@ class BisoApp extends ConsumerWidget {
     // arrives — the rebuild that follows constructs the controller.
     if (!ref.watch(authStateProvider.select((state) => state.isLoading))) {
       ref.watch(checkoutControllerProvider.notifier);
+      // Verify the student's membership at launch, whether or not a
+      // membership screen is ever opened. Listening (not watching) keeps the
+      // overview alive without rebuilding the app on every check.
+      ref.listen(membershipOverviewProvider, (_, _) {});
+      // Like the shop's checkout controller: built at launch so a membership
+      // paid while the app was evicted is resolved without visiting a screen.
+      ref.watch(membershipCheckoutControllerProvider.notifier);
     }
 
     // Ask a signed-in student which topics they want, once. Gated the same way
@@ -287,6 +298,8 @@ final _router = GoRouter(
       builder: (context, state) => const OnboardingScreen(),
     ),
 
+    membershipScannerRoute(),
+
     // Main app shell with tab navigation
     ShellRoute(
       builder: (context, state, child) {
@@ -354,6 +367,8 @@ final _router = GoRouter(
                   name: 'expense-new',
                   builder: (context, state) => CreateExpenseScreen(
                     intakeBatchId: state.uri.queryParameters['batch'],
+                    intakeError: state.uri.queryParameters['intakeError'],
+                    intakeErrorId: state.uri.queryParameters['intakeErrorId'],
                   ),
                 ),
               ],
@@ -390,6 +405,25 @@ final _router = GoRouter(
           name: 'profile',
           pageBuilder: (context, state) =>
               const NoTransitionPage(child: _ProfilePage()),
+          routes: [
+            GoRoute(
+              path: '/membership',
+              name: 'membership',
+              builder: (context, state) {
+                final query = state.uri.queryParameters;
+                return MembershipScreen(
+                  returnedOrderId: query['orderId'],
+                  returnedCancelled: query['cancelled'] == '1',
+                  linked: query['linked'] == '1',
+                );
+              },
+            ),
+            GoRoute(
+              path: '/member-pass',
+              name: 'member-pass',
+              builder: (context, state) => const MemberPassScreen(),
+            ),
+          ],
         ),
       ],
     ),
@@ -407,11 +441,6 @@ final _router = GoRouter(
         final slug = state.pathParameters['slug'] ?? '';
         return _LargeEventLoader(slug: slug);
       },
-    ),
-    GoRoute(
-      path: '/controller-mode',
-      name: 'controller-mode',
-      builder: (context, state) => const ControllerModeScreen(),
     ),
     GoRoute(
       path: '/notifications',

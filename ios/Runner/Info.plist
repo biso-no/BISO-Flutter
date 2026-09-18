@@ -37,14 +37,6 @@
 				<string>biso</string>
 			</array>
 		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>appauth.redirect</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.biso.no</string>
-			</array>
-		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
