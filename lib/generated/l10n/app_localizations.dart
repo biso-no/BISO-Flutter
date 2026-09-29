@@ -4382,6 +4382,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The camera couldn\'t start. Check camera access in Settings.'**
   String get scannerCameraError;
+
+  /// Membership: membershipDurationSemester
+  ///
+  /// In en, this message translates to:
+  /// **'Semester'**
+  String get membershipDurationSemester;
+
+  /// Membership: membershipDurationYear
+  ///
+  /// In en, this message translates to:
+  /// **'1 year'**
+  String get membershipDurationYear;
+
+  /// Membership: membershipDurationThreeYears
+  ///
+  /// In en, this message translates to:
+  /// **'3 years'**
+  String get membershipDurationThreeYears;
+
+  /// Membership: membershipDurationMonths
+  ///
+  /// In en, this message translates to:
+  /// **'{count} months'**
+  String membershipDurationMonths(int count);
+
+  /// Membership: membershipPlanValidUntil
+  ///
+  /// In en, this message translates to:
+  /// **'{price} · valid until {date}'**
+  String membershipPlanValidUntil(String price, String date);
+
+  /// Membership: membershipPlanPeriod
+  ///
+  /// In en, this message translates to:
+  /// **'{price} · {start} – {end}'**
+  String membershipPlanPeriod(String price, String start, String end);
+
+  /// Membership: membershipEndsOn
+  ///
+  /// In en, this message translates to:
+  /// **'This membership ends {end}.'**
+  String membershipEndsOn(String end);
+
+  /// Membership: membershipBuyThisSemester
+  ///
+  /// In en, this message translates to:
+  /// **'Buy for this semester (until {end})'**
+  String membershipBuyThisSemester(String end);
+
+  /// Membership: membershipStartNextSemester
+  ///
+  /// In en, this message translates to:
+  /// **'Start next semester instead ({start} – {end})'**
+  String membershipStartNextSemester(String start, String end);
+
+  /// Membership: membershipUpcomingTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming membership'**
+  String get membershipUpcomingTitle;
+
+  /// Membership: membershipUpcomingDetails
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership starts {start} and runs until {end}. Benefits become available from the start date.'**
+  String membershipUpcomingDetails(String start, String end);
+
+  /// Membership: membershipStartsOn
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership starts {start}.'**
+  String membershipStartsOn(String start);
+
+  /// Membership: membershipPurchasedTitle
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re all set'**
+  String get membershipPurchasedTitle;
+
+  /// Membership: membershipPurchasedStarts
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership starts {start}. Benefits become available from the start date.'**
+  String membershipPurchasedStarts(String start);
+
+  /// Membership: membershipExtendedFrom
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership is extended from {start}.'**
+  String membershipExtendedFrom(String start);
+
+  /// Membership: membershipActiveNow
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re a member now.'**
+  String get membershipActiveNow;
+
+  /// Membership: memberPassUpcomingTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership starts {start}'**
+  String memberPassUpcomingTitle(String start);
+
+  /// Membership: memberPassUpcomingMessage
+  ///
+  /// In en, this message translates to:
+  /// **'Your pass becomes available on the start date.'**
+  String get memberPassUpcomingMessage;
+
+  /// Membership: memberPassViewMembership
+  ///
+  /// In en, this message translates to:
+  /// **'See your membership'**
+  String get memberPassViewMembership;
 }
 
 class _AppLocalizationsDelegate

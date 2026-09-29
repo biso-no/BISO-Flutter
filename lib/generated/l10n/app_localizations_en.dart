@@ -2365,4 +2365,84 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get scannerCameraError =>
       'The camera couldn\'t start. Check camera access in Settings.';
+
+  @override
+  String get membershipDurationSemester => 'Semester';
+
+  @override
+  String get membershipDurationYear => '1 year';
+
+  @override
+  String get membershipDurationThreeYears => '3 years';
+
+  @override
+  String membershipDurationMonths(int count) {
+    return '$count months';
+  }
+
+  @override
+  String membershipPlanValidUntil(String price, String date) {
+    return '$price · valid until $date';
+  }
+
+  @override
+  String membershipPlanPeriod(String price, String start, String end) {
+    return '$price · $start – $end';
+  }
+
+  @override
+  String membershipEndsOn(String end) {
+    return 'This membership ends $end.';
+  }
+
+  @override
+  String membershipBuyThisSemester(String end) {
+    return 'Buy for this semester (until $end)';
+  }
+
+  @override
+  String membershipStartNextSemester(String start, String end) {
+    return 'Start next semester instead ($start – $end)';
+  }
+
+  @override
+  String get membershipUpcomingTitle => 'Upcoming membership';
+
+  @override
+  String membershipUpcomingDetails(String start, String end) {
+    return 'Your membership starts $start and runs until $end. Benefits become available from the start date.';
+  }
+
+  @override
+  String membershipStartsOn(String start) {
+    return 'Your membership starts $start.';
+  }
+
+  @override
+  String get membershipPurchasedTitle => 'You\'re all set';
+
+  @override
+  String membershipPurchasedStarts(String start) {
+    return 'Your membership starts $start. Benefits become available from the start date.';
+  }
+
+  @override
+  String membershipExtendedFrom(String start) {
+    return 'Your membership is extended from $start.';
+  }
+
+  @override
+  String get membershipActiveNow => 'You\'re a member now.';
+
+  @override
+  String memberPassUpcomingTitle(String start) {
+    return 'Your membership starts $start';
+  }
+
+  @override
+  String get memberPassUpcomingMessage =>
+      'Your pass becomes available on the start date.';
+
+  @override
+  String get memberPassViewMembership => 'See your membership';
 }

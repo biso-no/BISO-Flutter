@@ -1,5 +1,6 @@
 import 'package:biso/core/utils/oslo_time.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() {
   const ms = Duration(milliseconds: 1);
@@ -39,5 +40,30 @@ void main() {
   test('a local DateTime gives the same answer as its UTC instant', () {
     final utc = DateTime.utc(2026, 9, 17, 10);
     expect(formatOsloClock(utc.toLocal()), formatOsloClock(utc));
+  });
+
+  group('membership dates are Oslo calendar days', () {
+    setUpAll(initializeDateFormatting);
+
+    test('a date-only value keeps its day', () {
+      final day = DateTime.parse('2027-01-01');
+      expect(formatOsloDate(day, 'en'), 'January 1, 2027');
+      expect(formatOsloDate(day, 'no'), '1. januar 2027');
+    });
+
+    test('an instant is read in Oslo, not in the device time zone', () {
+      // Midnight on 1 January in Oslo is still 31 December in UTC.
+      final instant = DateTime.parse('2026-12-31T23:00:00Z');
+      expect(osloCalendarDay(instant), DateTime.utc(2027, 1, 1));
+      expect(formatOsloDate(instant, 'en'), 'January 1, 2027');
+      expect(formatOsloDate(instant.toLocal(), 'en'), 'January 1, 2027');
+    });
+
+    test('today is the Oslo day', () {
+      expect(
+        osloToday(DateTime.utc(2026, 12, 31, 23, 30)),
+        DateTime.utc(2027, 1, 1),
+      );
+    });
   });
 }

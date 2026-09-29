@@ -5,6 +5,7 @@ import 'package:biso/presentation/screens/profile/membership_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/membership/membership_checkout_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
+import '../../../helpers/membership_fixtures.dart';
 
 const _user = UserModel(
   id: 'u1',
@@ -375,6 +377,257 @@ void main() {
     // The BI student app does not sell BISO memberships, so it must not be
     // offered as a way in.
     expect(find.textContaining('BI student app'), findsNothing);
+  });
+
+  group('plans after BISO-Sites PR #83', () {
+    // Tall enough that the whole purchase form is on screen at once.
+    const tall = Size(390, 2400);
+
+    Future<void> pump(WidgetTester tester, MembershipOverview value) async {
+      await pumpBisoScreen(
+        tester,
+        const MembershipScreen(),
+        overrides: overrides(value),
+        size: tall,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder row(String title) => find.byWidgetPredicate(
+      (widget) => widget is BisoListRow && widget.title == title,
+    );
+
+    String? subtitleOf(WidgetTester tester, String title) =>
+        tester.widget<BisoListRow>(row(title)).subtitle;
+
+    Future<void> pay(WidgetTester tester, String label) async {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('29 Sep, non-member: one row per duration and no choice', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        membershipOverviewOf(
+          plans: [fall2026Semester, fall2026Year, fall2026ThreeYears],
+        ),
+      );
+
+      expect(row('Semester'), findsOneWidget);
+      expect(row('1 year'), findsOneWidget);
+      expect(row('3 years'), findsOneWidget);
+      expect(
+        subtitleOf(tester, 'Semester'),
+        'NOK 350 · valid until December 31, 2026',
+      );
+      expect(find.textContaining('BISO Membership product'), findsNothing);
+      expect(find.textContaining('This membership ends'), findsNothing);
+    });
+
+    testWidgets('10 Dec, non-member: Semester offers next semester, and that '
+        'is the plan paid for', (tester) async {
+      await pump(
+        tester,
+        membershipOverviewOf(
+          plans: [
+            fall2026Semester,
+            fall2026Year,
+            fall2026ThreeYears,
+            spring2027Semester,
+            spring2027Year,
+            spring2027ThreeYears,
+          ],
+        ),
+      );
+
+      // Six plans on offer, still one row per duration.
+      expect(row('Semester'), findsOneWidget);
+      expect(row('1 year'), findsOneWidget);
+      expect(row('3 years'), findsOneWidget);
+      expect(
+        find.text('This membership ends December 31, 2026.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Buy for this semester (until December 31, 2026)'),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.text(
+          'Start next semester instead (January 1, 2027 – June 30, 2027)',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        subtitleOf(tester, 'Semester'),
+        'NOK 350 · January 1, 2027 – June 30, 2027',
+      );
+      await pay(tester, 'Pay NOK 350 with Vipps');
+      expect(checkout.started, ['vipps:60:2']);
+    });
+
+    testWidgets('changing the duration resets the choice to this semester', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        membershipOverviewOf(
+          plans: [
+            fall2026Semester,
+            fall2026Year,
+            spring2027Semester,
+            spring2027Year,
+          ],
+        ),
+      );
+
+      await tester.tap(
+        find.text(
+          'Start next semester instead (January 1, 2027 – June 30, 2027)',
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(row('1 year'));
+      await tester.pumpAndSettle();
+
+      expect(
+        subtitleOf(tester, '1 year'),
+        'NOK 550 · valid until June 30, 2027',
+      );
+      await pay(tester, 'Pay NOK 550 with Vipps');
+      expect(checkout.started, ['vipps:55:2']);
+    });
+
+    testWidgets('13 Dec, holds only spring 2027: says when it starts and does '
+        'not offer Semester again', (tester) async {
+      await pump(
+        tester,
+        membershipOverviewOf(
+          upcoming: [spring2027Semester],
+          currentExpiry: DateTime(2027, 6, 30),
+          plans: [spring2027Year, spring2027ThreeYears],
+        ),
+      );
+
+      expect(find.text('Upcoming membership'), findsOneWidget);
+      expect(
+        find.text(
+          'Your membership starts January 1, 2027 and runs until June 30, '
+          '2027. Benefits become available from the start date.',
+        ),
+        findsOneWidget,
+      );
+      expect(row('Semester'), findsNothing);
+      expect(find.textContaining('This membership ends'), findsNothing);
+    });
+
+    testWidgets('already_member with only an upcoming membership is not '
+        '"already a member"', (tester) async {
+      await pump(
+        tester,
+        membershipOverviewOf(
+          state: MembershipGateState.alreadyMember,
+          upcoming: [spring2027Semester],
+          currentExpiry: DateTime(2027, 6, 30),
+        ),
+      );
+
+      expect(
+        find.text(
+          'Your membership starts January 1, 2027 and runs until June 30, '
+          '2027. Benefits become available from the start date.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Active member'), findsNothing);
+      expect(find.text('Become a member'), findsNothing);
+    });
+
+    testWidgets('15 Oct, fall semester member: Semester is next spring with no '
+        'choice, the longer plans start now', (tester) async {
+      await pump(
+        tester,
+        membershipOverviewOf(
+          isMember: true,
+          active: [fall2026Semester],
+          currentExpiry: DateTime(2026, 12, 31),
+          plans: [spring2027Semester, fall2026Year, fall2026ThreeYears],
+        ),
+      );
+
+      expect(find.text('Active member'), findsOneWidget);
+      expect(
+        subtitleOf(tester, 'Semester'),
+        'NOK 350 · January 1, 2027 – June 30, 2027',
+      );
+      expect(
+        subtitleOf(tester, '1 year'),
+        'NOK 550 · valid until June 30, 2027',
+      );
+      expect(find.textContaining('This membership ends'), findsNothing);
+      await pay(tester, 'Pay NOK 350 with Vipps');
+      expect(checkout.started, ['vipps:60:2']);
+    });
+
+    testWidgets('a purchase for next semester says when it starts', (
+      tester,
+    ) async {
+      await pump(tester, membershipOverviewOf());
+
+      checkout.setPhase(
+        MembershipPurchaseState(
+          phase: MembershipPurchasePhase.activated,
+          orderId: 'order-1',
+          startsOn: DateTime.utc(2027, 1, 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.text(
+          'Your membership starts January 1, 2027. Benefits become available '
+          'from the start date.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text("You're a member now."), findsNothing);
+    });
+
+    testWidgets('a purchase that has started says so', (tester) async {
+      await pump(tester, membershipOverviewOf());
+
+      checkout.setPhase(
+        const MembershipPurchaseState(
+          phase: MembershipPurchasePhase.activated,
+          orderId: 'order-1',
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text("You're a member now."), findsOneWidget);
+    });
+
+    testWidgets('dates follow the app language', (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const MembershipScreen(),
+        overrides: overrides(
+          membershipOverviewOf(plans: [fall2026Semester, spring2027Semester]),
+        ),
+        size: tall,
+        locale: const Locale('no'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Dette medlemskapet slutter 31. desember 2026.'),
+        findsOneWidget,
+      );
+    });
   });
 }
 

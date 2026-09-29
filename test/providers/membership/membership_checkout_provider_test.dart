@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/membership_fixtures.dart';
+
 class _FakeShopApi extends ShopApiClient {
   _FakeShopApi(this.status);
 
@@ -59,8 +61,17 @@ class _FakeMembershipApi extends MembershipApiClient {
   /// the student within the last minute.
   int staleForcedChecks = 0;
 
+  /// When set, every check answers this instead — for tests that need
+  /// offered plans or upcoming memberships.
+  MembershipOverview? answer;
+
   @override
   Future<MembershipOverview> fetchOverview({bool refresh = false}) async {
+    final fixed = answer;
+    if (fixed != null) {
+      if (refresh) forcedChecks++;
+      return fixed;
+    }
     var member = isMember;
     if (refresh) {
       forcedChecks++;
@@ -104,8 +115,9 @@ void main() {
 
   ProviderContainer container(
     _FakeShopApi shop,
-    _FakeMembershipApi membership,
-  ) {
+    _FakeMembershipApi membership, {
+    DateTime? today,
+  }) {
     final c = ProviderContainer(
       overrides: [
         shopApiClientProvider.overrideWithValue(shop),
@@ -120,6 +132,7 @@ void main() {
             ref,
             activationPollInterval: Duration.zero,
             activationAttempts: 3,
+            clock: () => today ?? DateTime.now(),
           ),
         ),
       ],
@@ -632,4 +645,214 @@ void main() {
       expect(prefs.getString('membership_pending_order_id'), isNull);
     });
   }
+
+  group('next-season purchases (BISO-Sites PR #83)', () {
+    // 10 December 2026, when spring 2027 is on sale alongside fall 2026.
+    final december10 = DateTime.utc(2026, 12, 10, 12);
+
+    Future<ProviderContainer> buyPlan(
+      _FakeMembershipApi membership,
+      _FakeShopApi shop,
+      String planId,
+    ) async {
+      final c = container(shop, membership, today: december10);
+      // The screen has the overview loaded before anything can be bought.
+      await c.read(membershipOverviewProvider.future);
+      final controller = c.read(membershipCheckoutControllerProvider.notifier);
+      await pumpEventQueue();
+      await controller.start(
+        provider: PaymentProvider.vipps,
+        planId: planId,
+        campusId: '2',
+      );
+      return c;
+    }
+
+    test('a plan for next season completes without waiting for isMember, '
+        'and says when it starts', () async {
+      final membership = _FakeMembershipApi()
+        ..answer = membershipOverviewOf(
+          plans: [fall2026Semester, spring2027Semester],
+        );
+      final shop = _FakeShopApi(ShopOrderStatus.pending);
+      final c = await buyPlan(membership, shop, spring2027Semester.id);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('membership_pending_plan_id'), '60');
+
+      // Paid: the plan now shows as upcoming, and the student is still not
+      // a member — it starts on 1 January.
+      shop.status = ShopOrderStatus.paid;
+      membership.answer = membershipOverviewOf(
+        state: MembershipGateState.alreadyMember,
+        upcoming: [spring2027Semester],
+        currentExpiry: DateTime(2027, 6, 30),
+      );
+      final checksBefore = membership.forcedChecks;
+      await c
+          .read(membershipCheckoutControllerProvider.notifier)
+          .resolvePending(orderId: 'order-1');
+
+      expect(membership.forcedChecks - checksBefore, 1);
+      expect(
+        c.read(membershipCheckoutControllerProvider),
+        MembershipPurchaseState(
+          phase: MembershipPurchasePhase.activated,
+          orderId: 'order-1',
+          startsOn: DateTime.utc(2027, 1, 1),
+        ),
+      );
+      expect(prefs.getString('membership_pending_plan_id'), isNull);
+    });
+
+    test(
+      'a plan for this season still says the student is a member now',
+      () async {
+        final membership = _FakeMembershipApi()
+          ..answer = membershipOverviewOf(
+            plans: [fall2026Semester, spring2027Semester],
+          );
+        final shop = _FakeShopApi(ShopOrderStatus.pending);
+        final c = await buyPlan(membership, shop, fall2026Semester.id);
+
+        shop.status = ShopOrderStatus.paid;
+        membership.answer = membershipOverviewOf(
+          state: MembershipGateState.alreadyMember,
+          isMember: true,
+          active: [fall2026Semester],
+          currentExpiry: DateTime(2026, 12, 31),
+        );
+        await c
+            .read(membershipCheckoutControllerProvider.notifier)
+            .resolvePending(orderId: 'order-1');
+
+        expect(
+          c.read(membershipCheckoutControllerProvider),
+          const MembershipPurchaseState(
+            phase: MembershipPurchasePhase.activated,
+            orderId: 'order-1',
+          ),
+        );
+      },
+    );
+
+    test('a member renewing for next season waits for the new plan, not for '
+        'the membership they already hold', () async {
+      final before = membershipOverviewOf(
+        isMember: true,
+        active: [fall2026Semester],
+        currentExpiry: DateTime(2026, 12, 31),
+        plans: [spring2027Semester, fall2026Year],
+      );
+      final membership = _FakeMembershipApi()..answer = before;
+      final shop = _FakeShopApi(ShopOrderStatus.pending);
+      final c = await buyPlan(membership, shop, spring2027Semester.id);
+
+      // Paid, but 24SevenOffice has not caught up: still only fall 2026.
+      shop.status = ShopOrderStatus.paid;
+      await c
+          .read(membershipCheckoutControllerProvider.notifier)
+          .resolvePending(orderId: 'order-1');
+      expect(
+        c.read(membershipCheckoutControllerProvider).phase,
+        MembershipPurchasePhase.activationDelayed,
+      );
+    });
+
+    test('a member renewing for next season sees it extended from the start '
+        'date once it lands', () async {
+      final membership = _FakeMembershipApi()
+        ..answer = membershipOverviewOf(
+          isMember: true,
+          active: [fall2026Semester],
+          currentExpiry: DateTime(2026, 12, 31),
+          plans: [spring2027Semester, fall2026Year],
+        );
+      final shop = _FakeShopApi(ShopOrderStatus.pending);
+      final c = await buyPlan(membership, shop, spring2027Semester.id);
+
+      shop.status = ShopOrderStatus.paid;
+      membership.answer = membershipOverviewOf(
+        state: MembershipGateState.eligible,
+        isMember: true,
+        active: [fall2026Semester],
+        upcoming: [spring2027Semester],
+        currentExpiry: DateTime(2027, 6, 30),
+      );
+      await c
+          .read(membershipCheckoutControllerProvider.notifier)
+          .resolvePending(orderId: 'order-1');
+
+      expect(
+        c.read(membershipCheckoutControllerProvider),
+        MembershipPurchaseState(
+          phase: MembershipPurchasePhase.activated,
+          orderId: 'order-1',
+          startsOn: DateTime.utc(2027, 1, 1),
+          extendsMembership: true,
+        ),
+      );
+    });
+
+    test('a next-season order paid while the app was closed is restored with '
+        'its plan and completes at launch', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'membership_pending_order_id': 'order-1',
+        'membership_pending_started_at': DateTime.now().millisecondsSinceEpoch,
+        'membership_pending_plan_id': '60',
+        'membership_pending_plan_start': DateTime(2027).toIso8601String(),
+        'membership_pending_plan_expiry': DateTime(
+          2027,
+          6,
+          30,
+        ).toIso8601String(),
+      });
+      final membership = _FakeMembershipApi()
+        ..answer = membershipOverviewOf(
+          state: MembershipGateState.alreadyMember,
+          upcoming: [spring2027Semester],
+          currentExpiry: DateTime(2027, 6, 30),
+        );
+      final c = container(
+        _FakeShopApi(ShopOrderStatus.paid),
+        membership,
+        today: december10,
+      );
+
+      c.read(membershipCheckoutControllerProvider.notifier);
+      await pumpEventQueue();
+
+      final state = c.read(membershipCheckoutControllerProvider);
+      expect(state.phase, MembershipPurchasePhase.activated);
+      expect(state.startsOn, DateTime.utc(2027, 1, 1));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('membership_pending_plan_id'), isNull);
+    });
+
+    test('a marker from before plans were remembered accepts an upcoming '
+        'membership', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'membership_pending_order_id': 'order-1',
+        'membership_pending_started_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      final membership = _FakeMembershipApi()
+        ..answer = membershipOverviewOf(
+          state: MembershipGateState.alreadyMember,
+          upcoming: [spring2027Semester],
+          currentExpiry: DateTime(2027, 6, 30),
+        );
+      final c = container(
+        _FakeShopApi(ShopOrderStatus.paid),
+        membership,
+        today: december10,
+      );
+
+      c.read(membershipCheckoutControllerProvider.notifier);
+      await pumpEventQueue();
+
+      expect(
+        c.read(membershipCheckoutControllerProvider).startsOn,
+        DateTime.utc(2027, 1, 1),
+      );
+    });
+  });
 }

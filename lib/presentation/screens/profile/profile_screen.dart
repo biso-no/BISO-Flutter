@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/membership_overview.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
@@ -392,12 +393,22 @@ class _MembershipRow extends ConsumerWidget {
     // state this app does not know — says exactly that instead: reporting a
     // failed read as "Not a member" states as fact the one thing nobody
     // managed to find out.
+    final upcomingStart = overview?.upcomingMembership?.startDate;
     final subtitle = switch (overview) {
       null => 'Check your BISO membership',
       final o when o.isMember =>
         expiry == null
             ? 'Active member'
             : 'Active until ${DateFormat.yMMMd().format(expiry)}',
+      // Bought, not started: the server says `already_member` or `eligible`
+      // for this, and either way the student is not a member yet.
+      _ when upcomingStart != null =>
+        AppLocalizations.of(context)!.membershipStartsOn(
+          formatOsloDate(
+            upcomingStart,
+            AppLocalizations.of(context)!.localeName,
+          ),
+        ),
       final o => switch (o.state) {
         MembershipGateState.needsBiLink => 'Link your BI student account',
         MembershipGateState.eligible ||

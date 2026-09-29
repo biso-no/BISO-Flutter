@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
+import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/member_pass.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/member_pass/member_pass_provider.dart';
@@ -60,6 +61,13 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
     final l10n = AppLocalizations.of(context)!;
     final view = ref.watch(memberPassProvider);
     final notifier = ref.read(memberPassProvider.notifier);
+    // The pass endpoint answers `not_member` for a student whose membership
+    // has not started yet; the overview is what knows it is coming.
+    final upcomingStart = ref
+        .watch(membershipOverviewProvider)
+        .valueOrNull
+        ?.upcomingMembership
+        ?.startDate;
     final VoidCallback? retry = view.fetching
         ? null
         : () => unawaited(notifier.retry());
@@ -115,6 +123,17 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
           action: l10n.memberPassLinkAction,
           onPressed: () => unawaited(_openLinkPage()),
           accent: BisoAccent.gold,
+        ),
+        NoPassState.notMember ||
+        NoPassState.expired when upcomingStart != null => message(
+          icon: CupertinoIcons.calendar_badge_plus,
+          title: l10n.memberPassUpcomingTitle(
+            formatOsloDate(upcomingStart, l10n.localeName),
+          ),
+          body: l10n.memberPassUpcomingMessage,
+          action: l10n.memberPassViewMembership,
+          onPressed: () => context.push('/profile/membership'),
+          accent: BisoAccent.teal,
         ),
         NoPassState.notMember || NoPassState.expired => message(
           icon: CupertinoIcons.checkmark_seal,

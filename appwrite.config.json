@@ -2157,6 +2157,15 @@
                     "orders": [
                         "DESC"
                     ]
+                },
+                {
+                    "key": "idx_data_retention_until",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "data_retention_until"
+                    ],
+                    "orders": []
                 }
             ]
         },
@@ -4564,6 +4573,17 @@
                     ],
                     "orders": [
                         "asc",
+                        "asc"
+                    ]
+                },
+                {
+                    "key": "slug",
+                    "type": "unique",
+                    "status": "available",
+                    "columns": [
+                        "slug"
+                    ],
+                    "orders": [
                         "asc"
                     ]
                 }
@@ -9157,7 +9177,11 @@
                 "create(\"team:sg-app-dept-operationsunit\")",
                 "read(\"team:sg-app-dept-operationsunit\")",
                 "update(\"team:sg-app-dept-operationsunit\")",
-                "delete(\"team:sg-app-dept-operationsunit\")"
+                "delete(\"team:sg-app-dept-operationsunit\")",
+                "read(\"team:sg-app-dept-ledelsenstavanger\")",
+                "read(\"team:sg-app-dept-ledelsentrondheim\")",
+                "read(\"team:sg-app-dept-ledelsenbergen\")",
+                "read(\"team:sg-app-dept-ledelsenoslo\")"
             ],
             "databaseId": "app",
             "name": "Orders",
@@ -10457,7 +10481,11 @@
                 "create(\"team:sg-app-dept-operationsunit\")",
                 "read(\"team:sg-app-dept-operationsunit\")",
                 "update(\"team:sg-app-dept-operationsunit\")",
-                "delete(\"team:sg-app-dept-operationsunit\")"
+                "delete(\"team:sg-app-dept-operationsunit\")",
+                "read(\"team:sg-app-dept-ledelsenstavanger\")",
+                "read(\"team:sg-app-dept-ledelsentrondheim\")",
+                "read(\"team:sg-app-dept-ledelsenbergen\")",
+                "read(\"team:sg-app-dept-ledelsenoslo\")"
             ],
             "databaseId": "app",
             "name": "Order Items",
@@ -10913,7 +10941,11 @@
                 "create(\"team:sg-app-dept-operationsunit\")",
                 "read(\"team:sg-app-dept-operationsunit\")",
                 "update(\"team:sg-app-dept-operationsunit\")",
-                "delete(\"team:sg-app-dept-operationsunit\")"
+                "delete(\"team:sg-app-dept-operationsunit\")",
+                "read(\"team:sg-app-dept-ledelsenstavanger\")",
+                "read(\"team:sg-app-dept-ledelsentrondheim\")",
+                "read(\"team:sg-app-dept-ledelsenbergen\")",
+                "read(\"team:sg-app-dept-ledelsenoslo\")"
             ],
             "databaseId": "app",
             "name": "Order Item Field Answers",
@@ -10989,7 +11021,11 @@
                 "create(\"team:sg-app-dept-operationsunit\")",
                 "read(\"team:sg-app-dept-operationsunit\")",
                 "update(\"team:sg-app-dept-operationsunit\")",
-                "delete(\"team:sg-app-dept-operationsunit\")"
+                "delete(\"team:sg-app-dept-operationsunit\")",
+                "read(\"team:sg-app-dept-ledelsenstavanger\")",
+                "read(\"team:sg-app-dept-ledelsentrondheim\")",
+                "read(\"team:sg-app-dept-ledelsenbergen\")",
+                "read(\"team:sg-app-dept-ledelsenoslo\")"
             ],
             "databaseId": "app",
             "name": "Order Refunds",
@@ -11176,7 +11212,11 @@
                 "create(\"team:sg-app-dept-operationsunit\")",
                 "read(\"team:sg-app-dept-operationsunit\")",
                 "update(\"team:sg-app-dept-operationsunit\")",
-                "delete(\"team:sg-app-dept-operationsunit\")"
+                "delete(\"team:sg-app-dept-operationsunit\")",
+                "read(\"team:sg-app-dept-ledelsenstavanger\")",
+                "read(\"team:sg-app-dept-ledelsentrondheim\")",
+                "read(\"team:sg-app-dept-ledelsenbergen\")",
+                "read(\"team:sg-app-dept-ledelsenoslo\")"
             ],
             "databaseId": "app",
             "name": "Order Refund Lines",
@@ -11576,6 +11616,127 @@
                     "status": "available",
                     "columns": [
                         "campus_id"
+                    ],
+                    "orders": []
+                }
+            ]
+        },
+        {
+            "$id": "member_roster",
+            "$permissions": [],
+            "databaseId": "app",
+            "name": "Member Roster",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "company_id",
+                    "type": "integer",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": 0,
+                    "max": 9223372036854775807
+                },
+                {
+                    "key": "name",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "email",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 320,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "campus_id",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "membership_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "membership_name",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "expiry_date",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 32,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "invoiced_at",
+                    "type": "datetime",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "format": ""
+                },
+                {
+                    "key": "sync_run_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 36,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": [
+                {
+                    "key": "name_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "name"
+                    ],
+                    "orders": [
+                        "ASC"
+                    ]
+                },
+                {
+                    "key": "campus_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "campus_id"
+                    ],
+                    "orders": []
+                },
+                {
+                    "key": "sync_run_idx",
+                    "type": "key",
+                    "status": "available",
+                    "columns": [
+                        "sync_run_id"
                     ],
                     "orders": []
                 }
