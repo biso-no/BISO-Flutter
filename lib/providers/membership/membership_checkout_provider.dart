@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/logging/print_migration.dart';
+import '../../core/utils/oslo_time.dart';
+import '../../data/models/membership_overview.dart';
 import '../../data/models/payment_provider.dart';
 import '../../data/models/shop_order.dart';
 import '../../data/services/membership_api_client.dart';
@@ -30,14 +32,100 @@ class MembershipPurchaseState extends Equatable {
   final String? orderId;
   final String? message;
 
+  /// When [MembershipPurchasePhase.activated]: the day the bought membership
+  /// starts, if that is still ahead. Null when it has already started.
+  final DateTime? startsOn;
+
+  /// When [MembershipPurchasePhase.activated] with [startsOn] set: the
+  /// student is a member already, so the purchase extends their membership
+  /// rather than starting one.
+  final bool extendsMembership;
+
   const MembershipPurchaseState({
     this.phase = MembershipPurchasePhase.idle,
     this.orderId,
     this.message,
+    this.startsOn,
+    this.extendsMembership = false,
   });
 
   @override
-  List<Object?> get props => [phase, orderId, message];
+  List<Object?> get props => [
+    phase,
+    orderId,
+    message,
+    startsOn,
+    extendsMembership,
+  ];
+}
+
+/// The plan a pending order was placed for, as far as the app knew it when
+/// the payment started. Its dates tell a next-season purchase — which never
+/// makes the student a member straight away — from one that starts now.
+class PurchasedPlan extends Equatable {
+  final String id;
+  final DateTime? startDate;
+  final DateTime? expiryDate;
+
+  const PurchasedPlan({required this.id, this.startDate, this.expiryDate});
+
+  @override
+  List<Object?> get props => [id, startDate, expiryDate];
+}
+
+/// Whether [overview] shows the purchase of [plan] as landed, and if so,
+/// when it starts. Null while it has not shown up.
+///
+/// The bought plan is looked for by id among the active and upcoming
+/// memberships. Failing that, a membership (active or upcoming) that now
+/// runs at least until the plan's expiry counts: nothing else could have
+/// extended it that far. Without a plan to look for — a marker from before
+/// plans were remembered, or a paid order opened with nothing pending — any
+/// membership, active or upcoming, is taken as the one bought.
+MembershipPurchaseState? landedPurchase(
+  MembershipOverview overview,
+  PurchasedPlan? plan, {
+  required String orderId,
+  required DateTime today,
+}) {
+  MembershipPurchaseState landed(DateTime? startsOn) {
+    final start = startsOn == null ? null : osloCalendarDay(startsOn);
+    final upcoming = start != null && start.isAfter(today);
+    return MembershipPurchaseState(
+      phase: MembershipPurchasePhase.activated,
+      orderId: orderId,
+      startsOn: upcoming ? start : null,
+      // A member whose bought plan starts later has extended what they hold.
+      extendsMembership: upcoming && overview.isMember,
+    );
+  }
+
+  if (plan != null) {
+    for (final period in overview.memberships) {
+      if (period.id == plan.id) return landed(null);
+    }
+    for (final period in overview.upcomingMemberships) {
+      if (period.id == plan.id) {
+        return landed(period.startDate ?? plan.startDate);
+      }
+    }
+    final planExpiry = plan.expiryDate;
+    if (planExpiry != null) {
+      final covered = overview.currentExpiry;
+      final holdsAny =
+          overview.isMember || overview.upcomingMemberships.isNotEmpty;
+      if (!holdsAny ||
+          covered == null ||
+          osloCalendarDay(covered).isBefore(osloCalendarDay(planExpiry))) {
+        return null;
+      }
+      return landed(plan.startDate ?? overview.upcomingMembership?.startDate);
+    }
+  }
+  if (overview.isMember) return landed(null);
+  final upcoming = overview.upcomingMembership;
+  if (upcoming != null) return landed(upcoming.startDate);
+  return null;
 }
 
 typedef ExternalUrlLauncher = Future<bool> Function(Uri uri);
@@ -63,8 +151,10 @@ class MembershipCheckoutController
     this._ref, {
     Duration activationPollInterval = const Duration(seconds: 10),
     int activationAttempts = 10,
+    DateTime Function() clock = DateTime.now,
   }) : _activationPollInterval = activationPollInterval,
        _activationAttempts = activationAttempts,
+       _clock = clock,
        super(const MembershipPurchaseState()) {
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(resolvePending()),
@@ -83,10 +173,14 @@ class MembershipCheckoutController
   /// Polls long enough (about 100 s by default) to outlast the server's
   /// once-a-minute refresh floor on the membership check.
   final int _activationAttempts;
+  final DateTime Function() _clock;
   late final AppLifecycleListener _lifecycle;
 
   static const String _pendingOrderKey = 'membership_pending_order_id';
   static const String _pendingStartedKey = 'membership_pending_started_at';
+  static const String _pendingPlanIdKey = 'membership_pending_plan_id';
+  static const String _pendingPlanStartKey = 'membership_pending_plan_start';
+  static const String _pendingPlanExpiryKey = 'membership_pending_plan_expiry';
   static const Duration _pendingMaxAge = Duration(hours: 2);
 
   /// Completes once the persisted marker, if any, has been read back.
@@ -98,6 +192,9 @@ class MembershipCheckoutController
   late final Future<void> _restored;
 
   String? _pendingOrderId;
+
+  /// The plan [_pendingOrderId] was placed for, when known.
+  PurchasedPlan? _pendingPlan;
   bool _resolving = false;
 
   @override
@@ -122,7 +219,7 @@ class MembershipCheckoutController
             planId: planId,
             campusId: campusId,
           );
-      await _rememberPending(started.orderId);
+      await _rememberPending(started.orderId, _planOnOffer(planId));
 
       final opened = await _ref.read(membershipUrlLauncherProvider)(
         Uri.parse(started.checkoutUrl),
@@ -205,6 +302,7 @@ class MembershipCheckoutController
       final order = await _ref.read(shopApiClientProvider).fetchOrder(id);
       if (!mounted) return;
       final pending = _pendingOrderId;
+      final plan = _pendingPlan;
       if (pending == null && order.status.isSuccessful) {
         // Paid, with no marker to clear: show it landing all the same.
         await _activate(id);
@@ -221,7 +319,7 @@ class MembershipCheckoutController
 
       if (order.status.isSuccessful) {
         await _clearPending();
-        await _activate(id);
+        await _activate(id, plan: plan);
       } else if (order.status == ShopOrderStatus.failed) {
         await _clearPending();
         state = MembershipPurchaseState(
@@ -293,9 +391,28 @@ class MembershipCheckoutController
     );
   }
 
+  /// The offered plan [planId] names, remembered with the order so the
+  /// activation can tell what to wait for.
+  PurchasedPlan? _planOnOffer(String planId) {
+    final offered = _ref
+        .read(membershipOverviewProvider)
+        .valueOrNull
+        ?.offeredPlans
+        .where((plan) => plan.id == planId)
+        .firstOrNull;
+    return PurchasedPlan(
+      id: planId,
+      startDate: offered?.startDate,
+      expiryDate: offered?.expiryDate,
+    );
+  }
+
   /// Payment is in; fulfilment has run server-side. Re-verify until the new
-  /// membership shows, which proves it reached 24SevenOffice.
-  Future<void> _activate(String orderId) async {
+  /// membership shows, which proves it reached 24SevenOffice. A plan for
+  /// next season shows among the upcoming memberships and never makes the
+  /// student a member yet, so that counts as landed too (see
+  /// [landedPurchase]).
+  Future<void> _activate(String orderId, {PurchasedPlan? plan}) async {
     if (!mounted) return;
     state = MembershipPurchaseState(
       phase: MembershipPurchasePhase.activating,
@@ -308,11 +425,17 @@ class MembershipCheckoutController
       }
       if (!mounted) return;
       await overview.refresh();
-      if (_ref.read(membershipOverviewProvider).valueOrNull?.isMember == true) {
-        state = MembershipPurchaseState(
-          phase: MembershipPurchasePhase.activated,
-          orderId: orderId,
-        );
+      final current = _ref.read(membershipOverviewProvider).valueOrNull;
+      final landed = current == null
+          ? null
+          : landedPurchase(
+              current,
+              plan,
+              orderId: orderId,
+              today: osloToday(_clock()),
+            );
+      if (landed != null) {
+        state = landed;
         return;
       }
     }
@@ -340,13 +463,27 @@ class MembershipCheckoutController
         return;
       }
       _pendingOrderId = orderId;
+      final planId = prefs.getString(_pendingPlanIdKey);
+      if (planId != null && planId.isNotEmpty) {
+        DateTime? date(String key) {
+          final raw = prefs.getString(key);
+          return raw == null ? null : DateTime.tryParse(raw);
+        }
+
+        _pendingPlan = PurchasedPlan(
+          id: planId,
+          startDate: date(_pendingPlanStartKey),
+          expiryDate: date(_pendingPlanExpiryKey),
+        );
+      }
     } catch (error) {
       logPrint('🎫 Failed to restore the membership payment: $error');
     }
   }
 
-  Future<void> _rememberPending(String orderId) async {
+  Future<void> _rememberPending(String orderId, PurchasedPlan? plan) async {
     _pendingOrderId = orderId;
+    _pendingPlan = plan;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_pendingOrderKey, orderId);
@@ -354,6 +491,11 @@ class MembershipCheckoutController
         _pendingStartedKey,
         DateTime.now().millisecondsSinceEpoch,
       );
+      Future<void> put(String key, String? value) =>
+          value == null ? prefs.remove(key) : prefs.setString(key, value);
+      await put(_pendingPlanIdKey, plan?.id);
+      await put(_pendingPlanStartKey, plan?.startDate?.toIso8601String());
+      await put(_pendingPlanExpiryKey, plan?.expiryDate?.toIso8601String());
     } catch (error) {
       logPrint('🎫 Failed to remember the membership payment: $error');
     }
@@ -363,10 +505,14 @@ class MembershipCheckoutController
   /// racing this one finds nothing to act on.
   Future<void> _clearPending() async {
     _pendingOrderId = null;
+    _pendingPlan = null;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_pendingOrderKey);
       await prefs.remove(_pendingStartedKey);
+      await prefs.remove(_pendingPlanIdKey);
+      await prefs.remove(_pendingPlanStartKey);
+      await prefs.remove(_pendingPlanExpiryKey);
     } catch (error) {
       logPrint('🎫 Failed to clear the membership payment: $error');
     }

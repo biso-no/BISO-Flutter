@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/utils/currency.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/membership_overview.dart';
 import '../../../data/models/payment_provider.dart';
 import '../../../generated/l10n/app_localizations.dart';
@@ -23,6 +24,38 @@ final membershipLinkUrl = Uri.parse('https://biso.no/membership/link');
 
 String _formatDate(DateTime? date) =>
     date == null ? '' : DateFormat.yMMMd().format(date);
+
+/// A membership date as the student reads it: long, in the app's language,
+/// and always the Oslo calendar day.
+String _longDate(BuildContext context, DateTime? date) => date == null
+    ? ''
+    : formatOsloDate(date, AppLocalizations.of(context)!.localeName);
+
+/// A plan row's label. The plan's own name is the 24SevenOffice product
+/// name and is never shown.
+String _durationLabel(AppLocalizations l10n, MembershipPlanOption plan) =>
+    switch (plan.duration) {
+      'semester' => l10n.membershipDurationSemester,
+      'year' => l10n.membershipDurationYear,
+      'three_years' => l10n.membershipDurationThreeYears,
+      _ => l10n.membershipDurationMonths(plan.accrualMonths),
+    };
+
+/// Price and dates of [plan]. A plan starting next season says when it
+/// starts; one starting now only when it ends.
+String _planSummary(BuildContext context, MembershipPlanOption plan) {
+  final l10n = AppLocalizations.of(context)!;
+  final price = formatNok(plan.price);
+  final end = _longDate(context, plan.expiryDate);
+  if (plan.offer == MembershipPlanOffer.next && plan.startDate != null) {
+    return l10n.membershipPlanPeriod(
+      price,
+      _longDate(context, plan.startDate),
+      end,
+    );
+  }
+  return l10n.membershipPlanValidUntil(price, end);
+}
 
 /// The student's BISO membership: verified status, BI linking, and purchase.
 ///
@@ -49,7 +82,12 @@ class MembershipScreen extends ConsumerStatefulWidget {
 }
 
 class _MembershipScreenState extends ConsumerState<MembershipScreen> {
-  String? _planId;
+  /// The duration row picked; null means the first one offered.
+  String? _duration;
+
+  /// The student chose to start next season instead of this one. Only
+  /// meaningful while the picked duration offers both.
+  bool _startNext = false;
   String? _campusId;
   PaymentProvider? _provider;
 
@@ -206,10 +244,12 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
   ) {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
-    final plans = overview.offeredPlans;
-    final plan =
-        plans.where((option) => option.id == _planId).firstOrNull ??
-        plans.firstOrNull;
+    final l10n = AppLocalizations.of(context)!;
+    final choices = overview.planChoices;
+    final choice =
+        choices.where((c) => c.duration == _duration).firstOrNull ??
+        choices.firstOrNull;
+    final plan = choice?.plan(startNext: _startNext);
     final campusId =
         _campusId ??
         overview.defaultCampusId ??
@@ -242,35 +282,79 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
           );
     }
 
+    void pickDuration(String duration) => setState(() {
+      _duration = duration;
+      _startNext = false;
+    });
+
+    final current = choice?.current;
+    final next = choice?.next;
+
     return [
       SliverToBoxAdapter(
         child: RadioGroup<String>(
-          groupValue: plan?.id,
-          onChanged: (id) {
-            if (id != null) setState(() => _planId = id);
+          groupValue: choice?.duration,
+          onChanged: (duration) {
+            if (duration != null) pickDuration(duration);
           },
           child: BisoFormGroup(
             title: overview.isMember
                 ? 'Extend your membership'
                 : 'Choose a membership',
             children: [
-              for (final option in plans)
+              for (final option in choices)
                 BisoListRow(
                   leading: const BisoIconTile(
                     icon: CupertinoIcons.star,
                     accent: BisoAccent.gold,
                   ),
-                  title: option.name,
-                  subtitle:
-                      '${formatNok(option.price)} · valid until '
-                      '${_formatDate(option.expiryDate)}',
-                  trailing: Radio<String>.adaptive(value: option.id),
-                  onTap: () => setState(() => _planId = option.id),
+                  title: _durationLabel(l10n, option.primary),
+                  subtitle: _planSummary(
+                    context,
+                    option == choice && plan != null ? plan : option.primary,
+                  ),
+                  trailing: Radio<String>.adaptive(value: option.duration),
+                  onTap: () => pickDuration(option.duration),
                 ),
             ],
           ),
         ),
       ),
+      if (current != null && next != null)
+        SliverToBoxAdapter(
+          child: RadioGroup<bool>(
+            groupValue: _startNext,
+            onChanged: (value) {
+              if (value != null) setState(() => _startNext = value);
+            },
+            child: BisoFormGroup(
+              title: l10n.membershipEndsOn(
+                _longDate(context, current.expiryDate),
+              ),
+              children: [
+                BisoListRow(
+                  leading: const BisoIconTile(icon: CupertinoIcons.calendar),
+                  title: l10n.membershipBuyThisSemester(
+                    _longDate(context, current.expiryDate),
+                  ),
+                  trailing: const Radio<bool>.adaptive(value: false),
+                  onTap: () => setState(() => _startNext = false),
+                ),
+                BisoListRow(
+                  leading: const BisoIconTile(
+                    icon: CupertinoIcons.calendar_badge_plus,
+                  ),
+                  title: l10n.membershipStartNextSemester(
+                    _longDate(context, next.startDate),
+                    _longDate(context, next.expiryDate),
+                  ),
+                  trailing: const Radio<bool>.adaptive(value: true),
+                  onTap: () => setState(() => _startNext = true),
+                ),
+              ],
+            ),
+          ),
+        ),
       SliverToBoxAdapter(
         child: RadioGroup<String>(
           groupValue: campusId,
@@ -504,10 +588,32 @@ class _NotMemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final expired = overview.lastExpiredMembership;
     final expiredNote = expired == null
         ? null
         : 'Your membership expired on ${_formatDate(expired.expiryDate)}.';
+    final upcoming = overview.upcomingMembership;
+
+    // Bought, not started: not a member yet, and nothing to claim until the
+    // start date. This covers `already_member`, which with no active
+    // membership means exactly this, and an eligible student who can still
+    // buy a longer plan below.
+    if (upcoming != null &&
+        (overview.state == MembershipGateState.alreadyMember ||
+            overview.state == MembershipGateState.eligible ||
+            overview.state == MembershipGateState.noPlansAvailable)) {
+      final start = _longDate(context, upcoming.startDate);
+      final end = overview.currentExpiry ?? upcoming.expiryDate;
+      return _InfoCard(
+        icon: CupertinoIcons.calendar_badge_plus,
+        accent: BisoAccent.teal,
+        title: l10n.membershipUpcomingTitle,
+        message: end == null
+            ? l10n.membershipStartsOn(start)
+            : l10n.membershipUpcomingDetails(start, _longDate(context, end)),
+      );
+    }
 
     return switch (overview.state) {
       MembershipGateState.needsBiLink => _InfoCard(
@@ -588,6 +694,7 @@ class _PurchaseBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final ok = TextButton(onPressed: onDismiss, child: const Text('OK'));
     return switch (state.phase) {
       MembershipPurchasePhase.idle => const SizedBox.shrink(),
@@ -622,8 +729,17 @@ class _PurchaseBanner extends StatelessWidget {
       MembershipPurchasePhase.activated => _InfoCard(
         icon: CupertinoIcons.checkmark_seal_fill,
         accent: BisoAccent.teal,
-        title: 'Welcome to BISO!',
-        message: 'Your membership is active.',
+        title: state.startsOn != null || state.extendsMembership
+            ? l10n.membershipPurchasedTitle
+            : 'Welcome to BISO!',
+        message: switch (state.startsOn) {
+          null => l10n.membershipActiveNow,
+          final start when state.extendsMembership =>
+            l10n.membershipExtendedFrom(_longDate(context, start)),
+          final start => l10n.membershipPurchasedStarts(
+            _longDate(context, start),
+          ),
+        },
         action: TextButton(onPressed: onDismiss, child: const Text('Done')),
       ),
       MembershipPurchasePhase.activationDelayed => _InfoCard(

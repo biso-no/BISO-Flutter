@@ -33,4 +33,21 @@ void main() {
       "You don't have scanning access. Ask BISO staff for an invitation.",
     );
   });
+
+  test('membership plan and start strings exist in both languages', () {
+    expect(en.membershipDurationYear, '1 year');
+    expect(no.membershipDurationThreeYears, '3 år');
+    expect(
+      en.membershipStartNextSemester('January 1, 2027', 'June 30, 2027'),
+      'Start next semester instead (January 1, 2027 – June 30, 2027)',
+    );
+    expect(
+      no.membershipBuyThisSemester('31. desember 2026'),
+      'Kjøp for dette semesteret (til 31. desember 2026)',
+    );
+    expect(
+      no.memberPassUpcomingTitle('1. januar 2027'),
+      'Medlemskapet ditt starter 1. januar 2027',
+    );
+  });
 }

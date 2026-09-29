@@ -74,13 +74,32 @@ class MembershipPeriod extends Equatable {
   List<Object?> get props => [id, name, category, startDate, expiryDate];
 }
 
+/// Whether an offered plan starts this season or the next one.
+enum MembershipPlanOffer {
+  current('current'),
+  next('next');
+
+  const MembershipPlanOffer(this.value);
+
+  final String value;
+
+  /// A server that predates next-season offers sends no `offer`; everything
+  /// it sells starts this season.
+  static MembershipPlanOffer fromValue(String? value) =>
+      value == next.value ? next : current;
+}
+
 /// A membership plan the student may buy right now.
 class MembershipPlanOption extends Equatable {
   final String id;
+
+  /// The 24SevenOffice product name ("BISO Membership fall 2026"). Not for
+  /// display: rows are labelled by [duration].
   final String name;
   final double price;
   final String duration;
   final int accrualMonths;
+  final MembershipPlanOffer offer;
   final DateTime? startDate;
   final DateTime? expiryDate;
 
@@ -90,6 +109,7 @@ class MembershipPlanOption extends Equatable {
     required this.price,
     required this.duration,
     required this.accrualMonths,
+    this.offer = MembershipPlanOffer.current,
     this.startDate,
     this.expiryDate,
   });
@@ -101,6 +121,7 @@ class MembershipPlanOption extends Equatable {
       price: (json['price'] as num?)?.toDouble() ?? 0,
       duration: (json['duration'] ?? '').toString(),
       accrualMonths: (json['accrualMonths'] as num?)?.toInt() ?? 0,
+      offer: MembershipPlanOffer.fromValue(json['offer']?.toString()),
       startDate: _parseDate(json['startDate']),
       expiryDate: _parseDate(json['expiryDate']),
     );
@@ -112,6 +133,7 @@ class MembershipPlanOption extends Equatable {
     'price': price,
     'duration': duration,
     'accrualMonths': accrualMonths,
+    'offer': offer.value,
     'startDate': _formatDate(startDate),
     'expiryDate': _formatDate(expiryDate),
   };
@@ -123,10 +145,38 @@ class MembershipPlanOption extends Equatable {
     price,
     duration,
     accrualMonths,
+    offer,
     startDate,
     expiryDate,
   ];
 }
+
+/// The plans of one duration on offer: the one starting this season, the one
+/// starting next season, or both (in June and December, and for renewals).
+class MembershipPlanChoice extends Equatable {
+  final String duration;
+  final MembershipPlanOption? current;
+  final MembershipPlanOption? next;
+
+  const MembershipPlanChoice({required this.duration, this.current, this.next})
+    : assert(current != null || next != null);
+
+  /// The plan the row shows until the student picks otherwise.
+  MembershipPlanOption get primary => current ?? next!;
+
+  /// Both starts are on offer, so the student chooses between them.
+  bool get hasChoice => current != null && next != null;
+
+  /// The plan that is bought: next season's when the student chose it and it
+  /// is on offer, otherwise [primary].
+  MembershipPlanOption plan({required bool startNext}) =>
+      startNext ? next ?? primary : primary;
+
+  @override
+  List<Object?> get props => [duration, current, next];
+}
+
+const _durationOrder = ['semester', 'year', 'three_years'];
 
 /// A BI campus a membership can be booked to.
 class MembershipCampus extends Equatable {
@@ -155,7 +205,13 @@ class MembershipOverview extends Equatable {
   final String? studentId;
   final bool isMember;
   final List<MembershipPeriod> memberships;
+
+  /// Bought but not started yet, earliest start first. These give no
+  /// benefits until they start.
+  final List<MembershipPeriod> upcomingMemberships;
   final List<MembershipPeriod> expiredMemberships;
+
+  /// The latest expiry across active and upcoming memberships.
   final DateTime? currentExpiry;
   final String? reason;
   final DateTime checkedAt;
@@ -173,6 +229,7 @@ class MembershipOverview extends Equatable {
     required this.checkedAt,
     this.studentId,
     this.memberships = const [],
+    this.upcomingMemberships = const [],
     this.expiredMemberships = const [],
     this.currentExpiry,
     this.reason,
@@ -191,6 +248,10 @@ class MembershipOverview extends Equatable {
       studentId: json['studentId']?.toString(),
       isMember: json['isMember'] == true,
       memberships: _parseList(json['memberships'], MembershipPeriod.fromJson),
+      upcomingMemberships: _parseList(
+        json['upcomingMemberships'],
+        MembershipPeriod.fromJson,
+      ),
       expiredMemberships: _parseList(
         json['expiredMemberships'],
         MembershipPeriod.fromJson,
@@ -213,6 +274,7 @@ class MembershipOverview extends Equatable {
     'studentId': studentId,
     'isMember': isMember,
     'memberships': memberships.map((m) => m.toJson()).toList(),
+    'upcomingMemberships': upcomingMemberships.map((m) => m.toJson()).toList(),
     'expiredMemberships': expiredMemberships.map((m) => m.toJson()).toList(),
     'currentExpiry': _formatDate(currentExpiry),
     'reason': reason,
@@ -227,6 +289,7 @@ class MembershipOverview extends Equatable {
     studentId: studentId,
     isMember: isMember,
     memberships: memberships,
+    upcomingMemberships: upcomingMemberships,
     expiredMemberships: expiredMemberships,
     currentExpiry: currentExpiry,
     reason: reason,
@@ -255,6 +318,47 @@ class MembershipOverview extends Equatable {
     return sorted.first;
   }
 
+  /// The membership a student who is not a member yet has bought, starting
+  /// later. Null for a member: their upcoming plans only extend what they
+  /// already hold.
+  MembershipPeriod? get upcomingMembership =>
+      isMember || upcomingMemberships.isEmpty
+      ? null
+      : upcomingMemberships.first;
+
+  /// The offered plans, one choice per duration, semester first. A duration
+  /// this app does not know goes last, in the order the server sent it.
+  List<MembershipPlanChoice> get planChoices {
+    final current = <String, MembershipPlanOption>{};
+    final next = <String, MembershipPlanOption>{};
+    final durations = <String>[];
+    for (final plan in offeredPlans) {
+      if (!durations.contains(plan.duration)) durations.add(plan.duration);
+      final slot = plan.offer == MembershipPlanOffer.next ? next : current;
+      slot.putIfAbsent(plan.duration, () => plan);
+    }
+    int rank(String duration) {
+      final index = _durationOrder.indexOf(duration);
+      return index < 0 ? _durationOrder.length : index;
+    }
+
+    final ordered = [...durations]
+      ..sort((a, b) {
+        final byRank = rank(a).compareTo(rank(b));
+        return byRank != 0
+            ? byRank
+            : durations.indexOf(a).compareTo(durations.indexOf(b));
+      });
+    return [
+      for (final duration in ordered)
+        MembershipPlanChoice(
+          duration: duration,
+          current: current[duration],
+          next: next[duration],
+        ),
+    ];
+  }
+
   /// The most recently expired membership (the server sends newest first).
   MembershipPeriod? get lastExpiredMembership =>
       expiredMemberships.isEmpty ? null : expiredMemberships.first;
@@ -265,6 +369,7 @@ class MembershipOverview extends Equatable {
     studentId,
     isMember,
     memberships,
+    upcomingMemberships,
     expiredMemberships,
     currentExpiry,
     reason,

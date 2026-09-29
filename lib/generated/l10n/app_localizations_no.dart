@@ -2373,4 +2373,84 @@ class AppLocalizationsNo extends AppLocalizations {
   @override
   String get scannerCameraError =>
       'Kameraet kunne ikke starte. Sjekk kameratilgang i Innstillinger.';
+
+  @override
+  String get membershipDurationSemester => 'Semester';
+
+  @override
+  String get membershipDurationYear => '1 år';
+
+  @override
+  String get membershipDurationThreeYears => '3 år';
+
+  @override
+  String membershipDurationMonths(int count) {
+    return '$count måneder';
+  }
+
+  @override
+  String membershipPlanValidUntil(String price, String date) {
+    return '$price · gyldig til $date';
+  }
+
+  @override
+  String membershipPlanPeriod(String price, String start, String end) {
+    return '$price · $start – $end';
+  }
+
+  @override
+  String membershipEndsOn(String end) {
+    return 'Dette medlemskapet slutter $end.';
+  }
+
+  @override
+  String membershipBuyThisSemester(String end) {
+    return 'Kjøp for dette semesteret (til $end)';
+  }
+
+  @override
+  String membershipStartNextSemester(String start, String end) {
+    return 'Start neste semester i stedet ($start – $end)';
+  }
+
+  @override
+  String get membershipUpcomingTitle => 'Kommende medlemskap';
+
+  @override
+  String membershipUpcomingDetails(String start, String end) {
+    return 'Medlemskapet ditt starter $start og varer til $end. Fordelene blir tilgjengelige fra startdatoen.';
+  }
+
+  @override
+  String membershipStartsOn(String start) {
+    return 'Medlemskapet ditt starter $start.';
+  }
+
+  @override
+  String get membershipPurchasedTitle => 'Alt er klart';
+
+  @override
+  String membershipPurchasedStarts(String start) {
+    return 'Medlemskapet ditt starter $start. Fordelene blir tilgjengelige fra startdatoen.';
+  }
+
+  @override
+  String membershipExtendedFrom(String start) {
+    return 'Medlemskapet ditt er forlenget fra $start.';
+  }
+
+  @override
+  String get membershipActiveNow => 'Du er medlem nå.';
+
+  @override
+  String memberPassUpcomingTitle(String start) {
+    return 'Medlemskapet ditt starter $start';
+  }
+
+  @override
+  String get memberPassUpcomingMessage =>
+      'Medlemskortet blir tilgjengelig fra startdatoen.';
+
+  @override
+  String get memberPassViewMembership => 'Se medlemskapet ditt';
 }
