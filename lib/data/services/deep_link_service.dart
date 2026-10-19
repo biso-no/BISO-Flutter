@@ -2,29 +2,69 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/logging/print_migration.dart';
 import '../../core/theme/biso_page.dart';
-import '../../providers/auth/auth_provider.dart';
+
+final _queryOrFragment = RegExp('[?#]');
+
+/// [link] (a [Uri] or a location) as it may be logged: without its query or
+/// fragment, where a sign-in link carries the secret that signs its holder
+/// in. Debug logs end up in shared bug reports.
+@visibleForTesting
+String linkForLog(Object link) => link.toString().split(_queryOrFragment).first;
 
 /// The in-app route for a `biso://membership` or `https://biso.no/app/membership`
 /// link. A payment return carries `orderId` (and `cancelled=1` when the
-/// student abandoned it); a finished BI link from biso.no carries `linked=1`.
-/// The status a return link carries is not passed on: the screen verifies the
-/// order itself.
+/// student abandoned it). The status a return link carries is not passed on:
+/// the screen verifies the order itself.
 @visibleForTesting
 String membershipRouteFor(Map<String, String> query) {
   final orderId = query['orderId'] ?? '';
   final params = <String, String>{
     if (orderId.isNotEmpty) 'orderId': orderId,
     if (query['cancelled'] == '1') 'cancelled': '1',
-    if (query['linked'] == '1') 'linked': '1',
   };
   return Uri(
     path: '/profile/membership',
     queryParameters: params.isEmpty ? null : params,
   ).toString();
+}
+
+/// The in-app route for the sign-in link the app emails
+/// (`https://biso.no/auth/verify?userId=…&secret=…`, or `biso://auth/verify`),
+/// or null when [uri] is not one.
+///
+/// Only `/auth/verify` counts. biso.no's own sign-in returns
+/// (`/auth/callback`, `/auth/oauth`) carry a userId and secret too, and
+/// spending one here would sign the app in instead of the website.
+@visibleForTesting
+String? magicLinkRouteFor(Uri uri) {
+  final isAppLink = switch (uri.scheme) {
+    'biso' => uri.host == 'auth' && uri.path == '/verify',
+    'https' || 'http' =>
+      (uri.host == 'biso.no' || uri.host == 'www.biso.no') &&
+          uri.path == '/auth/verify',
+    _ => false,
+  };
+  final userId = uri.queryParameters['userId'];
+  final secret = uri.queryParameters['secret'];
+  if (!isAppLink || userId == null || secret == null) return null;
+  return Uri(
+    path: '/auth/verify-magic-link',
+    queryParameters: {'userId': userId, 'secret': secret},
+  ).toString();
+}
+
+/// The in-app route for a vacancy link: `biso://job?id=<id>`, or
+/// `https://biso.no/app/jobs/<slug>`. The detail screen reads either an id or
+/// a slug. Without one, the list of vacancies.
+@visibleForTesting
+String jobRouteFor(String? idOrSlug) {
+  final key = idOrSlug?.trim() ?? '';
+  return key.isEmpty
+      ? '/explore/volunteer'
+      : '/explore/volunteer/${Uri.encodeComponent(key)}';
 }
 
 class DeepLinkService {
@@ -42,7 +82,7 @@ class DeepLinkService {
     // Handle links when app is already running
     _linkSubscription = _appLinks.uriLinkStream.listen(
       (Uri uri) {
-        logPrint('🔗 Deep link received: $uri');
+        logPrint('🔗 Deep link received: ${linkForLog(uri)}');
         _handleDeepLink(uri);
       },
       onError: (Object err) {
@@ -54,7 +94,7 @@ class DeepLinkService {
     try {
       final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
-        logPrint('🔗 Initial deep link: $initialUri');
+        logPrint('🔗 Initial deep link: ${linkForLog(initialUri)}');
         _handleDeepLink(initialUri);
       }
     } catch (e) {
@@ -63,11 +103,13 @@ class DeepLinkService {
   }
 
   void _handleDeepLink(Uri uri) {
-    logPrint('🔗 Handling deep link: ${uri.toString()}');
+    logPrint('🔗 Handling deep link: ${linkForLog(uri)}');
 
     if (navigatorKey.currentContext == null) {
       _pendingUris.add(uri);
-      logPrint('🔗 Queued deep link until navigation is ready: $uri');
+      logPrint(
+        '🔗 Queued deep link until navigation is ready: ${linkForLog(uri)}',
+      );
       return;
     }
 
@@ -122,17 +164,12 @@ class DeepLinkService {
 
     final segments = uri.pathSegments;
     if (segments.isNotEmpty && segments.first == 'auth') {
-      // Handle sign-in link callbacks from email (e.g. /auth/verify?userId=&secret=)
-      final queryParams = uri.queryParameters;
-      final userId = queryParams['userId'];
-      final secret = queryParams['secret'];
-      if (userId != null && secret != null) {
+      final route = magicLinkRouteFor(uri);
+      if (route != null) {
         logPrint('🔗 Sign-in link universal link received');
-        _go(
-          '/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}',
-        );
+        _go(route);
       } else {
-        logPrint('ℹ️ Auth universal link without credentials, ignoring: $uri');
+        logPrint('ℹ️ Not the app sign-in link, ignoring: ${uri.path}');
       }
       return;
     }
@@ -165,7 +202,7 @@ class DeepLinkService {
         break;
       case 'jobs':
       case 'volunteer':
-        _go('/explore/volunteer');
+        _go(jobRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
         break;
       case 'expenses':
       case 'expense':
@@ -177,10 +214,6 @@ class DeepLinkService {
       case 'membership':
         _go(membershipRouteFor(uri.queryParameters));
         break;
-      case 'ai':
-      case 'ai-chat':
-        _go('/explore/ai-chat');
-        break;
       default:
         logPrint('🔴 Unknown universal link path: ${uri.path}');
     }
@@ -191,20 +224,12 @@ class DeepLinkService {
     final queryParams = uri.queryParameters;
 
     logPrint('🔗 Auth deep link path: $path');
-    logPrint('🔗 Auth deep link params: $queryParams');
+    logPrint('🔗 Auth deep link params: ${queryParams.keys.join(', ')}');
 
-    if (path == '/oauth-callback') {
-      _handleOAuthCallback();
-    } else if (path == '/oauth-failed') {
-      logPrint('🔴 OAuth flow failed or was cancelled');
-      _go('/auth/login');
-    } else if (path == '/magic-link' || path == '/verify') {
-      final userId = queryParams['userId'];
-      final secret = queryParams['secret'];
-      if (userId != null && secret != null) {
-        _go(
-          '/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}',
-        );
+    if (path == '/magic-link' || path == '/verify') {
+      final route = magicLinkRouteFor(uri.replace(path: '/verify'));
+      if (route != null) {
+        _go(route);
       } else {
         logPrint('🔴 Missing userId or secret in sign-in link deep link');
         _go('/auth/login');
@@ -212,25 +237,6 @@ class DeepLinkService {
     } else {
       logPrint('🔴 Unknown auth deep link path: $path');
     }
-  }
-
-  void _handleOAuthCallback() {
-    final context = navigatorKey.currentContext;
-    if (context == null) {
-      logPrint('🔗 No context for OAuth callback — will retry after flush');
-      return;
-    }
-
-    logPrint('🔗 OAuth callback received — refreshing auth state');
-    final container = ProviderScope.containerOf(context);
-    container.read(authStateProvider.notifier).refreshAuthState().then((_) {
-      final authState = container.read(authStateProvider);
-      if (authState.isAuthenticated) {
-        _go(authState.needsOnboarding ? '/onboarding' : '/home');
-      } else {
-        _go('/auth/login');
-      }
-    });
   }
 
   void dispose() {
@@ -328,20 +334,8 @@ class DeepLinkService {
   /// Handle job deep links
   void _handleJobDeepLink(Uri uri) {
     final jobId = uri.queryParameters['id'];
-
     logPrint('🔗 Job deep link - ID: $jobId');
-
-    if (jobId != null) {
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        // Navigate to jobs screen and then open the job modal
-        context.go('/explore/volunteer', extra: {'openJobId': jobId});
-      } else {
-        logPrint('🔴 No navigation context available for job deep link');
-      }
-    } else {
-      _go('/explore/volunteer');
-    }
+    _go(jobRouteFor(jobId));
   }
 
   /// Handle expense deep links
@@ -446,7 +440,10 @@ class DeepLinkService {
     if (context != null) {
       context.go(location);
     } else {
-      logPrint('🔴 No navigation context available for deep link: $location');
+      logPrint(
+        '🔴 No navigation context available for deep link: '
+        '${linkForLog(location)}',
+      );
     }
   }
 }

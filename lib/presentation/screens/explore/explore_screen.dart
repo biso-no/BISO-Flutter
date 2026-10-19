@@ -184,13 +184,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         subtitle: l10n.volunteerOpportunitiesMessage,
         onTap: () => context.go('/explore/volunteer'),
       ),
-      _CategoryData(
-        icon: CupertinoIcons.bubble_left_bubble_right,
-        accent: BisoAccent.violet,
-        title: l10n.aiAssistantMessage,
-        subtitle: l10n.getHelpInformationMessage,
-        onTap: () => context.go('/explore/ai-chat'),
-      ),
     ];
 
     final matches = _query.isEmpty

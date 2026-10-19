@@ -114,6 +114,65 @@ void main() {
     });
   });
 
+  group('ExpensePayloadBuilder cost types', () {
+    const assignment = ExpenseAssignment(
+      campusId: 'campus-1',
+      campusName: 'Oslo',
+      departmentId: 'dept-1',
+      departmentName: 'IT',
+    );
+
+    ExpenseReceiptDraft receipt(
+      String id, {
+      String? category,
+      String? costType,
+    }) {
+      return ExpenseReceiptDraft(
+        localId: id,
+        fileName: '$id.jpg',
+        fileId: 'file-$id',
+        mimeType: 'image/jpeg',
+        status: ExpenseReceiptStatus.ready,
+        amount: 10,
+        category: category,
+        costType: costType,
+      );
+    }
+
+    test('submit sends cost_type and sort_order for each receipt', () {
+      final payload = ExpensePayloadBuilder.buildBasePayload(
+        assignment: assignment,
+        bankAccount: '86011117947',
+        description: 'Trip',
+        receipts: [
+          receipt('a', category: 'meal'),
+          receipt('b', category: 'travel', costType: 'academic'),
+          receipt('c'),
+        ],
+      );
+      final attachments = payload['expenseAttachments'] as List;
+      expect(attachments.map((a) => a['cost_type']), [
+        'social',
+        'academic',
+        'other',
+      ]);
+      expect(attachments.map((a) => a['sort_order']), [0, 1, 2]);
+    });
+
+    test('submit sends submitter_is_financial_manager', () {
+      Map<String, dynamic> build({bool? manager}) =>
+          ExpensePayloadBuilder.buildBasePayload(
+            assignment: assignment,
+            bankAccount: '86011117947',
+            description: 'Trip',
+            receipts: [receipt('a')],
+            submitterIsFinancialManager: manager ?? false,
+          );
+      expect(build()['submitter_is_financial_manager'], false);
+      expect(build(manager: true)['submitter_is_financial_manager'], true);
+    });
+  });
+
   group('ExpenseProfileReadiness', () {
     test('reports complete profile as ready', () {
       const user = UserModel(

@@ -1,6 +1,6 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:appwrite/appwrite.dart';
-import 'package:appwrite/enums.dart' as enums;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
@@ -14,16 +14,25 @@ import '../../core/logging/app_logger.dart';
 import '../../core/logging/print_migration.dart';
 
 class AuthService {
-  AuthService({ProfileApiClient? profileApi})
-    : _profileApi = profileApi ?? ProfileApiClient();
+  AuthService({
+    ProfileApiClient? profileApi,
+    Account? account,
+    TablesDB? databases,
+  }) : _profileApi = profileApi ?? ProfileApiClient(),
+       _accountOverride = account,
+       _databasesOverride = databases;
 
   /// Profile rows are read-only to their owner; every profile write goes
   /// through `PUT /api/profile`.
   final ProfileApiClient _profileApi;
 
-  // Using simplified global Appwrite instances
-  Account get _account => account;
-  TablesDB get _databases => db;
+  /// Supplied by a test; otherwise the global Appwrite instances, resolved
+  /// on use.
+  final Account? _accountOverride;
+  final TablesDB? _databasesOverride;
+
+  Account get _account => _accountOverride ?? account;
+  TablesDB get _databases => _databasesOverride ?? db;
   Storage get _storage => storage;
 
   // SharedPreferences keys for local session cache
@@ -152,12 +161,12 @@ class AuthService {
 
   Future<UserModel> verifyMagicLink(String userId, String secret) async {
     logPrint(
-      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId, secret: $secret',
+      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId',
     );
     try {
       // Create session with magic link tokens
       logPrint('🔗 DEBUG: About to call _account.createSession for magic link...');
-      logPrint('🔗 DEBUG: Parameters - userId: $userId, secret: $secret');
+      logPrint('🔗 DEBUG: Parameters - userId: $userId');
       final session = await _account.createSession(
         userId: userId,
         secret: secret,
@@ -217,12 +226,12 @@ class AuthService {
 
   Future<UserModel> verifyOtp(String userId, String secret) async {
     logPrint(
-      '🔥 DEBUG: Starting verifyOtp with userId: $userId, secret: $secret',
+      '🔥 DEBUG: Starting verifyOtp with userId: $userId',
     );
     try {
       // Create session with OTP
       logPrint('🔥 DEBUG: About to call _account.createSession...');
-      logPrint('🔥 DEBUG: Parameters - userId: $userId, secret: $secret');
+      logPrint('🔥 DEBUG: Parameters - userId: $userId');
       final session = await _account.createSession(
         userId: userId,
         secret: secret,
@@ -271,10 +280,13 @@ class AuthService {
     }
   }
 
+  /// The signed-in account's profile, or null without a session. Whoever it
+  /// is, however they signed in, is kept for an offline launch.
   Future<UserModel?> getCurrentUser() async {
     try {
       final accountUser = await _account.get();
 
+      UserModel user;
       try {
         final doc = await _databases.getRow(
           databaseId: AppConstants.databaseId,
@@ -292,18 +304,26 @@ class AuthService {
               'avatar',
               '\$id',
               'student_id',
+              // Not `departments`: it is a relationship, which a select by
+              // bare key may be refused for, and then the profile read
+              // below falls back to a bare user without a word.
+              'department_ids',
+              'bank_account',
+              'swift',
             ]),
           ],
         );
-        return UserModel.fromMap(doc.data);
+        user = UserModel.fromMap(doc.data);
       } catch (e) {
         // User profile doesn't exist
-        return UserModel(
+        user = UserModel(
           id: accountUser.$id,
           name: accountUser.name,
           email: accountUser.email,
         );
       }
+      await _cacheSessionUser(user);
+      return user;
     } on AppwriteException catch (e) {
       if (e.code == 401) {
         // Server confirmed no valid session — clear local cache
@@ -394,29 +414,32 @@ class AuthService {
         throw AuthException('User not authenticated');
       }
 
+      // Send only what the caller changed. getCurrentUser() reads a subset of
+      // columns, so copying from it would overwrite bank_account/departments
+      // with null.
+      final updatedData = <String, dynamic>{
+        'name': ?name,
+        'phone': ?phone,
+        'address': ?address,
+        'city': ?city,
+        'zip': ?zipCode,
+        'campus_id': ?campusId,
+        'departments': ?departments,
+        'bank_account': ?bankAccount,
+      };
+
       // Handle avatar upload if provided
-      String? avatarUrl = currentUser.avatarUrl;
       if (avatarFile != null) {
         try {
-          avatarUrl = await _uploadAvatar(avatarFile, currentUser.id);
+          updatedData['avatar'] = await _uploadAvatar(
+            avatarFile,
+            currentUser.id,
+          );
         } catch (e) {
           logPrint('🔴 Avatar upload failed: $e');
           // Continue with profile update even if avatar upload fails
         }
       }
-
-      // Create updated user data
-      final updatedData = {
-        'name': name ?? currentUser.name,
-        'phone': phone ?? currentUser.phone,
-        'address': address ?? currentUser.address,
-        'city': city ?? currentUser.city,
-        'zip': zipCode ?? currentUser.zipCode,
-        'campus_id': campusId ?? currentUser.campusId,
-        'departments': departments ?? currentUser.departments,
-        'avatar': avatarUrl,
-        'bank_account': bankAccount ?? currentUser.bankAccount,
-      };
 
       final updatedUser = UserModel.fromMap(
         await _profileApi.upsert(updatedData),
@@ -443,6 +466,17 @@ class AuthService {
     }
   }
 
+  /// Appwrite file ids are at most 36 characters, so the id is generated and
+  /// the user id only goes in the (unrestricted) file name.
+  @visibleForTesting
+  static ({String fileId, String fileName}) avatarUploadNames(
+    String userId, {
+    DateTime? now,
+  }) {
+    final ms = (now ?? DateTime.now()).millisecondsSinceEpoch;
+    return (fileId: ID.unique(), fileName: 'avatar_${userId}_$ms.jpg');
+  }
+
   /// Uploads an avatar image to Appwrite Storage and returns the file URL
   Future<String> _uploadAvatar(dynamic avatarFile, String userId) async {
     try {
@@ -460,21 +494,20 @@ class AuthService {
         logPrint('🟡 Could not delete existing avatar: $e');
       }
 
-      // Create a unique file ID for this avatar
-      final fileId =
-          'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+      final names = avatarUploadNames(userId);
+      final fileId = names.fileId;
 
       // Prepare the file for upload
       InputFile inputFile;
       if (avatarFile is XFile) {
         inputFile = InputFile.fromPath(
           path: avatarFile.path,
-          filename: '$fileId.jpg',
+          filename: names.fileName,
         );
       } else if (avatarFile is File) {
         inputFile = InputFile.fromPath(
           path: avatarFile.path,
-          filename: '$fileId.jpg',
+          filename: names.fileName,
         );
       } else {
         throw AuthException('Invalid file type for avatar upload');
@@ -499,42 +532,6 @@ class AuthService {
     } catch (e) {
       logPrint('🔴 General avatar upload error: $e');
       throw AuthException('Avatar upload failed: $e');
-    }
-  }
-
-  /// Sign in with Google via Appwrite OAuth2.
-  /// Opens the system browser; the session is finalised when the app
-  /// receives the deep-link callback at biso://auth/oauth-callback.
-  Future<void> signInWithGoogle() async {
-    try {
-      await _account.createOAuth2Session(
-        provider: enums.OAuthProvider.google,
-        success: 'biso://auth/oauth-callback',
-        failure: 'biso://auth/oauth-failed',
-      );
-      clearAppwriteJwtCache();
-    } on AppwriteException catch (e) {
-      throw AuthException('Google sign-in failed: ${e.message}');
-    } catch (e) {
-      throw AuthException('Google sign-in failed');
-    }
-  }
-
-  /// Sign in with Apple via Appwrite OAuth2 (iOS only).
-  /// Opens the system browser; the session is finalised when the app
-  /// receives the deep-link callback at biso://auth/oauth-callback.
-  Future<void> signInWithApple() async {
-    try {
-      await _account.createOAuth2Session(
-        provider: enums.OAuthProvider.apple,
-        success: 'biso://auth/oauth-callback',
-        failure: 'biso://auth/oauth-failed',
-      );
-      clearAppwriteJwtCache();
-    } on AppwriteException catch (e) {
-      throw AuthException('Apple sign-in failed: ${e.message}');
-    } catch (e) {
-      throw AuthException('Apple sign-in failed');
     }
   }
 

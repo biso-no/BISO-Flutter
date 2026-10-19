@@ -9,15 +9,15 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/member_pass.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/auth/bi_sign_in_provider.dart';
 import '../../../providers/member_pass/member_pass_provider.dart';
 import '../../../providers/member_pass/member_pass_session.dart';
-import '../../../providers/membership/membership_checkout_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/pass_card.dart';
 import '../../widgets/member_pass/wallet_buttons.dart';
+import '../auth/bi_sign_in_messages.dart';
 import 'member_pass_presentation.dart';
-import 'membership_screen.dart' show membershipLinkUrl;
 
 /// The signed-in member's live pass, or why there is none.
 class MemberPassScreen extends ConsumerStatefulWidget {
@@ -29,6 +29,9 @@ class MemberPassScreen extends ConsumerStatefulWidget {
 
 class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
   KeepAliveLink? _hold;
+
+  /// A BI sync or sign-in is running.
+  bool _biBusy = false;
 
   @override
   void initState() {
@@ -42,17 +45,19 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
     super.dispose();
   }
 
-  Future<void> _openLinkPage() async {
-    ref.read(membershipOverviewProvider.notifier).noteLinkStarted();
-    final opened = await ref.read(membershipUrlLauncherProvider)(
-      membershipLinkUrl,
-    );
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.memberPassLinkFailed),
-        ),
-      );
+  /// The pass needs a BI identity: confirms the student number with BI
+  /// (signing in with BI when the account has none), then reloads the pass.
+  Future<void> _continueWithBi() async {
+    setState(() => _biBusy = true);
+    final outcome = await continueWithBi(ref);
+    if (!mounted) return;
+    setState(() => _biBusy = false);
+    unawaited(ref.read(memberPassProvider.notifier).retry());
+    final message = biContinueMessage(AppLocalizations.of(context)!, outcome);
+    final messenger = ScaffoldMessenger.of(context);
+    goToOnboardingAfterBi(context, ref, outcome);
+    if (message != null) {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -117,11 +122,11 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
       ),
       PassStatus.noPass => switch (view.noPassState) {
         NoPassState.noBiIdentity => message(
-          icon: CupertinoIcons.link,
-          title: l10n.memberPassLinkTitle,
-          body: l10n.memberPassLinkMessage,
-          action: l10n.memberPassLinkAction,
-          onPressed: () => unawaited(_openLinkPage()),
+          icon: CupertinoIcons.person_crop_rectangle,
+          title: l10n.membershipNeedsBiLinkTitle,
+          body: l10n.membershipNeedsBiLinkBody,
+          action: l10n.membershipNeedsBiLinkCta,
+          onPressed: _biBusy ? null : () => unawaited(_continueWithBi()),
           accent: BisoAccent.gold,
         ),
         NoPassState.notMember ||

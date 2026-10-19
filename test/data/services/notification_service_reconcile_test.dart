@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
@@ -38,6 +39,10 @@ class _FakeAccount extends Account {
     _prefs = Map<String, dynamic>.from(prefs);
     throw UnimplementedError('return value unused by the code under test');
   }
+
+  /// Sign-out deletes this device's push target; nothing to record here.
+  @override
+  Future deletePushTarget({required String targetId}) async {}
 }
 
 void main() {
@@ -287,6 +292,66 @@ void main() {
     );
 
     test(
+      'still subscribes this device to general when the topic intent cannot '
+      'be read, and deletes nothing: general does not depend on any choice, '
+      'and a run that stopped at the failed read left a student who had '
+      'allowed notifications with no subscription at all',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            'news_oslo': 'sub-news',
+          }),
+        });
+        final account = _FakeAccount(intentPrefs(events: false))
+          ..shouldFail = true;
+        final messaging = _FakeMessaging()
+          ..subscribers['news_oslo'] = 'sub-news';
+        final service = _ReconcilingService(account, messaging);
+
+        final outcome = await service.reconcile(campusId: '1');
+
+        expect(outcome, ReconcileOutcome.unavailable);
+        expect(messaging.createCalls, ['general']);
+        expect(
+          messaging.deleteCalls,
+          isEmpty,
+          reason: 'with no readable intent, no other subscription is touched',
+        );
+        expect(
+          await DeviceSubscriptionStore().readSubscriberIds(),
+          messaging.subscribers,
+        );
+        expect(messaging.subscribers.keys.toSet(), {'general', 'news_oslo'});
+      },
+    );
+
+    test(
+      'does nothing when the topic intent cannot be read and general is '
+      'already recorded on this device',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            'general': 'sub-general',
+          }),
+        });
+        final account = _FakeAccount(intentPrefs(events: false))
+          ..shouldFail = true;
+        final messaging = _FakeMessaging()
+          ..subscribers['general'] = 'sub-general';
+        final service = _ReconcilingService(account, messaging);
+
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+        expect(messaging.createCalls, isEmpty);
+        expect(messaging.deleteCalls, isEmpty);
+      },
+    );
+
+    test(
       'reports unavailable, rather than throwing, when the FCM token cannot '
       'be fetched - e.g. SERVICE_NOT_AVAILABLE after the launch fetch had '
       'failed too, so no token was cached: a throw escapes into every '
@@ -351,6 +416,140 @@ void main() {
       },
     );
   });
+
+  group('initialize', () {
+    Map<String, dynamic> intentPrefs() => <String, dynamic>{
+      'notification_topics': <String, dynamic>{
+        'news': true,
+        'events': false,
+        'jobs': false,
+        'shop': false,
+      },
+    };
+
+    test(
+      'listens for token refreshes even when the first token fetch fails, '
+      'and a refresh then subscribes this device: on iOS the first fetch '
+      'commonly fails before APNs has answered, and the listener was only '
+      'registered after a successful one, so nothing ever heard the token '
+      'Firebase issued afterwards',
+      () async {
+        final messaging = _FakeMessaging();
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs()),
+          messaging,
+        )..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize();
+        expect(service.fcmToken, isNull);
+
+        // The launch reconciler runs for the student's campus, and has no
+        // token to register yet.
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+
+        service.tokenRefreshes.add('token-2');
+        await pumpEventQueue();
+
+        expect(service.fcmToken, 'token-2');
+        expect(messaging.subscribers.keys.toSet(), {
+          'general',
+          'news_oslo',
+          'news_national',
+        });
+      },
+    );
+
+    test(
+      'listens only once, however many times it is called before it has '
+      'succeeded: a second listener would reconcile twice for every refresh',
+      () async {
+        final messaging = _FakeMessaging();
+        final service =
+            _ReconcilingService(_FakeAccount(intentPrefs()), messaging)
+              ..configureThrowsOnce = Exception('not configured yet')
+              ..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize(); // fails, so it is not yet initialized
+        await service.initialize();
+        await service.reconcile(campusId: '1'); // no token yet
+        expect(service.permissionChecks, 1);
+
+        service.tokenRefreshes.add('token-2');
+        await pumpEventQueue();
+
+        expect(service.permissionChecks, 2, reason: 'one more reconcile run');
+        expect(messaging.createCalls, [
+          'general',
+          'news_oslo',
+          'news_national',
+        ]);
+      },
+    );
+
+    test(
+      'a refresh before anything has reconciled changes no subscription, and '
+      'leaves its token for the first reconcile: with no campus known yet it '
+      'reconciled for national, deleting every campus topic the launch '
+      'reconcile then had to create again',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            'news_oslo': 'sub-news',
+          }),
+        });
+        final messaging = _FakeMessaging()
+          ..subscribers['news_oslo'] = 'sub-news';
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs()),
+          messaging,
+        )..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize();
+        service.tokenRefreshes.add('token-2');
+        await pumpEventQueue();
+
+        expect(service.fcmToken, 'token-2');
+        expect(service.permissionChecks, 0, reason: 'no reconcile ran');
+        expect(messaging.createCalls, isEmpty);
+        expect(messaging.deleteCalls, isEmpty);
+
+        // The launch reconcile, for the student's campus, uses that token.
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
+        expect(messaging.createCalls, ['general', 'news_national']);
+        expect(messaging.deleteCalls, isEmpty);
+      },
+    );
+
+    test(
+      'a refresh after sign-out does not reconcile: the campus belonged to '
+      'the student who signed out',
+      () async {
+        final messaging = _FakeMessaging();
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs()),
+          messaging,
+        )..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize();
+        await service.reconcile(campusId: '1'); // no token yet
+        await service.clearToken();
+        final checksBefore = service.permissionChecks;
+
+        service.tokenRefreshes.add('token-3');
+        await pumpEventQueue();
+
+        expect(service.permissionChecks, checksBefore);
+        expect(messaging.createCalls, isEmpty);
+      },
+    );
+  });
 }
 
 models.Subscriber _subscriber({
@@ -392,6 +591,11 @@ class _FakeMessaging extends Messaging {
   /// [subscribers], holding one run mid-flight while another starts.
   Completer<void>? holdFirstCreate;
 
+  /// Every topic [createSubscriber] and [deleteSubscriber] were called for,
+  /// in call order.
+  final List<String> createCalls = <String>[];
+  final List<String> deleteCalls = <String>[];
+
   int _createCalls = 0;
 
   @override
@@ -401,6 +605,7 @@ class _FakeMessaging extends Messaging {
     required String targetId,
   }) async {
     _createCalls++;
+    createCalls.add(topicId);
     final hold = holdFirstCreate;
     if (hold != null && _createCalls == 1) await hold.future;
     if (subscribers.containsKey(topicId)) {
@@ -415,6 +620,7 @@ class _FakeMessaging extends Messaging {
     required String topicId,
     required String subscriberId,
   }) async {
+    deleteCalls.add(topicId);
     if (subscribers[topicId] != subscriberId) {
       throw AppwriteException('subscriber not found', 404);
     }
@@ -434,12 +640,37 @@ class _ReconcilingService extends NotificationService {
   bool permitted = true;
   Object? permissionThrows;
 
+  /// How many times [checkPlatformPermission] was called: once per reconcile
+  /// run that gets that far.
+  int permissionChecks = 0;
+
   /// Thrown from [fetchPlatformToken] instead of returning a token, when set.
   Object? tokenThrows;
 
   /// Thrown from the next [resolvePushTarget] call, then cleared - a failure
   /// `reconcile()` does not catch itself.
   Object? targetThrowsOnce;
+
+  /// Thrown from the next [configurePlatformMessaging] call, then cleared.
+  Object? configureThrowsOnce;
+
+  /// Stands in for Firebase's `onTokenRefresh`.
+  final StreamController<String> tokenRefreshes =
+      StreamController<String>.broadcast();
+
+  @override
+  Future<void> configurePlatformMessaging() async {
+    final failure = configureThrowsOnce;
+    configureThrowsOnce = null;
+    if (failure != null) throw failure;
+  }
+
+  @override
+  Stream<String> get platformTokenRefreshes => tokenRefreshes.stream;
+
+  /// Sign-out's token invalidation, which succeeds.
+  @override
+  Future<void> deletePlatformToken() async {}
 
   /// The push target every run resolves, recorded in the store as the real
   /// [resolvePushTarget] records it: subscriber ids are only ever recorded
@@ -448,6 +679,7 @@ class _ReconcilingService extends NotificationService {
 
   @override
   Future<bool> checkPlatformPermission() async {
+    permissionChecks++;
     final failure = permissionThrows;
     if (failure != null) throw failure;
     return permitted;

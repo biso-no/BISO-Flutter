@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/expense_cost_types.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/expense_model.dart';
@@ -17,6 +18,7 @@ import '../../../data/models/user_model.dart';
 import '../../../data/services/expense_api_client.dart';
 import '../../../data/services/expense_intake_service.dart';
 import '../../../data/services/expense_service_v2.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
@@ -54,6 +56,9 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
       _CreateExpenseScreenState();
 }
 
+const _osloCampusId = '1';
+const _ledelsenOsloDepartmentId = '2';
+
 class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   late final ExpenseServiceV2 _expenseService;
   late final ExpenseApiClient _apiClient;
@@ -67,6 +72,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   List<ExpenseReceiptDraft> _receipts = [];
   String? _selectedReceiptId;
   String? _draftExpenseId;
+  bool _submitterIsFinancialManager = false;
   String? _lastSummarySnapshot;
   bool _isLoadingLookups = true;
   bool _isSavingDraft = false;
@@ -92,6 +98,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _expenseService = ref.read(expenseServiceProvider);
     _apiClient = ref.read(expenseApiClientProvider);
     _draftExpenseId = widget.draftExpense?.id;
+    _submitterIsFinancialManager =
+        widget.draftExpense?.submitterIsFinancialManager ?? false;
     if (widget.intakeError != null) {
       _flowError = widget.intakeError;
       _mobileTabIndex = 1;
@@ -247,6 +255,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         amount: attachment.amount,
         amountInNok: attachment.amount,
         description: attachment.description ?? '',
+        costType: attachment.costType,
       );
     }).toList();
     _selectedReceiptId = _receipts.isNotEmpty ? _receipts.first.localId : null;
@@ -960,6 +969,22 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             ),
           ],
         ),
+        if (_showsFinancialManagerToggle(assignment)) ...[
+          const SizedBox(height: 16),
+          CheckboxListTile(
+            value: _submitterIsFinancialManager,
+            onChanged: (value) =>
+                setState(() => _submitterIsFinancialManager = value ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              AppLocalizations.of(context)!.expenseFinancialManagerLabel,
+            ),
+            subtitle: Text(
+              AppLocalizations.of(context)!.expenseFinancialManagerHint,
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         BisoSection(
           title: 'Receipts',
@@ -1288,6 +1313,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description: _descriptionController.text.trim(),
         receipts: _receipts,
         eventName: _eventController.text.trim(),
+        submitterIsFinancialManager:
+            _showsFinancialManagerToggle(assignment) &&
+            _submitterIsFinancialManager,
       );
       final result = await _apiClient.saveDraft(payload);
       if (!result.success || result.draftId == null) {
@@ -1320,6 +1348,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description: _descriptionController.text.trim(),
         receipts: _receipts,
         eventName: _eventController.text.trim(),
+        submitterIsFinancialManager:
+            _showsFinancialManagerToggle(assignment) &&
+            _submitterIsFinancialManager,
       );
       final result = await _apiClient.submit(payload);
       await ref.read(expensesStateProvider.notifier).refresh();
@@ -1349,6 +1380,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final zipController = TextEditingController(text: user.zipCode ?? '');
     final cityController = TextEditingController(text: user.city ?? '');
 
+    // Saving moves the home campus (and the notification topics that follow
+    // it), so the expense's campus is only given to a student without one.
+    final hasHomeCampus = user.campusId?.isNotEmpty ?? false;
+
     await showBisoSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1358,135 +1393,147 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         // so there are no page insets to clear here (matching the fallback
         // in sell_product_screen's _scrollPaddingFor).
         const scrollPadding = EdgeInsets.all(20);
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom:
-                MediaQuery.viewInsetsOf(sheetContext).bottom +
-                MediaQuery.paddingOf(sheetContext).bottom +
-                20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Complete profile',
-                  style: Theme.of(
-                    sheetContext,
-                  ).textTheme.titleLarge?.copyWith(color: palette.ink),
-                ),
-                const SizedBox(height: 16),
-                BisoFormGroup(
-                  children: [
-                    BisoFormRow(
-                      label: 'Name',
-                      child: TextField(
-                        controller: nameController,
-                        scrollPadding: scrollPadding,
-                        decoration: bisoInputDecoration(sheetContext),
+        return _DisposesControllers(
+          controllers: [
+            nameController,
+            phoneController,
+            bankController,
+            addressController,
+            zipController,
+            cityController,
+          ],
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom:
+                  MediaQuery.viewInsetsOf(sheetContext).bottom +
+                  MediaQuery.paddingOf(sheetContext).bottom +
+                  20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Complete profile',
+                    style: Theme.of(
+                      sheetContext,
+                    ).textTheme.titleLarge?.copyWith(color: palette.ink),
+                  ),
+                  const SizedBox(height: 16),
+                  BisoFormGroup(
+                    children: [
+                      BisoFormRow(
+                        label: 'Name',
+                        child: TextField(
+                          controller: nameController,
+                          scrollPadding: scrollPadding,
+                          decoration: bisoInputDecoration(sheetContext),
+                        ),
                       ),
-                    ),
-                    BisoFormRow(
-                      label: 'Phone',
-                      child: TextField(
-                        controller: phoneController,
-                        scrollPadding: scrollPadding,
-                        decoration: bisoInputDecoration(sheetContext),
-                        keyboardType: TextInputType.phone,
+                      BisoFormRow(
+                        label: 'Phone',
+                        child: TextField(
+                          controller: phoneController,
+                          scrollPadding: scrollPadding,
+                          decoration: bisoInputDecoration(sheetContext),
+                          keyboardType: TextInputType.phone,
+                        ),
                       ),
-                    ),
-                    BisoFormRow(
-                      label: 'Bank account',
-                      child: TextField(
-                        controller: bankController,
-                        scrollPadding: scrollPadding,
-                        decoration: bisoInputDecoration(sheetContext),
-                        keyboardType: TextInputType.number,
+                      BisoFormRow(
+                        label: 'Bank account',
+                        child: TextField(
+                          controller: bankController,
+                          scrollPadding: scrollPadding,
+                          decoration: bisoInputDecoration(sheetContext),
+                          keyboardType: TextInputType.number,
+                        ),
                       ),
-                    ),
-                    BisoFormRow(
-                      label: 'Address',
-                      child: TextField(
-                        controller: addressController,
-                        scrollPadding: scrollPadding,
-                        decoration: bisoInputDecoration(sheetContext),
+                      BisoFormRow(
+                        label: 'Address',
+                        child: TextField(
+                          controller: addressController,
+                          scrollPadding: scrollPadding,
+                          decoration: bisoInputDecoration(sheetContext),
+                        ),
                       ),
-                    ),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: BisoFormRow(
-                            label: 'Zip',
-                            child: TextField(
-                              controller: zipController,
-                              scrollPadding: scrollPadding,
-                              decoration: bisoInputDecoration(sheetContext),
-                              keyboardType: TextInputType.number,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: BisoFormRow(
+                              label: 'Zip',
+                              child: TextField(
+                                controller: zipController,
+                                scrollPadding: scrollPadding,
+                                decoration: bisoInputDecoration(sheetContext),
+                                keyboardType: TextInputType.number,
+                              ),
                             ),
                           ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: BisoFormRow(
-                            label: 'City',
-                            child: TextField(
-                              controller: cityController,
-                              scrollPadding: scrollPadding,
-                              decoration: bisoInputDecoration(sheetContext),
+                          Expanded(
+                            flex: 2,
+                            child: BisoFormRow(
+                              label: 'City',
+                              child: TextField(
+                                controller: cityController,
+                                scrollPadding: scrollPadding,
+                                decoration: bisoInputDecoration(sheetContext),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                FilledButton(
-                  onPressed: () async {
-                    final bank = normalizeNorwegianBankAccount(
-                      bankController.text,
-                    );
-                    final bankError = validateNorwegianBankAccount(bank);
-                    if (bankError != null) {
-                      ScaffoldMessenger.of(
-                        sheetContext,
-                      ).showSnackBar(SnackBar(content: Text(bankError)));
-                      return;
-                    }
-                    await ref
-                        .read(authServiceProvider)
-                        .updateUserProfile(
-                          name: nameController.text.trim(),
-                          phone: phoneController.text.trim(),
-                          bankAccount: bank,
-                          address: addressController.text.trim(),
-                          zipCode: zipController.text.trim(),
-                          city: cityController.text.trim(),
-                          campusId: _assignment?.campusId ?? user.campusId,
-                        );
-                    await ref.read(authStateProvider.notifier).refreshProfile();
-                    if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                  },
-                  child: const Text('Save profile'),
-                ),
-              ],
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: () async {
+                      final bank = normalizeNorwegianBankAccount(
+                        bankController.text,
+                      );
+                      final bankError = validateNorwegianBankAccount(bank);
+                      if (bankError != null) {
+                        ScaffoldMessenger.of(
+                          sheetContext,
+                        ).showSnackBar(SnackBar(content: Text(bankError)));
+                        return;
+                      }
+                      // A blank field here must not erase stored profile data.
+                      String? filled(TextEditingController c) =>
+                          c.text.trim().isEmpty ? null : c.text.trim();
+                      await ref
+                          .read(authServiceProvider)
+                          .updateUserProfile(
+                            name: nameController.text.trim(),
+                            phone: filled(phoneController),
+                            bankAccount: bank,
+                            address: filled(addressController),
+                            zipCode: filled(zipController),
+                            city: filled(cityController),
+                            campusId: hasHomeCampus
+                                ? null
+                                : _assignment?.campusId,
+                          );
+                      await ref
+                          .read(authStateProvider.notifier)
+                          .refreshProfile();
+                      if (sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    },
+                    child: const Text('Save profile'),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
     );
-
-    nameController.dispose();
-    phoneController.dispose();
-    bankController.dispose();
-    addressController.dispose();
-    zipController.dispose();
-    cityController.dispose();
   }
 
   Future<bool> _confirmLeaveIfNeeded() async {
@@ -1512,6 +1559,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         ) ??
         false;
   }
+
+  /// Only Oslo has the department financial-manager approval step, and the
+  /// leadership unit there has no separate financial manager. Same rule as the
+  /// web expense report.
+  bool _showsFinancialManagerToggle(ExpenseAssignment assignment) =>
+      assignment.campusId == _osloCampusId &&
+      assignment.departmentId != _ledelsenOsloDepartmentId;
 
   void _replaceReceipt(ExpenseReceiptDraft updated) {
     if (!mounted) return;
@@ -2057,6 +2111,38 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                 onChanged: (_) => _emit(),
               ),
             ),
+            if (!receipt.isBankStatement) ...[
+              const SizedBox(height: 10),
+              BisoFormRow(
+                label: AppLocalizations.of(context)!.expenseCostTypeLabel,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    '${receipt.localId}-${receipt.effectiveCostType}',
+                  ),
+                  initialValue: receipt.effectiveCostType,
+                  decoration: bisoInputDecoration(
+                    context,
+                    prefixIcon: const Icon(CupertinoIcons.tag),
+                  ),
+                  items: [
+                    for (final type in defaultExpenseCostTypes)
+                      DropdownMenuItem(
+                        value: type.slug,
+                        child: Text(type.label),
+                      ),
+                  ],
+                  onChanged: (slug) {
+                    if (slug == null) return;
+                    widget.onChanged(
+                      widget.receipt.copyWith(
+                        costType: slug,
+                        status: ExpenseReceiptStatus.ready,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -2356,4 +2442,30 @@ class _AmountRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Disposes [controllers] once the sheet holding [child] has left the tree.
+/// The sheet still builds its fields while it slides away after `pop`, so
+/// they cannot be disposed when `showBisoSheet` returns.
+class _DisposesControllers extends StatefulWidget {
+  const _DisposesControllers({required this.controllers, required this.child});
+
+  final List<TextEditingController> controllers;
+  final Widget child;
+
+  @override
+  State<_DisposesControllers> createState() => _DisposesControllersState();
+}
+
+class _DisposesControllersState extends State<_DisposesControllers> {
+  @override
+  void dispose() {
+    for (final controller in widget.controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

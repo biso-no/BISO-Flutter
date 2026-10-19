@@ -15,10 +15,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// records sign-outs instead of deleting a session - ending [session], when
 /// given, as deleting it would.
 class _FakeAuthService extends AuthService {
-  _FakeAuthService({this.session});
+  _FakeAuthService({this.session, this.log});
 
   final _SessionAccount? session;
   int logoutCalls = 0;
+  int clearSessionCalls = 0;
+
+  /// Records each session deletion, in order with whatever else logs here.
+  final List<String>? log;
 
   @override
   Future<UserModel?> getCurrentUser() async => null;
@@ -26,6 +30,13 @@ class _FakeAuthService extends AuthService {
   @override
   Future<void> logout() async {
     logoutCalls++;
+    session?.valid = false;
+  }
+
+  @override
+  Future<void> clearSession() async {
+    clearSessionCalls++;
+    log?.add('clearSession');
     session?.valid = false;
   }
 }
@@ -80,6 +91,16 @@ class _ThrowingCleanupService extends NotificationService {
 
   @override
   Future<void> clearToken() async => throw StateError('cleanup exploded');
+}
+
+/// Records the notification cleanup in [log], and does nothing else.
+class _LoggingCleanupService extends NotificationService {
+  _LoggingCleanupService(this.log) : super.withAccount(Account(Client()));
+
+  final List<String> log;
+
+  @override
+  Future<void> clearToken() async => log.add('clearToken');
 }
 
 void main() {
@@ -201,5 +222,75 @@ void main() {
         expect(notifier.state.error, isNull);
       },
     );
+  });
+
+  group('AuthNotifier.clearSession', () {
+    test(
+      'detaches this device from push notifications before deleting the '
+      'session, as sign-out does: deleting it alone left the previous '
+      "account's push target and live token on the device, so it went on "
+      "receiving that account's pushes and the next student's registration "
+      'was refused with a 409 no target of theirs matched',
+      () async {
+        final log = <String>[];
+        final authService = _FakeAuthService(log: log);
+        final notifier = AuthNotifier(
+          authService,
+          notificationService: _LoggingCleanupService(log),
+        );
+        await pumpEventQueue();
+
+        await notifier.clearSession();
+
+        expect(log, ['clearToken', 'clearSession']);
+        expect(notifier.state.isAuthenticated, isFalse);
+        expect(notifier.state.isLoading, isFalse);
+      },
+    );
+
+    testWidgets(
+      'deletes the session at kSignOutCleanupTimeout when the notification '
+      'cleanup hangs, leaving the pending token invalidation recorded',
+      (tester) async {
+        final authService = _FakeAuthService();
+        final notifier = AuthNotifier(
+          authService,
+          notificationService: _StuckService(tokenDeletionHangs: true),
+        );
+        await tester.pump();
+
+        var cleared = false;
+        unawaited(notifier.clearSession().then((_) => cleared = true));
+
+        await tester.pump(kSignOutCleanupTimeout - const Duration(seconds: 1));
+        expect(cleared, isFalse, reason: 'cleanup still has time left');
+
+        await tester.pump(const Duration(seconds: 1));
+        expect(cleared, isTrue);
+        expect(authService.clearSessionCalls, 1);
+        expect(
+          await DeviceSubscriptionStore().readPendingTokenInvalidation(),
+          isTrue,
+        );
+
+        // Let the abandoned cleanup reach its own bound.
+        await tester.pump(kNotificationRunTimeout);
+      },
+    );
+
+    test('still deletes the session when the notification cleanup throws', () async {
+      final authService = _FakeAuthService();
+      final notifier = AuthNotifier(
+        authService,
+        notificationService: _ThrowingCleanupService(),
+      );
+      await pumpEventQueue();
+
+      await notifier.clearSession();
+
+      expect(authService.clearSessionCalls, 1);
+      expect(notifier.state.isAuthenticated, isFalse);
+      expect(notifier.state.error, isNull);
+    });
   });
 }

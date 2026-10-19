@@ -596,7 +596,7 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Routes**: `/explore/products/cart`, `/explore/products/checkout`,
   `/explore/products/order/:orderId`, `/explore/products/orders`
 
-#### 🎫 Membership (verification, BI link, purchase)
+#### 🎫 Membership (verification, BI sign-in, purchase)
 - **Source of truth is 24SevenOffice, read by the server.** `GET /api/membership` returns the
   live status (a 24SO customer category matched to a `memberships` row that has not expired —
   valid through its expiry day in Oslo), the same purchase gate as biso.no's join page, and the
@@ -605,10 +605,25 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   user is known (`BisoApp.build` listens to it), re-verifies on resume after 10 minutes, and keeps
   the last verified overview per user for offline display (marked `fromCache`).
   `hasValidMembershipProvider` trusts a cached answer for 24 hours; prices are always server-side.
-- **BI linking happens on biso.no.** BI's Azure tenant is reachable only through Appwrite's OIDC
-  provider, so the app opens `https://biso.no/membership/link`, and the page returns with
-  `biso://membership?linked=1`. Handing the app's session to a browser was rejected: such a link
-  is forwardable and could attach someone else's BI identity to the sender's account.
+- **Students sign in with BI; there is no account linking.** Sign-in is BI or a login link, as on
+  the web (Google and Apple are gone). BI's Azure tenant is reachable only through Appwrite's OIDC
+  provider: `BiSignInService` opens `…/account/tokens/oauth2/oidc` (scopes `openid email profile`)
+  in an ephemeral browser sheet (`flutter_web_auth_2`, `preferEphemeral: true`), so a BI identity
+  never attaches to a session left in Safari or Chrome. The sheet returns to
+  `appwrite-callback-biso://bi-sign-in/success` (token `userId` + `secret`) or `/failure`
+  (Appwrite `error` JSON; `general_bad_request` means BI could not sign into the existing account
+  holding the BI email, and the copy points to a login link). Only on success is the app's
+  current session replaced: push is detached first (as on sign-out) for a signed-in student, then
+  the old session is deleted and the new one created, so cancelling or failing BI leaves a
+  signed-in student signed in. Then `POST /api/auth/bi-sync` copies the student number
+  (`BiSyncApiClient`); its errors show the web's `needsBiLink.*` copy, and
+  `directory_unavailable` counts as linked. The membership card and the member pass use
+  `continueWithBi`: sync first (a student whose app died after BI sign-in needs no second
+  sign-in), sign in with BI only for `no_bi_identity`, and on a 401 re-read the auth state (the
+  screen then offers sign-in). Its `BiContinueOutcome` keeps a failed BI sign-in (shown with the
+  login screen's copy) apart from a sync error. `getCurrentUser` keeps whoever is signed in for an
+  offline launch, however they signed in. Android receives the BI return in flutter_web_auth_2's
+  `CallbackActivity`.
   `student_id` and the `bi_*` columns are server-written only; profile rows are read-only to
   their owner and profile edits go through `PUT /api/profile`.
 - **Purchase** uses `POST /api/payment/{provider}/membership-checkout` with `client: "app"`,
@@ -627,7 +642,9 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Activation** finishes when the bought plan shows among the active *or* upcoming memberships
   (`landedPurchase`); the pending marker remembers the plan's id and dates for that.
 - **Location**: `lib/providers/membership/`, `lib/data/services/membership_api_client.dart`,
-  `lib/presentation/screens/profile/membership_screen.dart`. **Route**: `/profile/membership`.
+  `lib/presentation/screens/profile/membership_screen.dart`; BI sign-in in
+  `lib/data/services/bi_sign_in_service.dart`, `lib/data/services/bi_sync_api_client.dart`,
+  `lib/providers/auth/bi_sign_in_provider.dart`. **Route**: `/profile/membership`.
 
 #### 🪪 Member pass and membership scanning
 - **The server signs and decides everything.** `GET /api/member-pass` returns either the pass
@@ -662,10 +679,20 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Spec**: `docs/superpowers/specs/2026-09-17-member-pass-and-scanner-design.md`.
 
 #### 💼 Jobs/Volunteer Board
-- **Opportunity Listings**: Browse available positions
-- **Job Details**: Requirements, descriptions, and application info
-- **Campus Integration**: Shows opportunities by campus
-- **Location**: `lib/presentation/screens/explore/jobs_screen.dart`
+- **Opportunity Listings**: Browse available positions by campus
+  (`lib/presentation/screens/explore/jobs_screen.dart`).
+- **Job page and applying**: `lib/presentation/screens/jobs/`. The detail page
+  reads one open vacancy by slug or id (`JobService.getJob`); applying follows
+  the web form's steps and posts to `apps/api` `POST /api/recruitment/applications`
+  (`RecruitmentApiClient`, multipart, each PDF part `application/pdf`). Members-only
+  vacancies gate on `hasValidMembershipProvider`; the server decides. The client
+  refuses a CV and cover letter over 9 MB together (the API proxy caps bodies at
+  10 MB).
+- **My applications**: `GET /api/recruitment/applications`, shown at
+  `/profile/applications`.
+- **Routes**: `/explore/volunteer`, `/explore/volunteer/:jobId` (id or slug),
+  `/explore/volunteer/:jobId/apply`, `/profile/applications`. Links:
+  `biso://job?id=<id>` and `https://biso.no/app/jobs/<slug>`.
 
 #### 💰 Expense Reimbursement System
 - **Multi-Step Form**: 5-step process with validation

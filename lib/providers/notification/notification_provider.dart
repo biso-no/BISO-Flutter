@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:appwrite/appwrite.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/app_notification_model.dart';
@@ -634,4 +634,33 @@ final topicReconcileProvider = FutureProvider<void>((ref) async {
   await ref
       .read(notificationServiceProvider)
       .reconcile(campusId: campusId);
+});
+
+/// Picks up notification permission granted outside the app.
+///
+/// A student who declined the system dialog can only turn notifications on in
+/// the system settings, and coming back from there is none of the things
+/// [topicReconcileProvider] reconciles on: their device stayed unsubscribed
+/// until the next launch. So each time the app is resumed with a student
+/// signed in, the permission is read again, and this device is reconciled for
+/// the campus on their profile if it has been granted since it was last read
+/// (see [NotificationService.reconcileIfPermissionNewlyGranted]). The status
+/// shown on the settings screen is refreshed too, since it may have changed
+/// either way.
+final notificationPermissionResumeProvider = Provider<void>((ref) {
+  Future<void> onResume() async {
+    final auth = ref.read(authStateProvider);
+    if (auth.isLoading || !auth.isAuthenticated) return;
+    ref.invalidate(notificationStatusProvider);
+    try {
+      await ref
+          .read(notificationServiceProvider)
+          .reconcileIfPermissionNewlyGranted(campusId: auth.user?.campusId);
+    } catch (e) {
+      debugPrint('notificationPermissionResumeProvider: reconcile failed: $e');
+    }
+  }
+
+  final lifecycle = AppLifecycleListener(onResume: () => unawaited(onResume()));
+  ref.onDispose(lifecycle.dispose);
 });

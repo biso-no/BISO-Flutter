@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../core/utils/expense_cost_types.dart';
 import '../../core/utils/norwegian_bank_account.dart';
 import 'expense_model.dart';
 import 'user_model.dart';
@@ -131,6 +132,10 @@ class ExpenseReceiptDraft {
   final double? exchangeRate;
   final String? originalForeignAmount;
   final String? category;
+
+  /// The cost type the student chose; null until they do, in which case the
+  /// OCR [category] decides (see [effectiveCostType]).
+  final String? costType;
   final String? city;
   final String? country;
   final String? purchaseContext;
@@ -156,6 +161,7 @@ class ExpenseReceiptDraft {
     this.exchangeRate,
     this.originalForeignAmount,
     this.category,
+    this.costType,
     this.city,
     this.country,
     this.purchaseContext,
@@ -187,6 +193,8 @@ class ExpenseReceiptDraft {
   bool get hasEstimatedNok =>
       isForeignCurrency && amountInNok != null && !hasLinkedBankStatement;
   double get effectiveAmount => amountInNok ?? amount ?? 0;
+  String get effectiveCostType =>
+      costType ?? defaultCostTypeSlugForCategory(category);
 
   ExpenseReceiptDraft copyWith({
     String? fileName,
@@ -206,6 +214,7 @@ class ExpenseReceiptDraft {
     double? exchangeRate,
     String? originalForeignAmount,
     String? category,
+    String? costType,
     String? city,
     String? country,
     String? purchaseContext,
@@ -232,6 +241,7 @@ class ExpenseReceiptDraft {
       originalForeignAmount:
           originalForeignAmount ?? this.originalForeignAmount,
       category: category ?? this.category,
+      costType: costType ?? this.costType,
       city: city ?? this.city,
       country: country ?? this.country,
       purchaseContext: purchaseContext ?? this.purchaseContext,
@@ -294,7 +304,7 @@ class ExpenseReceiptDraft {
     };
   }
 
-  Map<String, dynamic> toAttachmentMap() {
+  Map<String, dynamic> toAttachmentMap({int sortOrder = 0}) {
     return {
       'date': _formatDate(date),
       'url': fileId,
@@ -305,6 +315,8 @@ class ExpenseReceiptDraft {
           ? 'Bank statement'
           : fileName,
       'type': mimeType,
+      'cost_type': effectiveCostType,
+      'sort_order': sortOrder,
     };
   }
 }
@@ -318,6 +330,7 @@ class ExpensePayloadBuilder {
     required List<ExpenseReceiptDraft> receipts,
     double prepaymentAmount = 0,
     String? eventName,
+    bool submitterIsFinancialManager = false,
   }) {
     final normalizedBank = normalizeNorwegianBankAccount(bankAccount);
     final readyReceipts = receipts
@@ -336,9 +349,11 @@ class ExpensePayloadBuilder {
       'total': total,
       'prepayment_amount': prepaymentAmount,
       'eventName': eventName ?? '',
-      'expenseAttachments': readyReceipts
-          .map((receipt) => receipt.toAttachmentMap())
-          .toList(),
+      'submitter_is_financial_manager': submitterIsFinancialManager,
+      'expenseAttachments': [
+        for (final (index, receipt) in readyReceipts.indexed)
+          receipt.toAttachmentMap(sortOrder: index),
+      ],
     };
   }
 

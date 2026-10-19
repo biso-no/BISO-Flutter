@@ -41,9 +41,6 @@ class UserModel extends Equatable {
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     logPrint('🔍 UserModel.fromMap - Raw map keys: ${map.keys.toList()}');
-    logPrint(
-      '🔍 UserModel.fromMap - department_ids type: ${map['department_ids'].runtimeType}, value: ${map['department_ids']}',
-    );
 
     return UserModel(
       id: map['\$id'] ?? '',
@@ -57,8 +54,8 @@ class UserModel extends Equatable {
       studentId:
           map['student_id'], // Use the direct string field, not the relationship
       departments: _parseDepartmentIds(
-        map['department_ids'],
-      ), // Use department_ids string array
+        map['departments'] ?? map['department_ids'],
+      ), // the server writes `departments`; `department_ids` is legacy
       avatarUrl: map['avatar'],
       bankAccount: map['bank_account'],
       swift: map['swift'],

@@ -16,7 +16,8 @@ const _tabs = [
 
 /// Pumps [screen] the way the app shows it: themed and localized, on a
 /// 390x844 phone with a notch and home indicator, inside the tab shell.
-/// Set [routed] for screens that read GoRouterState during build.
+/// Set [routed] for screens that read GoRouterState during build, or that
+/// navigate: [extraRoutes] are the places they may go.
 Future<void> pumpBisoScreen(
   WidgetTester tester,
   Widget screen, {
@@ -25,6 +26,7 @@ Future<void> pumpBisoScreen(
   double textScale = 1,
   bool inShell = true,
   bool routed = false,
+  List<RouteBase> extraRoutes = const [],
   Size size = const Size(390, 844),
   Locale? locale,
 }) async {
@@ -66,6 +68,7 @@ Future<void> pumpBisoScreen(
               routerConfig: GoRouter(
                 routes: [
                   GoRoute(path: '/', builder: (context, _) => framed(context)),
+                  ...extraRoutes,
                 ],
               ),
             )

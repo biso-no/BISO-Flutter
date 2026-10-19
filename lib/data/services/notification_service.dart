@@ -115,7 +115,9 @@ enum ReconcileOutcome {
 
   /// Nothing could be attempted on this device: the permission status could
   /// not be read, or there is no FCM token, no push target, or no readable
-  /// intent.
+  /// intent. Without a readable intent the device is still subscribed to
+  /// `general`, which no choice of the student's affects, and nothing else
+  /// is changed.
   unavailable,
 
   /// Some subscribe/unsubscribe calls failed; the device is partly reconciled.
@@ -168,6 +170,17 @@ class NotificationService {
   /// — can re-run [reconcile] without a caller supplying it again.
   String? _lastCampusId;
 
+  /// Whether [_lastCampusId] is a signed-in student's campus: set by
+  /// [reconcile], and cleared by [clearToken]. Null means "no campus" only
+  /// once this is set.
+  bool _campusKnown = false;
+
+  /// Whether OS notification permission was granted when a reconcile or a
+  /// permission request last read it, or null before either has, and after a
+  /// reconcile that found it granted could not finish. See
+  /// [reconcileIfPermissionNewlyGranted].
+  bool? _lastSeenPermission;
+
   /// Maps a topicId to the Appwrite subscriber `$id` returned by
   /// [Messaging.createSubscriber]. Needed to delete the subscriber on
   /// unsubscribe. Persisted to user preferences alongside the bool map.
@@ -186,9 +199,16 @@ class NotificationService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    // First, and apart from the token fetch below, which on iOS commonly
+    // fails because APNs has not answered yet. Firebase then issues the token
+    // through onTokenRefresh once it has one, and only a listener already
+    // registered hears it. Registered only after a successful fetch, as it
+    // was, there was none for the rest of the session.
+    _listenForTokenRefresh();
+
     try {
       // Configure Firebase Messaging
-      await _configureFirebaseMessaging();
+      await configurePlatformMessaging();
 
       // Get FCM token
       await _getFCMToken();
@@ -207,8 +227,13 @@ class NotificationService {
     unawaited(retryPendingTokenInvalidation());
   }
 
-  /// Configure Firebase Messaging settings
-  Future<void> _configureFirebaseMessaging() async {
+  /// Configures Firebase Messaging: foreground presentation, and the
+  /// handlers for foreground messages and notification taps.
+  ///
+  /// A test seam, like [requestPlatformPermission]: there is no fake for
+  /// Firebase Messaging.
+  @visibleForTesting
+  Future<void> configurePlatformMessaging() async {
     // Set foreground notification presentation options
     await _firebaseMessaging.setForegroundNotificationPresentationOptions(
       alert: true,
@@ -232,19 +257,32 @@ class NotificationService {
   /// Get FCM token for this device
   Future<String?> _getFCMToken() async {
     try {
-      _fcmToken = await _firebaseMessaging.getToken();
+      _fcmToken = await fetchPlatformToken();
       debugPrint('FCM Token: $_fcmToken');
-
-      // Listen for token refresh
-      _firebaseMessaging.onTokenRefresh.listen((newToken) {
-        _fcmToken = newToken;
-        unawaited(_reconcileAfterTokenRefresh());
-      });
-
       return _fcmToken;
     } catch (e) {
       debugPrint('Failed to get FCM token: $e');
       return null;
+    }
+  }
+
+  /// The listener [_listenForTokenRefresh] registered, if it has.
+  StreamSubscription<String>? _tokenRefreshes;
+
+  /// Reconciles this device with every new FCM token. Registers its listener
+  /// once, however many times it is called.
+  void _listenForTokenRefresh() {
+    if (_tokenRefreshes != null) return;
+    try {
+      _tokenRefreshes = platformTokenRefreshes.listen(
+        (newToken) {
+          _fcmToken = newToken;
+          unawaited(_reconcileAfterTokenRefresh());
+        },
+        onError: (Object e) => debugPrint('onTokenRefresh failed: $e'),
+      );
+    } catch (e) {
+      debugPrint('Could not listen for FCM token refreshes: $e');
     }
   }
 
@@ -258,10 +296,25 @@ class NotificationService {
   /// `reconcile` resolves the target *and* recreates whatever subscriptions
   /// the clear wiped out.
   ///
+  /// Not before [reconcile] has been given a campus, though. The listener is
+  /// registered at launch, before the session has loaded, and on iOS Firebase
+  /// reports a token about once per start, which can come first: reconciling
+  /// then, for no campus, reconciled for national and deleted every campus
+  /// topic this device held, for the launch reconcile to create again. The
+  /// token is cached all the same, and the first reconcile uses it. Nor after
+  /// sign-out, when nobody's campus applies.
+  ///
   /// `onTokenRefresh` gives its listener no way to be awaited by a caller, so
   /// a throw here must be caught rather than left to become an unhandled
   /// async error.
   Future<void> _reconcileAfterTokenRefresh() async {
+    if (!_campusKnown) {
+      debugPrint(
+        'onTokenRefresh: no campus to reconcile for yet; the token is kept '
+        'for the next reconcile',
+      );
+      return;
+    }
     try {
       await reconcile(campusId: _lastCampusId);
     } catch (e) {
@@ -329,6 +382,9 @@ class NotificationService {
       debugPrint('Failed to request notification permission: $e');
       return false;
     }
+    // A grant here reconciles below, so coming back to the app afterwards
+    // need not (see [reconcileIfPermissionNewlyGranted]).
+    _lastSeenPermission = isGranted;
 
     if (isGranted) {
       // reconcile() resolves the push target itself and subscribes this
@@ -377,6 +433,60 @@ class NotificationService {
     }
   }
 
+  /// Whether the OS will no longer show its notification permission dialog,
+  /// so only the system settings can turn notifications on: on iOS once the
+  /// student has declined it, on Android once they have declined it for good.
+  /// A status that cannot be read reports `false`, which leaves the caller to
+  /// ask again.
+  Future<bool> isPermissionPermanentlyDenied() async {
+    try {
+      const permission = permission_handler.Permission.notification;
+      return await permission.isPermanentlyDenied;
+    } catch (e) {
+      debugPrint('Could not read whether notifications are blocked: $e');
+      return false;
+    }
+  }
+
+  /// Opens this app's page in the system settings, where notifications can be
+  /// turned on, reporting whether it could. A grant made there is picked up
+  /// when the app is resumed (see [reconcileIfPermissionNewlyGranted]).
+  Future<bool> openSystemNotificationSettings() async {
+    try {
+      return await permission_handler.openAppSettings();
+    } catch (e) {
+      debugPrint('Could not open the system settings: $e');
+      return false;
+    }
+  }
+
+  /// Reconciles this device for [campusId] when notification permission has
+  /// been granted since this service last read it, reporting the outcome, or
+  /// null when it did not reconcile.
+  ///
+  /// For a grant made outside the app. A student who declined can only turn
+  /// notifications on in the system settings, and nothing else reconciles
+  /// when they come back, so this is called whenever the app is resumed (see
+  /// `notificationPermissionResumeProvider`). It reconciles only on a change:
+  /// every reconcile and every in-app request records what it read. A
+  /// permission never read before counts as not granted, since an extra
+  /// reconcile costs little and a device left unsubscribed is the bug.
+  Future<ReconcileOutcome?> reconcileIfPermissionNewlyGranted({
+    required String? campusId,
+  }) async {
+    final bool granted;
+    try {
+      granted = await checkPlatformPermission();
+    } catch (e) {
+      debugPrint('Could not read notification permission on resume: $e');
+      return null;
+    }
+    final wasGranted = _lastSeenPermission == true;
+    _lastSeenPermission = granted;
+    if (!granted || wasGranted) return null;
+    return reconcile(campusId: campusId);
+  }
+
   /// Whether the OS currently grants notification permission (including
   /// provisional on iOS). Unlike [areNotificationsEnabled], a status that
   /// cannot be read at all is rethrown rather than reported as not granted.
@@ -396,6 +506,13 @@ class NotificationService {
   /// A test seam, like [requestPlatformPermission].
   @visibleForTesting
   Future<String?> fetchPlatformToken() => _firebaseMessaging.getToken();
+
+  /// Every new FCM token Firebase issues this device.
+  ///
+  /// A test seam, like [requestPlatformPermission].
+  @visibleForTesting
+  Stream<String> get platformTokenRefreshes =>
+      _firebaseMessaging.onTokenRefresh;
 
   /// Invalidates this device's FCM token, so nothing bound to it — a push
   /// target on any account — can reach this device again. Firebase issues a
@@ -638,6 +755,7 @@ class NotificationService {
     // refresh — which has no campusId of its own to pass in — reconciles
     // against the most recent campus this method was actually asked to use.
     _lastCampusId = campusId;
+    _campusKnown = true;
 
     return _enqueue(
       'reconcile',
@@ -882,11 +1000,26 @@ class NotificationService {
       );
       return ReconcileOutcome.unavailable;
     }
+    _lastSeenPermission = permitted;
     if (!permitted) {
       debugPrint('reconcile: notifications not permitted; intent kept for later');
       return ReconcileOutcome.permissionDenied;
     }
 
+    final outcome = await _reconcilePermitted(run, campusId);
+    // A run that had permission but could not finish - no token, no push
+    // target, no readable intent - forgets the permission it read, so the
+    // next resume tries again (see [reconcileIfPermissionNewlyGranted]).
+    if (outcome == ReconcileOutcome.unavailable) _lastSeenPermission = null;
+    return outcome;
+  }
+
+  /// The rest of a [reconcile] run, once [_reconcileNow] has found that
+  /// notifications are permitted.
+  Future<ReconcileOutcome> _reconcilePermitted(
+    _QueueRun run,
+    String? campusId,
+  ) async {
     // The launch fetch in initialize() can fail and leave no cached token, and
     // Firebase then throws here too (SERVICE_NOT_AVAILABLE, no network). That
     // is reported like a missing token rather than thrown into every caller.
@@ -924,22 +1057,40 @@ class NotificationService {
       return ReconcileOutcome.unavailable;
     }
 
-    final Map<String, bool> intent;
+    Map<String, bool>? intent;
     try {
       intent = await loadTopicIntent();
     } catch (e) {
       // Reconciling against a guessed intent is exactly the harm this type
       // exists to prevent: it could subscribe a student to a topic they had
-      // deliberately turned off. Abort instead, and retry on the next launch,
-      // auth change, or campus change.
-      debugPrint('reconcile: could not read topic intent; aborting ($e)');
-      return ReconcileOutcome.unavailable;
+      // deliberately turned off. So only kGeneralTopicId, which every device
+      // with permission holds whatever the student chose, is ensured below,
+      // nothing is deleted, and the rest is retried on the next launch, auth
+      // change, or campus change. Stopping here instead left a device that
+      // had permission subscribed to nothing at all.
+      debugPrint(
+        'reconcile: could not read topic intent; ensuring only '
+        '$kGeneralTopicId ($e)',
+      );
     }
 
-    final desired = appwriteTopicIdsFor(intent: intent, campusId: campusId);
     final current = await _store.readSubscriberIds();
-    final diff = computeTopicDiff(desired: desired, current: current);
-    if (diff.isEmpty) return ReconcileOutcome.applied;
+    final diff = intent == null
+        ? TopicDiff(
+            toCreate: current.containsKey(kGeneralTopicId)
+                ? const <String>{}
+                : const <String>{kGeneralTopicId},
+            toDelete: const <String>{},
+          )
+        : computeTopicDiff(
+            desired: appwriteTopicIdsFor(intent: intent, campusId: campusId),
+            current: current,
+          );
+    if (diff.isEmpty) {
+      return intent == null
+          ? ReconcileOutcome.unavailable
+          : ReconcileOutcome.applied;
+    }
 
     var hadFailure = false;
 
@@ -1020,6 +1171,8 @@ class NotificationService {
       if (!run.ownsState) return ReconcileOutcome.unavailable;
     }
 
+    // Only general was attempted: the student's own topics are still to do.
+    if (intent == null) return ReconcileOutcome.unavailable;
     return hadFailure
         ? ReconcileOutcome.partiallyFailed
         : ReconcileOutcome.applied;
@@ -1409,6 +1562,9 @@ class NotificationService {
     // than registering this device for the account that is signing out (see
     // [_QueueRun.signOutRequested]).
     _signOutRequests++;
+    // The campus was the signed-out student's: a token refresh from here on
+    // waits for the next reconcile (see [_reconcileAfterTokenRefresh]).
+    _campusKnown = false;
     final recorded = _recordPendingTokenInvalidation();
     final cleanup = _enqueue<void>(
       'clearToken',

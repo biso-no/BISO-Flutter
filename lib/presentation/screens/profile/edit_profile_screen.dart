@@ -11,6 +11,7 @@ import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../widgets/biso/biso.dart';
+import 'profile_edit_changes.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
@@ -144,24 +145,29 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final user = ref.read(authStateProvider).user;
+      final changes = user == null
+          ? null
+          : ProfileEditChanges.from(
+              user,
+              name: _nameController.text,
+              phone: _phoneController.text,
+              address: _addressController.text,
+              city: _cityController.text,
+              zip: _zipController.text,
+              campusId: _selectedCampusId,
+              departments: _selectedDepartments,
+            );
       await ref
           .read(authStateProvider.notifier)
           .updateProfile(
-            name: _nameController.text.trim(),
-            phone: _phoneController.text.trim().isNotEmpty
-                ? _phoneController.text.trim()
-                : null,
-            address: _addressController.text.trim().isNotEmpty
-                ? _addressController.text.trim()
-                : null,
-            city: _cityController.text.trim().isNotEmpty
-                ? _cityController.text.trim()
-                : null,
-            zipCode: _zipController.text.trim().isNotEmpty
-                ? _zipController.text.trim()
-                : null,
-            campusId: _selectedCampusId,
-            departments: _selectedDepartments,
+            name: changes?.name,
+            phone: changes?.phone,
+            address: changes?.address,
+            city: changes?.city,
+            zipCode: changes?.zipCode,
+            campusId: changes?.campusId,
+            departments: changes?.departments,
             avatarFile: _selectedImage,
           );
 

@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:appwrite/appwrite.dart';
+import 'package:appwrite/appwrite.dart' hide Locale;
 import 'package:appwrite/models.dart' as models;
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/notification_service.dart';
+import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/widgets/notification_topics_prompt.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
@@ -115,6 +116,8 @@ void main() {
       ProviderScope(
         overrides: [notificationServiceProvider.overrideWithValue(service)],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Builder(
               builder: (context) => ElevatedButton(
@@ -161,6 +164,8 @@ void main() {
         // ancestor from the showModalBottomSheet route this widget is
         // always opened in.
         child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: NotificationTopicsPrompt()),
         ),
       ),
@@ -190,6 +195,38 @@ void main() {
   });
 
   testWidgets(
+    'tells the student that important announcements from BISO are always '
+    'included, in English and in Norwegian: they are not one of the choices',
+    (tester) async {
+      for (final (locale, line) in [
+        ('en', 'You will always get important announcements from BISO.'),
+        ('no', 'Du får alltid viktige kunngjøringer fra BISO.'),
+      ]) {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              notificationServiceProvider.overrideWithValue(
+                NotificationService.withAccount(_SaveFailingAccount()),
+              ),
+            ],
+            child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              locale: Locale(locale),
+              home: const Scaffold(body: NotificationTopicsPrompt()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(SwitchListTile), findsNWidgets(4));
+        expect(find.text(line), findsOneWidget, reason: locale);
+        await tester.pumpWidget(const SizedBox());
+      }
+    },
+  );
+
+  testWidgets(
     'shows a retry state instead of fabricated defaults when the intent '
     'load throws (finding 1): editable switches at that point could only be '
     "showing invented values, and Continue would persist them over the "
@@ -202,6 +239,8 @@ void main() {
         ProviderScope(
           overrides: [notificationServiceProvider.overrideWithValue(service)],
           child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(body: NotificationTopicsPrompt()),
           ),
         ),
@@ -234,6 +273,8 @@ void main() {
         ProviderScope(
           overrides: [notificationServiceProvider.overrideWithValue(service)],
           child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(body: NotificationTopicsPrompt()),
           ),
         ),
@@ -288,6 +329,8 @@ void main() {
         ProviderScope(
           overrides: [notificationServiceProvider.overrideWithValue(service)],
           child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(body: NotificationTopicsPrompt()),
           ),
         ),
@@ -386,6 +429,8 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Consumer(
               builder: (context, ref, _) => ElevatedButton(

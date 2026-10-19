@@ -192,8 +192,7 @@ class BisoJobList extends StatelessWidget {
                 Divider(indent: 20, endIndent: 20, color: palette.hairline),
               InkWell(
                 onTap: () => context.go(
-                  '/explore/volunteer',
-                  extra: {'openJobId': jobs[i].id},
+                  '/explore/volunteer/${Uri.encodeComponent(jobs[i].id)}',
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(20),

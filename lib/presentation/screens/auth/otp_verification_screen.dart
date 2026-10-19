@@ -97,7 +97,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
   Future<void> _verifyOtp() async {
     if (_otpCode.length != AppConstants.otpLength) return;
 
-    logPrint('🔥 DEBUG: Starting OTP verification with code: $_otpCode');
+    logPrint('🔥 DEBUG: Starting OTP verification');
     setState(() => _isLoading = true);
 
     try {
@@ -112,7 +112,7 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       }
 
       logPrint(
-        '🔥 DEBUG: Calling verifyOtp with userId: ${authState.pendingUserId}, code: $_otpCode',
+        '🔥 DEBUG: Calling verifyOtp with userId: ${authState.pendingUserId}',
       );
       await ref
           .read(authStateProvider.notifier)

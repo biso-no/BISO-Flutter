@@ -55,4 +55,20 @@ void main() {
       expect(result.map((d) => d.name), ['Business Society', 'Zeta']);
     });
   });
+
+  group('DepartmentService.publicRows', () {
+    test('drops ledgers and governance bodies but keeps real units', () {
+      final rows = [
+        {'\$id': '1', 'Name': 'OSL Media', 'active': true},
+        {'\$id': '2', 'Name': 'Drift Campus Oslo', 'active': true},
+        {'\$id': '3', 'Name': 'Board', 'active': true},
+        {'\$id': '4', 'Name': 'OSL Board', 'active': true},
+      ];
+
+      expect(
+        DepartmentService.publicRows(rows).map((r) => r['\$id']),
+        ['1', '4'],
+      );
+    });
+  });
 }

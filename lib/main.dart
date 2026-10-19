@@ -31,6 +31,10 @@ import 'presentation/screens/shop/order_screen.dart';
 import 'presentation/screens/shop/orders_screen.dart';
 import 'data/models/webshop_product_model.dart';
 import 'presentation/screens/explore/jobs_screen.dart';
+import 'presentation/screens/jobs/job_application_screen.dart';
+import 'presentation/screens/jobs/job_detail_screen.dart';
+import 'presentation/screens/jobs/my_applications_screen.dart';
+import 'data/models/job_model.dart';
 import 'presentation/screens/explore/expenses_screen.dart';
 import 'presentation/screens/expense/create_expense_screen.dart';
 import 'presentation/screens/explore/units_overview_screen.dart';
@@ -166,6 +170,9 @@ class BisoApp extends ConsumerWidget {
     // Reconcile this device's subscriptions at launch, and again whenever the
     // student or their campus changes. Nothing else covers a returning user.
     ref.watch(topicReconcileProvider);
+    // And whenever the app comes back with notifications newly allowed in
+    // the system settings, which none of the above notices.
+    ref.watch(notificationPermissionResumeProvider);
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);
@@ -376,13 +383,28 @@ final _router = GoRouter(
             GoRoute(
               path: '/volunteer',
               name: 'volunteer',
-              builder: (context, state) {
-                final extra = state.extra as Map<String, dynamic>?;
-                final openJobId = extra != null
-                    ? extra['openJobId'] as String?
-                    : null;
-                return JobsScreen(openJobId: openJobId);
-              },
+              builder: (context, state) => const JobsScreen(),
+              routes: [
+                GoRoute(
+                  path: '/:jobId',
+                  name: 'job-detail',
+                  builder: (context, state) =>
+                      JobDetailScreen(idOrSlug: state.pathParameters['jobId']!),
+                  routes: [
+                    GoRoute(
+                      path: '/apply',
+                      name: 'job-apply',
+                      builder: (context, state) {
+                        final extra = state.extra;
+                        return JobApplicationScreen(
+                          jobId: state.pathParameters['jobId']!,
+                          job: extra is JobModel ? extra : null,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
             GoRoute(
               path: '/ai-chat',
@@ -414,7 +436,6 @@ final _router = GoRouter(
                 return MembershipScreen(
                   returnedOrderId: query['orderId'],
                   returnedCancelled: query['cancelled'] == '1',
-                  linked: query['linked'] == '1',
                 );
               },
             ),
@@ -422,6 +443,11 @@ final _router = GoRouter(
               path: '/member-pass',
               name: 'member-pass',
               builder: (context, state) => const MemberPassScreen(),
+            ),
+            GoRoute(
+              path: '/applications',
+              name: 'my-applications',
+              builder: (context, state) => const MyApplicationsScreen(),
             ),
           ],
         ),

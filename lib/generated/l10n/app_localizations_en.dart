@@ -2187,20 +2187,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get memberPassLinkTitle => 'Link your BI student account';
-
-  @override
-  String get memberPassLinkMessage =>
-      'Your pass needs a linked BI account. You link it once, on biso.no.';
-
-  @override
-  String get memberPassLinkAction => 'Link on biso.no';
-
-  @override
-  String get memberPassLinkFailed =>
-      'We could not open biso.no. Please try again.';
-
-  @override
   String get memberPassNotMemberTitle => 'You\'re not a member';
 
   @override
@@ -2445,4 +2431,397 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memberPassViewMembership => 'See your membership';
+
+  @override
+  String get biSignInButton => 'Sign in with BI student account';
+
+  @override
+  String get biSignInHint =>
+      'BI students: your student membership and member prices follow your BI account.';
+
+  @override
+  String get biSignInDivider => 'Not a BI student? Use a login link';
+
+  @override
+  String get biSignInFailed =>
+      'We could not sign you in with BI. Please try again, or use a login link.';
+
+  @override
+  String get biSignInExistingAccount =>
+      'BI could not sign you into your existing BISO account. Use a login link to your student email below, and let us know at biso.no/contact so we can fix the sign-in.';
+
+  @override
+  String get membershipNeedsBiLinkTitle =>
+      'Sign in with your BI student account';
+
+  @override
+  String get membershipNeedsBiLinkBody =>
+      'Your membership follows your student number, so you need to be signed in with your BI account. You are signed in with another account right now; sign in again with BI and you are set.';
+
+  @override
+  String get membershipNeedsBiLinkCta => 'Sign in with BI';
+
+  @override
+  String get membershipNeedsBiLinkFailed =>
+      'We could not confirm your student number after signing in. Please try again, or contact us if it keeps failing.';
+
+  @override
+  String get membershipNeedsBiLinkAlreadyLinked =>
+      'This BI student account already belongs to another BISO account. Sign in with that one, or contact BISO.';
+
+  @override
+  String get membershipNeedsBiLinkInvalidBiEmail =>
+      'The BI account you signed in with is not a student account. Sign in with the student account for your s-number (s1234567@bi.no).';
+
+  @override
+  String get membershipNeedsDirectoryRecordTitle =>
+      'We couldn\'t verify your BI record';
+
+  @override
+  String get membershipNeedsDirectoryRecordBody =>
+      'Your BI account is linked, but we couldn\'t read the student number BISO\'s finance system needs. We haven\'t charged you anything.';
+
+  @override
+  String get membershipNeedsDirectoryRecordRetry => 'Try again';
+
+  @override
+  String get jobPosition => 'Position';
+
+  @override
+  String get jobMembersOnly => 'Members only';
+
+  @override
+  String get jobPaidRole => 'Paid role';
+
+  @override
+  String get jobVolunteerRole => 'Volunteer role';
+
+  @override
+  String jobApplyBy(String date) {
+    return 'Apply by $date';
+  }
+
+  @override
+  String get jobRollingDeadline => 'Rolling';
+
+  @override
+  String get jobAboutVacancy => 'About this vacancy';
+
+  @override
+  String get jobCommitment => 'Commitment';
+
+  @override
+  String get jobHours => 'Hours';
+
+  @override
+  String get jobTerm => 'Term';
+
+  @override
+  String get jobStartDate => 'Start date';
+
+  @override
+  String get jobVacancyDetails => 'Vacancy details';
+
+  @override
+  String get jobEmployer => 'Employer';
+
+  @override
+  String get jobDepartment => 'Department';
+
+  @override
+  String get jobLocation => 'Location';
+
+  @override
+  String get jobCampus => 'Campus';
+
+  @override
+  String get jobContact => 'Contact';
+
+  @override
+  String get jobYourData => 'Your data';
+
+  @override
+  String get jobYourDataBody =>
+      'BISO stores your application data solely for this recruitment process and deletes it after 180 days.';
+
+  @override
+  String get jobNotOpenTitle => 'This position is no longer open';
+
+  @override
+  String get jobNotOpenBody =>
+      'The deadline may have passed, or the position was taken down.';
+
+  @override
+  String get jobBrowseOpenPositions => 'Browse open positions';
+
+  @override
+  String get jobApply => 'Apply';
+
+  @override
+  String get jobApplySignInMessage =>
+      'You need a signed-in BISO account to apply.';
+
+  @override
+  String get jobApplySignInCta => 'Sign in to apply';
+
+  @override
+  String get jobApplyMembersOnlyMessage =>
+      'This position is open to BISO members only. Become a member to apply.';
+
+  @override
+  String get jobApplyBecomeMember => 'Become a member';
+
+  @override
+  String get jobApplyStepContact => 'Contact';
+
+  @override
+  String get jobApplyStepQuestions => 'Questions';
+
+  @override
+  String get jobApplyStepDocuments => 'Documents';
+
+  @override
+  String get jobApplyStepReview => 'Review';
+
+  @override
+  String get jobApplyFullName => 'Full name';
+
+  @override
+  String get jobApplyEmailVerified => 'Verified via your BISO account';
+
+  @override
+  String get jobApplyPhone => 'Phone (optional)';
+
+  @override
+  String get jobApplyCountryCode => 'Country code';
+
+  @override
+  String get jobApplyPhoneTooLong =>
+      'The phone number can be at most 20 characters.';
+
+  @override
+  String get jobApplyLinkedIn => 'LinkedIn (optional)';
+
+  @override
+  String get jobApplyCurrentRole => 'Current role (optional)';
+
+  @override
+  String get jobApplyCurrentRoleHint => 'Student, intern…';
+
+  @override
+  String get jobApplyEmployer => 'Employer / school (optional)';
+
+  @override
+  String get jobApplyQuestionsIntro => 'A few questions from the hiring team.';
+
+  @override
+  String get jobApplyYes => 'Yes';
+
+  @override
+  String get jobApplyCoverLetter => 'Cover letter (required, PDF)';
+
+  @override
+  String get jobApplyCoverLetterHelp =>
+      'Tell BISO why you\'re applying and what you\'d bring. Max 5 MB, PDF only.';
+
+  @override
+  String get jobApplyCvRequired => 'CV / Résumé (required, PDF)';
+
+  @override
+  String get jobApplyCvOptional => 'CV / Résumé (optional, PDF)';
+
+  @override
+  String get jobApplyFileHelp => 'Max 5 MB, PDF only.';
+
+  @override
+  String get jobApplyChoosePdf => 'Choose PDF';
+
+  @override
+  String get jobApplyReplacePdf => 'Replace';
+
+  @override
+  String get jobApplyRemovePdf => 'Remove';
+
+  @override
+  String jobApplySelectedFile(String name, String size) {
+    return 'Selected: $name ($size KB)';
+  }
+
+  @override
+  String get jobApplyNotPdf => 'Only PDF files are allowed.';
+
+  @override
+  String get jobApplyTooLarge => 'File exceeds 5MB limit.';
+
+  @override
+  String get jobApplyTooLargeTogether =>
+      'Your CV and cover letter can be at most 9 MB together. Make one of them smaller and try again.';
+
+  @override
+  String get jobApplyAvailability => 'Interview availability (optional)';
+
+  @override
+  String get jobApplyAvailabilityHint =>
+      'Dates and times that generally work — one per line.';
+
+  @override
+  String get jobApplyAvailabilityHelp =>
+      'Helps HR suggest slots without back-and-forth emails.';
+
+  @override
+  String get jobApplyReviewApplication => 'Review application';
+
+  @override
+  String get jobApplyName => 'Name';
+
+  @override
+  String get jobApplyCv => 'CV';
+
+  @override
+  String get jobApplyCoverLetterLabel => 'Cover letter';
+
+  @override
+  String get jobApplyConsent =>
+      'I consent to BISO processing my application data for this recruitment process. Data is retained for 180 days. An AI tool may help screen applications, with your name and contact details removed first; all decisions are made by people.';
+
+  @override
+  String get jobApplySubmit => 'Submit application';
+
+  @override
+  String get jobApplySubmitting => 'Submitting…';
+
+  @override
+  String get jobApplyNetworkError =>
+      'We could not reach BISO. Check your connection and try again.';
+
+  @override
+  String get jobApplySessionExpired =>
+      'Your sign-in has expired. Sign in again to send your application.';
+
+  @override
+  String get jobApplyPickFailed =>
+      'We could not open your files. Please try again.';
+
+  @override
+  String get jobApplySuccessTitle => 'Application submitted!';
+
+  @override
+  String jobApplySuccessBody(String email) {
+    return 'We\'ll review your application and be in touch at $email.';
+  }
+
+  @override
+  String get jobApplyViewMyApplications => 'View my applications';
+
+  @override
+  String get myApplicationsTitle => 'My applications';
+
+  @override
+  String get myApplicationsIntro =>
+      'See the status of every BISO position you\'ve applied for, plus any upcoming interview details.';
+
+  @override
+  String get myApplicationsEmptyTitle => 'No applications yet';
+
+  @override
+  String get myApplicationsEmptyBody =>
+      'When you apply for a BISO vacancy, it\'ll show up here so you can track its progress and interview times.';
+
+  @override
+  String get myApplicationsSignIn => 'Sign in to see your applications';
+
+  @override
+  String get myApplicationsLoadFailed => 'We could not load your applications.';
+
+  @override
+  String get myApplicationsSessionExpired =>
+      'Your sign-in has expired. Sign in again to see your applications.';
+
+  @override
+  String get applicationStatusSubmitted => 'Submitted';
+
+  @override
+  String get applicationStatusReviewed => 'Reviewed';
+
+  @override
+  String get applicationStatusInterview => 'Interview';
+
+  @override
+  String get applicationStatusAccepted => 'Accepted';
+
+  @override
+  String get applicationStatusRejected => 'Not selected';
+
+  @override
+  String get myApplicationsVacancy => 'Vacancy';
+
+  @override
+  String myApplicationsApplied(String date) {
+    return 'Applied $date';
+  }
+
+  @override
+  String myApplicationsReviewer(String name) {
+    return 'Reviewer: $name';
+  }
+
+  @override
+  String get myApplicationsViewVacancy => 'View vacancy';
+
+  @override
+  String myApplicationsUpcomingInterview(String title) {
+    return 'Upcoming interview · $title';
+  }
+
+  @override
+  String get myApplicationsTbd => 'TBD';
+
+  @override
+  String get myApplicationsJoinMeeting => 'Join meeting';
+
+  @override
+  String myApplicationsYourAnswers(String count) {
+    return 'Your answers ($count)';
+  }
+
+  @override
+  String myApplicationsStoredUntil(String date) {
+    return 'Stored until $date';
+  }
+
+  @override
+  String get expenseCostTypeLabel => 'Cost type';
+
+  @override
+  String get expenseFinancialManagerLabel =>
+      'I am the financial manager of this department';
+
+  @override
+  String get expenseFinancialManagerHint =>
+      'Turn this on so the approval is routed to your department manager instead of you.';
+
+  @override
+  String get notificationsTurnOnTitle => 'Turn on notifications';
+
+  @override
+  String get notificationsTurnOnSubtitle =>
+      'Notifications are off on this device';
+
+  @override
+  String get notificationsStillOffMessage =>
+      'Notifications are still off. You can turn them on in your device settings.';
+
+  @override
+  String get notificationsOpenSettingsAction => 'Open settings';
+
+  @override
+  String get notificationsImportantTitle => 'Important announcements';
+
+  @override
+  String get notificationsImportantSubtitle =>
+      'Included whenever notifications are on';
+
+  @override
+  String get notificationsImportantAlwaysIncluded =>
+      'You will always get important announcements from BISO.';
 }

@@ -435,16 +435,165 @@ class _GeneralSettingsBody extends ConsumerWidget {
   }
 }
 
+/// The row shown while notifications are off, which turns them on.
+class _TurnOnNotificationsRow extends ConsumerStatefulWidget {
+  const _TurnOnNotificationsRow();
+
+  @override
+  ConsumerState<_TurnOnNotificationsRow> createState() =>
+      _TurnOnNotificationsRowState();
+}
+
+class _TurnOnNotificationsRowState
+    extends ConsumerState<_TurnOnNotificationsRow> {
+  /// Whether a tap is still being handled. Another tap meanwhile is ignored:
+  /// a second permission request while the OS dialog is up fails, and would
+  /// show the "still off" message over the dialog.
+  bool _inFlight = false;
+
+  /// The OS shows its permission dialog only until the student declines it
+  /// (once on iOS; on Android, until they decline it for good), and after
+  /// that only the system settings can turn notifications on. So those are
+  /// opened straight away when the dialog would not show; otherwise the
+  /// dialog is asked for, and the system settings are offered if
+  /// notifications are still off after it. A grant made there is picked up
+  /// when the student comes back to the app (see
+  /// `notificationPermissionResumeProvider`).
+  Future<void> _turnOnNotifications() async {
+    if (_inFlight) return;
+    _inFlight = true;
+    try {
+      final service = ref.read(notificationServiceProvider);
+      final l10n = AppLocalizations.of(context)!;
+      final messenger = ScaffoldMessenger.of(context);
+
+      if (await service.isPermissionPermanentlyDenied()) {
+        await service.openSystemNotificationSettings();
+        return;
+      }
+
+      // Reconciles this device itself when granted.
+      final granted = await service.requestPermission();
+      if (!mounted) return;
+      ref.invalidate(notificationStatusProvider);
+      if (granted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.notificationsStillOffMessage),
+          action: SnackBarAction(
+            label: l10n.notificationsOpenSettingsAction,
+            onPressed: () => service.openSystemNotificationSettings(),
+          ),
+        ),
+      );
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return BisoListRow(
+      leading: const BisoIconTile(icon: CupertinoIcons.bell_slash),
+      title: l10n.notificationsTurnOnTitle,
+      subtitle: l10n.notificationsTurnOnSubtitle,
+      onTap: _turnOnNotifications,
+    );
+  }
+}
+
 class _NotificationSettingsBody extends ConsumerWidget {
   const _NotificationSettingsBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final notificationPrefsAsync = ref.watch(notificationPreferencesProvider);
     final topicIntentAsync = ref.watch(topicIntentProvider);
     final homeCampusId = ref.watch(
       authStateProvider.select((state) => state.user?.campusId),
+    );
+    // A status that cannot be read counts as off, as on the chat settings:
+    // offering to turn notifications on is the useful thing to do then.
+    final notificationsOff =
+        ref.watch(notificationStatusProvider).valueOrNull == false;
+
+    final topics = topicIntentAsync.when(
+      data: (intent) => BisoListGroup(
+        children: [
+          for (final topic in NotificationTopic.values)
+            buildNotificationTile(
+              icon: _topicIcon(topic),
+              accent: _topicAccent(topic),
+              title: topic.label,
+              subtitle: _topicSubtitle(topic),
+              isEnabled: intent[topic.id] ?? false,
+              onChanged: (value) async {
+                final result = await ref
+                    .read(topicIntentProvider.notifier)
+                    .setTopic(topic.id, value);
+                if (!context.mounted) return;
+                switch (result) {
+                  case null:
+                    // The save itself failed - nothing was recorded.
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Could not update ${topic.label} notifications. '
+                          'Check your connection and try again.',
+                        ),
+                      ),
+                    );
+                    break;
+                  case ReconcileOutcome.applied:
+                    // Saved and this device is subscribed. No snackbar.
+                    break;
+                  case ReconcileOutcome.permissionDenied:
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Saved. Turn on notifications in your device '
+                          'settings to receive them.',
+                        ),
+                      ),
+                    );
+                    break;
+                  case ReconcileOutcome.unavailable:
+                  case ReconcileOutcome.partiallyFailed:
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Saved, but this device could not be updated. '
+                          'It will retry next time you open the app.',
+                        ),
+                      ),
+                    );
+                    break;
+                }
+              },
+            ),
+        ],
+      ),
+      loading: () => const _CardBlock(child: Center(child: CircularProgressIndicator())),
+      error: (error, _) => _CardBlock(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Could not load your notification settings.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () => ref.read(topicIntentProvider.notifier).refresh(),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
     );
 
     return Column(
@@ -456,80 +605,30 @@ class _NotificationSettingsBody extends ConsumerWidget {
               ? 'You will receive national updates. Set your campus in your profile '
                     'to also get campus news.'
               : 'You receive updates for your campus and national updates.',
-          child: topicIntentAsync.when(
-            data: (intent) => BisoListGroup(
-              children: [
-                for (final topic in NotificationTopic.values)
-                  buildNotificationTile(
-                    icon: _topicIcon(topic),
-                    accent: _topicAccent(topic),
-                    title: topic.label,
-                    subtitle: _topicSubtitle(topic),
-                    isEnabled: intent[topic.id] ?? false,
-                    onChanged: (value) async {
-                      final result = await ref
-                          .read(topicIntentProvider.notifier)
-                          .setTopic(topic.id, value);
-                      if (!context.mounted) return;
-                      switch (result) {
-                        case null:
-                          // The save itself failed - nothing was recorded.
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Could not update ${topic.label} notifications. '
-                                'Check your connection and try again.',
-                              ),
-                            ),
-                          );
-                          break;
-                        case ReconcileOutcome.applied:
-                          // Saved and this device is subscribed. No snackbar.
-                          break;
-                        case ReconcileOutcome.permissionDenied:
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Saved. Turn on notifications in your device '
-                                'settings to receive them.',
-                              ),
-                            ),
-                          );
-                          break;
-                        case ReconcileOutcome.unavailable:
-                        case ReconcileOutcome.partiallyFailed:
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Saved, but this device could not be updated. '
-                                'It will retry next time you open the app.',
-                              ),
-                            ),
-                          );
-                          break;
-                      }
-                    },
-                  ),
-              ],
-            ),
-            loading: () => const _CardBlock(child: Center(child: CircularProgressIndicator())),
-            error: (error, _) => _CardBlock(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Apart from the topic choices, which may still be loading or
+              // have failed to load: neither of these depends on them.
+              BisoListGroup(
                 children: [
-                  Text(
-                    'Could not load your notification settings.',
-                    style: theme.textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton(
-                    onPressed: () => ref.read(topicIntentProvider.notifier).refresh(),
-                    child: const Text('Retry'),
+                  if (notificationsOff) const _TurnOnNotificationsRow(),
+                  // `general`, which every device that allows notifications
+                  // joins whatever the student chooses below.
+                  BisoListRow(
+                    leading: const BisoIconTile(
+                      icon: CupertinoIcons.speaker_2,
+                      accent: BisoAccent.violet,
+                    ),
+                    title: l10n.notificationsImportantTitle,
+                    subtitle: l10n.notificationsImportantSubtitle,
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 16),
+              topics,
+            ],
           ),
         ),
 

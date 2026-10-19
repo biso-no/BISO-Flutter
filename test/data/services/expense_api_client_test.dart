@@ -163,4 +163,23 @@ void main() {
     );
     expect(sent.headers.containsKey('Authorization'), isFalse);
   });
+
+  test('posts the cost type and approver flag the payload carries', () async {
+    final client = clientReturning(
+      http.Response(jsonEncode({'success': true}), 200),
+    );
+
+    await client.submit({
+      'submitter_is_financial_manager': true,
+      'expenseAttachments': [
+        {'cost_type': 'travel', 'sort_order': 0},
+      ],
+    });
+
+    final body = jsonDecode(sent.body) as Map<String, dynamic>;
+    expect(sent.url.path, '/api/expenses/submit');
+    expect(body['submitter_is_financial_manager'], true);
+    expect(body['expenseAttachments'][0]['cost_type'], 'travel');
+    expect(body['expenseAttachments'][0]['sort_order'], 0);
+  });
 }

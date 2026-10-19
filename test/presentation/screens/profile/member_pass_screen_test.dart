@@ -1,16 +1,19 @@
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/models/membership_overview.dart';
+import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/bi_sign_in_service.dart';
+import 'package:biso/data/services/bi_sync_api_client.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
 import 'package:biso/presentation/screens/profile/member_pass_screen.dart';
-import 'package:biso/presentation/screens/profile/membership_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/presentation/widgets/member_pass/member_pass_row.dart';
 import 'package:biso/presentation/widgets/member_pass/pass_card.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/auth/bi_sign_in_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
-import 'package:biso/providers/membership/membership_checkout_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,13 +28,45 @@ class _Overview extends MembershipOverviewNotifier {
   _Overview([this.value]);
 
   final MembershipOverview? value;
-  bool linkNoted = false;
+  int refreshes = 0;
 
   @override
   Future<MembershipOverview?> build() async => value;
 
   @override
-  void noteLinkStarted() => linkNoted = true;
+  Future<void> refresh({bool force = true}) async => refreshes++;
+}
+
+class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+  _Auth() : super(const AuthState(isAuthenticated: true));
+
+  BiSignInOutcome biOutcome = const BiSignInFailed(BiSignInFailure.failed);
+
+  /// The account the BI sign-in switches into, when it does.
+  AuthState? signedInState;
+
+  @override
+  Future<BiSignInOutcome> signInWithBi() async {
+    final next = signedInState;
+    if (next != null) state = next;
+    return biOutcome;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Answers the BI sync with [answer]; by default as for a student already
+/// signed in with BI.
+class _FakeBiSignIn extends BiSignInService {
+  BiSyncResult answer = const BiSyncResult(success: true, studentId: 's1');
+  int syncs = 0;
+
+  @override
+  Future<BiSyncResult> syncOnly() async {
+    syncs++;
+    return answer;
+  }
 }
 
 MemberPassView _noPass(NoPassState state) =>
@@ -40,13 +75,14 @@ MemberPassView _noPass(NoPassState state) =>
 void main() {
   late FixedMemberPass pass;
   late _Overview overview;
-  late List<Uri> launched;
+  late _FakeBiSignIn bi;
+  late _Auth auth;
 
   List<Override> overrides(
     MemberPassView view, {
     MembershipOverview? membership,
   }) {
-    launched = [];
+    bi = _FakeBiSignIn();
     return [
       // `expectBuildsCleanly` pumps the same override list several times
       // (once per brightness/text-scale combination), each on a fresh
@@ -58,10 +94,8 @@ void main() {
       membershipOverviewProvider.overrideWith(
         () => overview = _Overview(membership),
       ),
-      membershipUrlLauncherProvider.overrideWithValue((uri) async {
-        launched.add(uri);
-        return true;
-      }),
+      authStateProvider.overrideWith((_) => auth = _Auth()),
+      biSignInServiceProvider.overrideWithValue(bi),
       screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
       canAddApplePassesProvider.overrideWith((ref) async => false),
     ];
@@ -82,6 +116,10 @@ void main() {
         GoRoute(
           path: '/auth/login',
           builder: (_, _) => const Scaffold(body: Text('Login screen')),
+        ),
+        GoRoute(
+          path: '/onboarding',
+          builder: (_, _) => const Scaffold(body: Text('Onboarding screen')),
         ),
       ],
     );
@@ -145,8 +183,8 @@ void main() {
   final messages = <String, (MemberPassView, String, String)>{
     'no BI identity': (
       _noPass(NoPassState.noBiIdentity),
-      'Link your BI student account',
-      'Link on biso.no',
+      'Sign in with your BI student account',
+      'Sign in with BI',
     ),
     'not a member': (
       _noPass(NoPassState.notMember),
@@ -214,7 +252,7 @@ void main() {
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('linking opens biso.no and notes it for the re-check', (
+  testWidgets('no BI identity continues with BI, then reloads the pass', (
     tester,
   ) async {
     await pumpBisoScreen(
@@ -222,10 +260,53 @@ void main() {
       const MemberPassScreen(),
       overrides: overrides(_noPass(NoPassState.noBiIdentity)),
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Link on biso.no'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
     await tester.pump();
-    expect(launched, [membershipLinkUrl]);
-    expect(overview.linkNoted, isTrue);
+    expect(bi.syncs, 1);
+    expect(overview.refreshes, 1);
+    expect(pass.retries, 1);
+  });
+
+  testWidgets('a BI sign-in that fails shows the sign-in copy', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const MemberPassScreen(),
+      overrides: overrides(_noPass(NoPassState.noBiIdentity)),
+    );
+    bi.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      find.text(
+        'We could not sign you in with BI. Please try again, or use a login '
+        'link.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a BI sign-in into an account without a profile goes to '
+      'onboarding', (tester) async {
+    await pumpRouted(tester, _noPass(NoPassState.noBiIdentity));
+    bi.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+    // Builds the (lazy) auth notifier, so [auth] can be set up.
+    ProviderScope.containerOf(
+      tester.element(find.byType(MemberPassScreen)),
+    ).read(authStateProvider);
+    auth
+      ..biOutcome = const BiSignedIn(
+        BiSyncResult(success: true, studentId: 's1'),
+      )
+      ..signedInState = const AuthState(
+        isAuthenticated: true,
+        user: UserModel(id: 'u2', name: 'Kari BI', email: 's1@bi.no'),
+      );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Onboarding screen'), findsOneWidget);
   });
 
   testWidgets('Become a member opens the membership screen', (tester) async {

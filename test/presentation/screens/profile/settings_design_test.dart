@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/membership_overview.dart';
@@ -46,16 +48,47 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
 }
 
 /// A [NotificationService] fake so the notifications section never makes a
-/// real Appwrite or Firebase call. Settings only reads and writes topic
-/// intent and the chat preference, so only those methods need real answers.
+/// real Appwrite or Firebase call. Settings reads and writes topic intent and
+/// the chat preference, and reads and requests the OS permission, so only
+/// those methods need real answers.
 class _FakeNotificationService implements NotificationService {
+  _FakeNotificationService({
+    this.enabled = true,
+    this.permanentlyDenied = false,
+    this.grantOnRequest = true,
+    this.intentHold,
+    this.intentError,
+  });
+
+  /// When set, the topic intent read waits for it - it is still loading.
+  final Completer<void>? intentHold;
+
+  /// When set, the topic intent read throws it.
+  final Object? intentError;
+
+  /// When set, a permission request waits for it before answering - the OS
+  /// dialog is still up.
+  Completer<void>? holdRequest;
+
+  /// Whether the OS grants notification permission.
+  bool enabled;
+
+  /// Whether the OS would still show its permission dialog.
+  final bool permanentlyDenied;
+
+  /// What the student answers in the OS dialog.
+  final bool grantOnRequest;
+
+  int requestPermissionCalls = 0;
+  int openSettingsCalls = 0;
+
   @override
-  Future<Map<String, bool>> loadTopicIntent() async => const {
-    'news': true,
-    'events': true,
-    'jobs': false,
-    'shop': true,
-  };
+  Future<Map<String, bool>> loadTopicIntent() async {
+    await intentHold?.future;
+    final error = intentError;
+    if (error != null) throw error;
+    return const {'news': true, 'events': true, 'jobs': false, 'shop': true};
+  }
 
   @override
   Future<bool> saveTopicIntent(
@@ -74,10 +107,23 @@ class _FakeNotificationService implements NotificationService {
   Future<void> updateChatNotificationPreference(bool enabled) async {}
 
   @override
-  Future<bool> areNotificationsEnabled() async => true;
+  Future<bool> areNotificationsEnabled() async => enabled;
 
   @override
-  Future<bool> requestPermission() async => true;
+  Future<bool> requestPermission() async {
+    requestPermissionCalls++;
+    await holdRequest?.future;
+    return enabled = grantOnRequest;
+  }
+
+  @override
+  Future<bool> isPermissionPermanentlyDenied() async => permanentlyDenied;
+
+  @override
+  Future<bool> openSystemNotificationSettings() async {
+    openSettingsCalls++;
+    return true;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -126,10 +172,12 @@ class _NoMembership extends MembershipOverviewNotifier {
   Future<MembershipOverview?> build() async => null;
 }
 
-List<Override> _overrides() => [
+List<Override> _overrides({_FakeNotificationService? notifications}) => [
   authStateProvider.overrideWith((_) => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
-  notificationServiceProvider.overrideWithValue(_FakeNotificationService()),
+  notificationServiceProvider.overrideWithValue(
+    notifications ?? _FakeNotificationService(),
+  ),
   privacyServiceProvider.overrideWithValue(_FakePrivacyService()),
   membershipOverviewProvider.overrideWith(_NoMembership.new),
 ];
@@ -267,4 +315,152 @@ void main() {
       expect(fake.calls, [('news', false)]);
     },
   );
+
+  group('notifications section', () {
+    const turnOn = 'Turn on notifications';
+
+    Future<void> pumpNotifications(
+      WidgetTester tester,
+      _FakeNotificationService notifications,
+    ) => pumpBisoScreen(
+      tester,
+      const SettingsSectionPage(section: SettingsSection.notifications),
+      overrides: _overrides(notifications: notifications),
+    );
+
+    testWidgets('offers no way to turn notifications on while they are on', (
+      tester,
+    ) async {
+      await pumpNotifications(tester, _FakeNotificationService());
+      expect(find.text(turnOn), findsNothing);
+    });
+
+    testWidgets(
+      'offers to turn notifications on while they are off, and asks for '
+      'permission when tapped: a student who declined in the prompt, which '
+      'never comes back, had no way to turn them on in the app',
+      (tester) async {
+        final notifications = _FakeNotificationService(enabled: false);
+        await pumpNotifications(tester, notifications);
+        expect(find.text(turnOn), findsOneWidget);
+
+        await tester.tap(find.text(turnOn));
+        await tester.pumpAndSettle();
+
+        expect(notifications.requestPermissionCalls, 1);
+        expect(notifications.openSettingsCalls, 0);
+        expect(find.text(turnOn), findsNothing, reason: 'now granted');
+      },
+    );
+
+    testWidgets(
+      'ignores another tap while a permission request is in progress: a '
+      'second request over the live dialog fails, and showed the "still off" '
+      'message on top of it',
+      (tester) async {
+        final notifications = _FakeNotificationService(enabled: false)
+          ..holdRequest = Completer<void>();
+        await pumpNotifications(tester, notifications);
+
+        await tester.tap(find.text(turnOn));
+        await tester.pump();
+        await tester.tap(find.text(turnOn));
+        await tester.pump();
+        expect(notifications.requestPermissionCalls, 1);
+
+        notifications.holdRequest!.complete();
+        await tester.pumpAndSettle();
+        expect(notifications.requestPermissionCalls, 1);
+        expect(find.text(turnOn), findsNothing, reason: 'now granted');
+      },
+    );
+
+    testWidgets(
+      'opens the system settings instead when the system no longer shows its '
+      'permission dialog',
+      (tester) async {
+        final notifications = _FakeNotificationService(
+          enabled: false,
+          permanentlyDenied: true,
+        );
+        await pumpNotifications(tester, notifications);
+
+        await tester.tap(find.text(turnOn));
+        await tester.pumpAndSettle();
+
+        expect(notifications.openSettingsCalls, 1);
+        expect(notifications.requestPermissionCalls, 0);
+      },
+    );
+
+    testWidgets(
+      'offers the system settings when the request leaves notifications off',
+      (tester) async {
+        final notifications = _FakeNotificationService(
+          enabled: false,
+          grantOnRequest: false,
+        );
+        await pumpNotifications(tester, notifications);
+
+        await tester.tap(find.text(turnOn));
+        await tester.pumpAndSettle();
+        expect(notifications.requestPermissionCalls, 1);
+        expect(find.text(turnOn), findsOneWidget);
+
+        await tester.tap(find.text('Open settings'));
+        await tester.pumpAndSettle();
+        expect(notifications.openSettingsCalls, 1);
+      },
+    );
+
+    testWidgets(
+      'says that important announcements are included whenever notifications '
+      'are on, with nothing to switch: every device that allows '
+      'notifications gets them',
+      (tester) async {
+        await pumpNotifications(tester, _FakeNotificationService());
+
+        final row = find.ancestor(
+          of: find.text('Important announcements'),
+          matching: find.byType(BisoListRow),
+        );
+        expect(row, findsOneWidget);
+        expect(
+          find.descendant(
+            of: row,
+            matching: find.text('Included whenever notifications are on'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: row, matching: find.byType(Switch)),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets(
+      'shows important announcements while the topic choices are loading, '
+      'and when they fail to load: they do not depend on the choices',
+      (tester) async {
+        await pumpNotifications(
+          tester,
+          _FakeNotificationService(intentHold: Completer<void>()),
+        );
+        expect(find.byType(CircularProgressIndicator), findsWidgets);
+        expect(find.text('Important announcements'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+
+        await pumpNotifications(
+          tester,
+          _FakeNotificationService(intentError: Exception('offline')),
+        );
+        expect(
+          find.text('Could not load your notification settings.'),
+          findsOneWidget,
+        );
+        expect(find.text('Important announcements'), findsOneWidget);
+      },
+    );
+  });
 }

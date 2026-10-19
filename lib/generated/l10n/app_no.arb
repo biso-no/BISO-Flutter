@@ -2828,22 +2828,6 @@
       }
     }
   },
-  "memberPassLinkTitle": "Koble til BI-studentkontoen din",
-  "@memberPassLinkTitle": {
-    "description": "Member pass / scanner: memberPassLinkTitle"
-  },
-  "memberPassLinkMessage": "Medlemskortet krever en tilkoblet BI-konto. Du kobler den til én gang, på biso.no.",
-  "@memberPassLinkMessage": {
-    "description": "Member pass / scanner: memberPassLinkMessage"
-  },
-  "memberPassLinkAction": "Koble til på biso.no",
-  "@memberPassLinkAction": {
-    "description": "Member pass / scanner: memberPassLinkAction"
-  },
-  "memberPassLinkFailed": "Vi kunne ikke åpne biso.no. Prøv igjen.",
-  "@memberPassLinkFailed": {
-    "description": "Member pass / scanner: memberPassLinkFailed"
-  },
   "memberPassNotMemberTitle": "Du er ikke medlem",
   "@memberPassNotMemberTitle": {
     "description": "Member pass / scanner: memberPassNotMemberTitle"
@@ -3231,5 +3215,517 @@
   "memberPassViewMembership": "Se medlemskapet ditt",
   "@memberPassViewMembership": {
     "description": "Membership: memberPassViewMembership"
+  },
+  "biSignInButton": "Logg inn med BI-studentkonto",
+  "@biSignInButton": {
+    "description": "BI sign-in: login button"
+  },
+  "biSignInHint": "BI-studenter: studentmedlemskapet og medlemsprisene dine følger BI-kontoen din.",
+  "@biSignInHint": {
+    "description": "BI sign-in: under the login button"
+  },
+  "biSignInDivider": "Ikke BI-student? Bruk en innloggingslenke",
+  "@biSignInDivider": {
+    "description": "BI sign-in: divider above the login-link form"
+  },
+  "biSignInFailed": "Vi fikk ikke logget deg inn med BI. Prøv igjen, eller bruk en innloggingslenke.",
+  "@biSignInFailed": {
+    "description": "BI sign-in: the sign-in failed"
+  },
+  "biSignInExistingAccount": "BI kunne ikke logge deg inn på den eksisterende BISO-kontoen din. Bruk en innloggingslenke til student-e-posten din nedenfor, og gi oss beskjed på biso.no/contact så vi kan rette innloggingen.",
+  "@biSignInExistingAccount": {
+    "description": "BI sign-in: Appwrite would not sign into the account holding the BI email"
+  },
+  "membershipNeedsBiLinkTitle": "Logg inn med BI-studentkontoen din",
+  "@membershipNeedsBiLinkTitle": {
+    "description": "Membership: web membership.join.needsBiLink.title"
+  },
+  "membershipNeedsBiLinkBody": "Medlemskapet følger studentnummeret ditt, så du må være logget inn med BI-kontoen din. Du er logget inn med en annen konto nå – logg inn på nytt med BI, så er du i gang.",
+  "@membershipNeedsBiLinkBody": {
+    "description": "Membership: web membership.join.needsBiLink.body"
+  },
+  "membershipNeedsBiLinkCta": "Logg inn med BI",
+  "@membershipNeedsBiLinkCta": {
+    "description": "Membership: web membership.join.needsBiLink.cta"
+  },
+  "membershipNeedsBiLinkFailed": "Vi fikk ikke bekreftet studentnummeret ditt etter innloggingen. Prøv igjen, eller kontakt oss hvis det fortsetter å feile.",
+  "@membershipNeedsBiLinkFailed": {
+    "description": "Membership: web membership.join.needsBiLink.linkFailed"
+  },
+  "membershipNeedsBiLinkAlreadyLinked": "Denne BI-studentkontoen hører allerede til en annen BISO-konto. Logg inn med den, eller kontakt BISO.",
+  "@membershipNeedsBiLinkAlreadyLinked": {
+    "description": "Membership: web membership.join.needsBiLink.alreadyLinked"
+  },
+  "membershipNeedsBiLinkInvalidBiEmail": "BI-kontoen du logget inn med er ikke en studentkonto. Logg inn med studentkontoen for s-nummeret ditt (s1234567@bi.no).",
+  "@membershipNeedsBiLinkInvalidBiEmail": {
+    "description": "Membership: web membership.join.needsBiLink.invalidBiEmail"
+  },
+  "membershipNeedsDirectoryRecordTitle": "Vi kunne ikke bekrefte BI-registreringen din",
+  "@membershipNeedsDirectoryRecordTitle": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.title"
+  },
+  "membershipNeedsDirectoryRecordBody": "BI-kontoen din er koblet til, men vi fikk ikke lest studentnummeret BISOs økonomisystem trenger. Du er ikke belastet noe.",
+  "@membershipNeedsDirectoryRecordBody": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.body"
+  },
+  "membershipNeedsDirectoryRecordRetry": "Prøv igjen",
+  "@membershipNeedsDirectoryRecordRetry": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.retry"
+  },
+  "jobPosition": "Stilling",
+  "@jobPosition": {
+    "description": "Jobs: page title of a vacancy, and its type when none is set (web: 'Position')"
+  },
+  "jobMembersOnly": "Kun for medlemmer",
+  "@jobMembersOnly": {
+    "description": "Jobs: badge on a members-only vacancy"
+  },
+  "jobPaidRole": "Betalt stilling",
+  "@jobPaidRole": {
+    "description": "Jobs: web job detail 'Paid role'"
+  },
+  "jobVolunteerRole": "Frivillig verv",
+  "@jobVolunteerRole": {
+    "description": "Jobs: web job detail 'Volunteer role'"
+  },
+  "jobApplyBy": "Søk innen {date}",
+  "@jobApplyBy": {
+    "description": "Jobs: web job detail 'Apply by {deadline}'",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "15 November 2026"
+      }
+    }
+  },
+  "jobRollingDeadline": "Løpende",
+  "@jobRollingDeadline": {
+    "description": "Jobs: web job detail deadline when there is none"
+  },
+  "jobAboutVacancy": "Om stillingen",
+  "@jobAboutVacancy": {
+    "description": "Jobs: web job detail 'About this vacancy'"
+  },
+  "jobCommitment": "Omfang",
+  "@jobCommitment": {
+    "description": "Jobs: web job detail 'Commitment'"
+  },
+  "jobHours": "Timer",
+  "@jobHours": {
+    "description": "Jobs: web job detail commitment 'Hours'"
+  },
+  "jobTerm": "Periode",
+  "@jobTerm": {
+    "description": "Jobs: web job detail commitment 'Term'"
+  },
+  "jobStartDate": "Oppstart",
+  "@jobStartDate": {
+    "description": "Jobs: web job detail commitment 'Start date'"
+  },
+  "jobVacancyDetails": "Detaljer om stillingen",
+  "@jobVacancyDetails": {
+    "description": "Jobs: web job detail 'Vacancy details'"
+  },
+  "jobEmployer": "Arbeidsgiver",
+  "@jobEmployer": {
+    "description": "Jobs: web job detail 'Employer'"
+  },
+  "jobDepartment": "Avdeling",
+  "@jobDepartment": {
+    "description": "Jobs: web job detail 'Department'"
+  },
+  "jobLocation": "Sted",
+  "@jobLocation": {
+    "description": "Jobs: web job detail 'Location'"
+  },
+  "jobCampus": "Campus",
+  "@jobCampus": {
+    "description": "Jobs: web job detail 'Campus'"
+  },
+  "jobContact": "Kontakt",
+  "@jobContact": {
+    "description": "Jobs: web job detail 'Contact'"
+  },
+  "jobYourData": "Dine data",
+  "@jobYourData": {
+    "description": "Jobs: web job detail 'Your data'"
+  },
+  "jobYourDataBody": "BISO lagrer søknadsdataene dine kun for denne rekrutteringsprosessen og sletter dem etter 180 dager.",
+  "@jobYourDataBody": {
+    "description": "Jobs: web job detail GDPR notice"
+  },
+  "jobNotOpenTitle": "Denne stillingen er ikke lenger åpen",
+  "@jobNotOpenTitle": {
+    "description": "Jobs: a vacancy link that no longer resolves"
+  },
+  "jobNotOpenBody": "Fristen kan ha gått ut, eller stillingen er tatt ned.",
+  "@jobNotOpenBody": {
+    "description": "Jobs: a vacancy link that no longer resolves"
+  },
+  "jobBrowseOpenPositions": "Se ledige stillinger",
+  "@jobBrowseOpenPositions": {
+    "description": "Jobs: web /applications empty state 'Browse open positions'"
+  },
+  "jobApply": "Søk",
+  "@jobApply": {
+    "description": "Jobs: web apply form title 'Apply'"
+  },
+  "jobApplySignInMessage": "Du må være logget inn med en BISO-konto for å søke.",
+  "@jobApplySignInMessage": {
+    "description": "Jobs: web apply gate (signed out) message"
+  },
+  "jobApplySignInCta": "Logg inn for å søke",
+  "@jobApplySignInCta": {
+    "description": "Jobs: web apply gate (signed out) button"
+  },
+  "jobApplyMembersOnlyMessage": "Denne stillingen er kun åpen for BISO-medlemmer. Bli medlem for å søke.",
+  "@jobApplyMembersOnlyMessage": {
+    "description": "Jobs: web apply gate (members only) message"
+  },
+  "jobApplyBecomeMember": "Bli medlem",
+  "@jobApplyBecomeMember": {
+    "description": "Jobs: web apply gate (members only) button; no from common.navigation.becomeMember"
+  },
+  "jobApplyStepContact": "Kontakt",
+  "@jobApplyStepContact": {
+    "description": "Jobs: web apply step 'Contact'"
+  },
+  "jobApplyStepQuestions": "Spørsmål",
+  "@jobApplyStepQuestions": {
+    "description": "Jobs: web apply step 'Questions'"
+  },
+  "jobApplyStepDocuments": "Dokumenter",
+  "@jobApplyStepDocuments": {
+    "description": "Jobs: web apply step 'Documents'"
+  },
+  "jobApplyStepReview": "Se over",
+  "@jobApplyStepReview": {
+    "description": "Jobs: web apply step 'Review'"
+  },
+  "jobApplyFullName": "Fullt navn",
+  "@jobApplyFullName": {
+    "description": "Jobs: web apply 'Full name *'"
+  },
+  "jobApplyEmailVerified": "Bekreftet via BISO-kontoen din",
+  "@jobApplyEmailVerified": {
+    "description": "Jobs: web apply hint under the email"
+  },
+  "jobApplyPhone": "Telefon (valgfritt)",
+  "@jobApplyPhone": {
+    "description": "Jobs: web apply 'Phone (optional)'"
+  },
+  "jobApplyCountryCode": "Landskode",
+  "@jobApplyCountryCode": {
+    "description": "Jobs: web apply phone country code picker"
+  },
+  "jobApplyPhoneTooLong": "Telefonnummeret kan være maks 20 tegn.",
+  "@jobApplyPhoneTooLong": {
+    "description": "Jobs: server message for a phone number over 20 characters"
+  },
+  "jobApplyLinkedIn": "LinkedIn (valgfritt)",
+  "@jobApplyLinkedIn": {
+    "description": "Jobs: web apply 'LinkedIn (optional)'"
+  },
+  "jobApplyCurrentRole": "Nåværende rolle (valgfritt)",
+  "@jobApplyCurrentRole": {
+    "description": "Jobs: web apply 'Current role (optional)'"
+  },
+  "jobApplyCurrentRoleHint": "Student, praktikant…",
+  "@jobApplyCurrentRoleHint": {
+    "description": "Jobs: web apply current role placeholder"
+  },
+  "jobApplyEmployer": "Arbeidsgiver / skole (valgfritt)",
+  "@jobApplyEmployer": {
+    "description": "Jobs: web apply 'Employer / school (optional)'"
+  },
+  "jobApplyQuestionsIntro": "Noen spørsmål fra rekrutteringsteamet.",
+  "@jobApplyQuestionsIntro": {
+    "description": "Jobs: web apply questions step intro"
+  },
+  "jobApplyYes": "Ja",
+  "@jobApplyYes": {
+    "description": "Jobs: web apply yes/no question checkbox"
+  },
+  "jobApplyCoverLetter": "Søknadsbrev (påkrevd, PDF)",
+  "@jobApplyCoverLetter": {
+    "description": "Jobs: web apply 'Cover letter (required, PDF)'"
+  },
+  "jobApplyCoverLetterHelp": "Fortell BISO hvorfor du søker og hva du kan bidra med. Maks 5 MB, kun PDF.",
+  "@jobApplyCoverLetterHelp": {
+    "description": "Jobs: web apply cover letter help"
+  },
+  "jobApplyCvRequired": "CV (påkrevd, PDF)",
+  "@jobApplyCvRequired": {
+    "description": "Jobs: web apply CV label when required"
+  },
+  "jobApplyCvOptional": "CV (valgfritt, PDF)",
+  "@jobApplyCvOptional": {
+    "description": "Jobs: web apply CV label when optional"
+  },
+  "jobApplyFileHelp": "Maks 5 MB, kun PDF.",
+  "@jobApplyFileHelp": {
+    "description": "Jobs: web apply CV help"
+  },
+  "jobApplyChoosePdf": "Velg PDF",
+  "@jobApplyChoosePdf": {
+    "description": "Jobs: button that opens the file picker"
+  },
+  "jobApplyReplacePdf": "Bytt",
+  "@jobApplyReplacePdf": {
+    "description": "Jobs: button that replaces a picked PDF"
+  },
+  "jobApplyRemovePdf": "Fjern",
+  "@jobApplyRemovePdf": {
+    "description": "Jobs: button that removes a picked optional CV"
+  },
+  "jobApplySelectedFile": "Valgt: {name} ({size} KB)",
+  "@jobApplySelectedFile": {
+    "description": "Jobs: web apply 'Selected: {name} ({size} KB)'",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "cv.pdf"
+      },
+      "size": {
+        "type": "String",
+        "example": "512"
+      }
+    }
+  },
+  "jobApplyNotPdf": "Kun PDF-filer er tillatt.",
+  "@jobApplyNotPdf": {
+    "description": "Jobs: web apply 'Only PDF files are allowed.'"
+  },
+  "jobApplyTooLarge": "Filen er større enn 5 MB.",
+  "@jobApplyTooLarge": {
+    "description": "Jobs: web apply 'File exceeds 5MB limit.'"
+  },
+  "jobApplyTooLargeTogether": "CV og søknadsbrev kan til sammen være maks 9 MB. Gjør en av dem mindre og prøv igjen.",
+  "@jobApplyTooLargeTogether": {
+    "description": "Jobs: both PDFs over the 9 MB the upload can carry"
+  },
+  "jobApplyAvailability": "Tilgjengelighet for intervju (valgfritt)",
+  "@jobApplyAvailability": {
+    "description": "Jobs: web apply 'Interview availability (optional)'"
+  },
+  "jobApplyAvailabilityHint": "Datoer og tidspunkter som vanligvis passer – ett per linje.",
+  "@jobApplyAvailabilityHint": {
+    "description": "Jobs: web apply availability placeholder"
+  },
+  "jobApplyAvailabilityHelp": "Hjelper HR å foreslå tidspunkter uten frem og tilbake på e-post.",
+  "@jobApplyAvailabilityHelp": {
+    "description": "Jobs: web apply availability help"
+  },
+  "jobApplyReviewApplication": "Se over søknaden",
+  "@jobApplyReviewApplication": {
+    "description": "Jobs: web apply 'Review application'"
+  },
+  "jobApplyName": "Navn",
+  "@jobApplyName": {
+    "description": "Jobs: web apply review 'Name'"
+  },
+  "jobApplyCv": "CV",
+  "@jobApplyCv": {
+    "description": "Jobs: web apply review 'CV'"
+  },
+  "jobApplyCoverLetterLabel": "Søknadsbrev",
+  "@jobApplyCoverLetterLabel": {
+    "description": "Jobs: web apply review 'Cover letter'"
+  },
+  "jobApplyConsent": "Jeg samtykker til at BISO behandler søknadsdataene mine i denne rekrutteringsprosessen. Dataene lagres i 180 dager. Et AI-verktøy kan hjelpe med å vurdere søknader, etter at navn og kontaktinformasjon er fjernet; alle beslutninger tas av mennesker.",
+  "@jobApplyConsent": {
+    "description": "Jobs: web apply GDPR consent, verbatim"
+  },
+  "jobApplySubmit": "Send søknad",
+  "@jobApplySubmit": {
+    "description": "Jobs: web apply 'Submit application'"
+  },
+  "jobApplySubmitting": "Sender…",
+  "@jobApplySubmitting": {
+    "description": "Jobs: web apply 'Submitting…'"
+  },
+  "jobApplyNetworkError": "Vi fikk ikke kontakt med BISO. Sjekk tilkoblingen og prøv igjen.",
+  "@jobApplyNetworkError": {
+    "description": "Jobs: the application got no answer"
+  },
+  "jobApplySessionExpired": "Innloggingen din har utløpt. Logg inn igjen for å sende søknaden.",
+  "@jobApplySessionExpired": {
+    "description": "Jobs: the application was refused because the session has ended"
+  },
+  "jobApplyPickFailed": "Vi kunne ikke åpne filene dine. Prøv igjen.",
+  "@jobApplyPickFailed": {
+    "description": "Jobs: the file picker failed to open or return a file"
+  },
+  "jobApplySuccessTitle": "Søknaden er sendt!",
+  "@jobApplySuccessTitle": {
+    "description": "Jobs: web apply 'Application submitted!'"
+  },
+  "jobApplySuccessBody": "Vi går gjennom søknaden din og tar kontakt på {email}.",
+  "@jobApplySuccessBody": {
+    "description": "Jobs: web apply success message",
+    "placeholders": {
+      "email": {
+        "type": "String",
+        "example": "kari@bi.no"
+      }
+    }
+  },
+  "jobApplyViewMyApplications": "Se søknadene mine",
+  "@jobApplyViewMyApplications": {
+    "description": "Jobs: web apply 'View my applications'"
+  },
+  "myApplicationsTitle": "Mine søknader",
+  "@myApplicationsTitle": {
+    "description": "My applications: title; no from common.navigation.account.myApplications"
+  },
+  "myApplicationsIntro": "Se status for alle BISO-stillinger du har søkt på, og detaljer om kommende intervjuer.",
+  "@myApplicationsIntro": {
+    "description": "My applications: web intro"
+  },
+  "myApplicationsEmptyTitle": "Ingen søknader ennå",
+  "@myApplicationsEmptyTitle": {
+    "description": "My applications: web empty state title"
+  },
+  "myApplicationsEmptyBody": "Når du søker på en stilling i BISO, dukker den opp her, slik at du kan følge med på status og intervjutider.",
+  "@myApplicationsEmptyBody": {
+    "description": "My applications: web empty state body"
+  },
+  "myApplicationsSignIn": "Logg inn for å se søknadene dine",
+  "@myApplicationsSignIn": {
+    "description": "My applications: signed out"
+  },
+  "myApplicationsLoadFailed": "Vi kunne ikke laste inn søknadene dine.",
+  "@myApplicationsLoadFailed": {
+    "description": "My applications: load failed"
+  },
+  "myApplicationsSessionExpired": "Innloggingen din har utløpt. Logg inn igjen for å se søknadene dine.",
+  "@myApplicationsSessionExpired": {
+    "description": "My applications: the session has ended"
+  },
+  "applicationStatusSubmitted": "Sendt",
+  "@applicationStatusSubmitted": {
+    "description": "My applications: status submitted"
+  },
+  "applicationStatusReviewed": "Vurdert",
+  "@applicationStatusReviewed": {
+    "description": "My applications: status reviewed"
+  },
+  "applicationStatusInterview": "Intervju",
+  "@applicationStatusInterview": {
+    "description": "My applications: status interview"
+  },
+  "applicationStatusAccepted": "Akseptert",
+  "@applicationStatusAccepted": {
+    "description": "My applications: status accepted"
+  },
+  "applicationStatusRejected": "Ikke valgt",
+  "@applicationStatusRejected": {
+    "description": "My applications: status rejected (web 'Not selected')"
+  },
+  "myApplicationsVacancy": "Stilling",
+  "@myApplicationsVacancy": {
+    "description": "My applications: title when the vacancy is gone"
+  },
+  "myApplicationsApplied": "Søkt {date}",
+  "@myApplicationsApplied": {
+    "description": "My applications: web 'Applied {date}'",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "1 Oct 2026, 10:00"
+      }
+    }
+  },
+  "myApplicationsReviewer": "Saksbehandler: {name}",
+  "@myApplicationsReviewer": {
+    "description": "My applications: web 'Reviewer: {name}'",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Ola Nordmann"
+      }
+    }
+  },
+  "myApplicationsViewVacancy": "Se stillingen",
+  "@myApplicationsViewVacancy": {
+    "description": "My applications: web 'View vacancy'"
+  },
+  "myApplicationsUpcomingInterview": "Kommende intervju · {title}",
+  "@myApplicationsUpcomingInterview": {
+    "description": "My applications: web 'Upcoming interview · {title}'",
+    "placeholders": {
+      "title": {
+        "type": "String",
+        "example": "First interview"
+      }
+    }
+  },
+  "myApplicationsTbd": "Ikke avklart",
+  "@myApplicationsTbd": {
+    "description": "My applications: web interview time not set"
+  },
+  "myApplicationsJoinMeeting": "Bli med i møtet",
+  "@myApplicationsJoinMeeting": {
+    "description": "My applications: web 'Join meeting'"
+  },
+  "myApplicationsYourAnswers": "Dine svar ({count})",
+  "@myApplicationsYourAnswers": {
+    "description": "My applications: web 'Your answers ({count})'",
+    "placeholders": {
+      "count": {
+        "type": "String",
+        "example": "3"
+      }
+    }
+  },
+  "myApplicationsStoredUntil": "Lagres til {date}",
+  "@myApplicationsStoredUntil": {
+    "description": "My applications: web 'Stored until {date}'",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "30 March 2027"
+      }
+    }
+  },
+  "expenseCostTypeLabel": "Kostnadstype",
+  "@expenseCostTypeLabel": {
+    "description": "Expense form"
+  },
+  "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
+  "@expenseFinancialManagerLabel": {
+    "description": "Expense form"
+  },
+  "expenseFinancialManagerHint": "Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.",
+  "@expenseFinancialManagerHint": {
+    "description": "Expense form"
+  },
+  "notificationsTurnOnTitle": "Slå på varsler",
+  "@notificationsTurnOnTitle": {
+    "description": "Notification settings: row shown while the OS has notifications off for the app"
+  },
+  "notificationsTurnOnSubtitle": "Varsler er slått av på denne enheten",
+  "@notificationsTurnOnSubtitle": {
+    "description": "Notification settings: subtitle of the turn-on row"
+  },
+  "notificationsStillOffMessage": "Varsler er fortsatt slått av. Du kan slå dem på i innstillingene på enheten.",
+  "@notificationsStillOffMessage": {
+    "description": "Notification settings: snackbar when a permission request leaves notifications off"
+  },
+  "notificationsOpenSettingsAction": "Åpne innstillinger",
+  "@notificationsOpenSettingsAction": {
+    "description": "Notification settings: snackbar action that opens the system settings for the app"
+  },
+  "notificationsImportantTitle": "Viktige kunngjøringer",
+  "@notificationsImportantTitle": {
+    "description": "Notification settings: the general topic, which every device gets"
+  },
+  "notificationsImportantSubtitle": "Inkludert når varsler er slått på",
+  "@notificationsImportantSubtitle": {
+    "description": "Notification settings: subtitle of the important announcements row"
+  },
+  "notificationsImportantAlwaysIncluded": "Du får alltid viktige kunngjøringer fra BISO.",
+  "@notificationsImportantAlwaysIncluded": {
+    "description": "Notification topics prompt: important announcements are not a choice"
   }
 }

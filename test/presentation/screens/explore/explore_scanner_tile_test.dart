@@ -103,4 +103,9 @@ void main() {
     await pump(tester, const ScannerDenied());
     expect(access.freshCalls, 1);
   });
+
+  testWidgets('the explore screen shows no AI assistant tile', (tester) async {
+    await pump(tester, const ScannerDenied());
+    expect(find.text('AI Assistant'), findsNothing);
+  });
 }

@@ -3,14 +3,19 @@ import '../../data/models/user_model.dart';
 import '../../data/services/api_auth.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/appwrite_service.dart';
+import '../../data/services/bi_sign_in_service.dart';
 import '../../data/services/notification_service.dart';
 
 import '../../core/logging/print_migration.dart';
+import 'bi_sign_in_service_provider.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(authServiceProvider));
+  return AuthNotifier(
+    ref.watch(authServiceProvider),
+    biSignIn: ref.watch(biSignInServiceProvider),
+  );
 });
 
 class AuthState {
@@ -72,9 +77,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   NotificationService get _notificationService =>
       _notificationServiceOverride ?? NotificationService();
 
-  AuthNotifier(this._authService, {NotificationService? notificationService})
-    : _notificationServiceOverride = notificationService,
-      super(const AuthState()) {
+  /// The [BiSignInService] supplied by the provider or a test, if any.
+  final BiSignInService? _biSignInOverride;
+
+  /// Resolved on use, like [_notificationService].
+  BiSignInService get _biSignIn => _biSignInOverride ?? BiSignInService();
+
+  AuthNotifier(
+    this._authService, {
+    NotificationService? notificationService,
+    BiSignInService? biSignIn,
+  }) : _notificationServiceOverride = notificationService,
+       _biSignInOverride = biSignIn,
+       super(const AuthState()) {
     _checkAuthState();
   }
 
@@ -225,9 +240,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> verifyMagicLink(String userId, String secret) async {
-    logPrint(
-      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId, secret: $secret',
-    );
+    logPrint('🔗 DEBUG: Starting verifyMagicLink with userId: $userId');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
@@ -247,9 +260,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> verifyOtp(String userId, String secret) async {
-    logPrint(
-      '🔥 DEBUG: Starting verifyOtp with userId: $userId, secret: $secret',
-    );
+    logPrint('🔥 DEBUG: Starting verifyOtp with userId: $userId');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
@@ -412,10 +423,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Deletes every session on this device, signed in or not, so a sign-in
+  /// can be tried again (the magic link screen's "clear session and retry").
   Future<void> clearSession() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      // As on sign-out, and before the session goes for the same reason.
+      // Without it the previous account's push target and live token stayed
+      // on this device: it went on receiving that account's pushes, and the
+      // next student's registration was refused with a 409 that no target of
+      // theirs matched.
+      await _detachNotificationsForSignOut();
       await _authService.clearSession();
       // Clear JWT cache when session is cleared
       state = const AuthState();
@@ -432,38 +451,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Re-check auth state from the server — called after OAuth callbacks.
-  /// The callback may have created a new session, so a kept API token is
-  /// dropped first.
+  /// Re-check auth state from the server, after a session was created or
+  /// ended outside this notifier. A kept API token is dropped first.
   Future<void> refreshAuthState() async {
     clearAppwriteJwtCache();
     await _checkAuthState();
   }
 
-  /// Sign in with Google via Appwrite OAuth2 (opens browser).
-  Future<void> signInWithGoogle() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      await _authService.signInWithGoogle();
-      // Session is created asynchronously via deep-link callback.
-      // isLoading is cleared there via refreshAuthState().
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-      rethrow;
-    }
-  }
-
-  /// Sign in with Apple via Appwrite OAuth2 (opens browser, iOS only).
-  Future<void> signInWithApple() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      await _authService.signInWithApple();
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-      rethrow;
-    }
+  /// Signs in with the student's BI account (see [BiSignInService.signIn]).
+  ///
+  /// A cancelled sheet or a BI refusal leaves a signed-in student signed in.
+  /// Once BI answers with credentials, the current session is replaced: a
+  /// signed-in student's device is detached from push notifications first,
+  /// as on sign-out, and the state is re-read afterwards, also when the new
+  /// session could not be created and the student is left signed out.
+  Future<BiSignInOutcome> signInWithBi() async {
+    var sessionReplaced = false;
+    final outcome = await _biSignIn.signIn(
+      beforeSessionSwitch: () async {
+        sessionReplaced = true;
+        if (state.isAuthenticated) await _detachNotificationsForSignOut();
+      },
+    );
+    if (outcome is BiSignedIn || sessionReplaced) await refreshAuthState();
+    return outcome;
   }
 }
 

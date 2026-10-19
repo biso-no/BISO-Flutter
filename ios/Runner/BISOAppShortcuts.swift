@@ -36,7 +36,6 @@ enum BISOFeature: String, AppEnum {
   case marketplace
   case jobs
   case profile
-  case aiAssistant
 
   static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "BISO Feature")
 
@@ -46,7 +45,6 @@ enum BISOFeature: String, AppEnum {
     .marketplace: "Marketplace",
     .jobs: "Jobs",
     .profile: "Profile",
-    .aiAssistant: "AI assistant",
   ]
 
   var path: String {
@@ -61,8 +59,6 @@ enum BISOFeature: String, AppEnum {
       return "jobs"
     case .profile:
       return "profile"
-    case .aiAssistant:
-      return "ai-chat"
     }
   }
 }
@@ -115,15 +111,6 @@ struct BISOAppShortcuts: AppShortcutsProvider {
       ],
       shortTitle: "Profile",
       systemImageName: "person.crop.circle"
-    )
-    AppShortcut(
-      intent: OpenBISOFeatureIntent(feature: BISOFeature.aiAssistant),
-      phrases: [
-        "Open AI assistant in \(.applicationName)",
-        "Open BISO assistant in \(.applicationName)",
-      ],
-      shortTitle: "AI assistant",
-      systemImageName: "sparkles"
     )
   }
 }
