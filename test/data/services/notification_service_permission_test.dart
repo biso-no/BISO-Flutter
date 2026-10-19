@@ -41,11 +41,15 @@ class _FakeNotificationService extends NotificationService {
   /// way to have it cache a campus id, as an earlier run in the session would.
   bool delegateReconcile = false;
 
-  /// Only reached when [delegateReconcile] is set. Reporting "not granted"
-  /// ends the real run straight after its read of the device store (mocked
-  /// below), before Firebase or Appwrite.
+  /// What the OS reports as the current permission. Only read by the real
+  /// [reconcile] (when [delegateReconcile] is set) and by
+  /// [reconcileIfPermissionNewlyGranted]. Reporting "not granted" ends a real
+  /// run straight after its read of the device store (mocked below), before
+  /// Firebase or Appwrite.
+  bool permitted = false;
+
   @override
-  Future<bool> checkPlatformPermission() async => false;
+  Future<bool> checkPlatformPermission() async => permitted;
 
   @override
   Future<ReconcileOutcome> reconcile({required String? campusId}) async {
@@ -149,5 +153,69 @@ void main() {
         expect(service.reconcileCampusIds, ['3', '3']);
       },
     );
+  });
+
+  group('reconcileIfPermissionNewlyGranted', () {
+    test(
+      'reconciles once when notifications were turned on in the system '
+      'settings after a reconcile found them off: nothing else reconciles '
+      'when the student comes back, so this device stayed unsubscribed '
+      'until the next launch',
+      () async {
+        final service = _FakeNotificationService()..delegateReconcile = true;
+        // The launch reconciler finds notifications off.
+        expect(
+          await service.reconcile(campusId: '3'),
+          ReconcileOutcome.permissionDenied,
+        );
+        service.delegateReconcile = false;
+
+        // The student turns them on in the system settings, and comes back.
+        service.permitted = true;
+        expect(
+          await service.reconcileIfPermissionNewlyGranted(campusId: '3'),
+          ReconcileOutcome.applied,
+        );
+        expect(service.reconcileCampusIds, ['3', '3']);
+
+        // Back again, with nothing changed.
+        expect(
+          await service.reconcileIfPermissionNewlyGranted(campusId: '3'),
+          isNull,
+        );
+        expect(service.reconcileCalls, 2);
+      },
+    );
+
+    test(
+      'does not reconcile again for a grant made in the app, which has '
+      'reconciled already',
+      () async {
+        final service = _FakeNotificationService()..granted = true;
+        expect(await service.requestPermission(), isTrue);
+        expect(service.reconcileCalls, 1);
+
+        service.permitted = true;
+        expect(
+          await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+          isNull,
+        );
+        expect(service.reconcileCalls, 1);
+      },
+    );
+
+    test('does not reconcile while notifications stay off', () async {
+      final service = _FakeNotificationService()..permitted = false;
+
+      expect(
+        await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+        isNull,
+      );
+      expect(
+        await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+        isNull,
+      );
+      expect(service.reconcileCalls, 0);
+    });
   });
 }

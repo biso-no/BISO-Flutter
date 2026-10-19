@@ -170,6 +170,11 @@ class NotificationService {
   /// — can re-run [reconcile] without a caller supplying it again.
   String? _lastCampusId;
 
+  /// Whether OS notification permission was granted when a reconcile or a
+  /// permission request last read it, or null before either has. See
+  /// [reconcileIfPermissionNewlyGranted].
+  bool? _lastSeenPermission;
+
   /// Maps a topicId to the Appwrite subscriber `$id` returned by
   /// [Messaging.createSubscriber]. Needed to delete the subscriber on
   /// unsubscribe. Persisted to user preferences alongside the bool map.
@@ -331,6 +336,9 @@ class NotificationService {
       debugPrint('Failed to request notification permission: $e');
       return false;
     }
+    // A grant here reconciles below, so coming back to the app afterwards
+    // need not (see [reconcileIfPermissionNewlyGranted]).
+    _lastSeenPermission = isGranted;
 
     if (isGranted) {
       // reconcile() resolves the push target itself and subscribes this
@@ -377,6 +385,33 @@ class NotificationService {
       debugPrint('Failed to check notification status: $e');
       return false;
     }
+  }
+
+  /// Reconciles this device for [campusId] when notification permission has
+  /// been granted since this service last read it, reporting the outcome, or
+  /// null when it did not reconcile.
+  ///
+  /// For a grant made outside the app. A student who declined can only turn
+  /// notifications on in the system settings, and nothing else reconciles
+  /// when they come back, so this is called whenever the app is resumed (see
+  /// `notificationPermissionResumeProvider`). It reconciles only on a change:
+  /// every reconcile and every in-app request records what it read. A
+  /// permission never read before counts as not granted, since an extra
+  /// reconcile costs little and a device left unsubscribed is the bug.
+  Future<ReconcileOutcome?> reconcileIfPermissionNewlyGranted({
+    required String? campusId,
+  }) async {
+    final bool granted;
+    try {
+      granted = await checkPlatformPermission();
+    } catch (e) {
+      debugPrint('Could not read notification permission on resume: $e');
+      return null;
+    }
+    final wasGranted = _lastSeenPermission == true;
+    _lastSeenPermission = granted;
+    if (!granted || wasGranted) return null;
+    return reconcile(campusId: campusId);
   }
 
   /// Whether the OS currently grants notification permission (including
@@ -884,6 +919,7 @@ class NotificationService {
       );
       return ReconcileOutcome.unavailable;
     }
+    _lastSeenPermission = permitted;
     if (!permitted) {
       debugPrint('reconcile: notifications not permitted; intent kept for later');
       return ReconcileOutcome.permissionDenied;

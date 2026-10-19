@@ -9,6 +9,7 @@ import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -164,6 +165,16 @@ class _FakeNotificationService extends NotificationService {
     final failure = reconcileThrows;
     if (failure != null) throw failure;
     return reconcileResult;
+  }
+
+  /// What the OS reports as the current notification permission.
+  bool permitted = false;
+  int permissionChecks = 0;
+
+  @override
+  Future<bool> checkPlatformPermission() async {
+    permissionChecks++;
+    return permitted;
   }
 }
 
@@ -799,5 +810,94 @@ void main() {
         expect(service.account.prefsByStudent[_studentA], seededIntent);
       },
     );
+  });
+
+  group('notificationPermissionResumeProvider', () {
+    final binding = TestWidgetsFlutterBinding.instance;
+
+    /// Sends the app to the background and back, as a trip to the system
+    /// settings does, then lets the resume handler run.
+    Future<void> backgroundAndResume() async {
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        binding.handleAppLifecycleStateChanged(state);
+      }
+      await pumpEventQueue();
+    }
+
+    Future<(ProviderContainer, _FakeNotificationService, _TestAuthNotifier)>
+    start() async {
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      addTearDown(
+        () => binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed),
+      );
+      final service = _FakeNotificationService(seededIntent);
+      final auth = _TestAuthNotifier();
+      final container = ProviderContainer(
+        overrides: [
+          notificationServiceProvider.overrideWithValue(service),
+          authStateProvider.overrideWith((ref) => auth),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(notificationPermissionResumeProvider, (_, _) {});
+      await pumpEventQueue(); // the auth notifier's own session check
+      return (container, service, auth);
+    }
+
+    test(
+      'reconciles once, for the campus on the student\'s profile, when the '
+      'app comes back with notifications turned on since they were last '
+      'read: a student who allowed them in the system settings stayed '
+      'unsubscribed until the next launch',
+      () async {
+        final (_, service, auth) = await start();
+        auth.signIn(_studentA, campusId: '2');
+
+        service.permitted = false;
+        await backgroundAndResume();
+        expect(service.reconcileCalls, 0);
+
+        service.permitted = true;
+        await backgroundAndResume();
+        expect(service.reconcileCalls, 1);
+        expect(service.lastReconcileCampusId, '2');
+      },
+    );
+
+    test('does not reconcile on a resume when nothing has changed', () async {
+      final (_, service, auth) = await start();
+      auth.signIn(_studentA);
+
+      service.permitted = false;
+      await backgroundAndResume();
+      await backgroundAndResume();
+      expect(service.reconcileCalls, 0);
+
+      service.permitted = true;
+      await backgroundAndResume();
+      expect(service.reconcileCalls, 1);
+      await backgroundAndResume();
+      await backgroundAndResume();
+      expect(service.reconcileCalls, 1);
+    });
+
+    test('does nothing on a resume while nobody is signed in', () async {
+      final (_, service, _) = await start();
+
+      service.permitted = false;
+      await backgroundAndResume();
+      service.permitted = true;
+      await backgroundAndResume();
+
+      expect(service.permissionChecks, 0);
+      expect(service.reconcileCalls, 0);
+    });
   });
 }

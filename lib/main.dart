@@ -170,6 +170,9 @@ class BisoApp extends ConsumerWidget {
     // Reconcile this device's subscriptions at launch, and again whenever the
     // student or their campus changes. Nothing else covers a returning user.
     ref.watch(topicReconcileProvider);
+    // And whenever the app comes back with notifications newly allowed in
+    // the system settings, which none of the above notices.
+    ref.watch(notificationPermissionResumeProvider);
 
     // Watch locale changes to update the app language
     final currentLocale = ref.watch(localeProvider);
