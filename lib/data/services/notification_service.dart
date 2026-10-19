@@ -170,6 +170,11 @@ class NotificationService {
   /// — can re-run [reconcile] without a caller supplying it again.
   String? _lastCampusId;
 
+  /// Whether [_lastCampusId] is a signed-in student's campus: set by
+  /// [reconcile], and cleared by [clearToken]. Null means "no campus" only
+  /// once this is set.
+  bool _campusKnown = false;
+
   /// Whether OS notification permission was granted when a reconcile or a
   /// permission request last read it, or null before either has. See
   /// [reconcileIfPermissionNewlyGranted].
@@ -290,10 +295,25 @@ class NotificationService {
   /// `reconcile` resolves the target *and* recreates whatever subscriptions
   /// the clear wiped out.
   ///
+  /// Not before [reconcile] has been given a campus, though. The listener is
+  /// registered at launch, before the session has loaded, and on iOS Firebase
+  /// reports a token about once per start, which can come first: reconciling
+  /// then, for no campus, reconciled for national and deleted every campus
+  /// topic this device held, for the launch reconcile to create again. The
+  /// token is cached all the same, and the first reconcile uses it. Nor after
+  /// sign-out, when nobody's campus applies.
+  ///
   /// `onTokenRefresh` gives its listener no way to be awaited by a caller, so
   /// a throw here must be caught rather than left to become an unhandled
   /// async error.
   Future<void> _reconcileAfterTokenRefresh() async {
+    if (!_campusKnown) {
+      debugPrint(
+        'onTokenRefresh: no campus to reconcile for yet; the token is kept '
+        'for the next reconcile',
+      );
+      return;
+    }
     try {
       await reconcile(campusId: _lastCampusId);
     } catch (e) {
@@ -734,6 +754,7 @@ class NotificationService {
     // refresh — which has no campusId of its own to pass in — reconciles
     // against the most recent campus this method was actually asked to use.
     _lastCampusId = campusId;
+    _campusKnown = true;
 
     return _enqueue(
       'reconcile',
@@ -1526,6 +1547,9 @@ class NotificationService {
     // than registering this device for the account that is signing out (see
     // [_QueueRun.signOutRequested]).
     _signOutRequests++;
+    // The campus was the signed-out student's: a token refresh from here on
+    // waits for the next reconcile (see [_reconcileAfterTokenRefresh]).
+    _campusKnown = false;
     final recorded = _recordPendingTokenInvalidation();
     final cleanup = _enqueue<void>(
       'clearToken',

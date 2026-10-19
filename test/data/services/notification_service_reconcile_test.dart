@@ -39,6 +39,10 @@ class _FakeAccount extends Account {
     _prefs = Map<String, dynamic>.from(prefs);
     throw UnimplementedError('return value unused by the code under test');
   }
+
+  /// Sign-out deletes this device's push target; nothing to record here.
+  @override
+  Future deletePushTarget({required String targetId}) async {}
 }
 
 void main() {
@@ -439,12 +443,20 @@ void main() {
         await service.initialize();
         expect(service.fcmToken, isNull);
 
+        // The launch reconciler runs for the student's campus, and has no
+        // token to register yet.
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+
         service.tokenRefreshes.add('token-2');
         await pumpEventQueue();
 
         expect(service.fcmToken, 'token-2');
         expect(messaging.subscribers.keys.toSet(), {
           'general',
+          'news_oslo',
           'news_national',
         });
       },
@@ -462,12 +474,79 @@ void main() {
 
         await service.initialize(); // fails, so it is not yet initialized
         await service.initialize();
+        await service.reconcile(campusId: '1'); // no token yet
+        expect(service.permissionChecks, 1);
 
         service.tokenRefreshes.add('token-2');
         await pumpEventQueue();
 
-        expect(service.permissionChecks, 1, reason: 'one reconcile run');
+        expect(service.permissionChecks, 2, reason: 'one more reconcile run');
+        expect(messaging.createCalls, [
+          'general',
+          'news_oslo',
+          'news_national',
+        ]);
+      },
+    );
+
+    test(
+      'a refresh before anything has reconciled changes no subscription, and '
+      'leaves its token for the first reconcile: with no campus known yet it '
+      'reconciled for national, deleting every campus topic the launch '
+      'reconcile then had to create again',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            'news_oslo': 'sub-news',
+          }),
+        });
+        final messaging = _FakeMessaging()
+          ..subscribers['news_oslo'] = 'sub-news';
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs()),
+          messaging,
+        )..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize();
+        service.tokenRefreshes.add('token-2');
+        await pumpEventQueue();
+
+        expect(service.fcmToken, 'token-2');
+        expect(service.permissionChecks, 0, reason: 'no reconcile ran');
+        expect(messaging.createCalls, isEmpty);
+        expect(messaging.deleteCalls, isEmpty);
+
+        // The launch reconcile, for the student's campus, uses that token.
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
         expect(messaging.createCalls, ['general', 'news_national']);
+        expect(messaging.deleteCalls, isEmpty);
+      },
+    );
+
+    test(
+      'a refresh after sign-out does not reconcile: the campus belonged to '
+      'the student who signed out',
+      () async {
+        final messaging = _FakeMessaging();
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs()),
+          messaging,
+        )..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize();
+        await service.reconcile(campusId: '1'); // no token yet
+        await service.clearToken();
+        final checksBefore = service.permissionChecks;
+
+        service.tokenRefreshes.add('token-3');
+        await pumpEventQueue();
+
+        expect(service.permissionChecks, checksBefore);
+        expect(messaging.createCalls, isEmpty);
       },
     );
   });
@@ -588,6 +667,10 @@ class _ReconcilingService extends NotificationService {
 
   @override
   Stream<String> get platformTokenRefreshes => tokenRefreshes.stream;
+
+  /// Sign-out's token invalidation, which succeeds.
+  @override
+  Future<void> deletePlatformToken() async {}
 
   /// The push target every run resolves, recorded in the store as the real
   /// [resolvePushTarget] records it: subscriber ids are only ever recorded
