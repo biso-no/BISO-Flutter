@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:appwrite/appwrite.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -407,29 +408,32 @@ class AuthService {
         throw AuthException('User not authenticated');
       }
 
+      // Send only what the caller changed. getCurrentUser() reads a subset of
+      // columns, so copying from it would overwrite bank_account/departments
+      // with null.
+      final updatedData = <String, dynamic>{
+        'name': ?name,
+        'phone': ?phone,
+        'address': ?address,
+        'city': ?city,
+        'zip': ?zipCode,
+        'campus_id': ?campusId,
+        'departments': ?departments,
+        'bank_account': ?bankAccount,
+      };
+
       // Handle avatar upload if provided
-      String? avatarUrl = currentUser.avatarUrl;
       if (avatarFile != null) {
         try {
-          avatarUrl = await _uploadAvatar(avatarFile, currentUser.id);
+          updatedData['avatar'] = await _uploadAvatar(
+            avatarFile,
+            currentUser.id,
+          );
         } catch (e) {
           logPrint('🔴 Avatar upload failed: $e');
           // Continue with profile update even if avatar upload fails
         }
       }
-
-      // Create updated user data
-      final updatedData = {
-        'name': name ?? currentUser.name,
-        'phone': phone ?? currentUser.phone,
-        'address': address ?? currentUser.address,
-        'city': city ?? currentUser.city,
-        'zip': zipCode ?? currentUser.zipCode,
-        'campus_id': campusId ?? currentUser.campusId,
-        'departments': departments ?? currentUser.departments,
-        'avatar': avatarUrl,
-        'bank_account': bankAccount ?? currentUser.bankAccount,
-      };
 
       final updatedUser = UserModel.fromMap(
         await _profileApi.upsert(updatedData),
@@ -456,6 +460,17 @@ class AuthService {
     }
   }
 
+  /// Appwrite file ids are at most 36 characters, so the id is generated and
+  /// the user id only goes in the (unrestricted) file name.
+  @visibleForTesting
+  static ({String fileId, String fileName}) avatarUploadNames(
+    String userId, {
+    DateTime? now,
+  }) {
+    final ms = (now ?? DateTime.now()).millisecondsSinceEpoch;
+    return (fileId: ID.unique(), fileName: 'avatar_${userId}_$ms.jpg');
+  }
+
   /// Uploads an avatar image to Appwrite Storage and returns the file URL
   Future<String> _uploadAvatar(dynamic avatarFile, String userId) async {
     try {
@@ -473,21 +488,20 @@ class AuthService {
         logPrint('🟡 Could not delete existing avatar: $e');
       }
 
-      // Create a unique file ID for this avatar
-      final fileId =
-          'avatar_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+      final names = avatarUploadNames(userId);
+      final fileId = names.fileId;
 
       // Prepare the file for upload
       InputFile inputFile;
       if (avatarFile is XFile) {
         inputFile = InputFile.fromPath(
           path: avatarFile.path,
-          filename: '$fileId.jpg',
+          filename: names.fileName,
         );
       } else if (avatarFile is File) {
         inputFile = InputFile.fromPath(
           path: avatarFile.path,
-          filename: '$fileId.jpg',
+          filename: names.fileName,
         );
       } else {
         throw AuthException('Invalid file type for avatar upload');
