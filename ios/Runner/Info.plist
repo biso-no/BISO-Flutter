@@ -40,6 +40,11 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Links are routed by DeepLinkService (app_links) alone. Left on,
+	     Flutter also hands the raw URL to GoRouter, which has no route for
+	     https://biso.no/auth/verify and shows "Page Not Found". -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

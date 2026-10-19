@@ -27,6 +27,31 @@ String membershipRouteFor(Map<String, String> query) {
   ).toString();
 }
 
+/// The in-app route for the sign-in link the app emails
+/// (`https://biso.no/auth/verify?userId=…&secret=…`, or `biso://auth/verify`),
+/// or null when [uri] is not one.
+///
+/// Only `/auth/verify` counts. biso.no's own sign-in returns
+/// (`/auth/callback`, `/auth/oauth`) carry a userId and secret too, and
+/// spending one here would sign the app in instead of the website.
+@visibleForTesting
+String? magicLinkRouteFor(Uri uri) {
+  final isAppLink = switch (uri.scheme) {
+    'biso' => uri.host == 'auth' && uri.path == '/verify',
+    'https' || 'http' =>
+      (uri.host == 'biso.no' || uri.host == 'www.biso.no') &&
+          uri.path == '/auth/verify',
+    _ => false,
+  };
+  final userId = uri.queryParameters['userId'];
+  final secret = uri.queryParameters['secret'];
+  if (!isAppLink || userId == null || secret == null) return null;
+  return Uri(
+    path: '/auth/verify-magic-link',
+    queryParameters: {'userId': userId, 'secret': secret},
+  ).toString();
+}
+
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
@@ -122,17 +147,12 @@ class DeepLinkService {
 
     final segments = uri.pathSegments;
     if (segments.isNotEmpty && segments.first == 'auth') {
-      // Handle sign-in link callbacks from email (e.g. /auth/verify?userId=&secret=)
-      final queryParams = uri.queryParameters;
-      final userId = queryParams['userId'];
-      final secret = queryParams['secret'];
-      if (userId != null && secret != null) {
+      final route = magicLinkRouteFor(uri);
+      if (route != null) {
         logPrint('🔗 Sign-in link universal link received');
-        _go(
-          '/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}',
-        );
+        _go(route);
       } else {
-        logPrint('ℹ️ Auth universal link without credentials, ignoring: $uri');
+        logPrint('ℹ️ Not the app sign-in link, ignoring: ${uri.path}');
       }
       return;
     }
@@ -199,12 +219,9 @@ class DeepLinkService {
       logPrint('🔴 OAuth flow failed or was cancelled');
       _go('/auth/login');
     } else if (path == '/magic-link' || path == '/verify') {
-      final userId = queryParams['userId'];
-      final secret = queryParams['secret'];
-      if (userId != null && secret != null) {
-        _go(
-          '/auth/verify-magic-link?userId=${Uri.encodeComponent(userId)}&secret=${Uri.encodeComponent(secret)}',
-        );
+      final route = magicLinkRouteFor(uri.replace(path: '/verify'));
+      if (route != null) {
+        _go(route);
       } else {
         logPrint('🔴 Missing userId or secret in sign-in link deep link');
         _go('/auth/login');

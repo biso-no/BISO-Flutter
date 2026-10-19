@@ -31,6 +31,12 @@
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
+            <!-- Links are routed by DeepLinkService (app_links) alone. Left on,
+                 Flutter also hands the raw URL to GoRouter, which has no route
+                 for https://biso.no/auth/verify and shows "Page Not Found". -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
             <!-- Deep link intent filter for biso:// scheme -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
