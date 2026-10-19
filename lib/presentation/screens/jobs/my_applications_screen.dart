@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,10 +10,16 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/job_application.dart';
+import '../../../data/services/recruitment_api_client.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/jobs/jobs_provider.dart';
 import '../../widgets/biso/biso.dart';
+
+/// Whether listing the applications failed because the server saw no session.
+bool _sessionExpired(Object? error) =>
+    error is RecruitmentApiException &&
+    error.code == ApplicationError.notAuthenticated;
 
 /// The student's applications with their status, the next interview and the
 /// answers they gave, as the web's `/applications` page shows them.
@@ -50,6 +58,13 @@ class MyApplicationsScreen extends ConsumerWidget {
       );
     }
 
+    // A 401 re-reads the session: when it is really gone, the signed-out page
+    // above takes over; otherwise the student can sign in from the error.
+    ref.listen(myApplicationsProvider, (_, next) {
+      if (_sessionExpired(next.error)) {
+        unawaited(ref.read(authStateProvider.notifier).refreshAuthState());
+      }
+    });
     final applications = ref.watch(myApplicationsProvider);
     return BisoPage(
       title: l10n.myApplicationsTitle,
@@ -57,13 +72,23 @@ class MyApplicationsScreen extends ConsumerWidget {
       onRefresh: () => ref.refresh(myApplicationsProvider.future),
       slivers: applications.when(
         loading: () => const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
-        error: (_, _) => [
+        error: (error, _) => [
           SliverFillRemaining(
             hasScrollBody: false,
-            child: BisoErrorState(
-              message: l10n.myApplicationsLoadFailed,
-              onRetry: () => ref.invalidate(myApplicationsProvider),
-            ),
+            child: _sessionExpired(error)
+                ? BisoEmptyState(
+                    icon: CupertinoIcons.lock,
+                    accent: BisoAccent.teal,
+                    title: l10n.myApplicationsSessionExpired,
+                    action: FilledButton(
+                      onPressed: () => context.go('/auth/login'),
+                      child: Text(l10n.signInMessage),
+                    ),
+                  )
+                : BisoErrorState(
+                    message: l10n.myApplicationsLoadFailed,
+                    onRetry: () => ref.invalidate(myApplicationsProvider),
+                  ),
           ),
         ],
         data: (list) => list.isEmpty

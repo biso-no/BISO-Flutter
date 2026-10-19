@@ -2702,6 +2702,14 @@ class AppLocalizationsNo extends AppLocalizations {
       'Vi fikk ikke kontakt med BISO. Sjekk tilkoblingen og prøv igjen.';
 
   @override
+  String get jobApplySessionExpired =>
+      'Innloggingen din har utløpt. Logg inn igjen for å sende søknaden.';
+
+  @override
+  String get jobApplyPickFailed =>
+      'Vi kunne ikke åpne filene dine. Prøv igjen.';
+
+  @override
   String get jobApplySuccessTitle => 'Søknaden er sendt!';
 
   @override
@@ -2732,6 +2740,10 @@ class AppLocalizationsNo extends AppLocalizations {
   @override
   String get myApplicationsLoadFailed =>
       'Vi kunne ikke laste inn søknadene dine.';
+
+  @override
+  String get myApplicationsSessionExpired =>
+      'Innloggingen din har utløpt. Logg inn igjen for å se søknadene dine.';
 
   @override
   String get applicationStatusSubmitted => 'Sendt';

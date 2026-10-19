@@ -1,16 +1,19 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/job_application.dart';
 import 'package:biso/data/models/job_model.dart';
+import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/recruitment_api_client.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/jobs/job_application_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/jobs/jobs_provider.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -27,9 +30,40 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
   _Auth(UserModel? user)
     : super(AuthState(isAuthenticated: user != null, user: user));
 
+  int authRefreshes = 0;
+
+  @override
+  Future<void> refreshAuthState() async => authRefreshes++;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+/// The membership check, answered by [answer] (which may never complete).
+class _Membership extends MembershipOverviewNotifier {
+  _Membership(this.answer);
+
+  final Future<MembershipOverview?> Function() answer;
+
+  @override
+  Future<MembershipOverview?> build() => answer();
+}
+
+MembershipOverview _overview({
+  required MembershipGateState state,
+  bool isMember = false,
+}) => MembershipOverview(
+  state: state,
+  isMember: isMember,
+  studentId: 's1234567',
+  checkedAt: DateTime.now(),
+);
+
+Future<MembershipOverview?> _nonMember() async =>
+    _overview(state: MembershipGateState.eligible);
+
+Future<MembershipOverview?> _member() async =>
+    _overview(state: MembershipGateState.alreadyMember, isMember: true);
 
 class _FakeRecruitmentApi extends RecruitmentApiClient {
   final List<JobApplicationDraft> submitted = [];
@@ -37,10 +71,13 @@ class _FakeRecruitmentApi extends RecruitmentApiClient {
     'app-1',
   );
 
+  /// When set, submitting waits for it instead of answering [result].
+  Completer<ApplicationSubmitResult>? pending;
+
   @override
   Future<ApplicationSubmitResult> submit(JobApplicationDraft draft) async {
     submitted.add(draft);
-    return result;
+    return pending?.future ?? result;
   }
 }
 
@@ -63,7 +100,11 @@ ApplicationDocument _pdf(String name, int size) =>
 
 void main() {
   late _FakeRecruitmentApi api;
-  late List<ApplicationDocument?> picks;
+  late _Auth auth;
+
+  /// What the document picker answers, in order: a document, null for a
+  /// cancelled pick, or an exception it throws.
+  late List<Object?> picks;
 
   setUp(() {
     api = _FakeRecruitmentApi();
@@ -74,7 +115,8 @@ void main() {
     WidgetTester tester, {
     required JobModel job,
     UserModel? user = _user,
-    bool isMember = false,
+    Future<MembershipOverview?> Function() membership = _nonMember,
+    bool settle = true,
   }) async {
     tester.view.physicalSize = const Size(390, 844) * 3;
     tester.view.devicePixelRatio = 3;
@@ -103,12 +145,16 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          authStateProvider.overrideWith((_) => _Auth(user)),
-          hasValidMembershipProvider.overrideWithValue(isMember),
-          recruitmentApiClientProvider.overrideWithValue(api),
-          applicationDocumentPickerProvider.overrideWithValue(
-            () async => picks.removeAt(0),
+          authStateProvider.overrideWith((_) => auth = _Auth(user)),
+          membershipOverviewProvider.overrideWith(
+            () => _Membership(membership),
           ),
+          recruitmentApiClientProvider.overrideWithValue(api),
+          applicationDocumentPickerProvider.overrideWithValue(() async {
+            final next = picks.removeAt(0);
+            if (next is Exception) throw next;
+            return next as ApplicationDocument?;
+          }),
         ],
         child: MaterialApp.router(
           theme: PremiumTheme.build(Brightness.light),
@@ -118,7 +164,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) await tester.pumpAndSettle();
   }
 
   Finder button(String label) => find.widgetWithText(FilledButton, label);
@@ -136,6 +182,17 @@ void main() {
     await tester.ensureVisible(picker);
     await tester.pumpAndSettle();
     await tester.tap(picker);
+    await tester.pumpAndSettle();
+  }
+
+  /// Fills the form for a job without questions up to a consented review.
+  Future<void> reachConsentedReview(WidgetTester tester) async {
+    await tapButton(tester, 'Continue');
+    picks.add(_pdf('letter.pdf', 1000));
+    await pick(tester, 'cover_letter');
+    await tapButton(tester, 'Review application');
+    await tester.ensureVisible(find.text(_consent));
+    await tester.tap(find.text(_consent));
     await tester.pumpAndSettle();
   }
 
@@ -173,7 +230,7 @@ void main() {
     await pump(
       tester,
       job: _job(metadata: {'audience': 'members'}),
-      isMember: true,
+      membership: _member,
     );
 
     expect(find.text('Become a member'), findsNothing);
@@ -382,5 +439,131 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Application submitted!'), findsNothing);
+  });
+
+  group('members-only jobs while the membership check', () {
+    final membersOnly = _job(metadata: {'audience': 'members'});
+    const joinPrompt =
+        'This position is open to BISO members only. Become a member to '
+        'apply.';
+
+    testWidgets('is loading show a placeholder, not the join prompt', (
+      tester,
+    ) async {
+      final never = Completer<MembershipOverview?>();
+      await pump(
+        tester,
+        job: membersOnly,
+        membership: () => never.future,
+        settle: false,
+      );
+      await tester.pump();
+
+      expect(find.byType(BisoSkeleton), findsOneWidget);
+      expect(find.text(joinPrompt), findsNothing);
+      expect(find.text('Become a member'), findsNothing);
+      expect(find.text('Full name'), findsNothing);
+    });
+
+    testWidgets('failed let the student apply; the server decides', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        job: membersOnly,
+        membership: () async => throw Exception('offline'),
+      );
+
+      expect(find.text(joinPrompt), findsNothing);
+      expect(find.text('Full name'), findsOneWidget);
+    });
+
+    testWidgets('could not reach 24SevenOffice let the student apply', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        job: membersOnly,
+        membership: () async =>
+            _overview(state: MembershipGateState.checkUnavailable),
+      );
+
+      expect(find.text(joinPrompt), findsNothing);
+      expect(find.text('Full name'), findsOneWidget);
+    });
+  });
+
+  testWidgets('an expired session on submit asks the student to sign in', (
+    tester,
+  ) async {
+    api.result = const ApplicationSubmitResult.rejected(
+      ApplicationError.notAuthenticated,
+      'Authentication required',
+    );
+    await pump(tester, job: _job());
+    await reachConsentedReview(tester);
+
+    await tapButton(tester, 'Submit application');
+
+    expect(find.text('Authentication required'), findsNothing);
+    expect(
+      find.text(
+        'Your sign-in has expired. Sign in again to send your application.',
+      ),
+      findsOneWidget,
+    );
+    expect(auth.authRefreshes, 1);
+
+    final signIn = find.widgetWithText(FilledButton, 'Sign in to apply');
+    await tester.ensureVisible(signIn);
+    await tester.pumpAndSettle();
+    await tester.tap(signIn);
+    await tester.pumpAndSettle();
+    expect(find.text('Login page'), findsOneWidget);
+  });
+
+  testWidgets('a file picker that fails says so and keeps the form', (
+    tester,
+  ) async {
+    await pump(tester, job: _job());
+    await tapButton(tester, 'Continue');
+
+    picks.add(PlatformException(code: 'already_active'));
+    await pick(tester, 'cover_letter');
+
+    expect(
+      find.text('We could not open your files. Please try again.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('Cover letter (required, PDF)'), findsOneWidget);
+
+    picks.add(_pdf('letter.pdf', 1000));
+    await pick(tester, 'cover_letter');
+    expect(enabled(tester, 'Review application'), isTrue);
+  });
+
+  testWidgets('back does nothing while the application is being sent', (
+    tester,
+  ) async {
+    api.pending = Completer<ApplicationSubmitResult>();
+    await pump(tester, job: _job());
+    await reachConsentedReview(tester);
+
+    await tester.tap(button('Submit application'));
+    await tester.pump();
+    expect(find.text('Submitting…'), findsOneWidget);
+
+    await tester.tap(find.byType(BisoBackButton));
+    await tester.pump();
+    expect(find.text(_consent), findsOneWidget, reason: 'header back');
+
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    expect(find.text(_consent), findsOneWidget, reason: 'system back');
+
+    api.pending!.complete(const ApplicationSubmitResult.submitted('app-1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Application submitted!'), findsOneWidget);
   });
 }

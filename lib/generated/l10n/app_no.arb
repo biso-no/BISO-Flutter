@@ -3548,6 +3548,14 @@
   "@jobApplyNetworkError": {
     "description": "Jobs: the application got no answer"
   },
+  "jobApplySessionExpired": "Innloggingen din har utløpt. Logg inn igjen for å sende søknaden.",
+  "@jobApplySessionExpired": {
+    "description": "Jobs: the application was refused because the session has ended"
+  },
+  "jobApplyPickFailed": "Vi kunne ikke åpne filene dine. Prøv igjen.",
+  "@jobApplyPickFailed": {
+    "description": "Jobs: the file picker failed to open or return a file"
+  },
   "jobApplySuccessTitle": "Søknaden er sendt!",
   "@jobApplySuccessTitle": {
     "description": "Jobs: web apply 'Application submitted!'"
@@ -3589,6 +3597,10 @@
   "myApplicationsLoadFailed": "Vi kunne ikke laste inn søknadene dine.",
   "@myApplicationsLoadFailed": {
     "description": "My applications: load failed"
+  },
+  "myApplicationsSessionExpired": "Innloggingen din har utløpt. Logg inn igjen for å se søknadene dine.",
+  "@myApplicationsSessionExpired": {
+    "description": "My applications: the session has ended"
   },
   "applicationStatusSubmitted": "Sendt",
   "@applicationStatusSubmitted": {

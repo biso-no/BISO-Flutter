@@ -2695,6 +2695,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'We could not reach BISO. Check your connection and try again.';
 
   @override
+  String get jobApplySessionExpired =>
+      'Your sign-in has expired. Sign in again to send your application.';
+
+  @override
+  String get jobApplyPickFailed =>
+      'We could not open your files. Please try again.';
+
+  @override
   String get jobApplySuccessTitle => 'Application submitted!';
 
   @override
@@ -2724,6 +2732,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get myApplicationsLoadFailed => 'We could not load your applications.';
+
+  @override
+  String get myApplicationsSessionExpired =>
+      'Your sign-in has expired. Sign in again to see your applications.';
 
   @override
   String get applicationStatusSubmitted => 'Submitted';

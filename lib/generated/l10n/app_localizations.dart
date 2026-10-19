@@ -4947,6 +4947,18 @@ abstract class AppLocalizations {
   /// **'We could not reach BISO. Check your connection and try again.'**
   String get jobApplyNetworkError;
 
+  /// Jobs: the application was refused because the session has ended
+  ///
+  /// In en, this message translates to:
+  /// **'Your sign-in has expired. Sign in again to send your application.'**
+  String get jobApplySessionExpired;
+
+  /// Jobs: the file picker failed to open or return a file
+  ///
+  /// In en, this message translates to:
+  /// **'We could not open your files. Please try again.'**
+  String get jobApplyPickFailed;
+
   /// Jobs: web apply 'Application submitted!'
   ///
   /// In en, this message translates to:
@@ -5000,6 +5012,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'We could not load your applications.'**
   String get myApplicationsLoadFailed;
+
+  /// My applications: the session has ended
+  ///
+  /// In en, this message translates to:
+  /// **'Your sign-in has expired. Sign in again to see your applications.'**
+  String get myApplicationsSessionExpired;
 
   /// My applications: status submitted
   ///

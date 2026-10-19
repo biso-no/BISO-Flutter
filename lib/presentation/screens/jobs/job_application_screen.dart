@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/job_application.dart';
 import '../../../data/models/job_model.dart';
+import '../../../data/models/membership_overview.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/jobs/jobs_provider.dart';
@@ -117,6 +120,19 @@ class _StatePage extends StatelessWidget {
   );
 }
 
+/// Whether the membership check has settled on "not a member". Anything less
+/// certain (a failed check, 24SevenOffice unreachable, or only the answer
+/// cached from an earlier check) is not: the server refuses a non-member with
+/// `members_only` anyway, so a member is never walled off by a blip.
+bool _knownNonMember(AsyncValue<MembershipOverview?> membership) {
+  if (membership.hasError) return false;
+  final overview = membership.valueOrNull;
+  return overview != null &&
+      !overview.isMember &&
+      !overview.fromCache &&
+      overview.state != MembershipGateState.checkUnavailable;
+}
+
 /// Shows the form only to someone who may apply. Sign-in comes first: a
 /// signed-out visitor has no membership to check yet.
 class _ApplyGate extends ConsumerWidget {
@@ -144,7 +160,13 @@ class _ApplyGate extends ConsumerWidget {
         ),
       );
     }
-    if (job.membersOnly && !ref.watch(hasValidMembershipProvider)) {
+    final membership = job.membersOnly
+        ? ref.watch(membershipOverviewProvider)
+        : null;
+    if (membership != null && membership.isLoading && !membership.hasValue) {
+      return const _StatePage(child: BisoSkeleton.card());
+    }
+    if (membership != null && _knownNonMember(membership)) {
       return _StatePage(
         child: BisoEmptyState(
           icon: CupertinoIcons.star,
@@ -212,6 +234,12 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
   bool _submitting = false;
   bool _submitted = false;
   String? _submitError;
+
+  /// The server saw no session: the student has to sign in again.
+  bool _sessionExpired = false;
+
+  /// A file picker is open; a second tap would only fail.
+  bool _picking = false;
 
   List<JobQuestion> get _questions => widget.job.customQuestions;
   _Step get _step => _steps[_stepIndex];
@@ -295,6 +323,7 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
   }
 
   void _back() {
+    if (_submitting) return;
     if (_stepIndex > 0) {
       _previous();
       return;
@@ -306,7 +335,25 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
   }
 
   Future<void> _pick(_Document document) async {
-    final picked = await ref.read(applicationDocumentPickerProvider)();
+    if (_picking) return;
+    _picking = true;
+    final ApplicationDocument? picked;
+    try {
+      picked = await ref.read(applicationDocumentPickerProvider)();
+    } on Exception {
+      // The platform picker can refuse (`already_active`, permissions, a
+      // file that would not download): the form stays as it was.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.jobApplyPickFailed),
+          ),
+        );
+      }
+      return;
+    } finally {
+      _picking = false;
+    }
     if (picked == null || !mounted) return;
     final problem = picked.problem;
     final accepted = problem == null ? picked : null;
@@ -337,6 +384,7 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
     setState(() {
       _submitting = true;
       _submitError = null;
+      _sessionExpired = false;
     });
 
     final result = await ref
@@ -366,12 +414,20 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
         case ApplicationSubmitted():
           _submitted = true;
         case ApplicationRejected(:final code, :final message):
-          _submitError = code == ApplicationError.network
-              ? l10n.jobApplyNetworkError
-              : message;
+          _sessionExpired = code == ApplicationError.notAuthenticated;
+          _submitError = switch (code) {
+            ApplicationError.network => l10n.jobApplyNetworkError,
+            ApplicationError.notAuthenticated => l10n.jobApplySessionExpired,
+            _ => message,
+          };
       }
     });
     if (_submitted) ref.invalidate(myApplicationsProvider);
+    // When the session is really gone, the gate above turns into the
+    // signed-out page; otherwise the student can sign in from here.
+    if (_sessionExpired) {
+      unawaited(ref.read(authStateProvider.notifier).refreshAuthState());
+    }
   }
 
   @override
@@ -417,9 +473,9 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
     };
 
     return PopScope(
-      canPop: _stepIndex == 0,
+      canPop: _stepIndex == 0 && !_submitting,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _previous();
+        if (!didPop && !_submitting) _previous();
       },
       child: BisoPage(
         title: l10n.jobApply,
@@ -839,12 +895,24 @@ class _ApplicationFormState extends ConsumerState<_ApplicationForm> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                _submitError!,
-                style: text.bodyMedium?.copyWith(color: palette.error),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _submitError!,
+                    style: text.bodyMedium?.copyWith(color: palette.error),
+                  ),
+                ),
+                if (_sessionExpired) ...[
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () => context.go('/auth/login'),
+                    child: Text(l10n.jobApplySignInCta),
+                  ),
+                ],
+              ],
             ),
           ),
         ),

@@ -3548,6 +3548,14 @@
   "@jobApplyNetworkError": {
     "description": "Jobs: the application got no answer"
   },
+  "jobApplySessionExpired": "Your sign-in has expired. Sign in again to send your application.",
+  "@jobApplySessionExpired": {
+    "description": "Jobs: the application was refused because the session has ended"
+  },
+  "jobApplyPickFailed": "We could not open your files. Please try again.",
+  "@jobApplyPickFailed": {
+    "description": "Jobs: the file picker failed to open or return a file"
+  },
   "jobApplySuccessTitle": "Application submitted!",
   "@jobApplySuccessTitle": {
     "description": "Jobs: web apply 'Application submitted!'"
@@ -3589,6 +3597,10 @@
   "myApplicationsLoadFailed": "We could not load your applications.",
   "@myApplicationsLoadFailed": {
     "description": "My applications: load failed"
+  },
+  "myApplicationsSessionExpired": "Your sign-in has expired. Sign in again to see your applications.",
+  "@myApplicationsSessionExpired": {
+    "description": "My applications: the session has ended"
   },
   "applicationStatusSubmitted": "Submitted",
   "@applicationStatusSubmitted": {

@@ -4,8 +4,10 @@ import 'package:biso/data/services/recruitment_api_client.dart';
 import 'package:biso/presentation/screens/jobs/my_applications_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/jobs/jobs_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -15,17 +17,29 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
   _Auth(UserModel? user)
     : super(AuthState(isAuthenticated: user != null, user: user));
 
+  int authRefreshes = 0;
+
+  @override
+  Future<void> refreshAuthState() async => authRefreshes++;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeRecruitmentApi extends RecruitmentApiClient {
-  _FakeRecruitmentApi(this.applications);
+  _FakeRecruitmentApi(this.applications, {this.failure});
 
   final List<MyApplication> applications;
 
+  /// Thrown by [listMine] instead of answering, when set.
+  final Exception? failure;
+
   @override
-  Future<List<MyApplication>> listMine() async => applications;
+  Future<List<MyApplication>> listMine() async {
+    final failure = this.failure;
+    if (failure != null) throw failure;
+    return applications;
+  }
 }
 
 final _applications = [
@@ -55,13 +69,16 @@ final _applications = [
   const MyApplication(id: 'app-2', status: ApplicationStatus.rejected),
 ];
 
+late _Auth _auth;
+
 List<Override> _overrides({
   UserModel? user = _user,
   List<MyApplication> applications = const [],
+  Exception? failure,
 }) => [
-  authStateProvider.overrideWith((_) => _Auth(user)),
+  authStateProvider.overrideWith((_) => _auth = _Auth(user)),
   recruitmentApiClientProvider.overrideWithValue(
-    _FakeRecruitmentApi(applications),
+    _FakeRecruitmentApi(applications, failure: failure),
   ),
 ];
 
@@ -127,5 +144,61 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sign in to see your applications'), findsOneWidget);
+  });
+
+  testWidgets('an expired session asks the student to sign in again', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const MyApplicationsScreen(),
+      overrides: _overrides(
+        failure: const RecruitmentApiException(
+          ApplicationError.notAuthenticated,
+          'Authentication required',
+          statusCode: 401,
+        ),
+      ),
+      routed: true,
+      extraRoutes: [
+        GoRoute(
+          path: '/auth/login',
+          builder: (_, _) => const Scaffold(body: Text('Login page')),
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Your sign-in has expired. Sign in again to see your applications.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('We could not load your applications.'), findsNothing);
+    expect(find.text('Authentication required'), findsNothing);
+    expect(_auth.authRefreshes, 1);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign In'));
+    await tester.pumpAndSettle();
+    expect(find.text('Login page'), findsOneWidget);
+  });
+
+  testWidgets('another failure offers a retry', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const MyApplicationsScreen(),
+      overrides: _overrides(
+        failure: const RecruitmentApiException(
+          ApplicationError.submitFailed,
+          'Failed to load applications',
+          statusCode: 500,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('We could not load your applications.'), findsOneWidget);
+    expect(_auth.authRefreshes, 0);
   });
 }
