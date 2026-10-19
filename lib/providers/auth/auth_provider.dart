@@ -423,10 +423,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  /// Deletes every session on this device, signed in or not, so a sign-in
+  /// can be tried again (the magic link screen's "clear session and retry").
   Future<void> clearSession() async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      // As on sign-out, and before the session goes for the same reason.
+      // Without it the previous account's push target and live token stayed
+      // on this device: it went on receiving that account's pushes, and the
+      // next student's registration was refused with a 409 that no target of
+      // theirs matched.
+      await _detachNotificationsForSignOut();
       await _authService.clearSession();
       // Clear JWT cache when session is cleared
       state = const AuthState();
