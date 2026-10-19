@@ -176,7 +176,8 @@ class NotificationService {
   bool _campusKnown = false;
 
   /// Whether OS notification permission was granted when a reconcile or a
-  /// permission request last read it, or null before either has. See
+  /// permission request last read it, or null before either has, and after a
+  /// reconcile that found it granted could not finish. See
   /// [reconcileIfPermissionNewlyGranted].
   bool? _lastSeenPermission;
 
@@ -1005,6 +1006,20 @@ class NotificationService {
       return ReconcileOutcome.permissionDenied;
     }
 
+    final outcome = await _reconcilePermitted(run, campusId);
+    // A run that had permission but could not finish - no token, no push
+    // target, no readable intent - forgets the permission it read, so the
+    // next resume tries again (see [reconcileIfPermissionNewlyGranted]).
+    if (outcome == ReconcileOutcome.unavailable) _lastSeenPermission = null;
+    return outcome;
+  }
+
+  /// The rest of a [reconcile] run, once [_reconcileNow] has found that
+  /// notifications are permitted.
+  Future<ReconcileOutcome> _reconcilePermitted(
+    _QueueRun run,
+    String? campusId,
+  ) async {
     // The launch fetch in initialize() can fail and leave no cached token, and
     // Firebase then throws here too (SERVICE_NOT_AVAILABLE, no network). That
     // is reported like a missing token rather than thrown into every caller.

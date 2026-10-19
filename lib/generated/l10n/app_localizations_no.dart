@@ -2827,7 +2827,7 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get notificationsImportantSubtitle =>
-      'Alltid på. Nyheter fra BISO som alle studenter trenger.';
+      'Inkludert når varsler er slått på';
 
   @override
   String get notificationsImportantAlwaysIncluded =>

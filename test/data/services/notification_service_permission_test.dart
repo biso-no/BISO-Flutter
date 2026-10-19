@@ -51,6 +51,12 @@ class _FakeNotificationService extends NotificationService {
   @override
   Future<bool> checkPlatformPermission() async => permitted;
 
+  /// No FCM token to be had: a real run that gets past the permission check
+  /// ends here, unavailable.
+  @override
+  Future<String?> fetchPlatformToken() async =>
+      throw Exception('SERVICE_NOT_AVAILABLE');
+
   @override
   Future<ReconcileOutcome> reconcile({required String? campusId}) async {
     reconcileCampusIds.add(campusId);
@@ -201,6 +207,37 @@ void main() {
           isNull,
         );
         expect(service.reconcileCalls, 1);
+      },
+    );
+
+    test(
+      'retries on the next resume when a reconcile that had permission could '
+      'not finish: recording the grant left every later resume believing '
+      'this device was done, so a run that found no token or no push target '
+      'was not tried again until the next launch',
+      () async {
+        final service = _FakeNotificationService()
+          ..permitted = true
+          ..delegateReconcile = true;
+        // The launch reconcile has permission, but no FCM token yet.
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+        service.delegateReconcile = false;
+
+        expect(
+          await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+          ReconcileOutcome.applied,
+        );
+        expect(service.reconcileCalls, 2);
+
+        // That one finished, so nothing more until something changes.
+        expect(
+          await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+          isNull,
+        );
+        expect(service.reconcileCalls, 2);
       },
     );
 

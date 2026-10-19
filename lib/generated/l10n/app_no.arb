@@ -3720,7 +3720,7 @@
   "@notificationsImportantTitle": {
     "description": "Notification settings: the general topic, which every device gets"
   },
-  "notificationsImportantSubtitle": "Alltid på. Nyheter fra BISO som alle studenter trenger.",
+  "notificationsImportantSubtitle": "Inkludert når varsler er slått på",
   "@notificationsImportantSubtitle": {
     "description": "Notification settings: subtitle of the important announcements row"
   },

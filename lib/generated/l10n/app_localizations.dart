@@ -5154,7 +5154,7 @@ abstract class AppLocalizations {
   /// Notification settings: subtitle of the important announcements row
   ///
   /// In en, this message translates to:
-  /// **'Always on. News from BISO that every student needs.'**
+  /// **'Included whenever notifications are on'**
   String get notificationsImportantSubtitle;
 
   /// Notification topics prompt: important announcements are not a choice

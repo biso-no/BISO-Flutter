@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/membership_overview.dart';
@@ -54,7 +56,19 @@ class _FakeNotificationService implements NotificationService {
     this.enabled = true,
     this.permanentlyDenied = false,
     this.grantOnRequest = true,
+    this.intentHold,
+    this.intentError,
   });
+
+  /// When set, the topic intent read waits for it - it is still loading.
+  final Completer<void>? intentHold;
+
+  /// When set, the topic intent read throws it.
+  final Object? intentError;
+
+  /// When set, a permission request waits for it before answering - the OS
+  /// dialog is still up.
+  Completer<void>? holdRequest;
 
   /// Whether the OS grants notification permission.
   bool enabled;
@@ -69,12 +83,12 @@ class _FakeNotificationService implements NotificationService {
   int openSettingsCalls = 0;
 
   @override
-  Future<Map<String, bool>> loadTopicIntent() async => const {
-    'news': true,
-    'events': true,
-    'jobs': false,
-    'shop': true,
-  };
+  Future<Map<String, bool>> loadTopicIntent() async {
+    await intentHold?.future;
+    final error = intentError;
+    if (error != null) throw error;
+    return const {'news': true, 'events': true, 'jobs': false, 'shop': true};
+  }
 
   @override
   Future<bool> saveTopicIntent(
@@ -98,6 +112,7 @@ class _FakeNotificationService implements NotificationService {
   @override
   Future<bool> requestPermission() async {
     requestPermissionCalls++;
+    await holdRequest?.future;
     return enabled = grantOnRequest;
   }
 
@@ -339,6 +354,28 @@ void main() {
     );
 
     testWidgets(
+      'ignores another tap while a permission request is in progress: a '
+      'second request over the live dialog fails, and showed the "still off" '
+      'message on top of it',
+      (tester) async {
+        final notifications = _FakeNotificationService(enabled: false)
+          ..holdRequest = Completer<void>();
+        await pumpNotifications(tester, notifications);
+
+        await tester.tap(find.text(turnOn));
+        await tester.pump();
+        await tester.tap(find.text(turnOn));
+        await tester.pump();
+        expect(notifications.requestPermissionCalls, 1);
+
+        notifications.holdRequest!.complete();
+        await tester.pumpAndSettle();
+        expect(notifications.requestPermissionCalls, 1);
+        expect(find.text(turnOn), findsNothing, reason: 'now granted');
+      },
+    );
+
+    testWidgets(
       'opens the system settings instead when the system no longer shows its '
       'permission dialog',
       (tester) async {
@@ -377,8 +414,9 @@ void main() {
     );
 
     testWidgets(
-      'says that important announcements are always on, with nothing to '
-      'switch: every device that allows notifications gets them',
+      'says that important announcements are included whenever notifications '
+      'are on, with nothing to switch: every device that allows '
+      'notifications gets them',
       (tester) async {
         await pumpNotifications(tester, _FakeNotificationService());
 
@@ -390,7 +428,7 @@ void main() {
         expect(
           find.descendant(
             of: row,
-            matching: find.textContaining('Always on'),
+            matching: find.text('Included whenever notifications are on'),
           ),
           findsOneWidget,
         );
@@ -398,6 +436,30 @@ void main() {
           find.descendant(of: row, matching: find.byType(Switch)),
           findsNothing,
         );
+      },
+    );
+
+    testWidgets(
+      'shows important announcements while the topic choices are loading, '
+      'and when they fail to load: they do not depend on the choices',
+      (tester) async {
+        await pumpNotifications(
+          tester,
+          _FakeNotificationService(intentHold: Completer<void>()),
+        );
+        expect(find.byType(CircularProgressIndicator), findsWidgets);
+        expect(find.text('Important announcements'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+
+        await pumpNotifications(
+          tester,
+          _FakeNotificationService(intentError: Exception('offline')),
+        );
+        expect(
+          find.text('Could not load your notification settings.'),
+          findsOneWidget,
+        );
+        expect(find.text('Important announcements'), findsOneWidget);
       },
     );
   });

@@ -2819,7 +2819,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationsImportantSubtitle =>
-      'Always on. News from BISO that every student needs.';
+      'Included whenever notifications are on';
 
   @override
   String get notificationsImportantAlwaysIncluded =>

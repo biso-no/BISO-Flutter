@@ -435,11 +435,22 @@ class _GeneralSettingsBody extends ConsumerWidget {
   }
 }
 
-class _NotificationSettingsBody extends ConsumerWidget {
-  const _NotificationSettingsBody();
+/// The row shown while notifications are off, which turns them on.
+class _TurnOnNotificationsRow extends ConsumerStatefulWidget {
+  const _TurnOnNotificationsRow();
 
-  /// Turns notifications on from the row shown while they are off.
-  ///
+  @override
+  ConsumerState<_TurnOnNotificationsRow> createState() =>
+      _TurnOnNotificationsRowState();
+}
+
+class _TurnOnNotificationsRowState
+    extends ConsumerState<_TurnOnNotificationsRow> {
+  /// Whether a tap is still being handled. Another tap meanwhile is ignored:
+  /// a second permission request while the OS dialog is up fails, and would
+  /// show the "still off" message over the dialog.
+  bool _inFlight = false;
+
   /// The OS shows its permission dialog only until the student declines it
   /// (once on iOS; on Android, until they decline it for good), and after
   /// that only the system settings can turn notifications on. So those are
@@ -448,34 +459,52 @@ class _NotificationSettingsBody extends ConsumerWidget {
   /// notifications are still off after it. A grant made there is picked up
   /// when the student comes back to the app (see
   /// `notificationPermissionResumeProvider`).
-  static Future<void> _turnOnNotifications(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final service = ref.read(notificationServiceProvider);
-    final l10n = AppLocalizations.of(context)!;
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _turnOnNotifications() async {
+    if (_inFlight) return;
+    _inFlight = true;
+    try {
+      final service = ref.read(notificationServiceProvider);
+      final l10n = AppLocalizations.of(context)!;
+      final messenger = ScaffoldMessenger.of(context);
 
-    if (await service.isPermissionPermanentlyDenied()) {
-      await service.openSystemNotificationSettings();
-      return;
-    }
+      if (await service.isPermissionPermanentlyDenied()) {
+        await service.openSystemNotificationSettings();
+        return;
+      }
 
-    // Reconciles this device itself when granted.
-    final granted = await service.requestPermission();
-    if (!context.mounted) return;
-    ref.invalidate(notificationStatusProvider);
-    if (granted) return;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(l10n.notificationsStillOffMessage),
-        action: SnackBarAction(
-          label: l10n.notificationsOpenSettingsAction,
-          onPressed: () => service.openSystemNotificationSettings(),
+      // Reconciles this device itself when granted.
+      final granted = await service.requestPermission();
+      if (!mounted) return;
+      ref.invalidate(notificationStatusProvider);
+      if (granted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.notificationsStillOffMessage),
+          action: SnackBarAction(
+            label: l10n.notificationsOpenSettingsAction,
+            onPressed: () => service.openSystemNotificationSettings(),
+          ),
         ),
-      ),
+      );
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return BisoListRow(
+      leading: const BisoIconTile(icon: CupertinoIcons.bell_slash),
+      title: l10n.notificationsTurnOnTitle,
+      subtitle: l10n.notificationsTurnOnSubtitle,
+      onTap: _turnOnNotifications,
     );
   }
+}
+
+class _NotificationSettingsBody extends ConsumerWidget {
+  const _NotificationSettingsBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -494,16 +523,6 @@ class _NotificationSettingsBody extends ConsumerWidget {
     final topics = topicIntentAsync.when(
       data: (intent) => BisoListGroup(
         children: [
-          // `general`, which every device that allows notifications joins
-          // whatever the student chooses below.
-          BisoListRow(
-            leading: const BisoIconTile(
-              icon: CupertinoIcons.speaker_2,
-              accent: BisoAccent.violet,
-            ),
-            title: l10n.notificationsImportantTitle,
-            subtitle: l10n.notificationsImportantSubtitle,
-          ),
           for (final topic in NotificationTopic.values)
             buildNotificationTile(
               icon: _topicIcon(topic),
@@ -590,19 +609,24 @@ class _NotificationSettingsBody extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (notificationsOff) ...[
-                BisoListGroup(
-                  children: [
-                    BisoListRow(
-                      leading: const BisoIconTile(icon: CupertinoIcons.bell_slash),
-                      title: l10n.notificationsTurnOnTitle,
-                      subtitle: l10n.notificationsTurnOnSubtitle,
-                      onTap: () => _turnOnNotifications(context, ref),
+              // Apart from the topic choices, which may still be loading or
+              // have failed to load: neither of these depends on them.
+              BisoListGroup(
+                children: [
+                  if (notificationsOff) const _TurnOnNotificationsRow(),
+                  // `general`, which every device that allows notifications
+                  // joins whatever the student chooses below.
+                  BisoListRow(
+                    leading: const BisoIconTile(
+                      icon: CupertinoIcons.speaker_2,
+                      accent: BisoAccent.violet,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-              ],
+                    title: l10n.notificationsImportantTitle,
+                    subtitle: l10n.notificationsImportantSubtitle,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               topics,
             ],
           ),
