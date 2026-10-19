@@ -11,7 +11,6 @@ import 'package:intl/intl.dart';
 
 import '../../../core/utils/expense_cost_types.dart';
 import '../../../core/utils/navigation_utils.dart';
-import '../../../generated/l10n/app_localizations.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/models/expense_v2_models.dart';
@@ -19,6 +18,7 @@ import '../../../data/models/user_model.dart';
 import '../../../data/services/expense_api_client.dart';
 import '../../../data/services/expense_intake_service.dart';
 import '../../../data/services/expense_service_v2.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/expense/expense_provider.dart';
@@ -98,6 +98,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _expenseService = ref.read(expenseServiceProvider);
     _apiClient = ref.read(expenseApiClientProvider);
     _draftExpenseId = widget.draftExpense?.id;
+    _submitterIsFinancialManager =
+        widget.draftExpense?.submitterIsFinancialManager ?? false;
     if (widget.intakeError != null) {
       _flowError = widget.intakeError;
       _mobileTabIndex = 1;

@@ -3,6 +3,32 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ExpenseModel', () {
+    test('reads the financial-manager flag and cost type from a saved draft', () {
+      final draft = ExpenseModel.fromMap({
+        '\$id': 'expense-3',
+        'userId': 'user-3',
+        'campus': '1',
+        'department': 'dept',
+        'total': 10,
+        'submitter_is_financial_manager': true,
+        'expenseAttachments': [
+          {'type': 'image/jpeg', 'cost_type': 'travel'},
+        ],
+      });
+      expect(draft.submitterIsFinancialManager, isTrue);
+      expect(draft.expenseAttachments.first.costType, 'travel');
+      expect(
+        ExpenseModel.fromMap({
+          '\$id': 'e',
+          'userId': 'u',
+          'campus': 'c',
+          'department': 'd',
+          'total': 0,
+        }).submitterIsFinancialManager,
+        isFalse,
+      );
+    });
+
     test('uses shared Norwegian account validation and formatting', () {
       const expense = ExpenseModel(
         id: 'expense-1',
