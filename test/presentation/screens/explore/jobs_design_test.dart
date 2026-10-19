@@ -1,12 +1,15 @@
+import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/job_model.dart';
 import 'package:biso/data/services/job_service.dart';
+import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/jobs_screen.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
+import 'package:biso/providers/jobs/jobs_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -121,105 +124,59 @@ void main() {
     expect(find.textContaining('p20 Title 0'), findsOneWidget);
   });
 
-  testWidgets(
-    'passing openJobId the way main.dart does opens the detail sheet for '
-    'that job',
-    (tester) async {
-      final jobs = [
-        JobModel(
-          id: 'job-1',
-          title: 'Event Crew Volunteer',
-          description: 'Help run campus events.',
-          departmentId: 'dept-1',
-          campusId: _campus.id,
+  testWidgets("tapping a job opens that job's page", (tester) async {
+    final jobs = [
+      JobModel(
+        id: 'job-1',
+        title: 'Event Crew Volunteer',
+        description: 'Help run campus events.',
+        departmentId: 'dept-1',
+        campusId: _campus.id,
+      ),
+      JobModel(
+        id: 'job-2',
+        title: 'Marketing Assistant',
+        description: 'Help with social media.',
+        departmentId: 'dept-1',
+        campusId: _campus.id,
+      ),
+    ];
+    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final router = GoRouter(
+      initialLocation: '/explore/volunteer',
+      routes: [
+        GoRoute(
+          path: '/explore/volunteer',
+          builder: (_, _) => const JobsScreen(),
+          routes: [
+            GoRoute(
+              path: ':jobId',
+              builder: (_, state) => Scaffold(
+                body: Text('Job page ${state.pathParameters['jobId']}'),
+              ),
+            ),
+          ],
         ),
-        JobModel(
-          id: 'job-2',
-          title: 'Marketing Assistant',
-          description: 'Help with social media.',
-          departmentId: 'dept-1',
-          campusId: _campus.id,
-        ),
-      ];
-
-      await pumpBisoScreen(
-        tester,
-        const JobsScreen(openJobId: 'job-2'),
-        routed: true,
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
         overrides: _overrides(_FixedJobService(jobs)),
-      );
-      await tester.pumpAndSettle();
+        child: MaterialApp.router(
+          theme: PremiumTheme.build(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Marketing Assistant'),
-        findsWidgets,
-        reason: 'the detail sheet for job-2 should have auto-opened, '
-            'showing its title alongside the list row behind it',
-      );
-      expect(
-        find.textContaining('Help with social media.'),
-        findsWidgets,
-        reason: 'the description appears in both the list row and the '
-            'detail sheet',
-      );
-    },
-  );
+    await tester.tap(find.textContaining('Marketing Assistant'));
+    await tester.pumpAndSettle();
 
-  testWidgets(
-    'the detail sheet shows the application deadline and tags when present',
-    (tester) async {
-      final deadline = DateTime.utc(2030, 6, 15, 12);
-      final job = JobModel(
-        id: 'job-deadline',
-        title: 'Logistics Volunteer',
-        description: 'Help with logistics.',
-        departmentId: 'dept-1',
-        campusId: _campus.id,
-        applicationDeadline: deadline,
-        tags: const ['Logistics', 'Events'],
-      );
-
-      await pumpBisoScreen(
-        tester,
-        const JobsScreen(openJobId: 'job-deadline'),
-        routed: true,
-        overrides: _overrides(_FixedJobService([job])),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Apply by'), findsOneWidget);
-      // Display-only formatting; deliberately not run through toLocal() in
-      // any comparison, per the comment on _JobDetailSheet.
-      expect(
-        find.text(DateFormat('MMM dd').format(deadline.toLocal())),
-        findsOneWidget,
-      );
-      expect(find.text('Logistics'), findsOneWidget);
-      expect(find.text('Events'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'the detail sheet shows no deadline row for a job with neither a '
-    'deadline nor tags',
-    (tester) async {
-      final job = JobModel(
-        id: 'job-plain',
-        title: 'Plain Volunteer Role',
-        description: 'No deadline, no tags.',
-        departmentId: 'dept-1',
-        campusId: _campus.id,
-      );
-
-      await pumpBisoScreen(
-        tester,
-        const JobsScreen(openJobId: 'job-plain'),
-        routed: true,
-        overrides: _overrides(_FixedJobService([job])),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Apply by'), findsNothing);
-    },
-  );
+    expect(find.text('Job page job-2'), findsOneWidget);
+  });
 }

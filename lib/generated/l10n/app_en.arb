@@ -3271,5 +3271,409 @@
   "membershipNeedsDirectoryRecordRetry": "Try again",
   "@membershipNeedsDirectoryRecordRetry": {
     "description": "Membership: web membership.join.needsDirectoryRecord.retry"
+  },
+  "jobPosition": "Position",
+  "@jobPosition": {
+    "description": "Jobs: page title of a vacancy, and its type when none is set (web: 'Position')"
+  },
+  "jobMembersOnly": "Members only",
+  "@jobMembersOnly": {
+    "description": "Jobs: badge on a members-only vacancy"
+  },
+  "jobPaidRole": "Paid role",
+  "@jobPaidRole": {
+    "description": "Jobs: web job detail 'Paid role'"
+  },
+  "jobVolunteerRole": "Volunteer role",
+  "@jobVolunteerRole": {
+    "description": "Jobs: web job detail 'Volunteer role'"
+  },
+  "jobApplyBy": "Apply by {date}",
+  "@jobApplyBy": {
+    "description": "Jobs: web job detail 'Apply by {deadline}'",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "15 November 2026"
+      }
+    }
+  },
+  "jobRollingDeadline": "Rolling",
+  "@jobRollingDeadline": {
+    "description": "Jobs: web job detail deadline when there is none"
+  },
+  "jobAboutVacancy": "About this vacancy",
+  "@jobAboutVacancy": {
+    "description": "Jobs: web job detail 'About this vacancy'"
+  },
+  "jobCommitment": "Commitment",
+  "@jobCommitment": {
+    "description": "Jobs: web job detail 'Commitment'"
+  },
+  "jobHours": "Hours",
+  "@jobHours": {
+    "description": "Jobs: web job detail commitment 'Hours'"
+  },
+  "jobTerm": "Term",
+  "@jobTerm": {
+    "description": "Jobs: web job detail commitment 'Term'"
+  },
+  "jobStartDate": "Start date",
+  "@jobStartDate": {
+    "description": "Jobs: web job detail commitment 'Start date'"
+  },
+  "jobVacancyDetails": "Vacancy details",
+  "@jobVacancyDetails": {
+    "description": "Jobs: web job detail 'Vacancy details'"
+  },
+  "jobEmployer": "Employer",
+  "@jobEmployer": {
+    "description": "Jobs: web job detail 'Employer'"
+  },
+  "jobDepartment": "Department",
+  "@jobDepartment": {
+    "description": "Jobs: web job detail 'Department'"
+  },
+  "jobLocation": "Location",
+  "@jobLocation": {
+    "description": "Jobs: web job detail 'Location'"
+  },
+  "jobCampus": "Campus",
+  "@jobCampus": {
+    "description": "Jobs: web job detail 'Campus'"
+  },
+  "jobContact": "Contact",
+  "@jobContact": {
+    "description": "Jobs: web job detail 'Contact'"
+  },
+  "jobYourData": "Your data",
+  "@jobYourData": {
+    "description": "Jobs: web job detail 'Your data'"
+  },
+  "jobYourDataBody": "BISO stores your application data solely for this recruitment process and deletes it after 180 days.",
+  "@jobYourDataBody": {
+    "description": "Jobs: web job detail GDPR notice"
+  },
+  "jobNotOpenTitle": "This position is no longer open",
+  "@jobNotOpenTitle": {
+    "description": "Jobs: a vacancy link that no longer resolves"
+  },
+  "jobNotOpenBody": "The deadline may have passed, or the position was taken down.",
+  "@jobNotOpenBody": {
+    "description": "Jobs: a vacancy link that no longer resolves"
+  },
+  "jobBrowseOpenPositions": "Browse open positions",
+  "@jobBrowseOpenPositions": {
+    "description": "Jobs: web /applications empty state 'Browse open positions'"
+  },
+  "jobApply": "Apply",
+  "@jobApply": {
+    "description": "Jobs: web apply form title 'Apply'"
+  },
+  "jobApplySignInMessage": "You need a signed-in BISO account to apply.",
+  "@jobApplySignInMessage": {
+    "description": "Jobs: web apply gate (signed out) message"
+  },
+  "jobApplySignInCta": "Sign in to apply",
+  "@jobApplySignInCta": {
+    "description": "Jobs: web apply gate (signed out) button"
+  },
+  "jobApplyMembersOnlyMessage": "This position is open to BISO members only. Become a member to apply.",
+  "@jobApplyMembersOnlyMessage": {
+    "description": "Jobs: web apply gate (members only) message"
+  },
+  "jobApplyBecomeMember": "Become a member",
+  "@jobApplyBecomeMember": {
+    "description": "Jobs: web apply gate (members only) button; no from common.navigation.becomeMember"
+  },
+  "jobApplyStepContact": "Contact",
+  "@jobApplyStepContact": {
+    "description": "Jobs: web apply step 'Contact'"
+  },
+  "jobApplyStepQuestions": "Questions",
+  "@jobApplyStepQuestions": {
+    "description": "Jobs: web apply step 'Questions'"
+  },
+  "jobApplyStepDocuments": "Documents",
+  "@jobApplyStepDocuments": {
+    "description": "Jobs: web apply step 'Documents'"
+  },
+  "jobApplyStepReview": "Review",
+  "@jobApplyStepReview": {
+    "description": "Jobs: web apply step 'Review'"
+  },
+  "jobApplyFullName": "Full name",
+  "@jobApplyFullName": {
+    "description": "Jobs: web apply 'Full name *'"
+  },
+  "jobApplyEmailVerified": "Verified via your BISO account",
+  "@jobApplyEmailVerified": {
+    "description": "Jobs: web apply hint under the email"
+  },
+  "jobApplyPhone": "Phone (optional)",
+  "@jobApplyPhone": {
+    "description": "Jobs: web apply 'Phone (optional)'"
+  },
+  "jobApplyCountryCode": "Country code",
+  "@jobApplyCountryCode": {
+    "description": "Jobs: web apply phone country code picker"
+  },
+  "jobApplyPhoneTooLong": "The phone number can be at most 20 characters.",
+  "@jobApplyPhoneTooLong": {
+    "description": "Jobs: server message for a phone number over 20 characters"
+  },
+  "jobApplyLinkedIn": "LinkedIn (optional)",
+  "@jobApplyLinkedIn": {
+    "description": "Jobs: web apply 'LinkedIn (optional)'"
+  },
+  "jobApplyCurrentRole": "Current role (optional)",
+  "@jobApplyCurrentRole": {
+    "description": "Jobs: web apply 'Current role (optional)'"
+  },
+  "jobApplyCurrentRoleHint": "Student, intern…",
+  "@jobApplyCurrentRoleHint": {
+    "description": "Jobs: web apply current role placeholder"
+  },
+  "jobApplyEmployer": "Employer / school (optional)",
+  "@jobApplyEmployer": {
+    "description": "Jobs: web apply 'Employer / school (optional)'"
+  },
+  "jobApplyQuestionsIntro": "A few questions from the hiring team.",
+  "@jobApplyQuestionsIntro": {
+    "description": "Jobs: web apply questions step intro"
+  },
+  "jobApplyYes": "Yes",
+  "@jobApplyYes": {
+    "description": "Jobs: web apply yes/no question checkbox"
+  },
+  "jobApplyCoverLetter": "Cover letter (required, PDF)",
+  "@jobApplyCoverLetter": {
+    "description": "Jobs: web apply 'Cover letter (required, PDF)'"
+  },
+  "jobApplyCoverLetterHelp": "Tell BISO why you're applying and what you'd bring. Max 5 MB, PDF only.",
+  "@jobApplyCoverLetterHelp": {
+    "description": "Jobs: web apply cover letter help"
+  },
+  "jobApplyCvRequired": "CV / Résumé (required, PDF)",
+  "@jobApplyCvRequired": {
+    "description": "Jobs: web apply CV label when required"
+  },
+  "jobApplyCvOptional": "CV / Résumé (optional, PDF)",
+  "@jobApplyCvOptional": {
+    "description": "Jobs: web apply CV label when optional"
+  },
+  "jobApplyFileHelp": "Max 5 MB, PDF only.",
+  "@jobApplyFileHelp": {
+    "description": "Jobs: web apply CV help"
+  },
+  "jobApplyChoosePdf": "Choose PDF",
+  "@jobApplyChoosePdf": {
+    "description": "Jobs: button that opens the file picker"
+  },
+  "jobApplyReplacePdf": "Replace",
+  "@jobApplyReplacePdf": {
+    "description": "Jobs: button that replaces a picked PDF"
+  },
+  "jobApplyRemovePdf": "Remove",
+  "@jobApplyRemovePdf": {
+    "description": "Jobs: button that removes a picked optional CV"
+  },
+  "jobApplySelectedFile": "Selected: {name} ({size} KB)",
+  "@jobApplySelectedFile": {
+    "description": "Jobs: web apply 'Selected: {name} ({size} KB)'",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "cv.pdf"
+      },
+      "size": {
+        "type": "String",
+        "example": "512"
+      }
+    }
+  },
+  "jobApplyNotPdf": "Only PDF files are allowed.",
+  "@jobApplyNotPdf": {
+    "description": "Jobs: web apply 'Only PDF files are allowed.'"
+  },
+  "jobApplyTooLarge": "File exceeds 5MB limit.",
+  "@jobApplyTooLarge": {
+    "description": "Jobs: web apply 'File exceeds 5MB limit.'"
+  },
+  "jobApplyTooLargeTogether": "Your CV and cover letter can be at most 9 MB together. Make one of them smaller and try again.",
+  "@jobApplyTooLargeTogether": {
+    "description": "Jobs: both PDFs over the 9 MB the upload can carry"
+  },
+  "jobApplyAvailability": "Interview availability (optional)",
+  "@jobApplyAvailability": {
+    "description": "Jobs: web apply 'Interview availability (optional)'"
+  },
+  "jobApplyAvailabilityHint": "Dates and times that generally work — one per line.",
+  "@jobApplyAvailabilityHint": {
+    "description": "Jobs: web apply availability placeholder"
+  },
+  "jobApplyAvailabilityHelp": "Helps HR suggest slots without back-and-forth emails.",
+  "@jobApplyAvailabilityHelp": {
+    "description": "Jobs: web apply availability help"
+  },
+  "jobApplyReviewApplication": "Review application",
+  "@jobApplyReviewApplication": {
+    "description": "Jobs: web apply 'Review application'"
+  },
+  "jobApplyName": "Name",
+  "@jobApplyName": {
+    "description": "Jobs: web apply review 'Name'"
+  },
+  "jobApplyCv": "CV",
+  "@jobApplyCv": {
+    "description": "Jobs: web apply review 'CV'"
+  },
+  "jobApplyCoverLetterLabel": "Cover letter",
+  "@jobApplyCoverLetterLabel": {
+    "description": "Jobs: web apply review 'Cover letter'"
+  },
+  "jobApplyConsent": "I consent to BISO processing my application data for this recruitment process. Data is retained for 180 days. An AI tool may help screen applications, with your name and contact details removed first; all decisions are made by people.",
+  "@jobApplyConsent": {
+    "description": "Jobs: web apply GDPR consent, verbatim"
+  },
+  "jobApplySubmit": "Submit application",
+  "@jobApplySubmit": {
+    "description": "Jobs: web apply 'Submit application'"
+  },
+  "jobApplySubmitting": "Submitting…",
+  "@jobApplySubmitting": {
+    "description": "Jobs: web apply 'Submitting…'"
+  },
+  "jobApplyNetworkError": "We could not reach BISO. Check your connection and try again.",
+  "@jobApplyNetworkError": {
+    "description": "Jobs: the application got no answer"
+  },
+  "jobApplySuccessTitle": "Application submitted!",
+  "@jobApplySuccessTitle": {
+    "description": "Jobs: web apply 'Application submitted!'"
+  },
+  "jobApplySuccessBody": "We'll review your application and be in touch at {email}.",
+  "@jobApplySuccessBody": {
+    "description": "Jobs: web apply success message",
+    "placeholders": {
+      "email": {
+        "type": "String",
+        "example": "kari@bi.no"
+      }
+    }
+  },
+  "jobApplyViewMyApplications": "View my applications",
+  "@jobApplyViewMyApplications": {
+    "description": "Jobs: web apply 'View my applications'"
+  },
+  "myApplicationsTitle": "My applications",
+  "@myApplicationsTitle": {
+    "description": "My applications: title; no from common.navigation.account.myApplications"
+  },
+  "myApplicationsIntro": "See the status of every BISO position you've applied for, plus any upcoming interview details.",
+  "@myApplicationsIntro": {
+    "description": "My applications: web intro"
+  },
+  "myApplicationsEmptyTitle": "No applications yet",
+  "@myApplicationsEmptyTitle": {
+    "description": "My applications: web empty state title"
+  },
+  "myApplicationsEmptyBody": "When you apply for a BISO vacancy, it'll show up here so you can track its progress and interview times.",
+  "@myApplicationsEmptyBody": {
+    "description": "My applications: web empty state body"
+  },
+  "myApplicationsSignIn": "Sign in to see your applications",
+  "@myApplicationsSignIn": {
+    "description": "My applications: signed out"
+  },
+  "myApplicationsLoadFailed": "We could not load your applications.",
+  "@myApplicationsLoadFailed": {
+    "description": "My applications: load failed"
+  },
+  "applicationStatusSubmitted": "Submitted",
+  "@applicationStatusSubmitted": {
+    "description": "My applications: status submitted"
+  },
+  "applicationStatusReviewed": "Reviewed",
+  "@applicationStatusReviewed": {
+    "description": "My applications: status reviewed"
+  },
+  "applicationStatusInterview": "Interview",
+  "@applicationStatusInterview": {
+    "description": "My applications: status interview"
+  },
+  "applicationStatusAccepted": "Accepted",
+  "@applicationStatusAccepted": {
+    "description": "My applications: status accepted"
+  },
+  "applicationStatusRejected": "Not selected",
+  "@applicationStatusRejected": {
+    "description": "My applications: status rejected (web 'Not selected')"
+  },
+  "myApplicationsVacancy": "Vacancy",
+  "@myApplicationsVacancy": {
+    "description": "My applications: title when the vacancy is gone"
+  },
+  "myApplicationsApplied": "Applied {date}",
+  "@myApplicationsApplied": {
+    "description": "My applications: web 'Applied {date}'",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "1 Oct 2026, 10:00"
+      }
+    }
+  },
+  "myApplicationsReviewer": "Reviewer: {name}",
+  "@myApplicationsReviewer": {
+    "description": "My applications: web 'Reviewer: {name}'",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Ola Nordmann"
+      }
+    }
+  },
+  "myApplicationsViewVacancy": "View vacancy",
+  "@myApplicationsViewVacancy": {
+    "description": "My applications: web 'View vacancy'"
+  },
+  "myApplicationsUpcomingInterview": "Upcoming interview · {title}",
+  "@myApplicationsUpcomingInterview": {
+    "description": "My applications: web 'Upcoming interview · {title}'",
+    "placeholders": {
+      "title": {
+        "type": "String",
+        "example": "First interview"
+      }
+    }
+  },
+  "myApplicationsTbd": "TBD",
+  "@myApplicationsTbd": {
+    "description": "My applications: web interview time not set"
+  },
+  "myApplicationsJoinMeeting": "Join meeting",
+  "@myApplicationsJoinMeeting": {
+    "description": "My applications: web 'Join meeting'"
+  },
+  "myApplicationsYourAnswers": "Your answers ({count})",
+  "@myApplicationsYourAnswers": {
+    "description": "My applications: web 'Your answers ({count})'",
+    "placeholders": {
+      "count": {
+        "type": "String",
+        "example": "3"
+      }
+    }
+  },
+  "myApplicationsStoredUntil": "Stored until {date}",
+  "@myApplicationsStoredUntil": {
+    "description": "My applications: web 'Stored until {date}'",
+    "placeholders": {
+      "date": {
+        "type": "String",
+        "example": "30 March 2027"
+      }
+    }
   }
 }

@@ -4556,6 +4556,534 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try again'**
   String get membershipNeedsDirectoryRecordRetry;
+
+  /// Jobs: page title of a vacancy, and its type when none is set (web: 'Position')
+  ///
+  /// In en, this message translates to:
+  /// **'Position'**
+  String get jobPosition;
+
+  /// Jobs: badge on a members-only vacancy
+  ///
+  /// In en, this message translates to:
+  /// **'Members only'**
+  String get jobMembersOnly;
+
+  /// Jobs: web job detail 'Paid role'
+  ///
+  /// In en, this message translates to:
+  /// **'Paid role'**
+  String get jobPaidRole;
+
+  /// Jobs: web job detail 'Volunteer role'
+  ///
+  /// In en, this message translates to:
+  /// **'Volunteer role'**
+  String get jobVolunteerRole;
+
+  /// Jobs: web job detail 'Apply by {deadline}'
+  ///
+  /// In en, this message translates to:
+  /// **'Apply by {date}'**
+  String jobApplyBy(String date);
+
+  /// Jobs: web job detail deadline when there is none
+  ///
+  /// In en, this message translates to:
+  /// **'Rolling'**
+  String get jobRollingDeadline;
+
+  /// Jobs: web job detail 'About this vacancy'
+  ///
+  /// In en, this message translates to:
+  /// **'About this vacancy'**
+  String get jobAboutVacancy;
+
+  /// Jobs: web job detail 'Commitment'
+  ///
+  /// In en, this message translates to:
+  /// **'Commitment'**
+  String get jobCommitment;
+
+  /// Jobs: web job detail commitment 'Hours'
+  ///
+  /// In en, this message translates to:
+  /// **'Hours'**
+  String get jobHours;
+
+  /// Jobs: web job detail commitment 'Term'
+  ///
+  /// In en, this message translates to:
+  /// **'Term'**
+  String get jobTerm;
+
+  /// Jobs: web job detail commitment 'Start date'
+  ///
+  /// In en, this message translates to:
+  /// **'Start date'**
+  String get jobStartDate;
+
+  /// Jobs: web job detail 'Vacancy details'
+  ///
+  /// In en, this message translates to:
+  /// **'Vacancy details'**
+  String get jobVacancyDetails;
+
+  /// Jobs: web job detail 'Employer'
+  ///
+  /// In en, this message translates to:
+  /// **'Employer'**
+  String get jobEmployer;
+
+  /// Jobs: web job detail 'Department'
+  ///
+  /// In en, this message translates to:
+  /// **'Department'**
+  String get jobDepartment;
+
+  /// Jobs: web job detail 'Location'
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get jobLocation;
+
+  /// Jobs: web job detail 'Campus'
+  ///
+  /// In en, this message translates to:
+  /// **'Campus'**
+  String get jobCampus;
+
+  /// Jobs: web job detail 'Contact'
+  ///
+  /// In en, this message translates to:
+  /// **'Contact'**
+  String get jobContact;
+
+  /// Jobs: web job detail 'Your data'
+  ///
+  /// In en, this message translates to:
+  /// **'Your data'**
+  String get jobYourData;
+
+  /// Jobs: web job detail GDPR notice
+  ///
+  /// In en, this message translates to:
+  /// **'BISO stores your application data solely for this recruitment process and deletes it after 180 days.'**
+  String get jobYourDataBody;
+
+  /// Jobs: a vacancy link that no longer resolves
+  ///
+  /// In en, this message translates to:
+  /// **'This position is no longer open'**
+  String get jobNotOpenTitle;
+
+  /// Jobs: a vacancy link that no longer resolves
+  ///
+  /// In en, this message translates to:
+  /// **'The deadline may have passed, or the position was taken down.'**
+  String get jobNotOpenBody;
+
+  /// Jobs: web /applications empty state 'Browse open positions'
+  ///
+  /// In en, this message translates to:
+  /// **'Browse open positions'**
+  String get jobBrowseOpenPositions;
+
+  /// Jobs: web apply form title 'Apply'
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get jobApply;
+
+  /// Jobs: web apply gate (signed out) message
+  ///
+  /// In en, this message translates to:
+  /// **'You need a signed-in BISO account to apply.'**
+  String get jobApplySignInMessage;
+
+  /// Jobs: web apply gate (signed out) button
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to apply'**
+  String get jobApplySignInCta;
+
+  /// Jobs: web apply gate (members only) message
+  ///
+  /// In en, this message translates to:
+  /// **'This position is open to BISO members only. Become a member to apply.'**
+  String get jobApplyMembersOnlyMessage;
+
+  /// Jobs: web apply gate (members only) button; no from common.navigation.becomeMember
+  ///
+  /// In en, this message translates to:
+  /// **'Become a member'**
+  String get jobApplyBecomeMember;
+
+  /// Jobs: web apply step 'Contact'
+  ///
+  /// In en, this message translates to:
+  /// **'Contact'**
+  String get jobApplyStepContact;
+
+  /// Jobs: web apply step 'Questions'
+  ///
+  /// In en, this message translates to:
+  /// **'Questions'**
+  String get jobApplyStepQuestions;
+
+  /// Jobs: web apply step 'Documents'
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get jobApplyStepDocuments;
+
+  /// Jobs: web apply step 'Review'
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get jobApplyStepReview;
+
+  /// Jobs: web apply 'Full name *'
+  ///
+  /// In en, this message translates to:
+  /// **'Full name'**
+  String get jobApplyFullName;
+
+  /// Jobs: web apply hint under the email
+  ///
+  /// In en, this message translates to:
+  /// **'Verified via your BISO account'**
+  String get jobApplyEmailVerified;
+
+  /// Jobs: web apply 'Phone (optional)'
+  ///
+  /// In en, this message translates to:
+  /// **'Phone (optional)'**
+  String get jobApplyPhone;
+
+  /// Jobs: web apply phone country code picker
+  ///
+  /// In en, this message translates to:
+  /// **'Country code'**
+  String get jobApplyCountryCode;
+
+  /// Jobs: server message for a phone number over 20 characters
+  ///
+  /// In en, this message translates to:
+  /// **'The phone number can be at most 20 characters.'**
+  String get jobApplyPhoneTooLong;
+
+  /// Jobs: web apply 'LinkedIn (optional)'
+  ///
+  /// In en, this message translates to:
+  /// **'LinkedIn (optional)'**
+  String get jobApplyLinkedIn;
+
+  /// Jobs: web apply 'Current role (optional)'
+  ///
+  /// In en, this message translates to:
+  /// **'Current role (optional)'**
+  String get jobApplyCurrentRole;
+
+  /// Jobs: web apply current role placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Student, intern…'**
+  String get jobApplyCurrentRoleHint;
+
+  /// Jobs: web apply 'Employer / school (optional)'
+  ///
+  /// In en, this message translates to:
+  /// **'Employer / school (optional)'**
+  String get jobApplyEmployer;
+
+  /// Jobs: web apply questions step intro
+  ///
+  /// In en, this message translates to:
+  /// **'A few questions from the hiring team.'**
+  String get jobApplyQuestionsIntro;
+
+  /// Jobs: web apply yes/no question checkbox
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get jobApplyYes;
+
+  /// Jobs: web apply 'Cover letter (required, PDF)'
+  ///
+  /// In en, this message translates to:
+  /// **'Cover letter (required, PDF)'**
+  String get jobApplyCoverLetter;
+
+  /// Jobs: web apply cover letter help
+  ///
+  /// In en, this message translates to:
+  /// **'Tell BISO why you\'re applying and what you\'d bring. Max 5 MB, PDF only.'**
+  String get jobApplyCoverLetterHelp;
+
+  /// Jobs: web apply CV label when required
+  ///
+  /// In en, this message translates to:
+  /// **'CV / Résumé (required, PDF)'**
+  String get jobApplyCvRequired;
+
+  /// Jobs: web apply CV label when optional
+  ///
+  /// In en, this message translates to:
+  /// **'CV / Résumé (optional, PDF)'**
+  String get jobApplyCvOptional;
+
+  /// Jobs: web apply CV help
+  ///
+  /// In en, this message translates to:
+  /// **'Max 5 MB, PDF only.'**
+  String get jobApplyFileHelp;
+
+  /// Jobs: button that opens the file picker
+  ///
+  /// In en, this message translates to:
+  /// **'Choose PDF'**
+  String get jobApplyChoosePdf;
+
+  /// Jobs: button that replaces a picked PDF
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get jobApplyReplacePdf;
+
+  /// Jobs: button that removes a picked optional CV
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get jobApplyRemovePdf;
+
+  /// Jobs: web apply 'Selected: {name} ({size} KB)'
+  ///
+  /// In en, this message translates to:
+  /// **'Selected: {name} ({size} KB)'**
+  String jobApplySelectedFile(String name, String size);
+
+  /// Jobs: web apply 'Only PDF files are allowed.'
+  ///
+  /// In en, this message translates to:
+  /// **'Only PDF files are allowed.'**
+  String get jobApplyNotPdf;
+
+  /// Jobs: web apply 'File exceeds 5MB limit.'
+  ///
+  /// In en, this message translates to:
+  /// **'File exceeds 5MB limit.'**
+  String get jobApplyTooLarge;
+
+  /// Jobs: both PDFs over the 9 MB the upload can carry
+  ///
+  /// In en, this message translates to:
+  /// **'Your CV and cover letter can be at most 9 MB together. Make one of them smaller and try again.'**
+  String get jobApplyTooLargeTogether;
+
+  /// Jobs: web apply 'Interview availability (optional)'
+  ///
+  /// In en, this message translates to:
+  /// **'Interview availability (optional)'**
+  String get jobApplyAvailability;
+
+  /// Jobs: web apply availability placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Dates and times that generally work — one per line.'**
+  String get jobApplyAvailabilityHint;
+
+  /// Jobs: web apply availability help
+  ///
+  /// In en, this message translates to:
+  /// **'Helps HR suggest slots without back-and-forth emails.'**
+  String get jobApplyAvailabilityHelp;
+
+  /// Jobs: web apply 'Review application'
+  ///
+  /// In en, this message translates to:
+  /// **'Review application'**
+  String get jobApplyReviewApplication;
+
+  /// Jobs: web apply review 'Name'
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get jobApplyName;
+
+  /// Jobs: web apply review 'CV'
+  ///
+  /// In en, this message translates to:
+  /// **'CV'**
+  String get jobApplyCv;
+
+  /// Jobs: web apply review 'Cover letter'
+  ///
+  /// In en, this message translates to:
+  /// **'Cover letter'**
+  String get jobApplyCoverLetterLabel;
+
+  /// Jobs: web apply GDPR consent, verbatim
+  ///
+  /// In en, this message translates to:
+  /// **'I consent to BISO processing my application data for this recruitment process. Data is retained for 180 days. An AI tool may help screen applications, with your name and contact details removed first; all decisions are made by people.'**
+  String get jobApplyConsent;
+
+  /// Jobs: web apply 'Submit application'
+  ///
+  /// In en, this message translates to:
+  /// **'Submit application'**
+  String get jobApplySubmit;
+
+  /// Jobs: web apply 'Submitting…'
+  ///
+  /// In en, this message translates to:
+  /// **'Submitting…'**
+  String get jobApplySubmitting;
+
+  /// Jobs: the application got no answer
+  ///
+  /// In en, this message translates to:
+  /// **'We could not reach BISO. Check your connection and try again.'**
+  String get jobApplyNetworkError;
+
+  /// Jobs: web apply 'Application submitted!'
+  ///
+  /// In en, this message translates to:
+  /// **'Application submitted!'**
+  String get jobApplySuccessTitle;
+
+  /// Jobs: web apply success message
+  ///
+  /// In en, this message translates to:
+  /// **'We\'ll review your application and be in touch at {email}.'**
+  String jobApplySuccessBody(String email);
+
+  /// Jobs: web apply 'View my applications'
+  ///
+  /// In en, this message translates to:
+  /// **'View my applications'**
+  String get jobApplyViewMyApplications;
+
+  /// My applications: title; no from common.navigation.account.myApplications
+  ///
+  /// In en, this message translates to:
+  /// **'My applications'**
+  String get myApplicationsTitle;
+
+  /// My applications: web intro
+  ///
+  /// In en, this message translates to:
+  /// **'See the status of every BISO position you\'ve applied for, plus any upcoming interview details.'**
+  String get myApplicationsIntro;
+
+  /// My applications: web empty state title
+  ///
+  /// In en, this message translates to:
+  /// **'No applications yet'**
+  String get myApplicationsEmptyTitle;
+
+  /// My applications: web empty state body
+  ///
+  /// In en, this message translates to:
+  /// **'When you apply for a BISO vacancy, it\'ll show up here so you can track its progress and interview times.'**
+  String get myApplicationsEmptyBody;
+
+  /// My applications: signed out
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to see your applications'**
+  String get myApplicationsSignIn;
+
+  /// My applications: load failed
+  ///
+  /// In en, this message translates to:
+  /// **'We could not load your applications.'**
+  String get myApplicationsLoadFailed;
+
+  /// My applications: status submitted
+  ///
+  /// In en, this message translates to:
+  /// **'Submitted'**
+  String get applicationStatusSubmitted;
+
+  /// My applications: status reviewed
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewed'**
+  String get applicationStatusReviewed;
+
+  /// My applications: status interview
+  ///
+  /// In en, this message translates to:
+  /// **'Interview'**
+  String get applicationStatusInterview;
+
+  /// My applications: status accepted
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted'**
+  String get applicationStatusAccepted;
+
+  /// My applications: status rejected (web 'Not selected')
+  ///
+  /// In en, this message translates to:
+  /// **'Not selected'**
+  String get applicationStatusRejected;
+
+  /// My applications: title when the vacancy is gone
+  ///
+  /// In en, this message translates to:
+  /// **'Vacancy'**
+  String get myApplicationsVacancy;
+
+  /// My applications: web 'Applied {date}'
+  ///
+  /// In en, this message translates to:
+  /// **'Applied {date}'**
+  String myApplicationsApplied(String date);
+
+  /// My applications: web 'Reviewer: {name}'
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewer: {name}'**
+  String myApplicationsReviewer(String name);
+
+  /// My applications: web 'View vacancy'
+  ///
+  /// In en, this message translates to:
+  /// **'View vacancy'**
+  String get myApplicationsViewVacancy;
+
+  /// My applications: web 'Upcoming interview · {title}'
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming interview · {title}'**
+  String myApplicationsUpcomingInterview(String title);
+
+  /// My applications: web interview time not set
+  ///
+  /// In en, this message translates to:
+  /// **'TBD'**
+  String get myApplicationsTbd;
+
+  /// My applications: web 'Join meeting'
+  ///
+  /// In en, this message translates to:
+  /// **'Join meeting'**
+  String get myApplicationsJoinMeeting;
+
+  /// My applications: web 'Your answers ({count})'
+  ///
+  /// In en, this message translates to:
+  /// **'Your answers ({count})'**
+  String myApplicationsYourAnswers(String count);
+
+  /// My applications: web 'Stored until {date}'
+  ///
+  /// In en, this message translates to:
+  /// **'Stored until {date}'**
+  String myApplicationsStoredUntil(String date);
 }
 
 class _AppLocalizationsDelegate

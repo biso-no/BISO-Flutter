@@ -2491,4 +2491,297 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get membershipNeedsDirectoryRecordRetry => 'Prøv igjen';
+
+  @override
+  String get jobPosition => 'Stilling';
+
+  @override
+  String get jobMembersOnly => 'Kun for medlemmer';
+
+  @override
+  String get jobPaidRole => 'Betalt stilling';
+
+  @override
+  String get jobVolunteerRole => 'Frivillig verv';
+
+  @override
+  String jobApplyBy(String date) {
+    return 'Søk innen $date';
+  }
+
+  @override
+  String get jobRollingDeadline => 'Løpende';
+
+  @override
+  String get jobAboutVacancy => 'Om stillingen';
+
+  @override
+  String get jobCommitment => 'Omfang';
+
+  @override
+  String get jobHours => 'Timer';
+
+  @override
+  String get jobTerm => 'Periode';
+
+  @override
+  String get jobStartDate => 'Oppstart';
+
+  @override
+  String get jobVacancyDetails => 'Detaljer om stillingen';
+
+  @override
+  String get jobEmployer => 'Arbeidsgiver';
+
+  @override
+  String get jobDepartment => 'Avdeling';
+
+  @override
+  String get jobLocation => 'Sted';
+
+  @override
+  String get jobCampus => 'Campus';
+
+  @override
+  String get jobContact => 'Kontakt';
+
+  @override
+  String get jobYourData => 'Dine data';
+
+  @override
+  String get jobYourDataBody =>
+      'BISO lagrer søknadsdataene dine kun for denne rekrutteringsprosessen og sletter dem etter 180 dager.';
+
+  @override
+  String get jobNotOpenTitle => 'Denne stillingen er ikke lenger åpen';
+
+  @override
+  String get jobNotOpenBody =>
+      'Fristen kan ha gått ut, eller stillingen er tatt ned.';
+
+  @override
+  String get jobBrowseOpenPositions => 'Se ledige stillinger';
+
+  @override
+  String get jobApply => 'Søk';
+
+  @override
+  String get jobApplySignInMessage =>
+      'Du må være logget inn med en BISO-konto for å søke.';
+
+  @override
+  String get jobApplySignInCta => 'Logg inn for å søke';
+
+  @override
+  String get jobApplyMembersOnlyMessage =>
+      'Denne stillingen er kun åpen for BISO-medlemmer. Bli medlem for å søke.';
+
+  @override
+  String get jobApplyBecomeMember => 'Bli medlem';
+
+  @override
+  String get jobApplyStepContact => 'Kontakt';
+
+  @override
+  String get jobApplyStepQuestions => 'Spørsmål';
+
+  @override
+  String get jobApplyStepDocuments => 'Dokumenter';
+
+  @override
+  String get jobApplyStepReview => 'Se over';
+
+  @override
+  String get jobApplyFullName => 'Fullt navn';
+
+  @override
+  String get jobApplyEmailVerified => 'Bekreftet via BISO-kontoen din';
+
+  @override
+  String get jobApplyPhone => 'Telefon (valgfritt)';
+
+  @override
+  String get jobApplyCountryCode => 'Landskode';
+
+  @override
+  String get jobApplyPhoneTooLong => 'Telefonnummeret kan være maks 20 tegn.';
+
+  @override
+  String get jobApplyLinkedIn => 'LinkedIn (valgfritt)';
+
+  @override
+  String get jobApplyCurrentRole => 'Nåværende rolle (valgfritt)';
+
+  @override
+  String get jobApplyCurrentRoleHint => 'Student, praktikant…';
+
+  @override
+  String get jobApplyEmployer => 'Arbeidsgiver / skole (valgfritt)';
+
+  @override
+  String get jobApplyQuestionsIntro => 'Noen spørsmål fra rekrutteringsteamet.';
+
+  @override
+  String get jobApplyYes => 'Ja';
+
+  @override
+  String get jobApplyCoverLetter => 'Søknadsbrev (påkrevd, PDF)';
+
+  @override
+  String get jobApplyCoverLetterHelp =>
+      'Fortell BISO hvorfor du søker og hva du kan bidra med. Maks 5 MB, kun PDF.';
+
+  @override
+  String get jobApplyCvRequired => 'CV (påkrevd, PDF)';
+
+  @override
+  String get jobApplyCvOptional => 'CV (valgfritt, PDF)';
+
+  @override
+  String get jobApplyFileHelp => 'Maks 5 MB, kun PDF.';
+
+  @override
+  String get jobApplyChoosePdf => 'Velg PDF';
+
+  @override
+  String get jobApplyReplacePdf => 'Bytt';
+
+  @override
+  String get jobApplyRemovePdf => 'Fjern';
+
+  @override
+  String jobApplySelectedFile(String name, String size) {
+    return 'Valgt: $name ($size KB)';
+  }
+
+  @override
+  String get jobApplyNotPdf => 'Kun PDF-filer er tillatt.';
+
+  @override
+  String get jobApplyTooLarge => 'Filen er større enn 5 MB.';
+
+  @override
+  String get jobApplyTooLargeTogether =>
+      'CV og søknadsbrev kan til sammen være maks 9 MB. Gjør en av dem mindre og prøv igjen.';
+
+  @override
+  String get jobApplyAvailability => 'Tilgjengelighet for intervju (valgfritt)';
+
+  @override
+  String get jobApplyAvailabilityHint =>
+      'Datoer og tidspunkter som vanligvis passer – ett per linje.';
+
+  @override
+  String get jobApplyAvailabilityHelp =>
+      'Hjelper HR å foreslå tidspunkter uten frem og tilbake på e-post.';
+
+  @override
+  String get jobApplyReviewApplication => 'Se over søknaden';
+
+  @override
+  String get jobApplyName => 'Navn';
+
+  @override
+  String get jobApplyCv => 'CV';
+
+  @override
+  String get jobApplyCoverLetterLabel => 'Søknadsbrev';
+
+  @override
+  String get jobApplyConsent =>
+      'Jeg samtykker til at BISO behandler søknadsdataene mine i denne rekrutteringsprosessen. Dataene lagres i 180 dager. Et AI-verktøy kan hjelpe med å vurdere søknader, etter at navn og kontaktinformasjon er fjernet; alle beslutninger tas av mennesker.';
+
+  @override
+  String get jobApplySubmit => 'Send søknad';
+
+  @override
+  String get jobApplySubmitting => 'Sender…';
+
+  @override
+  String get jobApplyNetworkError =>
+      'Vi fikk ikke kontakt med BISO. Sjekk tilkoblingen og prøv igjen.';
+
+  @override
+  String get jobApplySuccessTitle => 'Søknaden er sendt!';
+
+  @override
+  String jobApplySuccessBody(String email) {
+    return 'Vi går gjennom søknaden din og tar kontakt på $email.';
+  }
+
+  @override
+  String get jobApplyViewMyApplications => 'Se søknadene mine';
+
+  @override
+  String get myApplicationsTitle => 'Mine søknader';
+
+  @override
+  String get myApplicationsIntro =>
+      'Se status for alle BISO-stillinger du har søkt på, og detaljer om kommende intervjuer.';
+
+  @override
+  String get myApplicationsEmptyTitle => 'Ingen søknader ennå';
+
+  @override
+  String get myApplicationsEmptyBody =>
+      'Når du søker på en stilling i BISO, dukker den opp her, slik at du kan følge med på status og intervjutider.';
+
+  @override
+  String get myApplicationsSignIn => 'Logg inn for å se søknadene dine';
+
+  @override
+  String get myApplicationsLoadFailed =>
+      'Vi kunne ikke laste inn søknadene dine.';
+
+  @override
+  String get applicationStatusSubmitted => 'Sendt';
+
+  @override
+  String get applicationStatusReviewed => 'Vurdert';
+
+  @override
+  String get applicationStatusInterview => 'Intervju';
+
+  @override
+  String get applicationStatusAccepted => 'Akseptert';
+
+  @override
+  String get applicationStatusRejected => 'Ikke valgt';
+
+  @override
+  String get myApplicationsVacancy => 'Stilling';
+
+  @override
+  String myApplicationsApplied(String date) {
+    return 'Søkt $date';
+  }
+
+  @override
+  String myApplicationsReviewer(String name) {
+    return 'Saksbehandler: $name';
+  }
+
+  @override
+  String get myApplicationsViewVacancy => 'Se stillingen';
+
+  @override
+  String myApplicationsUpcomingInterview(String title) {
+    return 'Kommende intervju · $title';
+  }
+
+  @override
+  String get myApplicationsTbd => 'Ikke avklart';
+
+  @override
+  String get myApplicationsJoinMeeting => 'Bli med i møtet';
+
+  @override
+  String myApplicationsYourAnswers(String count) {
+    return 'Dine svar ($count)';
+  }
+
+  @override
+  String myApplicationsStoredUntil(String date) {
+    return 'Lagres til $date';
+  }
 }

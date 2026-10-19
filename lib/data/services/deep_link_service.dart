@@ -48,6 +48,17 @@ String? magicLinkRouteFor(Uri uri) {
   ).toString();
 }
 
+/// The in-app route for a vacancy link: `biso://job?id=<id>`, or
+/// `https://biso.no/app/jobs/<slug>`. The detail screen reads either an id or
+/// a slug. Without one, the list of vacancies.
+@visibleForTesting
+String jobRouteFor(String? idOrSlug) {
+  final key = idOrSlug?.trim() ?? '';
+  return key.isEmpty
+      ? '/explore/volunteer'
+      : '/explore/volunteer/${Uri.encodeComponent(key)}';
+}
+
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
@@ -181,7 +192,7 @@ class DeepLinkService {
         break;
       case 'jobs':
       case 'volunteer':
-        _go('/explore/volunteer');
+        _go(jobRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
         break;
       case 'expenses':
       case 'expense':
@@ -317,20 +328,8 @@ class DeepLinkService {
   /// Handle job deep links
   void _handleJobDeepLink(Uri uri) {
     final jobId = uri.queryParameters['id'];
-
     logPrint('🔗 Job deep link - ID: $jobId');
-
-    if (jobId != null) {
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        // Navigate to jobs screen and then open the job modal
-        context.go('/explore/volunteer', extra: {'openJobId': jobId});
-      } else {
-        logPrint('🔴 No navigation context available for job deep link');
-      }
-    } else {
-      _go('/explore/volunteer');
-    }
+    _go(jobRouteFor(jobId));
   }
 
   /// Handle expense deep links

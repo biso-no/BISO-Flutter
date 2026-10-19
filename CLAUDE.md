@@ -679,10 +679,20 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Spec**: `docs/superpowers/specs/2026-09-17-member-pass-and-scanner-design.md`.
 
 #### 💼 Jobs/Volunteer Board
-- **Opportunity Listings**: Browse available positions
-- **Job Details**: Requirements, descriptions, and application info
-- **Campus Integration**: Shows opportunities by campus
-- **Location**: `lib/presentation/screens/explore/jobs_screen.dart`
+- **Opportunity Listings**: Browse available positions by campus
+  (`lib/presentation/screens/explore/jobs_screen.dart`).
+- **Job page and applying**: `lib/presentation/screens/jobs/`. The detail page
+  reads one open vacancy by slug or id (`JobService.getJob`); applying follows
+  the web form's steps and posts to `apps/api` `POST /api/recruitment/applications`
+  (`RecruitmentApiClient`, multipart, each PDF part `application/pdf`). Members-only
+  vacancies gate on `hasValidMembershipProvider`; the server decides. The client
+  refuses a CV and cover letter over 9 MB together (the API proxy caps bodies at
+  10 MB).
+- **My applications**: `GET /api/recruitment/applications`, shown at
+  `/profile/applications`.
+- **Routes**: `/explore/volunteer`, `/explore/volunteer/:jobId` (id or slug),
+  `/explore/volunteer/:jobId/apply`, `/profile/applications`. Links:
+  `biso://job?id=<id>` and `https://biso.no/app/jobs/<slug>`.
 
 #### 💰 Expense Reimbursement System
 - **Multi-Step Form**: 5-step process with validation

@@ -1,35 +1,26 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/logging/app_logger.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/job_model.dart';
-import '../../../data/services/job_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/jobs/jobs_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
-// Injectable seam for tests (offline fakes), same runtime behavior as the
-// inline `JobService()` construction it replaces. `_jobsProvider` (were one
-// to exist) and this screen watch/read this instead of constructing the
-// service directly.
-final jobServiceProvider = Provider<JobService>((ref) => JobService());
-
 class JobsScreen extends ConsumerStatefulWidget {
-  final String? openJobId;
-  const JobsScreen({super.key, this.openJobId});
+  const JobsScreen({super.key});
 
   @override
   ConsumerState<JobsScreen> createState() => _JobsScreenState();
 }
 
 class _JobsScreenState extends ConsumerState<JobsScreen> {
-  bool _pendingAutoOpen = true;
-
   // Paging state
   final ScrollController _scrollController = ScrollController();
   final List<JobModel> _jobs = [];
@@ -180,23 +171,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
           'sample_ids': items.take(3).map((job) => job.id).toList(),
         },
       );
-      // Auto-open after first batch
-      if (_pendingAutoOpen && widget.openJobId != null && _jobs.isNotEmpty) {
-        final matches = _jobs
-            .where((j) => j.id.toString() == widget.openJobId)
-            .toList(growable: false);
-        if (matches.isNotEmpty) {
-          _pendingAutoOpen = false;
-          final jobToOpen = matches.first;
-          AppLogger.info(
-            '[JOBS_SCREEN] Auto-opening requested job',
-            extra: {'job_id': widget.openJobId, 'campus_id': campusId},
-          );
-          Future.microtask(() {
-            if (mounted) _showJobDetails(context, jobToOpen);
-          });
-        }
-      }
     } catch (error, stackTrace) {
       stopwatch.stop();
       AppLogger.error(
@@ -255,7 +229,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
       '[JOBS_SCREEN] Reload requested',
       extra: {'loaded_for_campus_id': _loadedForCampusId},
     );
-    _pendingAutoOpen = true;
     await _fetchPage(page: 1, replace: true);
     _currentPage = 1;
   }
@@ -333,7 +306,9 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
                   final job = _jobs[index];
                   return _JobRow(
                     job: job,
-                    onTap: () => _showJobDetails(context, job),
+                    onTap: () => context.push(
+                      '/explore/volunteer/${Uri.encodeComponent(job.id)}',
+                    ),
                   );
                 },
               ),
@@ -372,21 +347,6 @@ class _JobsScreenState extends ConsumerState<JobsScreen> {
     } else {
       AppLogger.info('[JOBS_SCREEN] Rendering loaded jobs', extra: extra);
     }
-  }
-
-  void _showJobDetails(BuildContext context, JobModel job) {
-    showBisoSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) =>
-            _JobDetailSheet(job: job, scrollController: scrollController),
-      ),
-    );
   }
 }
 
@@ -451,114 +411,6 @@ class _JobRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _JobDetailSheet extends StatelessWidget {
-  final JobModel job;
-  final ScrollController scrollController;
-
-  const _JobDetailSheet({required this.job, required this.scrollController});
-
-  /// Chips shown for this job: `tags`, de-duplicated case-insensitively so a
-  /// repeated tag doesn't burn two of the three visible slots. Ported
-  /// verbatim from the pre-migration `_JobCard._chipLabels` (the only place
-  /// tags used to be shown at all).
-  List<String> get _chipLabels {
-    final labels = <String>[];
-    final seen = <String>{};
-
-    void add(String label) {
-      final trimmed = label.trim();
-      if (trimmed.isEmpty) return;
-      if (!seen.add(trimmed.toLowerCase())) return;
-      labels.add(trimmed);
-    }
-
-    job.tags.forEach(add);
-
-    return labels;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = BisoPalette.of(context);
-    final chipLabels = _chipLabels;
-
-    return ListView(
-      controller: scrollController,
-      // Clears the tab bar; showBisoSheet restores this bottom safe area.
-      padding: EdgeInsets.fromLTRB(
-        24,
-        8,
-        24,
-        24 + MediaQuery.paddingOf(context).bottom,
-      ),
-      children: [
-        job.title.toFullHtml(
-          style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),
-          fontSize: 20,
-        ),
-
-        const SizedBox(height: 16),
-
-        // Application deadline. `job.applicationDeadline` parses from an
-        // Appwrite UTC-offset timestamp (isUtc == true); DateFormat renders
-        // the object's own (UTC) fields, so without .toLocal() the deadline
-        // would display 1-2 hours early for a Norway-based user. Display
-        // only, ported verbatim from the pre-migration `_JobCard` — do not
-        // add toLocal() to any deadline comparison used for
-        // filtering/expiry.
-        if (job.applicationDeadline != null) ...[
-          BisoListGroup(
-            children: [
-              BisoListRow(
-                leading: const BisoIconTile(
-                  icon: CupertinoIcons.clock,
-                  accent: BisoAccent.teal,
-                ),
-                title: 'Apply by',
-                value: DateFormat(
-                  'MMM dd',
-                ).format(job.applicationDeadline!.toLocal()),
-                showChevron: false,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // Tags
-        if (chipLabels.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: chipLabels
-                .take(3)
-                .map((label) => Chip(label: Text(label)))
-                .toList(),
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // Description
-        if (job.description.isNotEmpty) ...[
-          Text(
-            'Description',
-            style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
-          ),
-          const SizedBox(height: 8),
-          job.description.toFullHtml(
-            style: theme.textTheme.bodyLarge?.copyWith(
-              height: 1.5,
-              color: palette.muted,
-            ),
-            fontSize: 16,
-          ),
-        ],
-      ],
     );
   }
 }

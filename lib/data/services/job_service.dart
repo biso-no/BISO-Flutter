@@ -45,6 +45,17 @@ class JobService {
     return queries;
   }
 
+  /// The columns every full jobs read returns. Nested translations, and the
+  /// department and campus names the detail page shows, only come back when
+  /// selected by name.
+  static List<String> get _rowSelect => [
+    '*',
+    'translations.*',
+    'department.Name',
+    'department.type',
+    'campus.name',
+  ];
+
   /// Builds the query list for a jobs read.
   static List<String> buildJobQueries({
     String? campusId,
@@ -61,13 +72,27 @@ class JobService {
         search: search,
         now: now,
       ),
-      // Nested translations are only returned when explicitly selected.
-      Query.select(['*', 'translations.*']),
+      Query.select(_rowSelect),
       // Soonest deadline first, regardless of includeExpired: results must
       // always come back in a deterministic order.
       Query.orderAsc('application_deadline'),
       Query.limit(limit),
       Query.offset(offset),
+    ];
+  }
+
+  /// Builds the query list for reading one open vacancy by [idOrSlug].
+  ///
+  /// A link carries either the slug (`biso.no/jobs/<slug>`) or the row id
+  /// (`biso://job?id=<id>`), so either matches. Only an open vacancy counts:
+  /// published, with a deadline that has not passed or none at all, as the
+  /// web's job page reads it.
+  static List<String> buildJobLookupQueries(String idOrSlug, {DateTime? now}) {
+    return [
+      ..._jobFilters(now: now),
+      Query.or([Query.equal('slug', idOrSlug), Query.equal(r'$id', idOrSlug)]),
+      Query.select(_rowSelect),
+      Query.limit(1),
     ];
   }
 
@@ -117,6 +142,20 @@ class JobService {
     return response.rows
         .map((row) => JobModel.fromAppwriteRow(rowData(row), locale: locale))
         .toList(growable: false);
+  }
+
+  /// One open vacancy by its slug or row id, or null when there is none (or
+  /// it has closed).
+  Future<JobModel?> getJob(String idOrSlug, {String locale = 'no'}) async {
+    final response = await db.listRows(
+      databaseId: AppConstants.databaseId,
+      tableId: collectionId,
+      queries: buildJobLookupQueries(idOrSlug),
+    );
+    final row = response.rows.firstOrNull;
+    return row == null
+        ? null
+        : JobModel.fromAppwriteRow(rowData(row), locale: locale);
   }
 
   /// How many jobs match the same filters [listJobs] uses.

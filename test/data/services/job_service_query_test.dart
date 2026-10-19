@@ -31,6 +31,13 @@ void main() {
       );
     });
 
+    test('selects the department and campus names the detail page shows', () {
+      final q = JobService.buildJobQueries();
+      expect(q, hasQuery('select', containing: ['department.Name']));
+      expect(q, hasQuery('select', containing: ['department.type']));
+      expect(q, hasQuery('select', containing: ['campus.name']));
+    });
+
     test('never filters on translation locale', () {
       // 73% of live jobs are Norwegian-only and 21% English-only, so a
       // locale filter would hide most of the board from every user.
@@ -132,6 +139,47 @@ void main() {
       final q = JobService.buildJobQueries(limit: 37, offset: 40);
       expect(q, hasQuery('limit', containing: ['37']));
       expect(q, hasQuery('offset', containing: ['40']));
+    });
+  });
+
+  group('JobService.buildJobLookupQueries', () {
+    test('getJob reads by slug or id and only open vacancies', () {
+      final q = JobService.buildJobLookupQueries(
+        'event-crew',
+        now: DateTime.utc(2026, 9, 8),
+      );
+
+      // A link carries either the slug (biso.no/jobs/<slug>) or the row id
+      // (biso://job?id=<id>); one read must find the vacancy either way.
+      expect(
+        q,
+        hasQuery(
+          'or',
+          containing: [
+            '{"method":"equal","attribute":"slug","values":["event-crew"]}',
+            r'{"method":"equal","attribute":"$id","values":["event-crew"]}',
+          ],
+        ),
+      );
+      // Open vacancies only: published, and a deadline that has not passed
+      // (or none at all).
+      expect(q, hasQuery('equal', containing: ['status', 'published']));
+      expect(
+        q,
+        hasQuery(
+          'or',
+          containing: [
+            r'{"method":"greaterThanEqual","attribute":"application_deadline"',
+            '2026-09-08T00:00:00.000Z',
+            'isNull',
+          ],
+        ),
+      );
+      expect(q.any((s) => s.contains('lessThanEqual')), isFalse);
+      expect(q, hasQuery('select', containing: ['translations.*']));
+      expect(q, hasQuery('select', containing: ['department.Name']));
+      expect(q, hasQuery('select', containing: ['campus.name']));
+      expect(q, hasQuery('limit', containing: ['1']));
     });
   });
 

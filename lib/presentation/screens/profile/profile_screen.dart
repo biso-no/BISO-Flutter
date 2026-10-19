@@ -275,6 +275,14 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 BisoListRow(
                   leading: const BisoIconTile(
+                    icon: CupertinoIcons.briefcase,
+                    accent: BisoAccent.teal,
+                  ),
+                  title: l10n.myApplicationsTitle,
+                  onTap: () => context.push('/profile/applications'),
+                ),
+                BisoListRow(
+                  leading: const BisoIconTile(
                     icon: CupertinoIcons.creditcard,
                     accent: BisoAccent.coral,
                   ),
