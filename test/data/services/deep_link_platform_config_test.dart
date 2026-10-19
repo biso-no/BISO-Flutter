@@ -30,4 +30,30 @@ void main() {
       ),
     );
   });
+
+  // `pathPrefix="/app"` also matches `/applications` (the web's My
+  // applications page) and any other `/app…` path: Android would open the
+  // app for it and the app would do nothing. iOS claims `/app/*` only.
+  test('Android claims only /app and /app/… on both hosts', () {
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+    expect(manifest, isNot(contains('android:pathPrefix="/app"')));
+
+    final filters = RegExp(
+      r'<intent-filter\b[\s\S]*?</intent-filter>',
+    ).allMatches(manifest).map((match) => match.group(0)!);
+    for (final host in ['biso.no', 'www.biso.no']) {
+      final appLinks = filters.where(
+        (filter) =>
+            filter.contains('android:host="$host"') &&
+            filter.contains('android:pathPattern="/app/.*"'),
+      );
+      expect(appLinks, hasLength(1), reason: host);
+      final filter = appLinks.single;
+      expect(filter, contains('android:autoVerify="true"'), reason: host);
+      expect(filter, contains('android:path="/app"'), reason: host);
+      expect(filter, contains('android:scheme="https"'), reason: host);
+    }
+  });
 }

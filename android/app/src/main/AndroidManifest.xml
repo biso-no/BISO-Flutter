@@ -58,18 +58,22 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="www.biso.no" android:pathPrefix="/auth/verify"/>
             </intent-filter>
-            <!-- Verified App Links for app feature shortcuts -->
+            <!-- Verified App Links for app feature shortcuts: /app and
+                 /app/... only, as on iOS. A pathPrefix of /app would also
+                 claim /applications (the web's My applications page). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="biso.no" android:pathPrefix="/app"/>
+                <data android:scheme="https" android:host="biso.no" android:path="/app"/>
+                <data android:scheme="https" android:host="biso.no" android:pathPattern="/app/.*"/>
             </intent-filter>
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <data android:scheme="https" android:host="www.biso.no" android:pathPrefix="/app"/>
+                <data android:scheme="https" android:host="www.biso.no" android:path="/app"/>
+                <data android:scheme="https" android:host="www.biso.no" android:pathPattern="/app/.*"/>
             </intent-filter>
             <!-- Receive receipts and statements from Android Sharesheet -->
             <!-- Only the types the reimbursement API accepts. image/* also
