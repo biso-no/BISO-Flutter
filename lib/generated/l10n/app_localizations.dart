@@ -5084,6 +5084,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Stored until {date}'**
   String myApplicationsStoredUntil(String date);
+
+  /// Expense form
+  ///
+  /// In en, this message translates to:
+  /// **'Cost type'**
+  String get expenseCostTypeLabel;
+
+  /// Expense form
+  ///
+  /// In en, this message translates to:
+  /// **'I am the financial manager of this department'**
+  String get expenseFinancialManagerLabel;
+
+  /// Expense form
+  ///
+  /// In en, this message translates to:
+  /// **'Turn this on so the approval is routed to your department manager instead of you.'**
+  String get expenseFinancialManagerHint;
 }
 
 class _AppLocalizationsDelegate

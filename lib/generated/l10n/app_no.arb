@@ -3675,5 +3675,17 @@
         "example": "30 March 2027"
       }
     }
+  },
+  "expenseCostTypeLabel": "Kostnadstype",
+  "@expenseCostTypeLabel": {
+    "description": "Expense form"
+  },
+  "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
+  "@expenseFinancialManagerLabel": {
+    "description": "Expense form"
+  },
+  "expenseFinancialManagerHint": "Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.",
+  "@expenseFinancialManagerHint": {
+    "description": "Expense form"
   }
 }

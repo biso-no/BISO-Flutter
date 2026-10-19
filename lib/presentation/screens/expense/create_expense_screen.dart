@@ -9,7 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/expense_cost_types.dart';
 import '../../../core/utils/navigation_utils.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/models/expense_v2_models.dart';
@@ -54,6 +56,9 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
       _CreateExpenseScreenState();
 }
 
+const _osloCampusId = '1';
+const _ledelsenOsloDepartmentId = '2';
+
 class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   late final ExpenseServiceV2 _expenseService;
   late final ExpenseApiClient _apiClient;
@@ -67,6 +72,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   List<ExpenseReceiptDraft> _receipts = [];
   String? _selectedReceiptId;
   String? _draftExpenseId;
+  bool _submitterIsFinancialManager = false;
   String? _lastSummarySnapshot;
   bool _isLoadingLookups = true;
   bool _isSavingDraft = false;
@@ -247,6 +253,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         amount: attachment.amount,
         amountInNok: attachment.amount,
         description: attachment.description ?? '',
+        costType: attachment.costType,
       );
     }).toList();
     _selectedReceiptId = _receipts.isNotEmpty ? _receipts.first.localId : null;
@@ -960,6 +967,22 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             ),
           ],
         ),
+        if (_showsFinancialManagerToggle(assignment)) ...[
+          const SizedBox(height: 16),
+          CheckboxListTile(
+            value: _submitterIsFinancialManager,
+            onChanged: (value) =>
+                setState(() => _submitterIsFinancialManager = value ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              AppLocalizations.of(context)!.expenseFinancialManagerLabel,
+            ),
+            subtitle: Text(
+              AppLocalizations.of(context)!.expenseFinancialManagerHint,
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         BisoSection(
           title: 'Receipts',
@@ -1288,6 +1311,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description: _descriptionController.text.trim(),
         receipts: _receipts,
         eventName: _eventController.text.trim(),
+        submitterIsFinancialManager:
+            _showsFinancialManagerToggle(assignment) &&
+            _submitterIsFinancialManager,
       );
       final result = await _apiClient.saveDraft(payload);
       if (!result.success || result.draftId == null) {
@@ -1320,6 +1346,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description: _descriptionController.text.trim(),
         receipts: _receipts,
         eventName: _eventController.text.trim(),
+        submitterIsFinancialManager:
+            _showsFinancialManagerToggle(assignment) &&
+            _submitterIsFinancialManager,
       );
       final result = await _apiClient.submit(payload);
       await ref.read(expensesStateProvider.notifier).refresh();
@@ -1515,6 +1544,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         ) ??
         false;
   }
+
+  /// Only Oslo has the department financial-manager approval step, and the
+  /// leadership unit there has no separate financial manager. Same rule as the
+  /// web expense report.
+  bool _showsFinancialManagerToggle(ExpenseAssignment assignment) =>
+      assignment.campusId == _osloCampusId &&
+      assignment.departmentId != _ledelsenOsloDepartmentId;
 
   void _replaceReceipt(ExpenseReceiptDraft updated) {
     if (!mounted) return;
@@ -2060,6 +2096,38 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                 onChanged: (_) => _emit(),
               ),
             ),
+            if (!receipt.isBankStatement) ...[
+              const SizedBox(height: 10),
+              BisoFormRow(
+                label: AppLocalizations.of(context)!.expenseCostTypeLabel,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    '${receipt.localId}-${receipt.effectiveCostType}',
+                  ),
+                  initialValue: receipt.effectiveCostType,
+                  decoration: bisoInputDecoration(
+                    context,
+                    prefixIcon: const Icon(CupertinoIcons.tag),
+                  ),
+                  items: [
+                    for (final type in defaultExpenseCostTypes)
+                      DropdownMenuItem(
+                        value: type.slug,
+                        child: Text(type.label),
+                      ),
+                  ],
+                  onChanged: (slug) {
+                    if (slug == null) return;
+                    widget.onChanged(
+                      widget.receipt.copyWith(
+                        costType: slug,
+                        status: ExpenseReceiptStatus.ready,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),

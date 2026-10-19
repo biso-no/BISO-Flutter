@@ -8,6 +8,7 @@ class ExpenseAttachmentModel extends Equatable {
   final double? amount;
   final String? description;
   final String type; // Required field
+  final String? costType;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -18,6 +19,7 @@ class ExpenseAttachmentModel extends Equatable {
     this.amount,
     this.description,
     required this.type,
+    this.costType,
     this.createdAt,
     this.updatedAt,
   });
@@ -30,6 +32,7 @@ class ExpenseAttachmentModel extends Equatable {
       amount: map['amount'] != null ? (map['amount']).toDouble() : null,
       description: map['description'],
       type: map['type'] ?? '',
+      costType: map['cost_type'],
       createdAt: map['\$createdAt'] != null
           ? DateTime.parse(map['\$createdAt'])
           : null,
@@ -56,6 +59,7 @@ class ExpenseAttachmentModel extends Equatable {
     double? amount,
     String? description,
     String? type,
+    String? costType,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -125,6 +129,7 @@ class ExpenseAttachmentModel extends Equatable {
     amount,
     description,
     type,
+    costType,
     createdAt,
     updatedAt,
   ];

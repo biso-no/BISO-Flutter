@@ -3675,5 +3675,17 @@
         "example": "30 March 2027"
       }
     }
+  },
+  "expenseCostTypeLabel": "Cost type",
+  "@expenseCostTypeLabel": {
+    "description": "Expense form"
+  },
+  "expenseFinancialManagerLabel": "I am the financial manager of this department",
+  "@expenseFinancialManagerLabel": {
+    "description": "Expense form"
+  },
+  "expenseFinancialManagerHint": "Turn this on so the approval is routed to your department manager instead of you.",
+  "@expenseFinancialManagerHint": {
+    "description": "Expense form"
   }
 }

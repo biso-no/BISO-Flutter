@@ -2784,4 +2784,15 @@ class AppLocalizationsNo extends AppLocalizations {
   String myApplicationsStoredUntil(String date) {
     return 'Lagres til $date';
   }
+
+  @override
+  String get expenseCostTypeLabel => 'Kostnadstype';
+
+  @override
+  String get expenseFinancialManagerLabel =>
+      'Jeg er økonomiansvarlig for denne enheten';
+
+  @override
+  String get expenseFinancialManagerHint =>
+      'Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.';
 }

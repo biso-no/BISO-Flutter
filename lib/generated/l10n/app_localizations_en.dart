@@ -2776,4 +2776,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String myApplicationsStoredUntil(String date) {
     return 'Stored until $date';
   }
+
+  @override
+  String get expenseCostTypeLabel => 'Cost type';
+
+  @override
+  String get expenseFinancialManagerLabel =>
+      'I am the financial manager of this department';
+
+  @override
+  String get expenseFinancialManagerHint =>
+      'Turn this on so the approval is routed to your department manager instead of you.';
 }
