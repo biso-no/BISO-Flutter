@@ -26,6 +26,9 @@ class _Account extends Fake implements Account {
 
 /// The row [getCurrentUser] reads: no bank_account, no departments.
 class _Tables extends Fake implements TablesDB {
+  /// The queries of every row read, in order.
+  final List<List<String>> reads = [];
+
   @override
   Future<models.Row> getRow({
     required String databaseId,
@@ -33,18 +36,26 @@ class _Tables extends Fake implements TablesDB {
     required String rowId,
     List<String>? queries,
     String? transactionId,
-  }) async => models.Row.fromMap({
-    r'$id': rowId,
-    'data': {r'$id': rowId, 'name': 'Kari Nordmann', 'email': 'k@example.com'},
-  });
+  }) async {
+    reads.add(queries ?? const []);
+    return models.Row.fromMap({
+      r'$id': rowId,
+      'data': {
+        r'$id': rowId,
+        'name': 'Kari Nordmann',
+        'email': 'k@example.com',
+      },
+    });
+  }
 }
 
 void main() {
   late Map<String, dynamic> sent;
+  late _Tables tables;
 
   AuthService service() => AuthService(
     account: _Account(),
-    databases: _Tables(),
+    databases: tables = _Tables(),
     profileApi: ProfileApiClient(
       httpClient: MockClient((request) async {
         sent = jsonDecode(request.body) as Map<String, dynamic>;
@@ -76,6 +87,19 @@ void main() {
     expect(sent, {
       'departments': ['dept-1', 'dept-2'],
     });
+  });
+
+  test('getCurrentUser selects plain columns only, not the departments '
+      'relationship', () async {
+    final user = await service().getCurrentUser();
+
+    expect(user?.name, 'Kari Nordmann');
+    final selected = [
+      for (final query in tables.reads.single)
+        ...(jsonDecode(query)['values'] as List).cast<String>(),
+    ];
+    expect(selected, isNot(contains('departments')));
+    expect(selected, containsAll(['department_ids', 'bank_account', 'swift']));
   });
 
   test("avatar file ids fit Appwrite's 36-character limit", () {

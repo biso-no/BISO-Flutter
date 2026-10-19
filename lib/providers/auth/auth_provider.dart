@@ -240,9 +240,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> verifyMagicLink(String userId, String secret) async {
-    logPrint(
-      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId, secret: $secret',
-    );
+    logPrint('🔗 DEBUG: Starting verifyMagicLink with userId: $userId');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
@@ -262,9 +260,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> verifyOtp(String userId, String secret) async {
-    logPrint(
-      '🔥 DEBUG: Starting verifyOtp with userId: $userId, secret: $secret',
-    );
+    logPrint('🔥 DEBUG: Starting verifyOtp with userId: $userId');
     state = state.copyWith(isLoading: true, error: null);
 
     try {

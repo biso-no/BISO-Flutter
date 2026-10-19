@@ -161,12 +161,12 @@ class AuthService {
 
   Future<UserModel> verifyMagicLink(String userId, String secret) async {
     logPrint(
-      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId, secret: $secret',
+      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId',
     );
     try {
       // Create session with magic link tokens
       logPrint('🔗 DEBUG: About to call _account.createSession for magic link...');
-      logPrint('🔗 DEBUG: Parameters - userId: $userId, secret: $secret');
+      logPrint('🔗 DEBUG: Parameters - userId: $userId');
       final session = await _account.createSession(
         userId: userId,
         secret: secret,
@@ -226,12 +226,12 @@ class AuthService {
 
   Future<UserModel> verifyOtp(String userId, String secret) async {
     logPrint(
-      '🔥 DEBUG: Starting verifyOtp with userId: $userId, secret: $secret',
+      '🔥 DEBUG: Starting verifyOtp with userId: $userId',
     );
     try {
       // Create session with OTP
       logPrint('🔥 DEBUG: About to call _account.createSession...');
-      logPrint('🔥 DEBUG: Parameters - userId: $userId, secret: $secret');
+      logPrint('🔥 DEBUG: Parameters - userId: $userId');
       final session = await _account.createSession(
         userId: userId,
         secret: secret,
@@ -304,7 +304,9 @@ class AuthService {
               'avatar',
               '\$id',
               'student_id',
-              'departments',
+              // Not `departments`: it is a relationship, which a select by
+              // bare key may be refused for, and then the profile read
+              // below falls back to a bare user without a word.
               'department_ids',
               'bank_account',
               'swift',

@@ -6,6 +6,14 @@ import 'package:go_router/go_router.dart';
 import '../../core/logging/print_migration.dart';
 import '../../core/theme/biso_page.dart';
 
+final _queryOrFragment = RegExp('[?#]');
+
+/// [link] (a [Uri] or a location) as it may be logged: without its query or
+/// fragment, where a sign-in link carries the secret that signs its holder
+/// in. Debug logs end up in shared bug reports.
+@visibleForTesting
+String linkForLog(Object link) => link.toString().split(_queryOrFragment).first;
+
 /// The in-app route for a `biso://membership` or `https://biso.no/app/membership`
 /// link. A payment return carries `orderId` (and `cancelled=1` when the
 /// student abandoned it). The status a return link carries is not passed on:
@@ -74,7 +82,7 @@ class DeepLinkService {
     // Handle links when app is already running
     _linkSubscription = _appLinks.uriLinkStream.listen(
       (Uri uri) {
-        logPrint('🔗 Deep link received: $uri');
+        logPrint('🔗 Deep link received: ${linkForLog(uri)}');
         _handleDeepLink(uri);
       },
       onError: (Object err) {
@@ -86,7 +94,7 @@ class DeepLinkService {
     try {
       final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
-        logPrint('🔗 Initial deep link: $initialUri');
+        logPrint('🔗 Initial deep link: ${linkForLog(initialUri)}');
         _handleDeepLink(initialUri);
       }
     } catch (e) {
@@ -95,11 +103,13 @@ class DeepLinkService {
   }
 
   void _handleDeepLink(Uri uri) {
-    logPrint('🔗 Handling deep link: ${uri.toString()}');
+    logPrint('🔗 Handling deep link: ${linkForLog(uri)}');
 
     if (navigatorKey.currentContext == null) {
       _pendingUris.add(uri);
-      logPrint('🔗 Queued deep link until navigation is ready: $uri');
+      logPrint(
+        '🔗 Queued deep link until navigation is ready: ${linkForLog(uri)}',
+      );
       return;
     }
 
@@ -214,7 +224,7 @@ class DeepLinkService {
     final queryParams = uri.queryParameters;
 
     logPrint('🔗 Auth deep link path: $path');
-    logPrint('🔗 Auth deep link params: $queryParams');
+    logPrint('🔗 Auth deep link params: ${queryParams.keys.join(', ')}');
 
     if (path == '/magic-link' || path == '/verify') {
       final route = magicLinkRouteFor(uri.replace(path: '/verify'));
@@ -430,7 +440,10 @@ class DeepLinkService {
     if (context != null) {
       context.go(location);
     } else {
-      logPrint('🔴 No navigation context available for deep link: $location');
+      logPrint(
+        '🔴 No navigation context available for deep link: '
+        '${linkForLog(location)}',
+      );
     }
   }
 }
