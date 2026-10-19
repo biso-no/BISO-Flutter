@@ -607,20 +607,23 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   `hasValidMembershipProvider` trusts a cached answer for 24 hours; prices are always server-side.
 - **Students sign in with BI; there is no account linking.** Sign-in is BI or a login link, as on
   the web (Google and Apple are gone). BI's Azure tenant is reachable only through Appwrite's OIDC
-  provider: `BiSignInService` ends the app's current session, then opens
-  `…/account/tokens/oauth2/oidc` (scopes `openid email profile`) in an ephemeral browser sheet
-  (`flutter_web_auth_2`, `preferEphemeral: true`), so a BI identity never attaches to a session
-  left in Safari, Chrome or the app. The sheet returns to
-  `appwrite-callback-biso://bi-sign-in/success` (token `userId` + `secret` → session) or
-  `/failure` (Appwrite `error` JSON; `general_bad_request` means BI could not sign into the
-  existing account holding the BI email, and the login screen points to a login link). Then
-  `POST /api/auth/bi-sync` copies the student number (`BiSyncApiClient`); its errors show the web's
-  `needsBiLink.*` copy, and `directory_unavailable` counts as linked. The membership card and the
-  member pass use `continueWithBi`: sync first (a student whose app died after BI sign-in needs no
-  second sign-in), and sign in with BI only for `no_bi_identity`. Cancelling the sheet is silent,
-  but a BI sign-in from a signed-in account has already ended that session (the device is
-  detached from push first, as on sign-out), so the student is then signed out.
-  Android receives the return in flutter_web_auth_2's `CallbackActivity`.
+  provider: `BiSignInService` opens `…/account/tokens/oauth2/oidc` (scopes `openid email profile`)
+  in an ephemeral browser sheet (`flutter_web_auth_2`, `preferEphemeral: true`), so a BI identity
+  never attaches to a session left in Safari or Chrome. The sheet returns to
+  `appwrite-callback-biso://bi-sign-in/success` (token `userId` + `secret`) or `/failure`
+  (Appwrite `error` JSON; `general_bad_request` means BI could not sign into the existing account
+  holding the BI email, and the copy points to a login link). Only on success is the app's
+  current session replaced: push is detached first (as on sign-out) for a signed-in student, then
+  the old session is deleted and the new one created, so cancelling or failing BI leaves a
+  signed-in student signed in. Then `POST /api/auth/bi-sync` copies the student number
+  (`BiSyncApiClient`); its errors show the web's `needsBiLink.*` copy, and
+  `directory_unavailable` counts as linked. The membership card and the member pass use
+  `continueWithBi`: sync first (a student whose app died after BI sign-in needs no second
+  sign-in), sign in with BI only for `no_bi_identity`, and on a 401 re-read the auth state (the
+  screen then offers sign-in). Its `BiContinueOutcome` keeps a failed BI sign-in (shown with the
+  login screen's copy) apart from a sync error. `getCurrentUser` keeps whoever is signed in for an
+  offline launch, however they signed in. Android receives the BI return in flutter_web_auth_2's
+  `CallbackActivity`.
   `student_id` and the `bi_*` columns are server-written only; profile rows are read-only to
   their owner and profile edits go through `PUT /api/profile`.
 - **Purchase** uses `POST /api/payment/{provider}/membership-checkout` with `client: "app"`,

@@ -32,15 +32,23 @@ class _FakeAuthService extends AuthService {
   Future<UserModel?> getCachedSessionUser() async => cached;
 }
 
+/// Answers [outcome]. Like the real service, it switches sessions (calling
+/// `beforeSessionSwitch`) only once BI has answered with credentials:
+/// always for a [BiSignedIn], and for a failure when [switched] says the
+/// session could not be created after the switch.
 class _FakeBiSignIn extends BiSignInService {
   _FakeBiSignIn(this.log, this.outcome);
 
   final List<String> log;
   BiSignInOutcome outcome;
+  bool switched = false;
 
   @override
-  Future<BiSignInOutcome> signIn() async {
+  Future<BiSignInOutcome> signIn({
+    Future<void> Function()? beforeSessionSwitch,
+  }) async {
     log.add('signIn');
+    if (outcome is BiSignedIn || switched) await beforeSessionSwitch?.call();
     return outcome;
   }
 }
@@ -112,15 +120,44 @@ void main() {
     },
   );
 
-  test('a signed-in student is detached first and re-read even when they '
-      'cancel, since their session has ended', () async {
-    final (auth, service, _) = await start(signedIn: _student);
-    expect(auth.state.isAuthenticated, isTrue);
+  test(
+    'a signed-in student who cancels or fails BI keeps their session',
+    () async {
+      final (auth, service, bi) = await start(signedIn: _student);
+      expect(auth.state.isAuthenticated, isTrue);
+      service.online = true;
+
+      expect(await auth.signInWithBi(), isA<BiSignInCancelled>());
+      bi.outcome = const BiSignInFailed(BiSignInFailure.existingAccount);
+      expect(await auth.signInWithBi(), isA<BiSignInFailed>());
+
+      expect(log, ['signIn', 'signIn']);
+      expect(auth.state.isAuthenticated, isTrue);
+    },
+  );
+
+  test('a signed-in student is detached from push right before the session '
+      'switch, and the new session is read', () async {
+    final (auth, service, bi) = await start(signedIn: _student);
     service.online = true;
+    bi.outcome = const BiSignedIn(BiSyncResult(success: true));
 
     await auth.signInWithBi();
 
-    expect(log, ['clearToken', 'signIn', 'getCurrentUser']);
+    expect(log, ['signIn', 'clearToken', 'getCurrentUser']);
+  });
+
+  test('a session that could not be created after the switch is re-read, '
+      'since the old one has ended', () async {
+    final (auth, service, bi) = await start(signedIn: _student);
+    service.online = true;
+    bi
+      ..outcome = const BiSignInFailed(BiSignInFailure.failed)
+      ..switched = true;
+
+    await auth.signInWithBi();
+
+    expect(log, ['signIn', 'clearToken', 'getCurrentUser']);
     expect(auth.state.isAuthenticated, isFalse);
   });
 }

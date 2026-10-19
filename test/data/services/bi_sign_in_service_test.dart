@@ -9,10 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Records the session calls a BI sign-in makes, in order, into [log].
 class _FakeAccount extends Fake implements Account {
-  _FakeAccount(this.log, {this.deleteFails = false});
+  _FakeAccount(this.log, {this.deleteFails = false, this.createFails = false});
 
   final List<String> log;
   final bool deleteFails;
+  final bool createFails;
 
   @override
   Future deleteSession({required String sessionId}) async {
@@ -26,6 +27,7 @@ class _FakeAccount extends Fake implements Account {
     required String secret,
   }) async {
     log.add('createSession:$userId:$secret');
+    if (createFails) throw AppwriteException('Invalid token', 401);
     return models.Session.fromMap({
       r'$id': 'session-1',
       'userId': userId,
@@ -53,6 +55,9 @@ const _synced = BiSyncResult(
   campusHint: 'oslo',
 );
 
+const _successUrl =
+    'appwrite-callback-biso://bi-sign-in/success?userId=user-1&secret=s3cret';
+
 String _failureUrl(String type) => Uri(
   scheme: 'appwrite-callback-biso',
   host: 'bi-sign-in',
@@ -71,6 +76,7 @@ void main() {
   BiSignInService service({
     required Future<String> Function() browser,
     bool deleteFails = false,
+    bool createFails = false,
   }) {
     return BiSignInService(
       authenticate:
@@ -85,10 +91,19 @@ void main() {
             openedEphemeral = preferEphemeral;
             return browser();
           },
-      account: _FakeAccount(log, deleteFails: deleteFails),
+      account: _FakeAccount(
+        log,
+        deleteFails: deleteFails,
+        createFails: createFails,
+      ),
       syncApi: _FakeSync(log, _synced),
     );
   }
+
+  /// Signs in, recording when the old session is about to end.
+  Future<BiSignInOutcome> signIn(BiSignInService service) => service.signIn(
+    beforeSessionSwitch: () async => log.add('beforeSessionSwitch'),
+  );
 
   setUp(() {
     log = [];
@@ -97,16 +112,16 @@ void main() {
     openedEphemeral = null;
   });
 
-  test('startBiSignIn ends the current session and uses an ephemeral '
-      'browser', () async {
-    await service(
-      browser: () async =>
-          throw PlatformException(code: 'CANCELED', message: 'User canceled'),
-      // A student with no session left must still get the BI sheet.
-      deleteFails: true,
-    ).signIn();
+  test('startBiSignIn uses an ephemeral browser and keeps the current session '
+      'until BI answers', () async {
+    await signIn(
+      service(
+        browser: () async =>
+            throw PlatformException(code: 'CANCELED', message: 'User canceled'),
+      ),
+    );
 
-    expect(log, ['deleteSession:current', 'authenticate']);
+    expect(log, ['authenticate']);
     expect(openedEphemeral, isTrue);
     expect(openedScheme, 'appwrite-callback-biso');
 
@@ -125,15 +140,20 @@ void main() {
     expect(url.queryParametersAll['scopes[]'], ['openid', 'email', 'profile']);
   });
 
-  test('creates the session from the callback credentials then syncs', () async {
-    final outcome = await service(
-      browser: () async =>
-          'appwrite-callback-biso://bi-sign-in/success?userId=user-1&secret=s3cret',
-    ).signIn();
+  test('ends the current session only after the callback, then creates the '
+      'session from its credentials and syncs', () async {
+    final outcome = await signIn(
+      service(
+        browser: () async => _successUrl,
+        // A student with no session to end still signs in.
+        deleteFails: true,
+      ),
+    );
 
     expect(log, [
-      'deleteSession:current',
       'authenticate',
+      'beforeSessionSwitch',
+      'deleteSession:current',
       'createSession:user-1:s3cret',
       'sync',
     ]);
@@ -142,20 +162,22 @@ void main() {
   });
 
   test('a cancelled BI sign-in is silent', () async {
-    final outcome = await service(
-      browser: () async =>
-          throw PlatformException(code: 'CANCELED', message: 'User canceled'),
-    ).signIn();
+    final outcome = await signIn(
+      service(
+        browser: () async =>
+            throw PlatformException(code: 'CANCELED', message: 'User canceled'),
+      ),
+    );
 
     expect(outcome, isA<BiSignInCancelled>());
-    expect(log, isNot(contains(startsWith('createSession'))));
-    expect(log, isNot(contains('sync')));
+    // Nothing touched the session the student already had.
+    expect(log, ['authenticate']);
   });
 
   test('general_bad_request is existingAccount', () async {
-    final outcome = await service(
-      browser: () async => _failureUrl('general_bad_request'),
-    ).signIn();
+    final outcome = await signIn(
+      service(browser: () async => _failureUrl('general_bad_request')),
+    );
 
     expect(
       outcome,
@@ -165,7 +187,7 @@ void main() {
         BiSignInFailure.existingAccount,
       ),
     );
-    expect(log, ['deleteSession:current', 'authenticate']);
+    expect(log, ['authenticate']);
   });
 
   test('any other failure is failed', () async {
@@ -180,7 +202,7 @@ void main() {
     };
     for (final MapEntry(key: name, value: browser) in failures.entries) {
       log = [];
-      final outcome = await service(browser: browser).signIn();
+      final outcome = await signIn(service(browser: browser));
 
       expect(
         outcome,
@@ -191,8 +213,29 @@ void main() {
         ),
         reason: name,
       );
-      expect(log, ['deleteSession:current', 'authenticate'], reason: name);
+      expect(log, ['authenticate'], reason: name);
     }
+  });
+
+  test('a session that cannot be created after the switch is failed', () async {
+    final outcome = await signIn(
+      service(browser: () async => _successUrl, createFails: true),
+    );
+
+    expect(
+      outcome,
+      isA<BiSignInFailed>().having(
+        (f) => f.reason,
+        'reason',
+        BiSignInFailure.failed,
+      ),
+    );
+    expect(log, [
+      'authenticate',
+      'beforeSessionSwitch',
+      'deleteSession:current',
+      'createSession:user-1:s3cret',
+    ]);
   });
 
   test('syncOnly asks the server without opening a browser', () async {

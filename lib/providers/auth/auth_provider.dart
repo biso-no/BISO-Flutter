@@ -7,7 +7,7 @@ import '../../data/services/bi_sign_in_service.dart';
 import '../../data/services/notification_service.dart';
 
 import '../../core/logging/print_migration.dart';
-import 'bi_sign_in_provider.dart';
+import 'bi_sign_in_service_provider.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
@@ -456,15 +456,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Signs in with the student's BI account (see [BiSignInService.signIn]).
   ///
-  /// The BI sign-in ends the current session before the browser opens, so a
-  /// signed-in student's session ends whatever the outcome: their device is
-  /// detached from push notifications first, as on sign-out, and the state is
-  /// re-read afterwards.
+  /// A cancelled sheet or a BI refusal leaves a signed-in student signed in.
+  /// Once BI answers with credentials, the current session is replaced: a
+  /// signed-in student's device is detached from push notifications first,
+  /// as on sign-out, and the state is re-read afterwards, also when the new
+  /// session could not be created and the student is left signed out.
   Future<BiSignInOutcome> signInWithBi() async {
-    final endsSession = state.isAuthenticated;
-    if (endsSession) await _detachNotificationsForSignOut();
-    final outcome = await _biSignIn.signIn();
-    if (outcome is BiSignedIn || endsSession) await refreshAuthState();
+    var sessionReplaced = false;
+    final outcome = await _biSignIn.signIn(
+      beforeSessionSwitch: () async {
+        sessionReplaced = true;
+        if (state.isAuthenticated) await _detachNotificationsForSignOut();
+      },
+    );
+    if (outcome is BiSignedIn || sessionReplaced) await refreshAuthState();
     return outcome;
   }
 }

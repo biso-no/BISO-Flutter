@@ -22,8 +22,9 @@ class _FakeBiSignIn extends BiSignInService {
   }
 
   @override
-  Future<BiSignInOutcome> signIn() =>
-      throw StateError('signing in goes through AuthNotifier');
+  Future<BiSignInOutcome> signIn({
+    Future<void> Function()? beforeSessionSwitch,
+  }) => throw StateError('signing in goes through AuthNotifier');
 }
 
 class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
@@ -37,6 +38,9 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
     log.add('signInWithBi');
     return outcome;
   }
+
+  @override
+  Future<void> refreshAuthState() async => log.add('refreshAuthState');
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -63,7 +67,7 @@ const _noBiIdentity = BiSyncResult(
 void main() {
   late List<String> log;
 
-  Future<BiSyncResult?> run(
+  Future<BiContinueOutcome> run(
     WidgetTester tester, {
     required BiSyncResult sync,
     BiSignInOutcome signIn = const BiSignedIn(_synced),
@@ -97,7 +101,14 @@ void main() {
       final linked = await run(tester, sync: _synced);
 
       expect(log, ['syncOnly', 'refresh']);
-      expect(linked?.studentId, 's1234567');
+      expect(
+        linked,
+        isA<BiContinueSynced>().having(
+          (o) => o.sync.studentId,
+          'studentId',
+          's1234567',
+        ),
+      );
 
       log.clear();
       final signedIn = await run(
@@ -109,29 +120,45 @@ void main() {
       );
 
       expect(log, ['syncOnly', 'signInWithBi', 'refresh']);
-      expect(signedIn?.studentId, 's7654321');
+      expect(
+        signedIn,
+        isA<BiContinueSynced>().having(
+          (o) => o.sync.studentId,
+          'studentId',
+          's7654321',
+        ),
+      );
     },
   );
 
-  testWidgets('a cancelled BI sign-in returns nothing to show', (tester) async {
+  testWidgets('a cancelled BI sign-in says so', (tester) async {
     final result = await run(
       tester,
       sync: _noBiIdentity,
       signIn: const BiSignInCancelled(),
     );
 
-    expect(result, isNull);
+    expect(result, isA<BiContinueCancelled>());
     expect(log, ['syncOnly', 'signInWithBi', 'refresh']);
   });
 
-  testWidgets('a failed BI sign-in reads as a failed sync', (tester) async {
+  testWidgets('a failed BI sign-in keeps its reason, apart from sync errors', (
+    tester,
+  ) async {
     final result = await run(
       tester,
       sync: _noBiIdentity,
-      signIn: const BiSignInFailed(BiSignInFailure.failed),
+      signIn: const BiSignInFailed(BiSignInFailure.existingAccount),
     );
 
-    expect(result?.error, BiSyncError.syncFailed);
+    expect(
+      result,
+      isA<BiContinueSignInFailed>().having(
+        (o) => o.reason,
+        'reason',
+        BiSignInFailure.existingAccount,
+      ),
+    );
   });
 
   testWidgets('another sync error is returned without a sign-in', (
@@ -139,13 +166,28 @@ void main() {
   ) async {
     final result = await run(
       tester,
-      sync: const BiSyncResult(
-        success: false,
-        error: BiSyncError.alreadyLinked,
-      ),
+      sync: const BiSyncResult.failed(BiSyncError.alreadyLinked),
     );
 
-    expect(result?.error, BiSyncError.alreadyLinked);
+    expect(
+      result,
+      isA<BiContinueSynced>().having(
+        (o) => o.sync.error,
+        'error',
+        BiSyncError.alreadyLinked,
+      ),
+    );
     expect(log, ['syncOnly', 'refresh']);
+  });
+
+  testWidgets('a 401 from the sync re-reads the session instead of showing a '
+      'sync error', (tester) async {
+    final result = await run(
+      tester,
+      sync: const BiSyncResult.failed(BiSyncError.notAuthenticated),
+    );
+
+    expect(result, isA<BiContinueSignedOut>());
+    expect(log, ['syncOnly', 'refreshAuthState', 'refresh']);
   });
 }

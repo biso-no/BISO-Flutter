@@ -40,17 +40,23 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
   _Auth() : super(const AuthState(isAuthenticated: true));
 
   @override
+  Future<BiSignInOutcome> signInWithBi() async =>
+      const BiSignInFailed(BiSignInFailure.failed);
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// Answers the BI sync as for a student already signed in with BI.
+/// Answers the BI sync with [answer]; by default as for a student already
+/// signed in with BI.
 class _FakeBiSignIn extends BiSignInService {
+  BiSyncResult answer = const BiSyncResult(success: true, studentId: 's1');
   int syncs = 0;
 
   @override
   Future<BiSyncResult> syncOnly() async {
     syncs++;
-    return const BiSyncResult(success: true, studentId: 's1');
+    return answer;
   }
 }
 
@@ -245,6 +251,25 @@ void main() {
     expect(bi.syncs, 1);
     expect(overview.refreshes, 1);
     expect(pass.retries, 1);
+  });
+
+  testWidgets('a BI sign-in that fails shows the sign-in copy', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const MemberPassScreen(),
+      overrides: overrides(_noPass(NoPassState.noBiIdentity)),
+    );
+    bi.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      find.text(
+        'We could not sign you in with BI. Please try again, or use a login '
+        'link.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Become a member opens the membership screen', (tester) async {

@@ -16,7 +16,7 @@ import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/pass_card.dart';
 import '../../widgets/member_pass/wallet_buttons.dart';
-import '../auth/bi_sync_message.dart';
+import '../auth/bi_sign_in_messages.dart';
 import 'member_pass_presentation.dart';
 
 /// The signed-in member's live pass, or why there is none.
@@ -49,11 +49,11 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
   /// (signing in with BI when the account has none), then reloads the pass.
   Future<void> _continueWithBi() async {
     setState(() => _biBusy = true);
-    final result = await continueWithBi(ref);
+    final outcome = await continueWithBi(ref);
     if (!mounted) return;
     setState(() => _biBusy = false);
     unawaited(ref.read(memberPassProvider.notifier).retry());
-    final message = biSyncMessage(AppLocalizations.of(context)!, result);
+    final message = biContinueMessage(AppLocalizations.of(context)!, outcome);
     if (message != null) {
       ScaffoldMessenger.of(
         context,

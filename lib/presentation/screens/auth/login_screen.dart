@@ -8,7 +8,7 @@ import '../../../data/services/bi_sign_in_service.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../widgets/biso/biso.dart';
-import 'bi_sync_message.dart';
+import 'bi_sign_in_messages.dart';
 
 enum _AuthFlow { form, emailSent }
 
@@ -219,11 +219,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             Semantics(
               liveRegion: true,
               child: Text(
-                switch (failure) {
-                  BiSignInFailure.existingAccount =>
-                    l10n.biSignInExistingAccount,
-                  BiSignInFailure.failed => l10n.biSignInFailed,
-                },
+                biSignInFailureMessage(l10n, failure),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: palette.error,
                 ),

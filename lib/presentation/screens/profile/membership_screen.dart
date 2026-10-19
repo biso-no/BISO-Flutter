@@ -17,7 +17,7 @@ import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/member_pass_row.dart';
-import '../auth/bi_sync_message.dart';
+import '../auth/bi_sign_in_messages.dart';
 
 String _formatDate(DateTime? date) =>
     date == null ? '' : DateFormat.yMMMd().format(date);
@@ -119,10 +119,10 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
   /// account has no BI identity) and says why when it could not.
   Future<void> _continueWithBi() async {
     setState(() => _biBusy = true);
-    final result = await continueWithBi(ref);
+    final outcome = await continueWithBi(ref);
     if (!mounted) return;
     setState(() => _biBusy = false);
-    final message = biSyncMessage(AppLocalizations.of(context)!, result);
+    final message = biContinueMessage(AppLocalizations.of(context)!, outcome);
     if (message != null) {
       ScaffoldMessenger.of(
         context,

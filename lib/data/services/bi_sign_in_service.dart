@@ -124,9 +124,10 @@ Future<String> _flutterWebAuthenticate({
 /// Signs a student in with their BI account through Appwrite's OIDC
 /// provider, then has the server copy their student number.
 ///
-/// The browser is ephemeral and the app's own session is ended first, so a
-/// BI identity can never attach to a session left behind in Safari or
-/// Chrome, or in the app.
+/// The browser is ephemeral, so a BI identity can never attach to a session
+/// left behind in Safari or Chrome. The app's own session is kept until BI
+/// has answered with credentials: a cancelled or failed sign-in leaves a
+/// signed-in student signed in.
 class BiSignInService {
   BiSignInService({
     WebAuthenticate? authenticate,
@@ -159,14 +160,15 @@ class BiSignInService {
   }
 
   /// Never throws: every way it can end is a [BiSignInOutcome].
-  Future<BiSignInOutcome> signIn() async {
-    try {
-      await _account.deleteSession(sessionId: 'current');
-    } catch (_) {
-      // No session to end.
-    }
-    clearAppwriteJwtCache();
-
+  ///
+  /// Only once BI has answered with credentials is the app's current session
+  /// ended (Appwrite will not create a session beside it).
+  /// [beforeSessionSwitch] runs just before, for cleanup that still needs
+  /// that session; once it has run, even a [BiSignInFailed] leaves the
+  /// student with no session at all.
+  Future<BiSignInOutcome> signIn({
+    Future<void> Function()? beforeSessionSwitch,
+  }) async {
     final BiCallback callback;
     try {
       final result = await _authenticate(
@@ -187,6 +189,17 @@ class BiSignInService {
       case BiCallbackError(:final reason):
         return BiSignInFailed(reason);
       case BiCallbackSuccess(:final userId, :final secret):
+        try {
+          await beforeSessionSwitch?.call();
+        } catch (_) {
+          // Cleanup must never stop the sign-in.
+        }
+        try {
+          await _account.deleteSession(sessionId: 'current');
+        } catch (_) {
+          // No session to end.
+        }
+        clearAppwriteJwtCache();
         try {
           await _account.createSession(userId: userId, secret: secret);
         } catch (_) {

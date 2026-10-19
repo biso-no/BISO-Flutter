@@ -27,6 +27,15 @@ const _user = UserModel(
 class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
   _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
 
+  BiSignInOutcome biOutcome = const BiSignInCancelled();
+  int authRefreshes = 0;
+
+  @override
+  Future<BiSignInOutcome> signInWithBi() async => biOutcome;
+
+  @override
+  Future<void> refreshAuthState() async => authRefreshes++;
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -127,11 +136,12 @@ void main() {
   late _FixedOverview overview;
   late _RecordingCheckout checkout;
   late _FakeBiSignIn bi;
+  late _Auth auth;
 
   List<Override> overrides(MembershipOverview? value) {
     overview = _FixedOverview(value);
     return [
-      authStateProvider.overrideWith((_) => _Auth()),
+      authStateProvider.overrideWith((_) => auth = _Auth()),
       membershipOverviewProvider.overrideWith(() => overview),
       membershipCheckoutControllerProvider.overrideWith(
         (ref) => checkout = _RecordingCheckout(ref),
@@ -208,6 +218,66 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('a BI sign-in that fails shows the sign-in copy, not a sync '
+      'error', (tester) async {
+    bi.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(),
+      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+    );
+    await tester.pumpAndSettle();
+    auth.biOutcome = const BiSignInFailed(BiSignInFailure.existingAccount);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'BI could not sign you into your existing BISO account. Use a login '
+        'link to your student email below, and let us know at '
+        'biso.no/contact so we can fix the sign-in.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('We could not confirm your student number'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a cancelled BI sign-in shows nothing', (tester) async {
+    bi.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(),
+      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('a 401 from the sync re-reads the session and shows no sync '
+      'error', (tester) async {
+    bi.answer = const BiSyncResult.failed(BiSyncError.notAuthenticated);
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(),
+      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pumpAndSettle();
+
+    expect(auth.authRefreshes, 1);
+    expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets('a missing BI record retries the sync', (tester) async {

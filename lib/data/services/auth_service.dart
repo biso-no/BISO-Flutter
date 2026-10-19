@@ -13,16 +13,25 @@ import '../../core/logging/app_logger.dart';
 import '../../core/logging/print_migration.dart';
 
 class AuthService {
-  AuthService({ProfileApiClient? profileApi})
-    : _profileApi = profileApi ?? ProfileApiClient();
+  AuthService({
+    ProfileApiClient? profileApi,
+    Account? account,
+    TablesDB? databases,
+  }) : _profileApi = profileApi ?? ProfileApiClient(),
+       _accountOverride = account,
+       _databasesOverride = databases;
 
   /// Profile rows are read-only to their owner; every profile write goes
   /// through `PUT /api/profile`.
   final ProfileApiClient _profileApi;
 
-  // Using simplified global Appwrite instances
-  Account get _account => account;
-  TablesDB get _databases => db;
+  /// Supplied by a test; otherwise the global Appwrite instances, resolved
+  /// on use.
+  final Account? _accountOverride;
+  final TablesDB? _databasesOverride;
+
+  Account get _account => _accountOverride ?? account;
+  TablesDB get _databases => _databasesOverride ?? db;
   Storage get _storage => storage;
 
   // SharedPreferences keys for local session cache
@@ -270,10 +279,13 @@ class AuthService {
     }
   }
 
+  /// The signed-in account's profile, or null without a session. Whoever it
+  /// is, however they signed in, is kept for an offline launch.
   Future<UserModel?> getCurrentUser() async {
     try {
       final accountUser = await _account.get();
 
+      UserModel user;
       try {
         final doc = await _databases.getRow(
           databaseId: AppConstants.databaseId,
@@ -294,15 +306,17 @@ class AuthService {
             ]),
           ],
         );
-        return UserModel.fromMap(doc.data);
+        user = UserModel.fromMap(doc.data);
       } catch (e) {
         // User profile doesn't exist
-        return UserModel(
+        user = UserModel(
           id: accountUser.$id,
           name: accountUser.name,
           email: accountUser.email,
         );
       }
+      await _cacheSessionUser(user);
+      return user;
     } on AppwriteException catch (e) {
       if (e.code == 401) {
         // Server confirmed no valid session — clear local cache
