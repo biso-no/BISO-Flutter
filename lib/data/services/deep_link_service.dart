@@ -204,10 +204,6 @@ class DeepLinkService {
       case 'membership':
         _go(membershipRouteFor(uri.queryParameters));
         break;
-      case 'ai':
-      case 'ai-chat':
-        _go('/explore/ai-chat');
-        break;
       default:
         logPrint('🔴 Unknown universal link path: ${uri.path}');
     }

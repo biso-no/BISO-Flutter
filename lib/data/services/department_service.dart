@@ -2,6 +2,7 @@ import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
 
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/unit_visibility.dart';
 import '../models/department_model.dart';
 import '../services/appwrite_service.dart';
 
@@ -37,10 +38,23 @@ class DepartmentService {
     ]);
 
     return mergeTranslations(
-      results[0].rows.map((row) => row.data),
+      publicRows(results[0].rows.map((row) => row.data)),
       results[1].rows.map((row) => row.data),
     );
   }
+
+  /// Keeps only rows a student may see (no operating ledgers or governance
+  /// bodies). Matches the raw `Name`, as the web does.
+  static List<Map<String, dynamic>> publicRows(
+    Iterable<Map<String, dynamic>> departments,
+  ) => departments
+      .where(
+        (dept) => isPublicUnit(
+          name: dept['Name']?.toString(),
+          active: dept['active'] is bool ? dept['active'] as bool : null,
+        ),
+      )
+      .toList();
 
   /// Builds models from `departments` rows, taking the name and description
   /// from a matching translation when one exists. Sorted by displayed name.
@@ -90,6 +104,7 @@ class DepartmentService {
       ]);
       final dept = results[0] as models.Row;
       final translations = results[1] as models.RowList;
+      if (publicRows([dept.data]).isEmpty) return null;
       return mergeTranslations(
         [dept.data],
         translations.rows.map((row) => row.data),
