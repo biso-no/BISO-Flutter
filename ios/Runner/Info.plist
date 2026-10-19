@@ -55,6 +55,30 @@
 	<string>We use your location once to set your closest BI campus and show relevant content.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We use your photo library to select images for receipts and your profile.</string>
+	<!-- Apps built with the iOS 27 SDK must use the scene life cycle, or
+	     UIKit stops them at launch. FlutterSceneDelegate forwards the scene
+	     events (links included) to plugins. -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
