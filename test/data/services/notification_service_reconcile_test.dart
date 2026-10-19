@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
@@ -287,6 +288,66 @@ void main() {
     );
 
     test(
+      'still subscribes this device to general when the topic intent cannot '
+      'be read, and deletes nothing: general does not depend on any choice, '
+      'and a run that stopped at the failed read left a student who had '
+      'allowed notifications with no subscription at all',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            'news_oslo': 'sub-news',
+          }),
+        });
+        final account = _FakeAccount(intentPrefs(events: false))
+          ..shouldFail = true;
+        final messaging = _FakeMessaging()
+          ..subscribers['news_oslo'] = 'sub-news';
+        final service = _ReconcilingService(account, messaging);
+
+        final outcome = await service.reconcile(campusId: '1');
+
+        expect(outcome, ReconcileOutcome.unavailable);
+        expect(messaging.createCalls, ['general']);
+        expect(
+          messaging.deleteCalls,
+          isEmpty,
+          reason: 'with no readable intent, no other subscription is touched',
+        );
+        expect(
+          await DeviceSubscriptionStore().readSubscriberIds(),
+          messaging.subscribers,
+        );
+        expect(messaging.subscribers.keys.toSet(), {'general', 'news_oslo'});
+      },
+    );
+
+    test(
+      'does nothing when the topic intent cannot be read and general is '
+      'already recorded on this device',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            'general': 'sub-general',
+          }),
+        });
+        final account = _FakeAccount(intentPrefs(events: false))
+          ..shouldFail = true;
+        final messaging = _FakeMessaging()
+          ..subscribers['general'] = 'sub-general';
+        final service = _ReconcilingService(account, messaging);
+
+        expect(
+          await service.reconcile(campusId: '1'),
+          ReconcileOutcome.unavailable,
+        );
+        expect(messaging.createCalls, isEmpty);
+        expect(messaging.deleteCalls, isEmpty);
+      },
+    );
+
+    test(
       'reports unavailable, rather than throwing, when the FCM token cannot '
       'be fetched - e.g. SERVICE_NOT_AVAILABLE after the launch fetch had '
       'failed too, so no token was cached: a throw escapes into every '
@@ -392,6 +453,11 @@ class _FakeMessaging extends Messaging {
   /// [subscribers], holding one run mid-flight while another starts.
   Completer<void>? holdFirstCreate;
 
+  /// Every topic [createSubscriber] and [deleteSubscriber] were called for,
+  /// in call order.
+  final List<String> createCalls = <String>[];
+  final List<String> deleteCalls = <String>[];
+
   int _createCalls = 0;
 
   @override
@@ -401,6 +467,7 @@ class _FakeMessaging extends Messaging {
     required String targetId,
   }) async {
     _createCalls++;
+    createCalls.add(topicId);
     final hold = holdFirstCreate;
     if (hold != null && _createCalls == 1) await hold.future;
     if (subscribers.containsKey(topicId)) {
@@ -415,6 +482,7 @@ class _FakeMessaging extends Messaging {
     required String topicId,
     required String subscriberId,
   }) async {
+    deleteCalls.add(topicId);
     if (subscribers[topicId] != subscriberId) {
       throw AppwriteException('subscriber not found', 404);
     }

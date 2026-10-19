@@ -115,7 +115,9 @@ enum ReconcileOutcome {
 
   /// Nothing could be attempted on this device: the permission status could
   /// not be read, or there is no FCM token, no push target, or no readable
-  /// intent.
+  /// intent. Without a readable intent the device is still subscribed to
+  /// `general`, which no choice of the student's affects, and nothing else
+  /// is changed.
   unavailable,
 
   /// Some subscribe/unsubscribe calls failed; the device is partly reconciled.
@@ -924,22 +926,40 @@ class NotificationService {
       return ReconcileOutcome.unavailable;
     }
 
-    final Map<String, bool> intent;
+    Map<String, bool>? intent;
     try {
       intent = await loadTopicIntent();
     } catch (e) {
       // Reconciling against a guessed intent is exactly the harm this type
       // exists to prevent: it could subscribe a student to a topic they had
-      // deliberately turned off. Abort instead, and retry on the next launch,
-      // auth change, or campus change.
-      debugPrint('reconcile: could not read topic intent; aborting ($e)');
-      return ReconcileOutcome.unavailable;
+      // deliberately turned off. So only kGeneralTopicId, which every device
+      // with permission holds whatever the student chose, is ensured below,
+      // nothing is deleted, and the rest is retried on the next launch, auth
+      // change, or campus change. Stopping here instead left a device that
+      // had permission subscribed to nothing at all.
+      debugPrint(
+        'reconcile: could not read topic intent; ensuring only '
+        '$kGeneralTopicId ($e)',
+      );
     }
 
-    final desired = appwriteTopicIdsFor(intent: intent, campusId: campusId);
     final current = await _store.readSubscriberIds();
-    final diff = computeTopicDiff(desired: desired, current: current);
-    if (diff.isEmpty) return ReconcileOutcome.applied;
+    final diff = intent == null
+        ? TopicDiff(
+            toCreate: current.containsKey(kGeneralTopicId)
+                ? const <String>{}
+                : const <String>{kGeneralTopicId},
+            toDelete: const <String>{},
+          )
+        : computeTopicDiff(
+            desired: appwriteTopicIdsFor(intent: intent, campusId: campusId),
+            current: current,
+          );
+    if (diff.isEmpty) {
+      return intent == null
+          ? ReconcileOutcome.unavailable
+          : ReconcileOutcome.applied;
+    }
 
     var hadFailure = false;
 
@@ -1020,6 +1040,8 @@ class NotificationService {
       if (!run.ownsState) return ReconcileOutcome.unavailable;
     }
 
+    // Only general was attempted: the student's own topics are still to do.
+    if (intent == null) return ReconcileOutcome.unavailable;
     return hadFailure
         ? ReconcileOutcome.partiallyFailed
         : ReconcileOutcome.applied;
