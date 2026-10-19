@@ -412,6 +412,33 @@ class NotificationService {
     }
   }
 
+  /// Whether the OS will no longer show its notification permission dialog,
+  /// so only the system settings can turn notifications on: on iOS once the
+  /// student has declined it, on Android once they have declined it for good.
+  /// A status that cannot be read reports `false`, which leaves the caller to
+  /// ask again.
+  Future<bool> isPermissionPermanentlyDenied() async {
+    try {
+      const permission = permission_handler.Permission.notification;
+      return await permission.isPermanentlyDenied;
+    } catch (e) {
+      debugPrint('Could not read whether notifications are blocked: $e');
+      return false;
+    }
+  }
+
+  /// Opens this app's page in the system settings, where notifications can be
+  /// turned on, reporting whether it could. A grant made there is picked up
+  /// when the app is resumed (see [reconcileIfPermissionNewlyGranted]).
+  Future<bool> openSystemNotificationSettings() async {
+    try {
+      return await permission_handler.openAppSettings();
+    } catch (e) {
+      debugPrint('Could not open the system settings: $e');
+      return false;
+    }
+  }
+
   /// Reconciles this device for [campusId] when notification permission has
   /// been granted since this service last read it, reporting the outcome, or
   /// null when it did not reconcile.

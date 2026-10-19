@@ -2807,4 +2807,29 @@ class AppLocalizationsNo extends AppLocalizations {
   @override
   String get expenseFinancialManagerHint =>
       'Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.';
+
+  @override
+  String get notificationsTurnOnTitle => 'Slå på varsler';
+
+  @override
+  String get notificationsTurnOnSubtitle =>
+      'Varsler er slått av på denne enheten';
+
+  @override
+  String get notificationsStillOffMessage =>
+      'Varsler er fortsatt slått av. Du kan slå dem på i innstillingene på enheten.';
+
+  @override
+  String get notificationsOpenSettingsAction => 'Åpne innstillinger';
+
+  @override
+  String get notificationsImportantTitle => 'Viktige kunngjøringer';
+
+  @override
+  String get notificationsImportantSubtitle =>
+      'Alltid på. Nyheter fra BISO som alle studenter trenger.';
+
+  @override
+  String get notificationsImportantAlwaysIncluded =>
+      'Du får alltid viktige kunngjøringer fra BISO.';
 }

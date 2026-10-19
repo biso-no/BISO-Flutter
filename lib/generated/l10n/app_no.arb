@@ -3699,5 +3699,33 @@
   "expenseFinancialManagerHint": "Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.",
   "@expenseFinancialManagerHint": {
     "description": "Expense form"
+  },
+  "notificationsTurnOnTitle": "Slå på varsler",
+  "@notificationsTurnOnTitle": {
+    "description": "Notification settings: row shown while the OS has notifications off for the app"
+  },
+  "notificationsTurnOnSubtitle": "Varsler er slått av på denne enheten",
+  "@notificationsTurnOnSubtitle": {
+    "description": "Notification settings: subtitle of the turn-on row"
+  },
+  "notificationsStillOffMessage": "Varsler er fortsatt slått av. Du kan slå dem på i innstillingene på enheten.",
+  "@notificationsStillOffMessage": {
+    "description": "Notification settings: snackbar when a permission request leaves notifications off"
+  },
+  "notificationsOpenSettingsAction": "Åpne innstillinger",
+  "@notificationsOpenSettingsAction": {
+    "description": "Notification settings: snackbar action that opens the system settings for the app"
+  },
+  "notificationsImportantTitle": "Viktige kunngjøringer",
+  "@notificationsImportantTitle": {
+    "description": "Notification settings: the general topic, which every device gets"
+  },
+  "notificationsImportantSubtitle": "Alltid på. Nyheter fra BISO som alle studenter trenger.",
+  "@notificationsImportantSubtitle": {
+    "description": "Notification settings: subtitle of the important announcements row"
+  },
+  "notificationsImportantAlwaysIncluded": "Du får alltid viktige kunngjøringer fra BISO.",
+  "@notificationsImportantAlwaysIncluded": {
+    "description": "Notification topics prompt: important announcements are not a choice"
   }
 }

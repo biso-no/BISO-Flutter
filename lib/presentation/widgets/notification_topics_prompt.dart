@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/notification_topics.dart';
 import '../../core/theme/biso_sheet.dart';
+import '../../generated/l10n/app_localizations.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/notification/notification_provider.dart';
 
@@ -172,6 +173,7 @@ class _NotificationTopicsPromptState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
 
     return SafeArea(
       child: Padding(
@@ -191,6 +193,14 @@ class _NotificationTopicsPromptState
             Text(
               'Pick what you want to hear about. You will get updates for your '
               'campus and anything BISO publishes nationally.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // `general`, which is not one of the choices below.
+            Text(
+              l10n.notificationsImportantAlwaysIncluded,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: AppColors.onSurfaceVariant,
               ),

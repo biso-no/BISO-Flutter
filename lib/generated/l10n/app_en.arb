@@ -3699,5 +3699,33 @@
   "expenseFinancialManagerHint": "Turn this on so the approval is routed to your department manager instead of you.",
   "@expenseFinancialManagerHint": {
     "description": "Expense form"
+  },
+  "notificationsTurnOnTitle": "Turn on notifications",
+  "@notificationsTurnOnTitle": {
+    "description": "Notification settings: row shown while the OS has notifications off for the app"
+  },
+  "notificationsTurnOnSubtitle": "Notifications are off on this device",
+  "@notificationsTurnOnSubtitle": {
+    "description": "Notification settings: subtitle of the turn-on row"
+  },
+  "notificationsStillOffMessage": "Notifications are still off. You can turn them on in your device settings.",
+  "@notificationsStillOffMessage": {
+    "description": "Notification settings: snackbar when a permission request leaves notifications off"
+  },
+  "notificationsOpenSettingsAction": "Open settings",
+  "@notificationsOpenSettingsAction": {
+    "description": "Notification settings: snackbar action that opens the system settings for the app"
+  },
+  "notificationsImportantTitle": "Important announcements",
+  "@notificationsImportantTitle": {
+    "description": "Notification settings: the general topic, which every device gets"
+  },
+  "notificationsImportantSubtitle": "Always on. News from BISO that every student needs.",
+  "@notificationsImportantSubtitle": {
+    "description": "Notification settings: subtitle of the important announcements row"
+  },
+  "notificationsImportantAlwaysIncluded": "You will always get important announcements from BISO.",
+  "@notificationsImportantAlwaysIncluded": {
+    "description": "Notification topics prompt: important announcements are not a choice"
   }
 }

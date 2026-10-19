@@ -5120,6 +5120,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Turn this on so the approval is routed to your department manager instead of you.'**
   String get expenseFinancialManagerHint;
+
+  /// Notification settings: row shown while the OS has notifications off for the app
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on notifications'**
+  String get notificationsTurnOnTitle;
+
+  /// Notification settings: subtitle of the turn-on row
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are off on this device'**
+  String get notificationsTurnOnSubtitle;
+
+  /// Notification settings: snackbar when a permission request leaves notifications off
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are still off. You can turn them on in your device settings.'**
+  String get notificationsStillOffMessage;
+
+  /// Notification settings: snackbar action that opens the system settings for the app
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get notificationsOpenSettingsAction;
+
+  /// Notification settings: the general topic, which every device gets
+  ///
+  /// In en, this message translates to:
+  /// **'Important announcements'**
+  String get notificationsImportantTitle;
+
+  /// Notification settings: subtitle of the important announcements row
+  ///
+  /// In en, this message translates to:
+  /// **'Always on. News from BISO that every student needs.'**
+  String get notificationsImportantSubtitle;
+
+  /// Notification topics prompt: important announcements are not a choice
+  ///
+  /// In en, this message translates to:
+  /// **'You will always get important announcements from BISO.'**
+  String get notificationsImportantAlwaysIncluded;
 }
 
 class _AppLocalizationsDelegate

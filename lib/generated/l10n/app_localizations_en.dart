@@ -2799,4 +2799,29 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get expenseFinancialManagerHint =>
       'Turn this on so the approval is routed to your department manager instead of you.';
+
+  @override
+  String get notificationsTurnOnTitle => 'Turn on notifications';
+
+  @override
+  String get notificationsTurnOnSubtitle =>
+      'Notifications are off on this device';
+
+  @override
+  String get notificationsStillOffMessage =>
+      'Notifications are still off. You can turn them on in your device settings.';
+
+  @override
+  String get notificationsOpenSettingsAction => 'Open settings';
+
+  @override
+  String get notificationsImportantTitle => 'Important announcements';
+
+  @override
+  String get notificationsImportantSubtitle =>
+      'Always on. News from BISO that every student needs.';
+
+  @override
+  String get notificationsImportantAlwaysIncluded =>
+      'You will always get important announcements from BISO.';
 }
