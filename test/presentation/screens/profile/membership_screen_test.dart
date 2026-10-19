@@ -13,6 +13,7 @@ import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -30,8 +31,15 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
   BiSignInOutcome biOutcome = const BiSignInCancelled();
   int authRefreshes = 0;
 
+  /// The account the BI sign-in switches into, when it does.
+  AuthState? signedInState;
+
   @override
-  Future<BiSignInOutcome> signInWithBi() async => biOutcome;
+  Future<BiSignInOutcome> signInWithBi() async {
+    final next = signedInState;
+    if (next != null) state = next;
+    return biOutcome;
+  }
 
   @override
   Future<void> refreshAuthState() async => authRefreshes++;
@@ -278,6 +286,56 @@ void main() {
 
     expect(auth.authRefreshes, 1);
     expect(find.byType(SnackBar), findsNothing);
+  });
+
+  group('a BI sign-in that switches accounts', () {
+    const biUser = UserModel(id: 'u2', name: 'Kari BI', email: 's1@bi.no');
+
+    Future<void> signInWithBi(
+      WidgetTester tester, {
+      required bool profileComplete,
+    }) async {
+      bi.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+      await pumpBisoScreen(
+        tester,
+        const MembershipScreen(),
+        overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+        routed: true,
+        extraRoutes: [
+          GoRoute(
+            path: '/onboarding',
+            builder: (_, _) => const Scaffold(body: Text('Onboarding page')),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      auth
+        ..biOutcome = const BiSignedIn(
+          BiSyncResult(success: true, studentId: 's1'),
+        )
+        ..signedInState = AuthState(
+          isAuthenticated: true,
+          user: biUser,
+          hasProfile: profileComplete,
+          isProfileComplete: profileComplete,
+        );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('goes to onboarding when the account needs it', (tester) async {
+      await signInWithBi(tester, profileComplete: false);
+
+      expect(find.text('Onboarding page'), findsOneWidget);
+    });
+
+    testWidgets('stays on the membership screen otherwise', (tester) async {
+      await signInWithBi(tester, profileComplete: true);
+
+      expect(find.text('Onboarding page'), findsNothing);
+      expect(find.byType(MembershipScreen), findsOneWidget);
+    });
   });
 
   testWidgets('a missing BI record retries the sync', (tester) async {

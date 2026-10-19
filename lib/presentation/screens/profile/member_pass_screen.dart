@@ -54,10 +54,10 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
     setState(() => _biBusy = false);
     unawaited(ref.read(memberPassProvider.notifier).retry());
     final message = biContinueMessage(AppLocalizations.of(context)!, outcome);
+    final messenger = ScaffoldMessenger.of(context);
+    goToOnboardingAfterBi(context, ref, outcome);
     if (message != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      messenger.showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

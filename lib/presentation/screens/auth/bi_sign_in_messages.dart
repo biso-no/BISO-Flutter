@@ -1,6 +1,11 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../data/services/bi_sign_in_service.dart';
 import '../../../data/services/bi_sync_api_client.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/auth/bi_sign_in_provider.dart';
 
 /// What a student reads when the BI sync did not confirm their student
@@ -36,3 +41,17 @@ String? biContinueMessage(AppLocalizations l10n, BiContinueOutcome outcome) =>
       ),
       BiContinueCancelled() || BiContinueSignedOut() => null,
     };
+
+/// After "Sign in with BI" on the membership card or member pass: when the
+/// BI sign-in landed in an account that has not been onboarded yet, goes to
+/// `/onboarding` as the login screen does, and returns true.
+bool goToOnboardingAfterBi(
+  BuildContext context,
+  WidgetRef ref,
+  BiContinueOutcome outcome,
+) {
+  final switched = outcome is BiContinueSynced && outcome.signedIn;
+  if (!switched || !ref.read(authStateProvider).needsOnboarding) return false;
+  context.go('/onboarding');
+  return true;
+}

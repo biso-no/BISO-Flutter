@@ -103,11 +103,9 @@ void main() {
       expect(log, ['syncOnly', 'refresh']);
       expect(
         linked,
-        isA<BiContinueSynced>().having(
-          (o) => o.sync.studentId,
-          'studentId',
-          's1234567',
-        ),
+        isA<BiContinueSynced>()
+            .having((o) => o.sync.studentId, 'studentId', 's1234567')
+            .having((o) => o.signedIn, 'signedIn', isFalse),
       );
 
       log.clear();
@@ -122,11 +120,9 @@ void main() {
       expect(log, ['syncOnly', 'signInWithBi', 'refresh']);
       expect(
         signedIn,
-        isA<BiContinueSynced>().having(
-          (o) => o.sync.studentId,
-          'studentId',
-          's7654321',
-        ),
+        isA<BiContinueSynced>()
+            .having((o) => o.sync.studentId, 'studentId', 's7654321')
+            .having((o) => o.signedIn, 'signedIn', isTrue),
       );
     },
   );

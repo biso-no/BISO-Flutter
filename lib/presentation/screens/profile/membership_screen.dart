@@ -123,10 +123,10 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
     if (!mounted) return;
     setState(() => _biBusy = false);
     final message = biContinueMessage(AppLocalizations.of(context)!, outcome);
+    final messenger = ScaffoldMessenger.of(context);
+    goToOnboardingAfterBi(context, ref, outcome);
     if (message != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      messenger.showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

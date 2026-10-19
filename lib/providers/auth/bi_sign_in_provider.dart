@@ -15,9 +15,12 @@ sealed class BiContinueOutcome {
 
 /// The server answered the BI sync, after a BI sign-in when one was needed.
 final class BiContinueSynced extends BiContinueOutcome {
-  const BiContinueSynced(this.sync);
+  const BiContinueSynced(this.sync, {this.signedIn = false});
 
   final BiSyncResult sync;
+
+  /// A BI sign-in replaced the session first, possibly with another account.
+  final bool signedIn;
 }
 
 /// The BI sign-in itself failed (not the sync after it).
@@ -61,19 +64,21 @@ Future<BiContinueOutcome> _syncOrSignIn(
   AuthNotifier auth,
 ) async {
   var sync = await service.syncOnly();
+  var signedIn = false;
   if (sync.error == BiSyncError.noBiIdentity) {
     switch (await auth.signInWithBi()) {
       case BiSignInCancelled():
         return const BiContinueCancelled();
       case BiSignInFailed(:final reason):
         return BiContinueSignInFailed(reason);
-      case BiSignedIn(sync: final signedIn):
-        sync = signedIn;
+      case BiSignedIn(sync: final afterSignIn):
+        sync = afterSignIn;
+        signedIn = true;
     }
   }
   if (sync.error == BiSyncError.notAuthenticated) {
     await auth.refreshAuthState();
     return const BiContinueSignedOut();
   }
-  return BiContinueSynced(sync);
+  return BiContinueSynced(sync, signedIn: signedIn);
 }
