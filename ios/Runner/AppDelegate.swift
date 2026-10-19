@@ -3,7 +3,7 @@ import PassKit
 import UIKit
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private let appGroupIdentifier = "group.com.biso.no"
   private let expenseIntakeChannelName = "biso/expense_intake"
   private let pendingDeepLinkKey = "pendingDeepLink"
@@ -21,39 +21,52 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
-    if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(
-        name: expenseIntakeChannelName,
-        binaryMessenger: controller.binaryMessenger
-      )
-      expenseIntakeChannel = channel
-      channel.setMethodCallHandler { [weak self] call, result in
-        if call.method == "takePendingExpenseIntakeBatches" {
-          result(self?.drainSharedExpenseBatches() ?? [])
-          return
-        }
-        if call.method == "takePendingShortcutDeepLink" {
-          result(self?.takePendingShortcutDeepLink())
-          return
-        }
-        result(FlutterMethodNotImplemented)
-      }
-
-      let wallet = FlutterMethodChannel(
-        name: walletChannelName,
-        binaryMessenger: controller.binaryMessenger
-      )
-      walletChannel = wallet
-      wallet.setMethodCallHandler { [weak self] call, result in
-        self?.handleWalletCall(call, result: result)
-      }
-    }
+    // With the scene life cycle UIKit no longer calls
+    // applicationDidBecomeActive; the scene reports it instead.
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(sceneDidActivate(_:)),
+      name: UIScene.didActivateNotification,
+      object: nil
+    )
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  override func applicationDidBecomeActive(_ application: UIApplication) {
-    super.applicationDidBecomeActive(application)
+  /// The scene's storyboard creates the Flutter engine after launch, so
+  /// plugins and channels are set up here rather than in
+  /// didFinishLaunchingWithOptions, where there is no window yet.
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let messenger = engineBridge.applicationRegistrar.messenger()
+
+    let channel = FlutterMethodChannel(
+      name: expenseIntakeChannelName,
+      binaryMessenger: messenger
+    )
+    expenseIntakeChannel = channel
+    channel.setMethodCallHandler { [weak self] call, result in
+      if call.method == "takePendingExpenseIntakeBatches" {
+        result(self?.drainSharedExpenseBatches() ?? [])
+        return
+      }
+      if call.method == "takePendingShortcutDeepLink" {
+        result(self?.takePendingShortcutDeepLink())
+        return
+      }
+      result(FlutterMethodNotImplemented)
+    }
+
+    let wallet = FlutterMethodChannel(
+      name: walletChannelName,
+      binaryMessenger: messenger
+    )
+    walletChannel = wallet
+    wallet.setMethodCallHandler { [weak self] call, result in
+      self?.handleWalletCall(call, result: result)
+    }
+  }
+
+  @objc private func sceneDidActivate(_ notification: Notification) {
     expenseIntakeChannel?.invokeMethod("nativeEntrypointReceived", arguments: nil)
   }
 
@@ -180,7 +193,11 @@ extension AppDelegate: PKAddPassesViewControllerDelegate {
   }
 
   private func topViewController() -> UIViewController? {
-    var top = window?.rootViewController
+    // The window belongs to the scene: the app delegate's is always nil.
+    var top = UIApplication.shared.connectedScenes
+      .compactMap { ($0 as? UIWindowScene)?.keyWindow }
+      .first?
+      .rootViewController
     while let presented = top?.presentedViewController {
       top = presented
     }
