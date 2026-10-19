@@ -412,6 +412,65 @@ void main() {
       },
     );
   });
+
+  group('initialize', () {
+    Map<String, dynamic> intentPrefs() => <String, dynamic>{
+      'notification_topics': <String, dynamic>{
+        'news': true,
+        'events': false,
+        'jobs': false,
+        'shop': false,
+      },
+    };
+
+    test(
+      'listens for token refreshes even when the first token fetch fails, '
+      'and a refresh then subscribes this device: on iOS the first fetch '
+      'commonly fails before APNs has answered, and the listener was only '
+      'registered after a successful one, so nothing ever heard the token '
+      'Firebase issued afterwards',
+      () async {
+        final messaging = _FakeMessaging();
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs()),
+          messaging,
+        )..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize();
+        expect(service.fcmToken, isNull);
+
+        service.tokenRefreshes.add('token-2');
+        await pumpEventQueue();
+
+        expect(service.fcmToken, 'token-2');
+        expect(messaging.subscribers.keys.toSet(), {
+          'general',
+          'news_national',
+        });
+      },
+    );
+
+    test(
+      'listens only once, however many times it is called before it has '
+      'succeeded: a second listener would reconcile twice for every refresh',
+      () async {
+        final messaging = _FakeMessaging();
+        final service =
+            _ReconcilingService(_FakeAccount(intentPrefs()), messaging)
+              ..configureThrowsOnce = Exception('not configured yet')
+              ..tokenThrows = Exception('APNS token has not been set yet');
+
+        await service.initialize(); // fails, so it is not yet initialized
+        await service.initialize();
+
+        service.tokenRefreshes.add('token-2');
+        await pumpEventQueue();
+
+        expect(service.permissionChecks, 1, reason: 'one reconcile run');
+        expect(messaging.createCalls, ['general', 'news_national']);
+      },
+    );
+  });
 }
 
 models.Subscriber _subscriber({
@@ -502,12 +561,33 @@ class _ReconcilingService extends NotificationService {
   bool permitted = true;
   Object? permissionThrows;
 
+  /// How many times [checkPlatformPermission] was called: once per reconcile
+  /// run that gets that far.
+  int permissionChecks = 0;
+
   /// Thrown from [fetchPlatformToken] instead of returning a token, when set.
   Object? tokenThrows;
 
   /// Thrown from the next [resolvePushTarget] call, then cleared - a failure
   /// `reconcile()` does not catch itself.
   Object? targetThrowsOnce;
+
+  /// Thrown from the next [configurePlatformMessaging] call, then cleared.
+  Object? configureThrowsOnce;
+
+  /// Stands in for Firebase's `onTokenRefresh`.
+  final StreamController<String> tokenRefreshes =
+      StreamController<String>.broadcast();
+
+  @override
+  Future<void> configurePlatformMessaging() async {
+    final failure = configureThrowsOnce;
+    configureThrowsOnce = null;
+    if (failure != null) throw failure;
+  }
+
+  @override
+  Stream<String> get platformTokenRefreshes => tokenRefreshes.stream;
 
   /// The push target every run resolves, recorded in the store as the real
   /// [resolvePushTarget] records it: subscriber ids are only ever recorded
@@ -516,6 +596,7 @@ class _ReconcilingService extends NotificationService {
 
   @override
   Future<bool> checkPlatformPermission() async {
+    permissionChecks++;
     final failure = permissionThrows;
     if (failure != null) throw failure;
     return permitted;

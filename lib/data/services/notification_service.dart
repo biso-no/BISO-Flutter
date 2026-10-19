@@ -193,9 +193,16 @@ class NotificationService {
   Future<void> initialize() async {
     if (_isInitialized) return;
 
+    // First, and apart from the token fetch below, which on iOS commonly
+    // fails because APNs has not answered yet. Firebase then issues the token
+    // through onTokenRefresh once it has one, and only a listener already
+    // registered hears it. Registered only after a successful fetch, as it
+    // was, there was none for the rest of the session.
+    _listenForTokenRefresh();
+
     try {
       // Configure Firebase Messaging
-      await _configureFirebaseMessaging();
+      await configurePlatformMessaging();
 
       // Get FCM token
       await _getFCMToken();
@@ -214,8 +221,13 @@ class NotificationService {
     unawaited(retryPendingTokenInvalidation());
   }
 
-  /// Configure Firebase Messaging settings
-  Future<void> _configureFirebaseMessaging() async {
+  /// Configures Firebase Messaging: foreground presentation, and the
+  /// handlers for foreground messages and notification taps.
+  ///
+  /// A test seam, like [requestPlatformPermission]: there is no fake for
+  /// Firebase Messaging.
+  @visibleForTesting
+  Future<void> configurePlatformMessaging() async {
     // Set foreground notification presentation options
     await _firebaseMessaging.setForegroundNotificationPresentationOptions(
       alert: true,
@@ -239,19 +251,32 @@ class NotificationService {
   /// Get FCM token for this device
   Future<String?> _getFCMToken() async {
     try {
-      _fcmToken = await _firebaseMessaging.getToken();
+      _fcmToken = await fetchPlatformToken();
       debugPrint('FCM Token: $_fcmToken');
-
-      // Listen for token refresh
-      _firebaseMessaging.onTokenRefresh.listen((newToken) {
-        _fcmToken = newToken;
-        unawaited(_reconcileAfterTokenRefresh());
-      });
-
       return _fcmToken;
     } catch (e) {
       debugPrint('Failed to get FCM token: $e');
       return null;
+    }
+  }
+
+  /// The listener [_listenForTokenRefresh] registered, if it has.
+  StreamSubscription<String>? _tokenRefreshes;
+
+  /// Reconciles this device with every new FCM token. Registers its listener
+  /// once, however many times it is called.
+  void _listenForTokenRefresh() {
+    if (_tokenRefreshes != null) return;
+    try {
+      _tokenRefreshes = platformTokenRefreshes.listen(
+        (newToken) {
+          _fcmToken = newToken;
+          unawaited(_reconcileAfterTokenRefresh());
+        },
+        onError: (Object e) => debugPrint('onTokenRefresh failed: $e'),
+      );
+    } catch (e) {
+      debugPrint('Could not listen for FCM token refreshes: $e');
     }
   }
 
@@ -433,6 +458,13 @@ class NotificationService {
   /// A test seam, like [requestPlatformPermission].
   @visibleForTesting
   Future<String?> fetchPlatformToken() => _firebaseMessaging.getToken();
+
+  /// Every new FCM token Firebase issues this device.
+  ///
+  /// A test seam, like [requestPlatformPermission].
+  @visibleForTesting
+  Stream<String> get platformTokenRefreshes =>
+      _firebaseMessaging.onTokenRefresh;
 
   /// Invalidates this device's FCM token, so nothing bound to it — a push
   /// target on any account — can reach this device again. Firebase issues a
