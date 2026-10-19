@@ -1,6 +1,8 @@
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/membership_fixtures.dart';
+
 Map<String, dynamic> serverOverview({
   String state = 'eligible',
   bool isMember = true,
@@ -106,5 +108,149 @@ void main() {
     expect(restored.expiredMemberships, original.expiredMemberships);
     expect(restored.offeredPlans, original.offeredPlans);
     expect(restored.checkedAt, original.checkedAt);
+  });
+
+  group('after BISO-Sites PR #83', () {
+    Map<String, dynamic> plan(
+      String id,
+      String duration, {
+      String? offer,
+      required String start,
+      required String end,
+    }) => {
+      'id': id,
+      'name': 'BISO Membership $id',
+      'duration': duration,
+      'offer': ?offer,
+      'price': 350,
+      'accrualMonths': 6,
+      'startDate': start,
+      'expiryDate': end,
+    };
+
+    test('reads offer and upcoming memberships', () {
+      final overview = MembershipOverview.fromJson({
+        ...serverOverview(state: 'already_member', isMember: false),
+        'memberships': <Object>[],
+        'upcomingMemberships': [
+          {
+            'id': '60',
+            'name': 'BISO Membership spring 2027',
+            'category': '113180',
+            'startDate': '2027-01-01',
+            'expiryDate': '2027-06-30',
+          },
+        ],
+        'reason': 'upcoming',
+        'offeredPlans': [
+          plan('54', 'semester', start: '2026-07-01', end: '2026-12-31'),
+          plan(
+            '60',
+            'semester',
+            offer: 'next',
+            start: '2027-01-01',
+            end: '2027-06-30',
+          ),
+        ],
+      });
+
+      expect(overview.reason, 'upcoming');
+      expect(overview.upcomingMemberships.single.id, '60');
+      expect(overview.upcomingMembership?.startDate, DateTime(2027, 1, 1));
+      expect(overview.offeredPlans.map((p) => p.offer), [
+        MembershipPlanOffer.current,
+        MembershipPlanOffer.next,
+      ]);
+    });
+
+    test('an old server without the new fields reads as before', () {
+      final overview = MembershipOverview.fromJson(serverOverview());
+
+      expect(overview.upcomingMemberships, isEmpty);
+      expect(overview.upcomingMembership, isNull);
+      expect(overview.offeredPlans.single.offer, MembershipPlanOffer.current);
+      final choice = overview.planChoices.single;
+      expect(choice.duration, 'three_years');
+      expect(choice.hasChoice, isFalse);
+      expect(choice.plan(startNext: true).id, '82');
+    });
+
+    test('an unknown offer reads as current', () {
+      final option = MembershipPlanOption.fromJson(
+        plan(
+          '1',
+          'year',
+          offer: 'someday',
+          start: '2026-07-01',
+          end: '2027-06-30',
+        ),
+      );
+      expect(option.offer, MembershipPlanOffer.current);
+    });
+
+    test('a member has no upcoming membership to announce', () {
+      final overview = membershipOverviewOf(
+        state: MembershipGateState.eligible,
+        isMember: true,
+        active: [fall2026Semester],
+        upcoming: [spring2027Semester],
+      );
+      expect(overview.upcomingMembership, isNull);
+    });
+
+    test('groups offers by duration, semester first, one row each', () {
+      final overview = membershipOverviewOf(
+        plans: [
+          fall2026ThreeYears,
+          spring2027Semester,
+          fall2026Year,
+          fall2026Semester,
+          spring2027ThreeYears,
+          spring2027Year,
+        ],
+      );
+
+      final choices = overview.planChoices;
+      expect(choices.map((c) => c.duration), [
+        'semester',
+        'year',
+        'three_years',
+      ]);
+      expect(choices.every((c) => c.hasChoice), isTrue);
+      final semester = choices.first;
+      expect(semester.primary, fall2026Semester);
+      expect(semester.plan(startNext: false), fall2026Semester);
+      expect(semester.plan(startNext: true), spring2027Semester);
+    });
+
+    test('a duration offered only for next season shows that plan', () {
+      final overview = membershipOverviewOf(
+        isMember: true,
+        plans: [spring2027Semester, fall2026Year, fall2026ThreeYears],
+      );
+
+      final semester = overview.planChoices.first;
+      expect(semester.hasChoice, isFalse);
+      expect(semester.primary, spring2027Semester);
+      expect(semester.plan(startNext: false), spring2027Semester);
+    });
+
+    test('the cache round trip keeps upcoming memberships and offers', () {
+      final original = membershipOverviewOf(
+        state: MembershipGateState.eligible,
+        plans: [fall2026Year, spring2027Year],
+        upcoming: [spring2027Semester],
+        currentExpiry: DateTime(2027, 6, 30),
+      );
+
+      final restored = MembershipOverview.fromJson(
+        original.toJson(),
+      ).asCached();
+
+      expect(restored.upcomingMemberships, original.upcomingMemberships);
+      expect(restored.offeredPlans, original.offeredPlans);
+      expect(restored.planChoices, original.planChoices);
+      expect(restored.upcomingMembership, original.upcomingMembership);
+    });
   });
 }

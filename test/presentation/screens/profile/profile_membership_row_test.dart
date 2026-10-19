@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
+import '../../../helpers/membership_fixtures.dart';
 
 const _campus = CampusModel(
   id: 'oslo',
@@ -109,4 +110,30 @@ void main() {
 
     expect(_membershipRow(tester).subtitle, 'Not a member');
   });
+
+  for (final state in [
+    MembershipGateState.alreadyMember,
+    MembershipGateState.eligible,
+  ]) {
+    testWidgets('a bought membership that has not started says when it starts '
+        '(${state.value})', (tester) async {
+      await pumpBisoScreen(
+        tester,
+        const ProfileScreen(),
+        overrides: _overrides(
+          membershipOverviewOf(
+            state: state,
+            upcoming: [spring2027Semester],
+            currentExpiry: DateTime(2027, 6, 30),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        _membershipRow(tester).subtitle,
+        'Your membership starts January 1, 2027.',
+      );
+    });
+  }
 }

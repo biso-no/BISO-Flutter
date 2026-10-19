@@ -3069,5 +3069,167 @@
   "scannerCameraError": "The camera couldn't start. Check camera access in Settings.",
   "@scannerCameraError": {
     "description": "Member pass / scanner: scannerCameraError"
+  },
+  "membershipDurationSemester": "Semester",
+  "@membershipDurationSemester": {
+    "description": "Membership: membershipDurationSemester"
+  },
+  "membershipDurationYear": "1 year",
+  "@membershipDurationYear": {
+    "description": "Membership: membershipDurationYear"
+  },
+  "membershipDurationThreeYears": "3 years",
+  "@membershipDurationThreeYears": {
+    "description": "Membership: membershipDurationThreeYears"
+  },
+  "membershipDurationMonths": "{count} months",
+  "@membershipDurationMonths": {
+    "description": "Membership: membershipDurationMonths",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "6"
+      }
+    }
+  },
+  "membershipPlanValidUntil": "{price} · valid until {date}",
+  "@membershipPlanValidUntil": {
+    "description": "Membership: membershipPlanValidUntil",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "NOK 350"
+      },
+      "date": {
+        "type": "String",
+        "example": "31 December 2026"
+      }
+    }
+  },
+  "membershipPlanPeriod": "{price} · {start} – {end}",
+  "@membershipPlanPeriod": {
+    "description": "Membership: membershipPlanPeriod",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "NOK 350"
+      },
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      },
+      "end": {
+        "type": "String",
+        "example": "30 June 2027"
+      }
+    }
+  },
+  "membershipEndsOn": "This membership ends {end}.",
+  "@membershipEndsOn": {
+    "description": "Membership: membershipEndsOn",
+    "placeholders": {
+      "end": {
+        "type": "String",
+        "example": "31 December 2026"
+      }
+    }
+  },
+  "membershipBuyThisSemester": "Buy for this semester (until {end})",
+  "@membershipBuyThisSemester": {
+    "description": "Membership: membershipBuyThisSemester",
+    "placeholders": {
+      "end": {
+        "type": "String",
+        "example": "31 December 2026"
+      }
+    }
+  },
+  "membershipStartNextSemester": "Start next semester instead ({start} – {end})",
+  "@membershipStartNextSemester": {
+    "description": "Membership: membershipStartNextSemester",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      },
+      "end": {
+        "type": "String",
+        "example": "30 June 2027"
+      }
+    }
+  },
+  "membershipUpcomingTitle": "Upcoming membership",
+  "@membershipUpcomingTitle": {
+    "description": "Membership: membershipUpcomingTitle"
+  },
+  "membershipUpcomingDetails": "Your membership starts {start} and runs until {end}. Benefits become available from the start date.",
+  "@membershipUpcomingDetails": {
+    "description": "Membership: membershipUpcomingDetails",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      },
+      "end": {
+        "type": "String",
+        "example": "30 June 2027"
+      }
+    }
+  },
+  "membershipStartsOn": "Your membership starts {start}.",
+  "@membershipStartsOn": {
+    "description": "Membership: membershipStartsOn",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "membershipPurchasedTitle": "You're all set",
+  "@membershipPurchasedTitle": {
+    "description": "Membership: membershipPurchasedTitle"
+  },
+  "membershipPurchasedStarts": "Your membership starts {start}. Benefits become available from the start date.",
+  "@membershipPurchasedStarts": {
+    "description": "Membership: membershipPurchasedStarts",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "membershipExtendedFrom": "Your membership is extended from {start}.",
+  "@membershipExtendedFrom": {
+    "description": "Membership: membershipExtendedFrom",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "membershipActiveNow": "You're a member now.",
+  "@membershipActiveNow": {
+    "description": "Membership: membershipActiveNow"
+  },
+  "memberPassUpcomingTitle": "Your membership starts {start}",
+  "@memberPassUpcomingTitle": {
+    "description": "Membership: memberPassUpcomingTitle",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "memberPassUpcomingMessage": "Your pass becomes available on the start date.",
+  "@memberPassUpcomingMessage": {
+    "description": "Membership: memberPassUpcomingMessage"
+  },
+  "memberPassViewMembership": "See your membership",
+  "@memberPassViewMembership": {
+    "description": "Membership: memberPassViewMembership"
   }
 }

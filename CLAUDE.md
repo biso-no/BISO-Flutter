@@ -616,6 +616,16 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   `MembershipCheckoutController` (built in `BisoApp.build`) persists the order, resolves it at
   launch, on resume and from `biso://membership?orderId=…`, then re-checks the membership until
   24SevenOffice shows it.
+- **A membership counts only between its start and expiry (Oslo dates).** One bought for next
+  season arrives in `upcomingMemberships`; the student is not a member until it starts, and
+  `already_member` without `isMember` means exactly that. The screens say when it starts, and so
+  does the member pass (its endpoint answers `not_member` for it).
+- **The server decides what is on sale.** `offeredPlans` can hold a `current` and a `next` plan of
+  one duration (June, December, renewals). The screen shows one row per duration, never the plan
+  `name` (a 24SO product name), and offers the "start next semester" choice only when both exist.
+  The Appwrite `memberships` rows' `canPurchase`/`status` are meaningless and never read.
+- **Activation** finishes when the bought plan shows among the active *or* upcoming memberships
+  (`landedPurchase`); the pending marker remembers the plan's id and dates for that.
 - **Location**: `lib/providers/membership/`, `lib/data/services/membership_api_client.dart`,
   `lib/presentation/screens/profile/membership_screen.dart`. **Route**: `/profile/membership`.
 

@@ -19,12 +19,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 import '../../../helpers/fake_member_pass_api.dart';
+import '../../../helpers/membership_fixtures.dart';
 
 class _Overview extends MembershipOverviewNotifier {
+  _Overview([this.value]);
+
+  final MembershipOverview? value;
   bool linkNoted = false;
 
   @override
-  Future<MembershipOverview?> build() async => null;
+  Future<MembershipOverview?> build() async => value;
 
   @override
   void noteLinkStarted() => linkNoted = true;
@@ -38,7 +42,10 @@ void main() {
   late _Overview overview;
   late List<Uri> launched;
 
-  List<Override> overrides(MemberPassView view) {
+  List<Override> overrides(
+    MemberPassView view, {
+    MembershipOverview? membership,
+  }) {
     launched = [];
     return [
       // `expectBuildsCleanly` pumps the same override list several times
@@ -48,7 +55,9 @@ void main() {
       // element exactly once — so `pass`/`overview` are (re)captured from
       // the factory itself rather than a value created ahead of time.
       memberPassProvider.overrideWith(() => pass = FixedMemberPass(view)),
-      membershipOverviewProvider.overrideWith(() => overview = _Overview()),
+      membershipOverviewProvider.overrideWith(
+        () => overview = _Overview(membership),
+      ),
       membershipUrlLauncherProvider.overrideWithValue((uri) async {
         launched.add(uri);
         return true;
@@ -224,6 +233,31 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Become a member'));
     await tester.pumpAndSettle();
     expect(find.text('Membership screen'), findsOneWidget);
+  });
+
+  testWidgets('a membership that has not started says when it starts', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const MemberPassScreen(),
+      overrides: overrides(
+        _noPass(NoPassState.notMember),
+        membership: membershipOverviewOf(
+          state: MembershipGateState.alreadyMember,
+          upcoming: [spring2027Semester],
+          currentExpiry: DateTime(2027, 6, 30),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your membership starts January 1, 2027'), findsOneWidget);
+    expect(find.text("You're not a member"), findsNothing);
+    expect(
+      find.widgetWithText(FilledButton, 'See your membership'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Sign in opens the login screen', (tester) async {

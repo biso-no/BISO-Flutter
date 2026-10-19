@@ -3069,5 +3069,167 @@
   "scannerCameraError": "Kameraet kunne ikke starte. Sjekk kameratilgang i Innstillinger.",
   "@scannerCameraError": {
     "description": "Member pass / scanner: scannerCameraError"
+  },
+  "membershipDurationSemester": "Semester",
+  "@membershipDurationSemester": {
+    "description": "Membership: membershipDurationSemester"
+  },
+  "membershipDurationYear": "1 år",
+  "@membershipDurationYear": {
+    "description": "Membership: membershipDurationYear"
+  },
+  "membershipDurationThreeYears": "3 år",
+  "@membershipDurationThreeYears": {
+    "description": "Membership: membershipDurationThreeYears"
+  },
+  "membershipDurationMonths": "{count} måneder",
+  "@membershipDurationMonths": {
+    "description": "Membership: membershipDurationMonths",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "6"
+      }
+    }
+  },
+  "membershipPlanValidUntil": "{price} · gyldig til {date}",
+  "@membershipPlanValidUntil": {
+    "description": "Membership: membershipPlanValidUntil",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "NOK 350"
+      },
+      "date": {
+        "type": "String",
+        "example": "31 December 2026"
+      }
+    }
+  },
+  "membershipPlanPeriod": "{price} · {start} – {end}",
+  "@membershipPlanPeriod": {
+    "description": "Membership: membershipPlanPeriod",
+    "placeholders": {
+      "price": {
+        "type": "String",
+        "example": "NOK 350"
+      },
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      },
+      "end": {
+        "type": "String",
+        "example": "30 June 2027"
+      }
+    }
+  },
+  "membershipEndsOn": "Dette medlemskapet slutter {end}.",
+  "@membershipEndsOn": {
+    "description": "Membership: membershipEndsOn",
+    "placeholders": {
+      "end": {
+        "type": "String",
+        "example": "31 December 2026"
+      }
+    }
+  },
+  "membershipBuyThisSemester": "Kjøp for dette semesteret (til {end})",
+  "@membershipBuyThisSemester": {
+    "description": "Membership: membershipBuyThisSemester",
+    "placeholders": {
+      "end": {
+        "type": "String",
+        "example": "31 December 2026"
+      }
+    }
+  },
+  "membershipStartNextSemester": "Start neste semester i stedet ({start} – {end})",
+  "@membershipStartNextSemester": {
+    "description": "Membership: membershipStartNextSemester",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      },
+      "end": {
+        "type": "String",
+        "example": "30 June 2027"
+      }
+    }
+  },
+  "membershipUpcomingTitle": "Kommende medlemskap",
+  "@membershipUpcomingTitle": {
+    "description": "Membership: membershipUpcomingTitle"
+  },
+  "membershipUpcomingDetails": "Medlemskapet ditt starter {start} og varer til {end}. Fordelene blir tilgjengelige fra startdatoen.",
+  "@membershipUpcomingDetails": {
+    "description": "Membership: membershipUpcomingDetails",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      },
+      "end": {
+        "type": "String",
+        "example": "30 June 2027"
+      }
+    }
+  },
+  "membershipStartsOn": "Medlemskapet ditt starter {start}.",
+  "@membershipStartsOn": {
+    "description": "Membership: membershipStartsOn",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "membershipPurchasedTitle": "Alt er klart",
+  "@membershipPurchasedTitle": {
+    "description": "Membership: membershipPurchasedTitle"
+  },
+  "membershipPurchasedStarts": "Medlemskapet ditt starter {start}. Fordelene blir tilgjengelige fra startdatoen.",
+  "@membershipPurchasedStarts": {
+    "description": "Membership: membershipPurchasedStarts",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "membershipExtendedFrom": "Medlemskapet ditt er forlenget fra {start}.",
+  "@membershipExtendedFrom": {
+    "description": "Membership: membershipExtendedFrom",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "membershipActiveNow": "Du er medlem nå.",
+  "@membershipActiveNow": {
+    "description": "Membership: membershipActiveNow"
+  },
+  "memberPassUpcomingTitle": "Medlemskapet ditt starter {start}",
+  "@memberPassUpcomingTitle": {
+    "description": "Membership: memberPassUpcomingTitle",
+    "placeholders": {
+      "start": {
+        "type": "String",
+        "example": "1 January 2027"
+      }
+    }
+  },
+  "memberPassUpcomingMessage": "Medlemskortet blir tilgjengelig fra startdatoen.",
+  "@memberPassUpcomingMessage": {
+    "description": "Membership: memberPassUpcomingMessage"
+  },
+  "memberPassViewMembership": "Se medlemskapet ditt",
+  "@memberPassViewMembership": {
+    "description": "Membership: memberPassViewMembership"
   }
 }
