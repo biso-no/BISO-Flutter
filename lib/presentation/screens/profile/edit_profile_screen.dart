@@ -1,4 +1,3 @@
-import 'profile_edit_changes.dart';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -12,6 +11,7 @@ import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../widgets/biso/biso.dart';
+import 'profile_edit_changes.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   const EditProfileScreen({super.key});
