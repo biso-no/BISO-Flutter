@@ -70,6 +70,7 @@ class ExpenseAttachmentModel extends Equatable {
       amount: amount ?? this.amount,
       description: description ?? this.description,
       type: type ?? this.type,
+      costType: costType ?? this.costType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

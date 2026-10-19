@@ -2,6 +2,7 @@ import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/expense_attachment_model.dart';
 import 'package:biso/data/models/expense_model.dart';
 import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
@@ -39,7 +40,31 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
     : super(AuthState(isAuthenticated: user != null, user: user));
 
   @override
+  Future<void> refreshProfile() async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Records the campus the complete-profile sheet saves.
+class _RecordingAuthService extends Fake implements AuthService {
+  final List<String?> savedCampusIds = [];
+
+  @override
+  Future<UserModel> updateUserProfile({
+    String? name,
+    String? phone,
+    String? address,
+    String? city,
+    String? zipCode,
+    String? campusId,
+    List<String>? departments,
+    dynamic avatarFile,
+    String? bankAccount,
+  }) async {
+    savedCampusIds.add(campusId);
+    return UserModel(id: 'u1', name: name ?? '', email: 'kari@bi.no');
+  }
 }
 
 /// Never touches Appwrite: `_loadLookups` (called from `initState`) always
@@ -417,4 +442,77 @@ void main() {
       _expectFullSizeAmount(tester, '8601 11 17947');
     },
   );
+
+  group('the complete-profile sheet', () {
+    late _RecordingAuthService authService;
+
+    /// Opens the sheet on a draft for [draftCampus], enters a valid bank
+    /// account and saves.
+    Future<void> saveProfile(
+      WidgetTester tester, {
+      required UserModel user,
+      required String draftCampus,
+    }) async {
+      authService = _RecordingAuthService();
+      await pumpBisoScreen(
+        tester,
+        CreateExpenseScreen(
+          draftExpense: ExpenseModel(
+            id: 'draft-1',
+            userId: 'u1',
+            campus: draftCampus,
+            department: 'd1',
+            bankAccount: '',
+            total: 0,
+            status: 'draft',
+          ),
+        ),
+        overrides: [
+          ..._overrides(
+            user: user,
+            campuses: const [
+              _campus,
+              {'\$id': 'c2', 'name': 'Bergen'},
+            ],
+          ),
+          authServiceProvider.overrideWithValue(authService),
+        ],
+        size: const Size(820, 1024),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Update'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.widgetWithText(BisoFormRow, 'Bank account'),
+          matching: find.byType(TextField),
+        ),
+        '86011117947',
+      );
+      await tester.tap(find.text('Save profile'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets("keeps the student's home campus when filing for another", (
+      tester,
+    ) async {
+      await saveProfile(tester, user: _incompleteUser, draftCampus: 'c2');
+
+      expect(authService.savedCampusIds, [null]);
+      expect(find.text('Complete profile'), findsNothing);
+    });
+
+    testWidgets('gives a student without a campus the expense campus', (
+      tester,
+    ) async {
+      await saveProfile(
+        tester,
+        user: const UserModel(id: 'u1', name: 'Kari', email: 'kari@bi.no'),
+        draftCampus: 'c2',
+      );
+
+      expect(authService.savedCampusIds, ['c2']);
+    });
+  });
 }
