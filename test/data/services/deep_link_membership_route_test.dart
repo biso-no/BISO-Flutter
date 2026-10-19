@@ -16,10 +16,6 @@ void main() {
     );
   });
 
-  test('a finished BI link asks the screen to re-check', () {
-    expect(membershipRouteFor({'linked': '1'}), '/profile/membership?linked=1');
-  });
-
   test('a bare link just opens the screen', () {
     expect(membershipRouteFor(const {}), '/profile/membership');
   });

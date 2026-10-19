@@ -2828,22 +2828,6 @@
       }
     }
   },
-  "memberPassLinkTitle": "Link your BI student account",
-  "@memberPassLinkTitle": {
-    "description": "Member pass / scanner: memberPassLinkTitle"
-  },
-  "memberPassLinkMessage": "Your pass needs a linked BI account. You link it once, on biso.no.",
-  "@memberPassLinkMessage": {
-    "description": "Member pass / scanner: memberPassLinkMessage"
-  },
-  "memberPassLinkAction": "Link on biso.no",
-  "@memberPassLinkAction": {
-    "description": "Member pass / scanner: memberPassLinkAction"
-  },
-  "memberPassLinkFailed": "We could not open biso.no. Please try again.",
-  "@memberPassLinkFailed": {
-    "description": "Member pass / scanner: memberPassLinkFailed"
-  },
   "memberPassNotMemberTitle": "You're not a member",
   "@memberPassNotMemberTitle": {
     "description": "Member pass / scanner: memberPassNotMemberTitle"
@@ -3231,5 +3215,61 @@
   "memberPassViewMembership": "See your membership",
   "@memberPassViewMembership": {
     "description": "Membership: memberPassViewMembership"
+  },
+  "biSignInButton": "Sign in with BI student account",
+  "@biSignInButton": {
+    "description": "BI sign-in: login button"
+  },
+  "biSignInHint": "BI students: your student membership and member prices follow your BI account.",
+  "@biSignInHint": {
+    "description": "BI sign-in: under the login button"
+  },
+  "biSignInDivider": "Not a BI student? Use a login link",
+  "@biSignInDivider": {
+    "description": "BI sign-in: divider above the login-link form"
+  },
+  "biSignInFailed": "We could not sign you in with BI. Please try again, or use a login link.",
+  "@biSignInFailed": {
+    "description": "BI sign-in: the sign-in failed"
+  },
+  "biSignInExistingAccount": "BI could not sign you into your existing BISO account. Use a login link to your student email below, and let us know at biso.no/contact so we can fix the sign-in.",
+  "@biSignInExistingAccount": {
+    "description": "BI sign-in: Appwrite would not sign into the account holding the BI email"
+  },
+  "membershipNeedsBiLinkTitle": "Sign in with your BI student account",
+  "@membershipNeedsBiLinkTitle": {
+    "description": "Membership: web membership.join.needsBiLink.title"
+  },
+  "membershipNeedsBiLinkBody": "Your membership follows your student number, so you need to be signed in with your BI account. You are signed in with another account right now; sign in again with BI and you are set.",
+  "@membershipNeedsBiLinkBody": {
+    "description": "Membership: web membership.join.needsBiLink.body"
+  },
+  "membershipNeedsBiLinkCta": "Sign in with BI",
+  "@membershipNeedsBiLinkCta": {
+    "description": "Membership: web membership.join.needsBiLink.cta"
+  },
+  "membershipNeedsBiLinkFailed": "We could not confirm your student number after signing in. Please try again, or contact us if it keeps failing.",
+  "@membershipNeedsBiLinkFailed": {
+    "description": "Membership: web membership.join.needsBiLink.linkFailed"
+  },
+  "membershipNeedsBiLinkAlreadyLinked": "This BI student account already belongs to another BISO account. Sign in with that one, or contact BISO.",
+  "@membershipNeedsBiLinkAlreadyLinked": {
+    "description": "Membership: web membership.join.needsBiLink.alreadyLinked"
+  },
+  "membershipNeedsBiLinkInvalidBiEmail": "The BI account you signed in with is not a student account. Sign in with the student account for your s-number (s1234567@bi.no).",
+  "@membershipNeedsBiLinkInvalidBiEmail": {
+    "description": "Membership: web membership.join.needsBiLink.invalidBiEmail"
+  },
+  "membershipNeedsDirectoryRecordTitle": "We couldn't verify your BI record",
+  "@membershipNeedsDirectoryRecordTitle": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.title"
+  },
+  "membershipNeedsDirectoryRecordBody": "Your BI account is linked, but we couldn't read the student number BISO's finance system needs. We haven't charged you anything.",
+  "@membershipNeedsDirectoryRecordBody": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.body"
+  },
+  "membershipNeedsDirectoryRecordRetry": "Try again",
+  "@membershipNeedsDirectoryRecordRetry": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.retry"
   }
 }

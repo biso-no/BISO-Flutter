@@ -2,24 +2,20 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/logging/print_migration.dart';
 import '../../core/theme/biso_page.dart';
-import '../../providers/auth/auth_provider.dart';
 
 /// The in-app route for a `biso://membership` or `https://biso.no/app/membership`
 /// link. A payment return carries `orderId` (and `cancelled=1` when the
-/// student abandoned it); a finished BI link from biso.no carries `linked=1`.
-/// The status a return link carries is not passed on: the screen verifies the
-/// order itself.
+/// student abandoned it). The status a return link carries is not passed on:
+/// the screen verifies the order itself.
 @visibleForTesting
 String membershipRouteFor(Map<String, String> query) {
   final orderId = query['orderId'] ?? '';
   final params = <String, String>{
     if (orderId.isNotEmpty) 'orderId': orderId,
     if (query['cancelled'] == '1') 'cancelled': '1',
-    if (query['linked'] == '1') 'linked': '1',
   };
   return Uri(
     path: '/profile/membership',
@@ -213,12 +209,7 @@ class DeepLinkService {
     logPrint('🔗 Auth deep link path: $path');
     logPrint('🔗 Auth deep link params: $queryParams');
 
-    if (path == '/oauth-callback') {
-      _handleOAuthCallback();
-    } else if (path == '/oauth-failed') {
-      logPrint('🔴 OAuth flow failed or was cancelled');
-      _go('/auth/login');
-    } else if (path == '/magic-link' || path == '/verify') {
+    if (path == '/magic-link' || path == '/verify') {
       final route = magicLinkRouteFor(uri.replace(path: '/verify'));
       if (route != null) {
         _go(route);
@@ -229,25 +220,6 @@ class DeepLinkService {
     } else {
       logPrint('🔴 Unknown auth deep link path: $path');
     }
-  }
-
-  void _handleOAuthCallback() {
-    final context = navigatorKey.currentContext;
-    if (context == null) {
-      logPrint('🔗 No context for OAuth callback — will retry after flush');
-      return;
-    }
-
-    logPrint('🔗 OAuth callback received — refreshing auth state');
-    final container = ProviderScope.containerOf(context);
-    container.read(authStateProvider.notifier).refreshAuthState().then((_) {
-      final authState = container.read(authStateProvider);
-      if (authState.isAuthenticated) {
-        _go(authState.needsOnboarding ? '/onboarding' : '/home');
-      } else {
-        _go('/auth/login');
-      }
-    });
   }
 
   void dispose() {

@@ -602,7 +602,7 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_web_auth_2:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: flutter_web_auth_2
       sha256: a7655829251ee63aae64a748f8512f36670d8eba4657b0055cdf5ef304a9d164

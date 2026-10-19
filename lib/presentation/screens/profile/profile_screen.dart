@@ -410,7 +410,9 @@ class _MembershipRow extends ConsumerWidget {
           ),
         ),
       final o => switch (o.state) {
-        MembershipGateState.needsBiLink => 'Link your BI student account',
+        MembershipGateState.needsBiLink => AppLocalizations.of(
+          context,
+        )!.membershipNeedsBiLinkTitle,
         MembershipGateState.eligible ||
         MembershipGateState.noPlansAvailable => 'Not a member',
         MembershipGateState.needsDirectoryRecord ||

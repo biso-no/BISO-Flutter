@@ -2828,22 +2828,6 @@
       }
     }
   },
-  "memberPassLinkTitle": "Koble til BI-studentkontoen din",
-  "@memberPassLinkTitle": {
-    "description": "Member pass / scanner: memberPassLinkTitle"
-  },
-  "memberPassLinkMessage": "Medlemskortet krever en tilkoblet BI-konto. Du kobler den til én gang, på biso.no.",
-  "@memberPassLinkMessage": {
-    "description": "Member pass / scanner: memberPassLinkMessage"
-  },
-  "memberPassLinkAction": "Koble til på biso.no",
-  "@memberPassLinkAction": {
-    "description": "Member pass / scanner: memberPassLinkAction"
-  },
-  "memberPassLinkFailed": "Vi kunne ikke åpne biso.no. Prøv igjen.",
-  "@memberPassLinkFailed": {
-    "description": "Member pass / scanner: memberPassLinkFailed"
-  },
   "memberPassNotMemberTitle": "Du er ikke medlem",
   "@memberPassNotMemberTitle": {
     "description": "Member pass / scanner: memberPassNotMemberTitle"
@@ -3231,5 +3215,61 @@
   "memberPassViewMembership": "Se medlemskapet ditt",
   "@memberPassViewMembership": {
     "description": "Membership: memberPassViewMembership"
+  },
+  "biSignInButton": "Logg inn med BI-studentkonto",
+  "@biSignInButton": {
+    "description": "BI sign-in: login button"
+  },
+  "biSignInHint": "BI-studenter: studentmedlemskapet og medlemsprisene dine følger BI-kontoen din.",
+  "@biSignInHint": {
+    "description": "BI sign-in: under the login button"
+  },
+  "biSignInDivider": "Ikke BI-student? Bruk en innloggingslenke",
+  "@biSignInDivider": {
+    "description": "BI sign-in: divider above the login-link form"
+  },
+  "biSignInFailed": "Vi fikk ikke logget deg inn med BI. Prøv igjen, eller bruk en innloggingslenke.",
+  "@biSignInFailed": {
+    "description": "BI sign-in: the sign-in failed"
+  },
+  "biSignInExistingAccount": "BI kunne ikke logge deg inn på den eksisterende BISO-kontoen din. Bruk en innloggingslenke til student-e-posten din nedenfor, og gi oss beskjed på biso.no/contact så vi kan rette innloggingen.",
+  "@biSignInExistingAccount": {
+    "description": "BI sign-in: Appwrite would not sign into the account holding the BI email"
+  },
+  "membershipNeedsBiLinkTitle": "Logg inn med BI-studentkontoen din",
+  "@membershipNeedsBiLinkTitle": {
+    "description": "Membership: web membership.join.needsBiLink.title"
+  },
+  "membershipNeedsBiLinkBody": "Medlemskapet følger studentnummeret ditt, så du må være logget inn med BI-kontoen din. Du er logget inn med en annen konto nå – logg inn på nytt med BI, så er du i gang.",
+  "@membershipNeedsBiLinkBody": {
+    "description": "Membership: web membership.join.needsBiLink.body"
+  },
+  "membershipNeedsBiLinkCta": "Logg inn med BI",
+  "@membershipNeedsBiLinkCta": {
+    "description": "Membership: web membership.join.needsBiLink.cta"
+  },
+  "membershipNeedsBiLinkFailed": "Vi fikk ikke bekreftet studentnummeret ditt etter innloggingen. Prøv igjen, eller kontakt oss hvis det fortsetter å feile.",
+  "@membershipNeedsBiLinkFailed": {
+    "description": "Membership: web membership.join.needsBiLink.linkFailed"
+  },
+  "membershipNeedsBiLinkAlreadyLinked": "Denne BI-studentkontoen hører allerede til en annen BISO-konto. Logg inn med den, eller kontakt BISO.",
+  "@membershipNeedsBiLinkAlreadyLinked": {
+    "description": "Membership: web membership.join.needsBiLink.alreadyLinked"
+  },
+  "membershipNeedsBiLinkInvalidBiEmail": "BI-kontoen du logget inn med er ikke en studentkonto. Logg inn med studentkontoen for s-nummeret ditt (s1234567@bi.no).",
+  "@membershipNeedsBiLinkInvalidBiEmail": {
+    "description": "Membership: web membership.join.needsBiLink.invalidBiEmail"
+  },
+  "membershipNeedsDirectoryRecordTitle": "Vi kunne ikke bekrefte BI-registreringen din",
+  "@membershipNeedsDirectoryRecordTitle": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.title"
+  },
+  "membershipNeedsDirectoryRecordBody": "BI-kontoen din er koblet til, men vi fikk ikke lest studentnummeret BISOs økonomisystem trenger. Du er ikke belastet noe.",
+  "@membershipNeedsDirectoryRecordBody": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.body"
+  },
+  "membershipNeedsDirectoryRecordRetry": "Prøv igjen",
+  "@membershipNeedsDirectoryRecordRetry": {
+    "description": "Membership: web membership.join.needsDirectoryRecord.retry"
   }
 }

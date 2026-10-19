@@ -2193,19 +2193,6 @@ class AppLocalizationsNo extends AppLocalizations {
   }
 
   @override
-  String get memberPassLinkTitle => 'Koble til BI-studentkontoen din';
-
-  @override
-  String get memberPassLinkMessage =>
-      'Medlemskortet krever en tilkoblet BI-konto. Du kobler den til én gang, på biso.no.';
-
-  @override
-  String get memberPassLinkAction => 'Koble til på biso.no';
-
-  @override
-  String get memberPassLinkFailed => 'Vi kunne ikke åpne biso.no. Prøv igjen.';
-
-  @override
   String get memberPassNotMemberTitle => 'Du er ikke medlem';
 
   @override
@@ -2453,4 +2440,55 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get memberPassViewMembership => 'Se medlemskapet ditt';
+
+  @override
+  String get biSignInButton => 'Logg inn med BI-studentkonto';
+
+  @override
+  String get biSignInHint =>
+      'BI-studenter: studentmedlemskapet og medlemsprisene dine følger BI-kontoen din.';
+
+  @override
+  String get biSignInDivider => 'Ikke BI-student? Bruk en innloggingslenke';
+
+  @override
+  String get biSignInFailed =>
+      'Vi fikk ikke logget deg inn med BI. Prøv igjen, eller bruk en innloggingslenke.';
+
+  @override
+  String get biSignInExistingAccount =>
+      'BI kunne ikke logge deg inn på den eksisterende BISO-kontoen din. Bruk en innloggingslenke til student-e-posten din nedenfor, og gi oss beskjed på biso.no/contact så vi kan rette innloggingen.';
+
+  @override
+  String get membershipNeedsBiLinkTitle => 'Logg inn med BI-studentkontoen din';
+
+  @override
+  String get membershipNeedsBiLinkBody =>
+      'Medlemskapet følger studentnummeret ditt, så du må være logget inn med BI-kontoen din. Du er logget inn med en annen konto nå – logg inn på nytt med BI, så er du i gang.';
+
+  @override
+  String get membershipNeedsBiLinkCta => 'Logg inn med BI';
+
+  @override
+  String get membershipNeedsBiLinkFailed =>
+      'Vi fikk ikke bekreftet studentnummeret ditt etter innloggingen. Prøv igjen, eller kontakt oss hvis det fortsetter å feile.';
+
+  @override
+  String get membershipNeedsBiLinkAlreadyLinked =>
+      'Denne BI-studentkontoen hører allerede til en annen BISO-konto. Logg inn med den, eller kontakt BISO.';
+
+  @override
+  String get membershipNeedsBiLinkInvalidBiEmail =>
+      'BI-kontoen du logget inn med er ikke en studentkonto. Logg inn med studentkontoen for s-nummeret ditt (s1234567@bi.no).';
+
+  @override
+  String get membershipNeedsDirectoryRecordTitle =>
+      'Vi kunne ikke bekrefte BI-registreringen din';
+
+  @override
+  String get membershipNeedsDirectoryRecordBody =>
+      'BI-kontoen din er koblet til, men vi fikk ikke lest studentnummeret BISOs økonomisystem trenger. Du er ikke belastet noe.';
+
+  @override
+  String get membershipNeedsDirectoryRecordRetry => 'Prøv igjen';
 }

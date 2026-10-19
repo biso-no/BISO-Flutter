@@ -414,7 +414,6 @@ final _router = GoRouter(
                 return MembershipScreen(
                   returnedOrderId: query['orderId'],
                   returnedCancelled: query['cancelled'] == '1',
-                  linked: query['linked'] == '1',
                 );
               },
             ),

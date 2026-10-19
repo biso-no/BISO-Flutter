@@ -11,16 +11,13 @@ import '../../../data/models/membership_overview.dart';
 import '../../../data/models/payment_provider.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/auth/bi_sign_in_provider.dart';
 import '../../../providers/membership/membership_checkout_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/member_pass_row.dart';
-
-/// Where a student links their BI account. BI's tenant is reachable only
-/// through Appwrite's OIDC provider, in a browser holding the student's own
-/// biso.no session, so the app hands this step to the website.
-final membershipLinkUrl = Uri.parse('https://biso.no/membership/link');
+import '../auth/bi_sync_message.dart';
 
 String _formatDate(DateTime? date) =>
     date == null ? '' : DateFormat.yMMMd().format(date);
@@ -57,7 +54,7 @@ String _planSummary(BuildContext context, MembershipPlanOption plan) {
   return l10n.membershipPlanValidUntil(price, end);
 }
 
-/// The student's BISO membership: verified status, BI linking, and purchase.
+/// The student's BISO membership: verified status, BI sign-in, and purchase.
 ///
 /// Status comes from `GET /api/membership`, which reads 24SevenOffice. Buying
 /// goes through the trusted membership checkout; the payment is followed home
@@ -67,15 +64,11 @@ class MembershipScreen extends ConsumerStatefulWidget {
     super.key,
     this.returnedOrderId,
     this.returnedCancelled = false,
-    this.linked = false,
   });
 
   /// Set when the payment provider sent the student back here.
   final String? returnedOrderId;
   final bool returnedCancelled;
-
-  /// Set when biso.no sent the student back after linking.
-  final bool linked;
 
   @override
   ConsumerState<MembershipScreen> createState() => _MembershipScreenState();
@@ -91,6 +84,9 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
   String? _campusId;
   PaymentProvider? _provider;
 
+  /// A BI sync or sign-in is running.
+  bool _biBusy = false;
+
   @override
   void initState() {
     super.initState();
@@ -101,42 +97,36 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
   void didUpdateWidget(covariant MembershipScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.returnedOrderId != widget.returnedOrderId ||
-        oldWidget.returnedCancelled != widget.returnedCancelled ||
-        oldWidget.linked != widget.linked) {
+        oldWidget.returnedCancelled != widget.returnedCancelled) {
       _handleArrival();
     }
   }
 
-  /// Acts on a return link: verify the payment it names, or re-check the
-  /// membership after a BI link.
+  /// Acts on a payment return link: verifies the payment it names.
   void _handleArrival() {
     final orderId = widget.returnedOrderId;
     final cancelled = widget.returnedCancelled;
-    final linked = widget.linked;
-    if (orderId == null && !linked) return;
+    if (orderId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (orderId != null) {
-        ref
-            .read(membershipCheckoutControllerProvider.notifier)
-            .resolvePending(orderId: orderId, cancelled: cancelled);
-      } else {
-        ref.read(membershipOverviewProvider.notifier).refresh();
-      }
+      ref
+          .read(membershipCheckoutControllerProvider.notifier)
+          .resolvePending(orderId: orderId, cancelled: cancelled);
     });
   }
 
-  Future<void> _openLinkPage() async {
-    ref.read(membershipOverviewProvider.notifier).noteLinkStarted();
-    final opened = await ref.read(membershipUrlLauncherProvider)(
-      membershipLinkUrl,
-    );
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('We could not open biso.no. Please try again.'),
-        ),
-      );
+  /// Confirms the student number with BI (signing in with BI when the
+  /// account has no BI identity) and says why when it could not.
+  Future<void> _continueWithBi() async {
+    setState(() => _biBusy = true);
+    final result = await continueWithBi(ref);
+    if (!mounted) return;
+    setState(() => _biBusy = false);
+    final message = biSyncMessage(AppLocalizations.of(context)!, result);
+    if (message != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -204,9 +194,6 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
       );
     }
 
-    final email = ref.watch(
-      authStateProvider.select((state) => state.user?.email ?? ''),
-    );
     final controller = ref.read(membershipCheckoutControllerProvider.notifier);
 
     return BisoPage(
@@ -228,8 +215,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
               ? _MembershipCard(overview: overview)
               : _NotMemberCard(
                   overview: overview,
-                  email: email,
-                  onLink: _openLinkPage,
+                  onContinueWithBi: _biBusy ? null : _continueWithBi,
                   onRetry: _refresh,
                 ),
         ),
@@ -576,14 +562,14 @@ class _MembershipCard extends StatelessWidget {
 class _NotMemberCard extends StatelessWidget {
   const _NotMemberCard({
     required this.overview,
-    required this.email,
-    required this.onLink,
+    required this.onContinueWithBi,
     required this.onRetry,
   });
 
   final MembershipOverview overview;
-  final String email;
-  final VoidCallback onLink;
+
+  /// Null while a BI sync or sign-in is running.
+  final VoidCallback? onContinueWithBi;
   final Future<void> Function() onRetry;
 
   @override
@@ -617,29 +603,23 @@ class _NotMemberCard extends StatelessWidget {
 
     return switch (overview.state) {
       MembershipGateState.needsBiLink => _InfoCard(
-        icon: CupertinoIcons.link,
+        icon: CupertinoIcons.person_crop_rectangle,
         accent: BisoAccent.blue,
-        title: 'Link your BI student account',
-        message:
-            'BISO verifies memberships against your BI student record. You '
-            'link your BI account once, on biso.no'
-            '${email.isEmpty ? '' : ' — sign in there as $email'}.',
+        title: l10n.membershipNeedsBiLinkTitle,
+        message: l10n.membershipNeedsBiLinkBody,
         action: FilledButton(
-          onPressed: onLink,
-          child: const Text('Link on biso.no'),
+          onPressed: onContinueWithBi,
+          child: Text(l10n.membershipNeedsBiLinkCta),
         ),
       ),
       MembershipGateState.needsDirectoryRecord => _InfoCard(
         icon: CupertinoIcons.person_crop_circle_badge_exclam,
         accent: BisoAccent.coral,
-        title: "We couldn't find your BI record",
-        message:
-            'Your BI account is linked, but we could not read the student '
-            'record BISO needs. Try again on biso.no, or contact BISO if it '
-            'keeps failing.',
+        title: l10n.membershipNeedsDirectoryRecordTitle,
+        message: l10n.membershipNeedsDirectoryRecordBody,
         action: FilledButton(
-          onPressed: onLink,
-          child: const Text('Try again on biso.no'),
+          onPressed: onContinueWithBi,
+          child: Text(l10n.membershipNeedsDirectoryRecordRetry),
         ),
       ),
       MembershipGateState.checkUnavailable => _InfoCard(

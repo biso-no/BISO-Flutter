@@ -226,20 +226,6 @@ void main() {
     expect(api.refreshes, [false]);
   });
 
-  test('after noteLinkStarted, the next onAppResumed refetches even when the '
-      'overview is fresh', () async {
-    final api = _FakeMembershipApi(() async => overview());
-    final c = container(api);
-    await c.read(membershipOverviewProvider.future);
-    expect(api.refreshes, [false]);
-
-    final notifier = c.read(membershipOverviewProvider.notifier);
-    notifier.noteLinkStarted();
-    await notifier.onAppResumed();
-
-    expect(api.refreshes, [false, true]);
-  });
-
   test(
     'onAppResumed refetches a fromCache overview regardless of age',
     () async {

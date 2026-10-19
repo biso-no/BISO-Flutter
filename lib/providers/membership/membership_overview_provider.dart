@@ -46,13 +46,10 @@ const membershipCacheTrust = Duration(hours: 24);
 ///
 /// Verified when a student is known (so a cold launch checks without any
 /// membership screen open), and again when the app returns to the foreground
-/// after [membershipRecheckAfter], or immediately after the student went to
-/// biso.no to link their BI account. The last verified overview is kept per
+/// after [membershipRecheckAfter]. The last verified overview is kept per
 /// student so an offline launch can still show it, marked [MembershipOverview.fromCache].
 class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
   static String cacheKey(String userId) => 'membership_overview_v1_$userId';
-
-  bool _linkStarted = false;
 
   @override
   Future<MembershipOverview?> build() async {
@@ -82,21 +79,11 @@ class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
     state = result;
   }
 
-  /// The student is leaving for biso.no to link their BI account; the next
-  /// return to the app re-checks straight away.
-  void noteLinkStarted() => _linkStarted = true;
-
-  /// Re-checks membership when the app returns to the foreground: straight
-  /// away after [noteLinkStarted], otherwise only once the current overview
-  /// is stale (see [membershipRecheckAfter]) or was served from the cache.
-  /// Public — rather than a private lifecycle callback — so tests can drive
-  /// it directly instead of faking app-resume events.
+  /// Re-checks membership when the app returns to the foreground, once the
+  /// current overview is stale (see [membershipRecheckAfter]) or was served
+  /// from the cache. Public — rather than a private lifecycle callback — so
+  /// tests can drive it directly instead of faking app-resume events.
   Future<void> onAppResumed() async {
-    if (_linkStarted) {
-      _linkStarted = false;
-      await refresh(force: true);
-      return;
-    }
     if (state.isLoading) return;
     final current = state.valueOrNull;
     final stale =

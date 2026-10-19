@@ -20,8 +20,8 @@ class ProfileApiException implements Exception {
 /// Profile rows are read-only to their owner, so the app cannot write them
 /// directly. The server keeps only self-service fields — name, contact and
 /// bank details, avatar, bio, privacy, campus and interests — and drops
-/// everything else. The student id and other BI link fields are set by the
-/// BI link on biso.no, never through here.
+/// everything else. The student id and other BI fields are set by the
+/// server's BI sync (`POST /api/auth/bi-sync`), never through here.
 class ProfileApiClient {
   ProfileApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
     : _httpClient = httpClient,

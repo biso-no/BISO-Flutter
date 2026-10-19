@@ -596,7 +596,7 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Routes**: `/explore/products/cart`, `/explore/products/checkout`,
   `/explore/products/order/:orderId`, `/explore/products/orders`
 
-#### 🎫 Membership (verification, BI link, purchase)
+#### 🎫 Membership (verification, BI sign-in, purchase)
 - **Source of truth is 24SevenOffice, read by the server.** `GET /api/membership` returns the
   live status (a 24SO customer category matched to a `memberships` row that has not expired —
   valid through its expiry day in Oslo), the same purchase gate as biso.no's join page, and the
@@ -605,10 +605,22 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   user is known (`BisoApp.build` listens to it), re-verifies on resume after 10 minutes, and keeps
   the last verified overview per user for offline display (marked `fromCache`).
   `hasValidMembershipProvider` trusts a cached answer for 24 hours; prices are always server-side.
-- **BI linking happens on biso.no.** BI's Azure tenant is reachable only through Appwrite's OIDC
-  provider, so the app opens `https://biso.no/membership/link`, and the page returns with
-  `biso://membership?linked=1`. Handing the app's session to a browser was rejected: such a link
-  is forwardable and could attach someone else's BI identity to the sender's account.
+- **Students sign in with BI; there is no account linking.** Sign-in is BI or a login link, as on
+  the web (Google and Apple are gone). BI's Azure tenant is reachable only through Appwrite's OIDC
+  provider: `BiSignInService` ends the app's current session, then opens
+  `…/account/tokens/oauth2/oidc` (scopes `openid email profile`) in an ephemeral browser sheet
+  (`flutter_web_auth_2`, `preferEphemeral: true`), so a BI identity never attaches to a session
+  left in Safari, Chrome or the app. The sheet returns to
+  `appwrite-callback-biso://bi-sign-in/success` (token `userId` + `secret` → session) or
+  `/failure` (Appwrite `error` JSON; `general_bad_request` means BI could not sign into the
+  existing account holding the BI email, and the login screen points to a login link). Then
+  `POST /api/auth/bi-sync` copies the student number (`BiSyncApiClient`); its errors show the web's
+  `needsBiLink.*` copy, and `directory_unavailable` counts as linked. The membership card and the
+  member pass use `continueWithBi`: sync first (a student whose app died after BI sign-in needs no
+  second sign-in), and sign in with BI only for `no_bi_identity`. Cancelling the sheet is silent,
+  but a BI sign-in from a signed-in account has already ended that session (the device is
+  detached from push first, as on sign-out), so the student is then signed out.
+  Android receives the return in flutter_web_auth_2's `CallbackActivity`.
   `student_id` and the `bi_*` columns are server-written only; profile rows are read-only to
   their owner and profile edits go through `PUT /api/profile`.
 - **Purchase** uses `POST /api/payment/{provider}/membership-checkout` with `client: "app"`,
@@ -627,7 +639,9 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Activation** finishes when the bought plan shows among the active *or* upcoming memberships
   (`landedPurchase`); the pending marker remembers the plan's id and dates for that.
 - **Location**: `lib/providers/membership/`, `lib/data/services/membership_api_client.dart`,
-  `lib/presentation/screens/profile/membership_screen.dart`. **Route**: `/profile/membership`.
+  `lib/presentation/screens/profile/membership_screen.dart`; BI sign-in in
+  `lib/data/services/bi_sign_in_service.dart`, `lib/data/services/bi_sync_api_client.dart`,
+  `lib/providers/auth/bi_sign_in_provider.dart`. **Route**: `/profile/membership`.
 
 #### 🪪 Member pass and membership scanning
 - **The server signs and decides everything.** `GET /api/member-pass` returns either the pass

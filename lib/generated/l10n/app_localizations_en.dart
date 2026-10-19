@@ -2187,20 +2187,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get memberPassLinkTitle => 'Link your BI student account';
-
-  @override
-  String get memberPassLinkMessage =>
-      'Your pass needs a linked BI account. You link it once, on biso.no.';
-
-  @override
-  String get memberPassLinkAction => 'Link on biso.no';
-
-  @override
-  String get memberPassLinkFailed =>
-      'We could not open biso.no. Please try again.';
-
-  @override
   String get memberPassNotMemberTitle => 'You\'re not a member';
 
   @override
@@ -2445,4 +2431,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memberPassViewMembership => 'See your membership';
+
+  @override
+  String get biSignInButton => 'Sign in with BI student account';
+
+  @override
+  String get biSignInHint =>
+      'BI students: your student membership and member prices follow your BI account.';
+
+  @override
+  String get biSignInDivider => 'Not a BI student? Use a login link';
+
+  @override
+  String get biSignInFailed =>
+      'We could not sign you in with BI. Please try again, or use a login link.';
+
+  @override
+  String get biSignInExistingAccount =>
+      'BI could not sign you into your existing BISO account. Use a login link to your student email below, and let us know at biso.no/contact so we can fix the sign-in.';
+
+  @override
+  String get membershipNeedsBiLinkTitle =>
+      'Sign in with your BI student account';
+
+  @override
+  String get membershipNeedsBiLinkBody =>
+      'Your membership follows your student number, so you need to be signed in with your BI account. You are signed in with another account right now; sign in again with BI and you are set.';
+
+  @override
+  String get membershipNeedsBiLinkCta => 'Sign in with BI';
+
+  @override
+  String get membershipNeedsBiLinkFailed =>
+      'We could not confirm your student number after signing in. Please try again, or contact us if it keeps failing.';
+
+  @override
+  String get membershipNeedsBiLinkAlreadyLinked =>
+      'This BI student account already belongs to another BISO account. Sign in with that one, or contact BISO.';
+
+  @override
+  String get membershipNeedsBiLinkInvalidBiEmail =>
+      'The BI account you signed in with is not a student account. Sign in with the student account for your s-number (s1234567@bi.no).';
+
+  @override
+  String get membershipNeedsDirectoryRecordTitle =>
+      'We couldn\'t verify your BI record';
+
+  @override
+  String get membershipNeedsDirectoryRecordBody =>
+      'Your BI account is linked, but we couldn\'t read the student number BISO\'s finance system needs. We haven\'t charged you anything.';
+
+  @override
+  String get membershipNeedsDirectoryRecordRetry => 'Try again';
 }

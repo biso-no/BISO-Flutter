@@ -3,14 +3,19 @@ import '../../data/models/user_model.dart';
 import '../../data/services/api_auth.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/appwrite_service.dart';
+import '../../data/services/bi_sign_in_service.dart';
 import '../../data/services/notification_service.dart';
 
 import '../../core/logging/print_migration.dart';
+import 'bi_sign_in_provider.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(ref.watch(authServiceProvider));
+  return AuthNotifier(
+    ref.watch(authServiceProvider),
+    biSignIn: ref.watch(biSignInServiceProvider),
+  );
 });
 
 class AuthState {
@@ -72,9 +77,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   NotificationService get _notificationService =>
       _notificationServiceOverride ?? NotificationService();
 
-  AuthNotifier(this._authService, {NotificationService? notificationService})
-    : _notificationServiceOverride = notificationService,
-      super(const AuthState()) {
+  /// The [BiSignInService] supplied by the provider or a test, if any.
+  final BiSignInService? _biSignInOverride;
+
+  /// Resolved on use, like [_notificationService].
+  BiSignInService get _biSignIn => _biSignInOverride ?? BiSignInService();
+
+  AuthNotifier(
+    this._authService, {
+    NotificationService? notificationService,
+    BiSignInService? biSignIn,
+  }) : _notificationServiceOverride = notificationService,
+       _biSignInOverride = biSignIn,
+       super(const AuthState()) {
     _checkAuthState();
   }
 
@@ -432,38 +447,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Re-check auth state from the server — called after OAuth callbacks.
-  /// The callback may have created a new session, so a kept API token is
-  /// dropped first.
+  /// Re-check auth state from the server, after a session was created or
+  /// ended outside this notifier. A kept API token is dropped first.
   Future<void> refreshAuthState() async {
     clearAppwriteJwtCache();
     await _checkAuthState();
   }
 
-  /// Sign in with Google via Appwrite OAuth2 (opens browser).
-  Future<void> signInWithGoogle() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      await _authService.signInWithGoogle();
-      // Session is created asynchronously via deep-link callback.
-      // isLoading is cleared there via refreshAuthState().
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-      rethrow;
-    }
-  }
-
-  /// Sign in with Apple via Appwrite OAuth2 (opens browser, iOS only).
-  Future<void> signInWithApple() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      await _authService.signInWithApple();
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(error: e.toString(), isLoading: false);
-      rethrow;
-    }
+  /// Signs in with the student's BI account (see [BiSignInService.signIn]).
+  ///
+  /// The BI sign-in ends the current session before the browser opens, so a
+  /// signed-in student's session ends whatever the outcome: their device is
+  /// detached from push notifications first, as on sign-out, and the state is
+  /// re-read afterwards.
+  Future<BiSignInOutcome> signInWithBi() async {
+    final endsSession = state.isAuthenticated;
+    if (endsSession) await _detachNotificationsForSignOut();
+    final outcome = await _biSignIn.signIn();
+    if (outcome is BiSignedIn || endsSession) await refreshAuthState();
+    return outcome;
   }
 }
 

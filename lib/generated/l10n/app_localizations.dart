@@ -4047,30 +4047,6 @@ abstract class AppLocalizations {
   /// **'New code in {seconds}s'**
   String memberPassNextCodeIn(int seconds);
 
-  /// Member pass / scanner: memberPassLinkTitle
-  ///
-  /// In en, this message translates to:
-  /// **'Link your BI student account'**
-  String get memberPassLinkTitle;
-
-  /// Member pass / scanner: memberPassLinkMessage
-  ///
-  /// In en, this message translates to:
-  /// **'Your pass needs a linked BI account. You link it once, on biso.no.'**
-  String get memberPassLinkMessage;
-
-  /// Member pass / scanner: memberPassLinkAction
-  ///
-  /// In en, this message translates to:
-  /// **'Link on biso.no'**
-  String get memberPassLinkAction;
-
-  /// Member pass / scanner: memberPassLinkFailed
-  ///
-  /// In en, this message translates to:
-  /// **'We could not open biso.no. Please try again.'**
-  String get memberPassLinkFailed;
-
   /// Member pass / scanner: memberPassNotMemberTitle
   ///
   /// In en, this message translates to:
@@ -4496,6 +4472,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'See your membership'**
   String get memberPassViewMembership;
+
+  /// BI sign-in: login button
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with BI student account'**
+  String get biSignInButton;
+
+  /// BI sign-in: under the login button
+  ///
+  /// In en, this message translates to:
+  /// **'BI students: your student membership and member prices follow your BI account.'**
+  String get biSignInHint;
+
+  /// BI sign-in: divider above the login-link form
+  ///
+  /// In en, this message translates to:
+  /// **'Not a BI student? Use a login link'**
+  String get biSignInDivider;
+
+  /// BI sign-in: the sign-in failed
+  ///
+  /// In en, this message translates to:
+  /// **'We could not sign you in with BI. Please try again, or use a login link.'**
+  String get biSignInFailed;
+
+  /// BI sign-in: Appwrite would not sign into the account holding the BI email
+  ///
+  /// In en, this message translates to:
+  /// **'BI could not sign you into your existing BISO account. Use a login link to your student email below, and let us know at biso.no/contact so we can fix the sign-in.'**
+  String get biSignInExistingAccount;
+
+  /// Membership: web membership.join.needsBiLink.title
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with your BI student account'**
+  String get membershipNeedsBiLinkTitle;
+
+  /// Membership: web membership.join.needsBiLink.body
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership follows your student number, so you need to be signed in with your BI account. You are signed in with another account right now; sign in again with BI and you are set.'**
+  String get membershipNeedsBiLinkBody;
+
+  /// Membership: web membership.join.needsBiLink.cta
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with BI'**
+  String get membershipNeedsBiLinkCta;
+
+  /// Membership: web membership.join.needsBiLink.linkFailed
+  ///
+  /// In en, this message translates to:
+  /// **'We could not confirm your student number after signing in. Please try again, or contact us if it keeps failing.'**
+  String get membershipNeedsBiLinkFailed;
+
+  /// Membership: web membership.join.needsBiLink.alreadyLinked
+  ///
+  /// In en, this message translates to:
+  /// **'This BI student account already belongs to another BISO account. Sign in with that one, or contact BISO.'**
+  String get membershipNeedsBiLinkAlreadyLinked;
+
+  /// Membership: web membership.join.needsBiLink.invalidBiEmail
+  ///
+  /// In en, this message translates to:
+  /// **'The BI account you signed in with is not a student account. Sign in with the student account for your s-number (s1234567@bi.no).'**
+  String get membershipNeedsBiLinkInvalidBiEmail;
+
+  /// Membership: web membership.join.needsDirectoryRecord.title
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t verify your BI record'**
+  String get membershipNeedsDirectoryRecordTitle;
+
+  /// Membership: web membership.join.needsDirectoryRecord.body
+  ///
+  /// In en, this message translates to:
+  /// **'Your BI account is linked, but we couldn\'t read the student number BISO\'s finance system needs. We haven\'t charged you anything.'**
+  String get membershipNeedsDirectoryRecordBody;
+
+  /// Membership: web membership.join.needsDirectoryRecord.retry
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get membershipNeedsDirectoryRecordRetry;
 }
 
 class _AppLocalizationsDelegate

@@ -1,8 +1,11 @@
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/payment_provider.dart';
 import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/bi_sign_in_service.dart';
+import 'package:biso/data/services/bi_sync_api_client.dart';
 import 'package:biso/presentation/screens/profile/membership_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/auth/bi_sign_in_provider.dart';
 import 'package:biso/providers/membership/membership_checkout_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
@@ -33,16 +36,25 @@ class _FixedOverview extends MembershipOverviewNotifier {
 
   final MembershipOverview? value;
   int refreshes = 0;
-  bool linkNoted = false;
 
   @override
   Future<MembershipOverview?> build() async => value;
 
   @override
   Future<void> refresh({bool force = true}) async => refreshes++;
+}
+
+/// Answers the BI sync with [answer], as for a student already signed in
+/// with BI.
+class _FakeBiSignIn extends BiSignInService {
+  BiSyncResult answer = const BiSyncResult(success: true, studentId: 's1');
+  int syncs = 0;
 
   @override
-  void noteLinkStarted() => linkNoted = true;
+  Future<BiSyncResult> syncOnly() async {
+    syncs++;
+    return answer;
+  }
 }
 
 class _RecordingCheckout extends MembershipCheckoutController {
@@ -114,7 +126,7 @@ MembershipOverview _overview({
 void main() {
   late _FixedOverview overview;
   late _RecordingCheckout checkout;
-  late List<Uri> launched;
+  late _FakeBiSignIn bi;
 
   List<Override> overrides(MembershipOverview? value) {
     overview = _FixedOverview(value);
@@ -124,10 +136,7 @@ void main() {
       membershipCheckoutControllerProvider.overrideWith(
         (ref) => checkout = _RecordingCheckout(ref),
       ),
-      membershipUrlLauncherProvider.overrideWithValue((uri) async {
-        launched.add(uri);
-        return true;
-      }),
+      biSignInServiceProvider.overrideWithValue(bi),
       availablePaymentProvidersProvider.overrideWithValue(
         const AsyncData([PaymentProvider.vipps, PaymentProvider.stripe]),
       ),
@@ -135,7 +144,7 @@ void main() {
   }
 
   setUp(() {
-    launched = [];
+    bi = _FakeBiSignIn();
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
@@ -149,7 +158,9 @@ void main() {
     );
   });
 
-  testWidgets('an unlinked student is sent to biso.no to link', (tester) async {
+  testWidgets('an unlinked student continues with BI in the app', (
+    tester,
+  ) async {
     await pumpBisoScreen(
       tester,
       const MembershipScreen(),
@@ -157,12 +168,64 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Link your BI student account'), findsOneWidget);
-    await tester.tap(find.text('Link on biso.no'));
+    expect(find.text('Sign in with your BI student account'), findsOneWidget);
+    expect(
+      find.text(
+        'Your membership follows your student number, so you need to be '
+        'signed in with your BI account. You are signed in with another '
+        'account right now; sign in again with BI and you are set.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('biso.no'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
     await tester.pumpAndSettle();
 
-    expect(launched.single.toString(), 'https://biso.no/membership/link');
-    expect(overview.linkNoted, isTrue);
+    expect(bi.syncs, 1);
+    expect(overview.refreshes, 1);
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('a BI account that belongs to someone else says so', (
+    tester,
+  ) async {
+    bi.answer = const BiSyncResult.failed(BiSyncError.alreadyLinked);
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(),
+      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in with BI'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'This BI student account already belongs to another BISO account. '
+        'Sign in with that one, or contact BISO.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a missing BI record retries the sync', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const MembershipScreen(),
+      overrides: overrides(
+        _overview(state: MembershipGateState.needsDirectoryRecord),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text("We couldn't verify your BI record"), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Try again'));
+    await tester.pumpAndSettle();
+
+    expect(bi.syncs, 1);
+    expect(overview.refreshes, 1);
   });
 
   testWidgets('a member sees their membership and its expiry', (tester) async {
@@ -236,17 +299,6 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Try again'));
-    await tester.pumpAndSettle();
-
-    expect(overview.refreshes, 1);
-  });
-
-  testWidgets('returning from biso.no re-checks straight away', (tester) async {
-    await pumpBisoScreen(
-      tester,
-      const MembershipScreen(linked: true),
-      overrides: overrides(_overview(state: MembershipGateState.needsBiLink)),
-    );
     await tester.pumpAndSettle();
 
     expect(overview.refreshes, 1);
