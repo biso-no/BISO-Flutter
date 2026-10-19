@@ -1458,15 +1458,18 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                       ).showSnackBar(SnackBar(content: Text(bankError)));
                       return;
                     }
+                    // A blank field here must not erase stored profile data.
+                    String? filled(TextEditingController c) =>
+                        c.text.trim().isEmpty ? null : c.text.trim();
                     await ref
                         .read(authServiceProvider)
                         .updateUserProfile(
                           name: nameController.text.trim(),
-                          phone: phoneController.text.trim(),
+                          phone: filled(phoneController),
                           bankAccount: bank,
-                          address: addressController.text.trim(),
-                          zipCode: zipController.text.trim(),
-                          city: cityController.text.trim(),
+                          address: filled(addressController),
+                          zipCode: filled(zipController),
+                          city: filled(cityController),
                           campusId: _assignment?.campusId ?? user.campusId,
                         );
                     await ref.read(authStateProvider.notifier).refreshProfile();

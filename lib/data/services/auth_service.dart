@@ -304,6 +304,10 @@ class AuthService {
               'avatar',
               '\$id',
               'student_id',
+              'departments',
+              'department_ids',
+              'bank_account',
+              'swift',
             ]),
           ],
         );
