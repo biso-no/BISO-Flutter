@@ -8,10 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/news_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
-import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/news/news_provider.dart';
 import '../../widgets/biso/biso.dart';
-import '../../widgets/members_only_state.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
 
 const _siteNewsUrl = 'https://biso.no/news';
@@ -50,14 +48,13 @@ class NewsDetailScreen extends ConsumerWidget {
             ? [
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  // Hidden content reads as "not found" to a non-member.
-                  child: ref.watch(hasValidMembershipProvider)
-                      ? BisoEmptyState(
-                          icon: CupertinoIcons.news,
-                          accent: BisoAccent.violet,
-                          title: l10n.newsNotAvailable,
-                        )
-                      : const MembersOnlyState(),
+                  // Members-only articles are readable by everyone, so a
+                  // missing one is unpublished, deleted, or a bad link.
+                  child: BisoEmptyState(
+                    icon: CupertinoIcons.news,
+                    accent: BisoAccent.violet,
+                    title: l10n.newsNotAvailable,
+                  ),
                 ),
               ]
             : _articleSlivers(context, article),

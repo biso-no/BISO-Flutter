@@ -3730,15 +3730,7 @@
   },
   "membersOnlyTitle": "Kun for medlemmer",
   "@membersOnlyTitle": {
-    "description": "Members-only state: heading"
-  },
-  "membersOnlyBody": "Dette er for BISO-medlemmer.",
-  "@membersOnlyBody": {
-    "description": "Members-only state: explanation"
-  },
-  "membersOnlyBecomeMember": "Bli medlem",
-  "@membersOnlyBecomeMember": {
-    "description": "Members-only state: button to the membership screen"
+    "description": "Members-only event: the locked ticket button's label"
   },
   "eventNotAvailable": "Dette arrangementet er ikke tilgjengelig",
   "@eventNotAvailable": {

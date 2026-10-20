@@ -43,32 +43,49 @@ void main() {
     expect(find.text('Organized by Kari'), findsOneWidget);
   });
 
-  testWidgets('a missing event for a non-member says members only', (
+  // Members-only events are readable by everyone (they show a members badge
+  // and a locked ticket button), so a missing one is unpublished, deleted or
+  // a bad link - for a non-member too. Offering membership would be a false
+  // upsell.
+  for (final member in [false, true]) {
+    testWidgets(
+      'a missing event says it is not available, '
+      '${member ? 'for a member' : 'and offers no membership to a non-member'}',
+      (tester) async {
+        await pumpBisoScreen(
+          tester,
+          const EventDetailScreen(idOrSlug: 'gone'),
+          overrides: _overrides(null, member: member),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text("This event isn't available"), findsOneWidget);
+        expect(find.text('Members only'), findsNothing);
+        expect(find.text('Become a member'), findsNothing);
+      },
+    );
+  }
+
+  testWidgets('a cancelled event opens and shows its Cancelled chip', (
     tester,
   ) async {
+    final cancelled = EventModel(
+      id: 'ev-3',
+      title: 'Cancelled quiz',
+      description: '<p>Quiz.</p>',
+      startDate: DateTime.utc(2030, 9, 3, 17),
+      campusId: '1',
+      status: 'cancelled',
+    );
     await pumpBisoScreen(
       tester,
-      const EventDetailScreen(idOrSlug: 'secret'),
-      overrides: _overrides(null),
+      const EventDetailScreen(idOrSlug: 'ev-3'),
+      overrides: _overrides(cancelled),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Members only'), findsOneWidget);
-    expect(find.text('Become a member'), findsOneWidget);
-  });
-
-  testWidgets('a missing event for a member says it is not available', (
-    tester,
-  ) async {
-    await pumpBisoScreen(
-      tester,
-      const EventDetailScreen(idOrSlug: 'gone'),
-      overrides: _overrides(null, member: true),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text("This event isn't available"), findsOneWidget);
-    expect(find.text('Become a member'), findsNothing);
+    expect(find.text('Cancelled quiz'), findsWidgets);
+    expect(find.text('Cancelled'), findsOneWidget);
   });
 
   testWidgets('builds on BisoPage', (tester) async {

@@ -75,10 +75,11 @@ class EventService {
   ///
   /// A notification or link carries either the row id or the slug, so either
   /// matches. There is deliberately no date window: a link to an event that
-  /// has ended still opens it.
+  /// has ended still opens it. A cancelled event opens too, and shows that it
+  /// is cancelled; only drafts stay hidden.
   static List<String> buildEventLookupQueries(String idOrSlug) {
     return [
-      Query.equal('status', 'published'),
+      Query.equal('status', ['published', 'cancelled']),
       Query.or([Query.equal(r'$id', idOrSlug), Query.equal('slug', idOrSlug)]),
       Query.select(['*', 'translation_refs.*']),
       Query.limit(1),
@@ -131,7 +132,8 @@ class EventService {
         .toList(growable: false);
   }
 
-  /// One published event by its row id or slug, or null when there is none.
+  /// One published or cancelled event by its row id or slug, or null when
+  /// there is none.
   Future<EventModel?> getEvent(String idOrSlug, {String locale = 'no'}) async {
     final response = await db.listRows(
       databaseId: AppConstants.databaseId,

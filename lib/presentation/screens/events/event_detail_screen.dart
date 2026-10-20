@@ -6,10 +6,8 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/events/events_provider.dart';
-import '../../../providers/membership/membership_overview_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/event/event_detail_body.dart';
-import '../../widgets/members_only_state.dart';
 
 /// One event, reached from the list, the home carousel, a push notification
 /// or a link. [idOrSlug] may be the row id or the slug.
@@ -47,15 +45,13 @@ class EventDetailScreen extends ConsumerWidget {
             ? [
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  // A members-only event is hidden from a non-member's
-                  // reads, so "not found" is more likely "not yours".
-                  child: ref.watch(hasValidMembershipProvider)
-                      ? BisoEmptyState(
-                          icon: CupertinoIcons.calendar,
-                          accent: BisoAccent.blue,
-                          title: l10n.eventNotAvailable,
-                        )
-                      : const MembersOnlyState(),
+                  // Members-only events are readable by everyone, so a
+                  // missing one is a draft, deleted, or a bad link.
+                  child: BisoEmptyState(
+                    icon: CupertinoIcons.calendar,
+                    accent: BisoAccent.blue,
+                    title: l10n.eventNotAvailable,
+                  ),
                 ),
               ]
             : _eventSlivers(context, event),

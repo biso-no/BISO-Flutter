@@ -5163,23 +5163,11 @@ abstract class AppLocalizations {
   /// **'You will always get important announcements from BISO.'**
   String get notificationsImportantAlwaysIncluded;
 
-  /// Members-only state: heading
+  /// Members-only event: the locked ticket button's label
   ///
   /// In en, this message translates to:
   /// **'Members only'**
   String get membersOnlyTitle;
-
-  /// Members-only state: explanation
-  ///
-  /// In en, this message translates to:
-  /// **'This is for BISO members.'**
-  String get membersOnlyBody;
-
-  /// Members-only state: button to the membership screen
-  ///
-  /// In en, this message translates to:
-  /// **'Become a member'**
-  String get membersOnlyBecomeMember;
 
   /// Event detail: the event does not exist
   ///

@@ -3730,15 +3730,7 @@
   },
   "membersOnlyTitle": "Members only",
   "@membersOnlyTitle": {
-    "description": "Members-only state: heading"
-  },
-  "membersOnlyBody": "This is for BISO members.",
-  "@membersOnlyBody": {
-    "description": "Members-only state: explanation"
-  },
-  "membersOnlyBecomeMember": "Become a member",
-  "@membersOnlyBecomeMember": {
-    "description": "Members-only state: button to the membership screen"
+    "description": "Members-only event: the locked ticket button's label"
   },
   "eventNotAvailable": "This event isn't available",
   "@eventNotAvailable": {

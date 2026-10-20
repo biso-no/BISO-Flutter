@@ -238,10 +238,23 @@ void _eventLookupTests() {
       );
     });
 
-    test('reads published events only and selects translations', () {
-      expect(q, hasQuery('equal', containing: ['status', 'published']));
-      expect(q.any((s) => s.contains('translation_refs.*')), isTrue);
-    });
+    test(
+      'reads published and cancelled events, so a link to a cancelled one '
+      'opens it with its Cancelled chip, and selects translations',
+      () {
+        expect(
+          q,
+          hasQuery(
+            'equal',
+            containing: [
+              '{"method":"equal","attribute":"status",'
+                  '"values":["published","cancelled"]}',
+            ],
+          ),
+        );
+        expect(q.any((s) => s.contains('translation_refs.*')), isTrue);
+      },
+    );
 
     test('has no date window, so a past event still opens', () {
       expect(q.any((s) => s.contains('end_date')), isFalse);

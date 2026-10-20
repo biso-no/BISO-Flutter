@@ -2829,12 +2829,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get membersOnlyTitle => 'Members only';
 
   @override
-  String get membersOnlyBody => 'This is for BISO members.';
-
-  @override
-  String get membersOnlyBecomeMember => 'Become a member';
-
-  @override
   String get eventNotAvailable => 'This event isn\'t available';
 
   @override

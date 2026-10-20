@@ -2837,12 +2837,6 @@ class AppLocalizationsNo extends AppLocalizations {
   String get membersOnlyTitle => 'Kun for medlemmer';
 
   @override
-  String get membersOnlyBody => 'Dette er for BISO-medlemmer.';
-
-  @override
-  String get membersOnlyBecomeMember => 'Bli medlem';
-
-  @override
   String get eventNotAvailable => 'Dette arrangementet er ikke tilgjengelig';
 
   @override

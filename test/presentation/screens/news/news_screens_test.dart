@@ -185,32 +185,27 @@ void main() {
     expect(find.textContaining('plate-secret'), findsNothing);
   });
 
-  testWidgets('a missing article for a non-member says members only', (
-    tester,
-  ) async {
-    await pumpBisoScreen(
-      tester,
-      const NewsDetailScreen(idOrSlug: 'secret'),
-      overrides: _detailOverrides(null),
+  // News is readable by everyone, members-only articles included, so a
+  // missing article is unpublished, deleted or a bad link - for a non-member
+  // too.
+  for (final member in [false, true]) {
+    testWidgets(
+      'a missing article says it is not available, '
+      '${member ? 'for a member' : 'and offers no membership to a non-member'}',
+      (tester) async {
+        await pumpBisoScreen(
+          tester,
+          const NewsDetailScreen(idOrSlug: 'gone'),
+          overrides: _detailOverrides(null, member: member),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text("This article isn't available"), findsOneWidget);
+        expect(find.text('Members only'), findsNothing);
+        expect(find.text('Become a member'), findsNothing);
+      },
     );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Members only'), findsOneWidget);
-  });
-
-  testWidgets('a missing article for a member says it is not available', (
-    tester,
-  ) async {
-    await pumpBisoScreen(
-      tester,
-      const NewsDetailScreen(idOrSlug: 'gone'),
-      overrides: _detailOverrides(null, member: true),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text("This article isn't available"), findsOneWidget);
-    expect(find.text('Members only'), findsNothing);
-  });
+  }
 
   testWidgets('both screens build on BisoPage', (tester) async {
     await pumpBisoScreen(
