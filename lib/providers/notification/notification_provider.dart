@@ -457,6 +457,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   final String? _userId;
   final String _locale;
   final String? _campusId;
+  final DateTime? _joinedAt;
 
   RealtimeSubscription? _subscription;
   StreamSubscription<void>? _foregroundSubscription;
@@ -467,10 +468,12 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     required String? userId,
     required String locale,
     required String? campusId,
+    DateTime? joinedAt,
   }) : _notificationService = notificationService,
        _userId = userId,
        _locale = locale,
        _campusId = campusId,
+       _joinedAt = joinedAt,
        super(const NotificationInboxState()) {
     if (_userId != null && _userId.isNotEmpty) {
       load();
@@ -520,6 +523,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
         locale: _locale,
         campusId: _campusId,
         topicIntent: topicIntent,
+        joinedAt: _joinedAt,
       );
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
@@ -539,6 +543,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
         locale: _locale,
         campusId: _campusId,
         topicIntent: topicIntent,
+        joinedAt: _joinedAt,
       );
       state = state.copyWith(items: items, clearError: true);
     } catch (e) {
@@ -591,12 +596,17 @@ final notificationInboxProvider =
         authStateProvider.select((state) => state.user?.campusId),
       );
 
+      final joinedAt = ref.watch(
+        authStateProvider.select((state) => state.user?.createdAt),
+      );
+
       return NotificationInboxNotifier(
         service,
         notificationService: notificationService,
         userId: userId,
         locale: locale,
         campusId: campusId,
+        joinedAt: joinedAt,
       );
     });
 

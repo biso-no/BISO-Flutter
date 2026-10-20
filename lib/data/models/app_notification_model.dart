@@ -2,6 +2,12 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+import '../../core/utils/appwrite_image.dart';
+import 'inbox_item.dart';
+
+/// The inbox's filter chips.
+enum InboxFilter { all, events, news, jobs, fromBiso }
+
 /// A single in-app notification inbox item.
 ///
 /// Built by merging an `announcements` row with an optional
@@ -17,6 +23,16 @@ class AppNotification extends Equatable {
   final Map<String, dynamic> data;
   final DateTime createdAt;
   final bool read;
+
+  /// `manual` or `auto`.
+  final String source;
+  final String? contentType; // event | news | job
+  final String? contentId;
+  final String? image; // resolved URL
+  final List<InboxItem> items;
+  final String audienceType;
+  final String? audienceValue;
+  final String? campusId;
 
   /// The `user_notifications` row `$id` if one exists for the current user.
   /// `null` when the item comes only from the broadcast feed.
@@ -34,7 +50,25 @@ class AppNotification extends Equatable {
     this.data = const {},
     this.read = false,
     this.userNotificationId,
+    this.source = 'manual',
+    this.contentType,
+    this.contentId,
+    this.image,
+    this.items = const [],
+    this.audienceType = 'broadcast',
+    this.audienceValue,
+    this.campusId,
   });
+
+  bool get isBurst => items.length > 1;
+  bool get isUrgent => category == 'urgent';
+
+  InboxFilter get filter {
+    if (contentType == 'event' || category == 'event') return InboxFilter.events;
+    if (contentType == 'news') return InboxFilter.news;
+    if (contentType == 'job') return InboxFilter.jobs;
+    return InboxFilter.fromBiso;
+  }
 
   /// Build an inbox item from an `announcements` document.
   ///
@@ -80,8 +114,21 @@ class AppNotification extends Equatable {
       createdAt: createdAt,
       read: read,
       userNotificationId: userNotificationId,
+      source: _nonEmpty(doc['source']) ?? 'manual',
+      contentType: _nonEmpty(doc['content_type']),
+      contentId: _nonEmpty(doc['content_id']),
+      image: appwriteImageUrl(doc['image']),
+      items: InboxItem.listFromJson(
+        doc['items'] is String ? doc['items'] as String : null,
+      ),
+      audienceType: _nonEmpty(doc['audience_type']) ?? 'broadcast',
+      audienceValue: _nonEmpty(doc['audience_value']),
+      campusId: _nonEmpty(doc['campus_id']),
     );
   }
+
+  static String? _nonEmpty(dynamic value) =>
+      value is String && value.isNotEmpty ? value : null;
 
   /// Strip HTML tags and collapse whitespace for plain-text display.
   static String _stripHtml(String html) {
@@ -136,6 +183,14 @@ class AppNotification extends Equatable {
     DateTime? createdAt,
     bool? read,
     String? userNotificationId,
+    String? source,
+    String? contentType,
+    String? contentId,
+    String? image,
+    List<InboxItem>? items,
+    String? audienceType,
+    String? audienceValue,
+    String? campusId,
   }) {
     return AppNotification(
       id: id ?? this.id,
@@ -149,6 +204,14 @@ class AppNotification extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       read: read ?? this.read,
       userNotificationId: userNotificationId ?? this.userNotificationId,
+      source: source ?? this.source,
+      contentType: contentType ?? this.contentType,
+      contentId: contentId ?? this.contentId,
+      image: image ?? this.image,
+      items: items ?? this.items,
+      audienceType: audienceType ?? this.audienceType,
+      audienceValue: audienceValue ?? this.audienceValue,
+      campusId: campusId ?? this.campusId,
     );
   }
 
@@ -165,5 +228,13 @@ class AppNotification extends Equatable {
     createdAt,
     read,
     userNotificationId,
+    source,
+    contentType,
+    contentId,
+    image,
+    items,
+    audienceType,
+    audienceValue,
+    campusId,
   ];
 }

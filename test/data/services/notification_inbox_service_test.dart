@@ -111,7 +111,54 @@ Map<String, dynamic> _topicRow(
   'sent_at': sentAt.toIso8601String(),
 };
 
+Map<String, dynamic> _broadcastRow(
+  String id, {
+  required DateTime sentAt,
+  String? audienceValue,
+  String? campusId,
+}) => <String, dynamic>{
+  '\$id': id,
+  'status': 'sent',
+  'audience_type': 'broadcast',
+  'audience_value': audienceValue,
+  'campus_id': campusId,
+  'title_en': id,
+  'sent_at': sentAt.toIso8601String(),
+  'items': '[{"type":"news","id":"n1"}]',
+  'image': 'file1',
+  'content_type': 'news',
+  'data': '{"x":1}',
+};
+
 void main() {
+  group('isBroadcastVisible', () {
+    bool visible(String? value, String? rowCampus, String? campus) =>
+        isBroadcastVisible(
+          audienceValue: value,
+          rowCampusId: rowCampus,
+          campusId: campus,
+        );
+
+    test('general is visible to everyone', () {
+      expect(visible('general', null, '2'), isTrue);
+    });
+    test('general_bergen is visible to campus 2', () {
+      expect(visible('general_bergen', '2', '2'), isTrue);
+    });
+    test('general_oslo is hidden from campus 2', () {
+      expect(visible('general_oslo', '1', '2'), isFalse);
+    });
+    test('legacy null value with campus_id 1 is hidden from campus 2', () {
+      expect(visible(null, '1', '2'), isFalse);
+    });
+    test('legacy null value with null campus_id is visible', () {
+      expect(visible(null, null, '2'), isTrue);
+    });
+    test('legacy null value with campus_id 5 is visible', () {
+      expect(visible(null, '5', '2'), isTrue);
+    });
+  });
+
   group('isTopicAudienceVisible', () {
     test(
       'hides a campus-scoped announcement when the student has turned that '
@@ -506,6 +553,68 @@ void main() {
         ]);
       },
     );
+  });
+
+  group('fetchInbox joinedAt and new columns', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    setUpAll(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (call) async => Directory.systemTemp.path,
+          );
+    });
+
+    final joined = DateTime.utc(2026, 9, 1);
+
+    test('drops a broadcast sent before joinedAt and keeps one after', () async {
+      final db = _FakeTablesDB([
+        _broadcastRow('before', sentAt: joined.subtract(const Duration(days: 1))),
+        _broadcastRow('after', sentAt: joined.add(const Duration(days: 1))),
+      ]);
+      final items = await NotificationInboxService(tablesDb: db).fetchInbox(
+        userId: 'u',
+        locale: 'en',
+        campusId: '2',
+        joinedAt: joined,
+      );
+      expect([for (final i in items) i.id], ['after']);
+      expect(items.single.isBurst, isFalse);
+      expect(items.single.items.single.id, 'n1');
+      expect(items.single.contentType, 'news');
+      expect(items.single.image, contains('file1'));
+    });
+
+    test('hides another campus broadcast', () async {
+      final db = _FakeTablesDB([
+        _broadcastRow('oslo', sentAt: joined, audienceValue: 'general_oslo'),
+        _broadcastRow('all', sentAt: joined, audienceValue: 'general'),
+      ]);
+      final items = await NotificationInboxService(tablesDb: db).fetchInbox(
+        userId: 'u',
+        locale: 'en',
+        campusId: '2',
+      );
+      expect([for (final i in items) i.id], ['all']);
+    });
+
+    test('selects items, image and content_type but never data', () async {
+      final db = _FakeTablesDB([_broadcastRow('a', sentAt: joined)]);
+      await NotificationInboxService(
+        tablesDb: db,
+      ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
+      final selects = [
+        for (final read in db.announcementReads)
+          for (final q in read)
+            if (q['method'] == 'select') (q['values'] as List).cast<String>(),
+      ];
+      expect(selects, isNotEmpty);
+      for (final columns in selects) {
+        expect(columns, containsAll(['items', 'image', 'content_type']));
+        expect(columns, isNot(contains('data')));
+      }
+    });
   });
 
   group('announcement rows with a data column', () {

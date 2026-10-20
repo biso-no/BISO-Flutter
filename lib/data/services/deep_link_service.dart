@@ -59,7 +59,6 @@ String? magicLinkRouteFor(Uri uri) {
 /// The in-app route for a vacancy link: `biso://job?id=<id>`, or
 /// `https://biso.no/app/jobs/<slug>`. The detail screen reads either an id or
 /// a slug. Without one, the list of vacancies.
-@visibleForTesting
 String jobRouteFor(String? idOrSlug) {
   final key = idOrSlug?.trim() ?? '';
   return key.isEmpty
