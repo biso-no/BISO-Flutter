@@ -412,6 +412,131 @@ void main() {
       },
     );
 
+    test(
+      'switching language deletes before it creates, and does not subscribe '
+      'to the new language of a channel whose old subscription could not be '
+      'deleted: the phone may miss that channel until the next run, but is '
+      'never on both languages of it at once',
+      () async {
+        const enIds = [
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
+          'events_national_en',
+        ];
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            for (final id in enIds) id: 'sub-$id',
+          }),
+        });
+        final messaging = _FakeMessaging()..failDeletes.add('events_oslo_en');
+        for (final id in enIds) {
+          messaging.subscribers[id] = 'sub-$id';
+        }
+        final service = _ReconcilingService(
+          _FakeAccount(
+            intentPrefs(events: true)..['notification_topics']['news'] = false,
+          ),
+          messaging,
+        );
+
+        final outcome = await service.reconcile(campusId: '1', locale: 'no');
+
+        expect(outcome, ReconcileOutcome.partiallyFailed);
+        final firstCreate = messaging.calls.indexWhere(
+          (c) => c.startsWith('create '),
+        );
+        final lastDelete = messaging.calls.lastIndexWhere(
+          (c) => c.startsWith('delete '),
+        );
+        expect(
+          lastDelete,
+          lessThan(firstCreate),
+          reason: 'every delete is attempted before the first create',
+        );
+        expect(messaging.deleteCalls.toSet(), enIds.toSet());
+        expect(messaging.createCalls.toSet(), {
+          'general_no',
+          'general_oslo_no',
+          'events_national_no',
+        });
+        expect(messaging.subscribers.keys.toSet(), {
+          'events_oslo_en',
+          'general_no',
+          'general_oslo_no',
+          'events_national_no',
+        });
+        expect(
+          await DeviceSubscriptionStore().readSubscriberIds(),
+          messaging.subscribers,
+        );
+
+        // The next run, with the delete going through, finishes the move.
+        messaging.failDeletes.clear();
+        expect(
+          await service.reconcile(campusId: '1', locale: 'no'),
+          ReconcileOutcome.applied,
+        );
+        expect(messaging.subscribers.keys.toSet(), {
+          'general_no',
+          'general_oslo_no',
+          'events_oslo_no',
+          'events_national_no',
+        });
+      },
+    );
+
+    test(
+      'with no readable intent during a language switch, deletes the other '
+      'language and the general channels of another campus, ensures the '
+      'general channels in the new language, and leaves the student\'s own '
+      'topics in the new language alone',
+      () async {
+        const held = <String, String>{
+          'general_en': 'sub-general-en',
+          'general_oslo_en': 'sub-general-oslo-en',
+          'news_oslo_en': 'sub-news-oslo-en',
+          'general_bergen_no': 'sub-general-bergen-no',
+          'events_oslo_no': 'sub-events-oslo-no',
+        };
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(held),
+        });
+        final messaging = _FakeMessaging()..subscribers.addAll(held);
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false))..shouldFail = true,
+          messaging,
+        );
+
+        final outcome = await service.reconcile(campusId: '1', locale: 'no');
+
+        expect(outcome, ReconcileOutcome.unavailable);
+        expect(messaging.deleteCalls.toSet(), {
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'general_bergen_no',
+        });
+        expect(messaging.createCalls.toSet(), {'general_no', 'general_oslo_no'});
+        expect(
+          messaging.calls.lastIndexWhere((c) => c.startsWith('delete ')),
+          lessThan(messaging.calls.indexWhere((c) => c.startsWith('create '))),
+          reason: 'deletes run before creates here too',
+        );
+        expect(messaging.subscribers.keys.toSet(), {
+          'general_no',
+          'general_oslo_no',
+          'events_oslo_no',
+        });
+        expect(
+          await DeviceSubscriptionStore().readSubscriberIds(),
+          messaging.subscribers,
+        );
+      },
+    );
+
     test('reconcile maps a Bokmål language code to the Norwegian channels', () async {
       SharedPreferences.setMockInitialValues(<String, Object>{
         'push_target_id': 'target-1',
@@ -675,6 +800,13 @@ class _FakeMessaging extends Messaging {
   final List<String> createCalls = <String>[];
   final List<String> deleteCalls = <String>[];
 
+  /// Both kinds of call in one list, in call order, as `create <topic>` and
+  /// `delete <topic>`.
+  final List<String> calls = <String>[];
+
+  /// Topics whose [deleteSubscriber] fails with a server error.
+  final Set<String> failDeletes = <String>{};
+
   int _createCalls = 0;
 
   @override
@@ -685,6 +817,7 @@ class _FakeMessaging extends Messaging {
   }) async {
     _createCalls++;
     createCalls.add(topicId);
+    calls.add('create $topicId');
     final hold = holdFirstCreate;
     if (hold != null && _createCalls == 1) await hold.future;
     if (subscribers.containsKey(topicId)) {
@@ -700,6 +833,10 @@ class _FakeMessaging extends Messaging {
     required String subscriberId,
   }) async {
     deleteCalls.add(topicId);
+    calls.add('delete $topicId');
+    if (failDeletes.contains(topicId)) {
+      throw AppwriteException('server error', 500);
+    }
     if (subscribers[topicId] != subscriberId) {
       throw AppwriteException('subscriber not found', 404);
     }

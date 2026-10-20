@@ -1107,10 +1107,13 @@ class NotificationService {
       // exists to prevent: it could subscribe a student to a topic they had
       // deliberately turned off. So only the general channels in this
       // device's language, which every device with permission holds whatever
-      // the student chose, are ensured below,
-      // nothing is deleted, and the rest is retried on the next launch, auth
-      // change, or campus change. Stopping here instead left a device that
-      // had permission subscribed to nothing at all.
+      // the student chose, are ensured below. The only subscriptions deleted
+      // are ones no choice could keep: anything in the other language, which
+      // would otherwise reach this phone twice, and the general channels of
+      // another campus. The student's own topics in this language are left
+      // alone, and retried on the next launch, auth change, or campus change.
+      // Stopping here instead left a device that had permission subscribed to
+      // nothing at all.
       debugPrint(
         'reconcile: could not read topic intent; ensuring only the general '
         'channels ($e)',
@@ -1123,10 +1126,17 @@ class NotificationService {
       campusId: campusId,
       locale: locale,
     );
+    // With no readable intent, only what no choice could keep is deleted: a
+    // channel in the other language, or a general channel (see above).
+    bool noChoiceKeeps(String topicId) =>
+        topicId.startsWith('${kGeneralTopicId}_') ||
+        kPushLocales.any((l) => l != locale && topicId.endsWith('_$l'));
     final diff = intent == null
         ? TopicDiff(
             toCreate: desired.difference(current.keys.toSet()),
-            toDelete: const <String>{},
+            toDelete: current.keys
+                .where((id) => !desired.contains(id) && noChoiceKeeps(id))
+                .toSet(),
           )
         : computeTopicDiff(desired: desired, current: current);
     if (diff.isEmpty) {
@@ -1157,8 +1167,52 @@ class NotificationService {
     //
     // And never as a snapshot of the whole map, which would erase whatever
     // another run recorded while this one was going.
+    //
+    // Deletes run before creates. A run that stops part-way - a failed
+    // request, or one abandoned at [kNotificationRunTimeout] - then leaves
+    // this phone missing a channel until the next run, rather than holding it
+    // in both languages and getting every message on it twice.
+    final failedDeletes = <String>{};
+    for (final topicId in diff.toDelete) {
+      final subscriberId = current[topicId];
+      if (subscriberId == null) continue;
+      if (!run.ownsState) return ReconcileOutcome.unavailable;
+      try {
+        await _messaging.deleteSubscriber(
+          topicId: topicId,
+          subscriberId: subscriberId,
+        );
+      } on AppwriteException catch (e) {
+        if (e.code != 404) {
+          debugPrint(
+            'reconcile: unsubscribe from $topicId failed '
+            '(${e.code}) ${e.message}',
+          );
+          hadFailure = true;
+          failedDeletes.add(topicId);
+          continue;
+        }
+        // Already gone server-side; stop tracking it.
+      }
+      await _store.removeSubscriberIdIfMatches(topicId, subscriberId);
+      if (!run.ownsState) return ReconcileOutcome.unavailable;
+    }
+
     for (final topicId in diff.toCreate) {
       if (!run.ownsState) return ReconcileOutcome.unavailable;
+      // Every desired id ends in `_$locale`. If the same channel in another
+      // language could not be deleted above, subscribing now would put this
+      // phone on both; the next run tries the delete, then this, again.
+      final channel = topicId.substring(0, topicId.length - locale.length);
+      if (kPushLocales.any(
+        (l) => l != locale && failedDeletes.contains('$channel$l'),
+      )) {
+        debugPrint(
+          'reconcile: not subscribing to $topicId while the other language '
+          'is still held',
+        );
+        continue;
+      }
       final String subscriberId;
       try {
         final subscriber = await _messaging.createSubscriber(
@@ -1188,30 +1242,6 @@ class NotificationService {
         debugPrint('reconcile: subscribed to $topicId, but could not record it');
         hadFailure = true;
       }
-    }
-
-    for (final topicId in diff.toDelete) {
-      final subscriberId = current[topicId];
-      if (subscriberId == null) continue;
-      if (!run.ownsState) return ReconcileOutcome.unavailable;
-      try {
-        await _messaging.deleteSubscriber(
-          topicId: topicId,
-          subscriberId: subscriberId,
-        );
-      } on AppwriteException catch (e) {
-        if (e.code != 404) {
-          debugPrint(
-            'reconcile: unsubscribe from $topicId failed '
-            '(${e.code}) ${e.message}',
-          );
-          hadFailure = true;
-          continue;
-        }
-        // Already gone server-side; stop tracking it.
-      }
-      await _store.removeSubscriberIdIfMatches(topicId, subscriberId);
-      if (!run.ownsState) return ReconcileOutcome.unavailable;
     }
 
     // Only general was attempted: the student's own topics are still to do.
