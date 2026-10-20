@@ -18,8 +18,9 @@ String _syncedKey(String userId) => 'push_language_synced_$userId';
 /// Runs at launch and whenever the signed-in student or the app language
 /// changes. Only runs for a student with a profile row: the server creates one
 /// if it is missing. The last saved value is remembered per student so an
-/// unchanged language costs no request. A failed save is logged and retried on
-/// the next start or language change.
+/// unchanged language costs no request. A failed save, or one the server
+/// answers without the language, is logged and retried on the next start or
+/// language change.
 final pushLanguageSyncProvider = FutureProvider<void>((ref) async {
   final (ready, userId) = ref.watch(
     authStateProvider.select(
@@ -39,7 +40,13 @@ final pushLanguageSyncProvider = FutureProvider<void>((ref) async {
   try {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getString(_syncedKey(userId)) == language) return;
-    await api.upsert({'locale': language});
+    final saved = await api.upsert({'locale': language});
+    // An API that predates the column drops `locale` and still answers
+    // success, so only a saved profile that carries it counts as synced.
+    if (saved['locale'] != language) {
+      logPrint('Push language not saved: the profile came back without it');
+      return;
+    }
     await prefs.setString(_syncedKey(userId), language);
   } catch (e) {
     logPrint('Push language sync failed: $e');

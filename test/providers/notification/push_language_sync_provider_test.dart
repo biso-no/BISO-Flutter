@@ -34,6 +34,10 @@ class _FakeProfileApi extends ProfileApiClient {
   final List<Map<String, dynamic>> calls = [];
   int failuresLeft = 0;
 
+  /// Answers like an older API that drops fields it does not know: success,
+  /// with a saved profile that has no `locale`.
+  bool stripsLocale = false;
+
   @override
   Future<Map<String, dynamic>> upsert(Map<String, dynamic> fields) async {
     calls.add(fields);
@@ -41,7 +45,12 @@ class _FakeProfileApi extends ProfileApiClient {
       failuresLeft--;
       throw const ProfileApiException('nope');
     }
-    return fields;
+    return {
+      r'$id': 'profile-1',
+      'name': _student,
+      ...fields,
+      if (stripsLocale) 'locale': null,
+    }..removeWhere((key, value) => value == null);
   }
 }
 
@@ -125,6 +134,26 @@ void main() {
     expect(api.calls, hasLength(2));
     expect(prefs.getString(_syncedKey), 'no');
   });
+
+  test(
+    'does not remember the language when the saved profile comes back '
+    'without it: an API that drops unknown fields still answers success',
+    () async {
+      final container = await build();
+      api.stripsLocale = true;
+      await container.read(pushLanguageSyncProvider.future);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(_syncedKey), isNull);
+
+      // Retried on the next start, and remembered once the server keeps it.
+      api.stripsLocale = false;
+      container.invalidate(pushLanguageSyncProvider);
+      await container.read(pushLanguageSyncProvider.future);
+
+      expect(api.calls, hasLength(2));
+      expect(prefs.getString(_syncedKey), 'no');
+    },
+  );
 
   test('saves a Bokmål app language as no', () async {
     final container = await build(
