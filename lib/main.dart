@@ -62,6 +62,7 @@ import 'providers/campus/campus_provider.dart';
 import 'providers/membership/membership_checkout_provider.dart';
 import 'providers/membership/membership_overview_provider.dart';
 import 'providers/notification/notification_provider.dart';
+import 'providers/notification/push_language_sync_provider.dart';
 import 'providers/shop/checkout_provider.dart';
 
 // Background message handler for Firebase
@@ -170,6 +171,8 @@ class BisoApp extends ConsumerWidget {
     // Reconcile this device's subscriptions at launch, and again whenever the
     // student or their campus changes. Nothing else covers a returning user.
     ref.watch(topicReconcileProvider);
+    // Tell the server which language to push in.
+    ref.watch(pushLanguageSyncProvider);
     // And whenever the app comes back with notifications newly allowed in
     // the system settings, which none of the above notices.
     ref.watch(notificationPermissionResumeProvider);
