@@ -3,22 +3,18 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/logging/app_logger.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
-import '../../../data/services/event_service.dart';
+import '../../../data/services/deep_link_service.dart' show eventRouteFor;
 import '../../../generated/l10n/app_localizations.dart';
-import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
+import '../../../providers/events/events_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
-import '../../widgets/event/your_trip_card.dart';
-import '../../widgets/premium/premium_html_renderer.dart';
-
-// Provider for EventService
-final eventServiceProvider = Provider<EventService>((ref) => EventService());
+import '../../widgets/event/event_detail_body.dart';
 
 // Search term for events (server-backed)
 final eventsSearchTermProvider = StateProvider<String?>((ref) => null);
@@ -347,9 +343,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                     final event = _events[index];
                     return _EventCard(
                       event: event,
-                      onTap: () {
-                        _showEventDetails(context, event);
-                      },
+                      onTap: () => context.push(eventRouteFor(event.id)),
                     );
                   },
                 ),
@@ -371,21 +365,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
       onRefresh: _reload,
       controller: _scrollController,
       slivers: contentSlivers,
-    );
-  }
-
-  void _showEventDetails(BuildContext context, EventModel event) {
-    showBisoSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) =>
-            _EventDetailSheet(event: event, scrollController: scrollController),
-      ),
     );
   }
 
@@ -430,51 +409,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   }
 }
 
-/// What the status badge actually communicates to a reader.
-///
-/// Derived from the event's dates, NOT from the Appwrite `status` column:
-/// `status` is the editorial enum `draft`/`published`/`cancelled`, and every
-/// row that reaches this screen is `published` (see
-/// [EventService.buildEventQueries]), so a status-derived badge would print
-/// the constant string "published". `cancelled` is a real enum value and is
-/// still honoured.
-enum _EventLifecycle { cancelled, upcoming, ongoing, completed }
-
-_EventLifecycle _lifecycleOf(EventModel event) {
-  if (event.isCancelled) return _EventLifecycle.cancelled;
-  if (event.isOngoing) return _EventLifecycle.ongoing;
-  if (event.isCompleted) return _EventLifecycle.completed;
-  return _EventLifecycle.upcoming;
-}
-
-String _lifecycleLabel(_EventLifecycle lifecycle, AppLocalizations l10n) {
-  switch (lifecycle) {
-    case _EventLifecycle.cancelled:
-      return l10n.cancelledMessage;
-    case _EventLifecycle.ongoing:
-      return l10n.liveMessage;
-    case _EventLifecycle.completed:
-      return l10n.endedMessage;
-    case _EventLifecycle.upcoming:
-      return l10n.upcomingMessage;
-  }
-}
-
-/// One color per lifecycle, shared by the card and the detail sheet.
-Color _statusColor(_EventLifecycle lifecycle, BisoPalette palette) {
-  switch (lifecycle) {
-    case _EventLifecycle.upcoming:
-      return palette.link;
-    case _EventLifecycle.completed:
-      // Past, inactive — not the active/selected meaning `link` carries.
-      return palette.muted;
-    case _EventLifecycle.ongoing:
-      return palette.success;
-    case _EventLifecycle.cancelled:
-      return palette.error;
-  }
-}
-
 class _EventCard extends StatelessWidget {
   final EventModel event;
   final VoidCallback onTap;
@@ -515,8 +449,8 @@ class _EventCard extends StatelessWidget {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
     final l10n = AppLocalizations.of(context)!;
-    final lifecycle = _lifecycleOf(event);
-    final statusColor = _statusColor(lifecycle, palette);
+    final lifecycle = eventLifecycleOf(event);
+    final statusColor = eventStatusColor(lifecycle, palette);
 
     return Material(
       color: palette.surface,
@@ -589,21 +523,21 @@ class _EventCard extends StatelessWidget {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _Chip(
-                        label: _lifecycleLabel(lifecycle, l10n),
+                      EventChip(
+                        label: eventLifecycleLabel(lifecycle, l10n),
                         foreground: statusColor,
                         background: statusColor.withValues(alpha: 0.12),
                       ),
                       if (event.memberOnly) const BisoMembersBadge(),
                       for (final label in _chipLabels.take(3))
-                        _Chip(
+                        EventChip(
                           label: label,
                           foreground: palette.muted,
                           background: palette.surfaceRaised,
                         ),
                     ],
                   ),
-                  if (_priceLabel(event) case final price?) ...[
+                  if (eventPriceLabel(event) case final price?) ...[
                     const SizedBox(height: 12),
                     Text(price, style: theme.textTheme.titleSmall),
                   ],
@@ -615,23 +549,6 @@ class _EventCard extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The price line for an event, or null when there is nothing to charge.
-///
-/// The member price is shown to everyone: it is what membership gets you.
-/// Tickets are sold by a third party, which is what applies it.
-String? _priceLabel(EventModel event) {
-  String nok(double amount) => 'NOK ${amount.toStringAsFixed(0)}';
-  final price = event.price != null && event.price! > 0 ? event.price : null;
-  final member = event.memberPrice;
-  if (price == null) {
-    return member != null && member > 0 ? 'Members ${nok(member)}' : null;
-  }
-  if (member != null && member < price) {
-    return '${nok(price)} · Members ${nok(member)}';
-  }
-  return nok(price);
 }
 
 class _EventImagePlaceholder extends StatelessWidget {
@@ -646,247 +563,4 @@ class _EventImagePlaceholder extends StatelessWidget {
       child: Icon(CupertinoIcons.calendar, color: palette.link, size: 32),
     ),
   );
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.foreground,
-    required this.background,
-  });
-
-  final String label;
-  final Color foreground;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(
-      color: background,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      label,
-      style: Theme.of(
-        context,
-      ).textTheme.labelSmall?.copyWith(color: foreground),
-    ),
-  );
-}
-
-class _EventDetailSheet extends ConsumerWidget {
-  final EventModel event;
-  final ScrollController scrollController;
-
-  const _EventDetailSheet({
-    required this.event,
-    required this.scrollController,
-  });
-
-  String _formatEventDate(DateTime startDate, DateTime? endDate) {
-    // Appwrite's start_date/end_date parse as UTC DateTimes (isUtc == true).
-    // Convert to the device's local time zone before formatting — and
-    // before the same-day comparison below, so a start/end pair that spans
-    // midnight only in UTC (or only locally) is judged by the calendar day
-    // actually shown to the user. This is display-only: it must not be
-    // backported to any comparison that decides event lifecycle/filtering.
-    final localStart = startDate.toLocal();
-    final localEnd = endDate?.toLocal();
-    final formatter = DateFormat('EEEE, MMM dd, yyyy • HH:mm');
-    final formattedStartDate = formatter.format(localStart);
-    if (localEnd != null &&
-        localStart.day == localEnd.day &&
-        localStart.month == localEnd.month &&
-        localStart.year == localEnd.year) {
-      return '$formattedStartDate - ${DateFormat('HH:mm').format(localEnd)}';
-    }
-    return formattedStartDate;
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final palette = BisoPalette.of(context);
-    final l10n = AppLocalizations.of(context)!;
-    final lifecycle = _lifecycleOf(event);
-    final statusColor = _statusColor(lifecycle, palette);
-    final price = _priceLabel(event);
-
-    return ListView(
-      controller: scrollController,
-      // Clears the tab bar; showBisoSheet restores this bottom safe area.
-      padding: EdgeInsets.fromLTRB(
-        24,
-        8,
-        24,
-        24 + MediaQuery.paddingOf(context).bottom,
-      ),
-      children: [
-        Text(
-          event.title,
-          style: theme.textTheme.headlineSmall?.copyWith(color: palette.ink),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Event Info Row
-        Row(
-          children: [
-            Icon(CupertinoIcons.calendar, size: 20, color: palette.muted),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _formatEventDate(event.startDate, event.endDate),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: palette.muted,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        if (event.location != null && event.location!.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                CupertinoIcons.location_solid,
-                size: 20,
-                color: palette.muted,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  event.location!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: palette.muted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-
-        const SizedBox(height: 16),
-
-        // Status Badge
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _Chip(
-              label: _lifecycleLabel(lifecycle, l10n),
-              foreground: statusColor,
-              background: statusColor.withValues(alpha: 0.12),
-            ),
-            if (event.memberOnly) const BisoMembersBadge(),
-          ],
-        ),
-
-        if (price != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            price,
-            style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
-          ),
-        ],
-
-        if (_ticketUri(event) case final ticketUri?
-            when event.canRegister && !event.isCancelled) ...[
-          const SizedBox(height: 16),
-          _TicketButton(
-            ticketUri: ticketUri,
-            blockedAsNonMember:
-                event.memberOnly && !ref.watch(hasValidMembershipProvider),
-          ),
-        ],
-
-        const SizedBox(height: 24),
-
-        // Personalized "Your trip" logistics for the signed-in user.
-        // Renders nothing when signed out or with no assigned segments.
-        YourTripCard(eventId: event.id),
-
-        // Description
-        if (event.description.isNotEmpty) ...[
-          Text(
-            'Description',
-            style: theme.textTheme.titleMedium?.copyWith(color: palette.ink),
-          ),
-          const SizedBox(height: 8),
-          // `content_translations.description` is HTML — render it,
-          // don't print the tags. Same helper jobs_screen uses.
-          event.description.toFullHtml(
-            style: theme.textTheme.bodyLarge?.copyWith(
-              height: 1.5,
-              color: palette.muted,
-            ),
-            fontSize: 16,
-          ),
-          const SizedBox(height: 24),
-        ],
-
-        // Organizer Info
-        if (event.contactName != null && event.contactName!.isNotEmpty)
-          Text(
-            'Organized by ${event.contactName}',
-            style: theme.textTheme.bodyMedium?.copyWith(color: palette.muted),
-          ),
-      ],
-    );
-  }
-}
-
-/// The event's ticket page, when it has a usable one.
-Uri? _ticketUri(EventModel event) {
-  final raw = event.ticketUrl?.trim() ?? '';
-  if (raw.isEmpty) return null;
-  final uri = Uri.tryParse(raw);
-  if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
-  return uri;
-}
-
-/// Opens the third-party ticket page.
-///
-/// A members-only event is refused to non-members here, the same rule the
-/// shop applies. It is presentation only: the ticket seller is what actually
-/// sells the ticket, and it is where the member price is applied.
-class _TicketButton extends StatelessWidget {
-  const _TicketButton({
-    required this.ticketUri,
-    required this.blockedAsNonMember,
-  });
-
-  final Uri ticketUri;
-  final bool blockedAsNonMember;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = BisoPalette.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FilledButton.icon(
-          onPressed: blockedAsNonMember
-              ? null
-              : () => launchUrl(ticketUri, mode: LaunchMode.externalApplication),
-          icon: Icon(
-            blockedAsNonMember ? CupertinoIcons.lock : CupertinoIcons.tickets,
-          ),
-          label: Text(blockedAsNonMember ? 'Members only' : 'Get tickets'),
-        ),
-        if (blockedAsNonMember) ...[
-          const SizedBox(height: 8),
-          Text(
-            'This event is for BISO members. If you are a member, check your '
-            'membership under Profile → Membership.',
-            style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
-          ),
-        ],
-      ],
-    );
-  }
 }

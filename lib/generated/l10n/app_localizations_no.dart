@@ -2832,4 +2832,21 @@ class AppLocalizationsNo extends AppLocalizations {
   @override
   String get notificationsImportantAlwaysIncluded =>
       'Du får alltid viktige kunngjøringer fra BISO.';
+
+  @override
+  String get membersOnlyTitle => 'Kun for medlemmer';
+
+  @override
+  String get membersOnlyBody => 'Dette er for BISO-medlemmer.';
+
+  @override
+  String get membersOnlyBecomeMember => 'Bli medlem';
+
+  @override
+  String get eventNotAvailable => 'Dette arrangementet er ikke tilgjengelig';
+
+  @override
+  String eventOrganizedBy(String name) {
+    return 'Arrangert av $name';
+  }
 }

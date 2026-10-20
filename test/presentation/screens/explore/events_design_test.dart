@@ -1,7 +1,9 @@
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/event_model.dart';
 import 'package:biso/data/services/event_service.dart';
+import 'package:biso/presentation/screens/events/event_detail_screen.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
+import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
@@ -9,6 +11,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -86,6 +89,10 @@ class _FixedEventService extends EventService {
     if (offset > 0) return const [];
     return _events;
   }
+
+  @override
+  Future<EventModel?> getEvent(String idOrSlug, {String locale = 'no'}) async =>
+      _events.where((e) => e.id == idOrSlug).firstOrNull;
 }
 
 /// Signed out, so the detail sheet's personalised trip card renders nothing
@@ -119,6 +126,14 @@ Future<void> _openGala(
     tester,
     const EventsScreen(),
     routed: true,
+    // A card opens the event's own screen.
+    extraRoutes: [
+      GoRoute(
+        path: '/explore/events/:eventId',
+        builder: (context, state) =>
+            EventDetailScreen(idOrSlug: state.pathParameters['eventId']!),
+      ),
+    ],
     overrides: [
       eventServiceProvider.overrideWithValue(
         _FixedEventService([_ticketed(memberOnly: memberOnly)]),

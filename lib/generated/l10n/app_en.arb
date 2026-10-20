@@ -3727,5 +3727,30 @@
   "notificationsImportantAlwaysIncluded": "You will always get important announcements from BISO.",
   "@notificationsImportantAlwaysIncluded": {
     "description": "Notification topics prompt: important announcements are not a choice"
+  },
+  "membersOnlyTitle": "Members only",
+  "@membersOnlyTitle": {
+    "description": "Members-only state: heading"
+  },
+  "membersOnlyBody": "This is for BISO members.",
+  "@membersOnlyBody": {
+    "description": "Members-only state: explanation"
+  },
+  "membersOnlyBecomeMember": "Become a member",
+  "@membersOnlyBecomeMember": {
+    "description": "Members-only state: button to the membership screen"
+  },
+  "eventNotAvailable": "This event isn't available",
+  "@eventNotAvailable": {
+    "description": "Event detail: the event does not exist"
+  },
+  "eventOrganizedBy": "Organized by {name}",
+  "@eventOrganizedBy": {
+    "description": "Event detail: who organizes it",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   }
 }

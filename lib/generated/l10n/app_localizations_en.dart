@@ -2824,4 +2824,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationsImportantAlwaysIncluded =>
       'You will always get important announcements from BISO.';
+
+  @override
+  String get membersOnlyTitle => 'Members only';
+
+  @override
+  String get membersOnlyBody => 'This is for BISO members.';
+
+  @override
+  String get membersOnlyBecomeMember => 'Become a member';
+
+  @override
+  String get eventNotAvailable => 'This event isn\'t available';
+
+  @override
+  String eventOrganizedBy(String name) {
+    return 'Organized by $name';
+  }
 }

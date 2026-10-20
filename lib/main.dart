@@ -51,6 +51,7 @@ import 'presentation/widgets/notification_topics_prompt.dart';
 import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
+import 'presentation/screens/events/event_detail_screen.dart';
 import 'presentation/screens/events/large_event_screen.dart';
 import 'presentation/screens/scanner/scanner_route.dart';
 import 'data/models/large_event_model.dart';
@@ -335,6 +336,15 @@ final _router = GoRouter(
               path: '/events',
               name: 'events',
               builder: (context, state) => const EventsScreen(),
+              routes: [
+                GoRoute(
+                  path: '/:eventId',
+                  name: 'event-detail',
+                  builder: (context, state) => EventDetailScreen(
+                    idOrSlug: state.pathParameters['eventId']!,
+                  ),
+                ),
+              ],
             ),
             GoRoute(
               path: '/departures',

@@ -3727,5 +3727,30 @@
   "notificationsImportantAlwaysIncluded": "Du får alltid viktige kunngjøringer fra BISO.",
   "@notificationsImportantAlwaysIncluded": {
     "description": "Notification topics prompt: important announcements are not a choice"
+  },
+  "membersOnlyTitle": "Kun for medlemmer",
+  "@membersOnlyTitle": {
+    "description": "Members-only state: heading"
+  },
+  "membersOnlyBody": "Dette er for BISO-medlemmer.",
+  "@membersOnlyBody": {
+    "description": "Members-only state: explanation"
+  },
+  "membersOnlyBecomeMember": "Bli medlem",
+  "@membersOnlyBecomeMember": {
+    "description": "Members-only state: button to the membership screen"
+  },
+  "eventNotAvailable": "Dette arrangementet er ikke tilgjengelig",
+  "@eventNotAvailable": {
+    "description": "Event detail: the event does not exist"
+  },
+  "eventOrganizedBy": "Arrangert av {name}",
+  "@eventOrganizedBy": {
+    "description": "Event detail: who organizes it",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   }
 }

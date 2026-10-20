@@ -17,6 +17,7 @@ Matcher hasQuery(String method, {List<String> containing = const []}) {
 }
 
 void main() {
+  _eventLookupTests();
   group('EventService.buildEventQueries', () {
     test('always filters to published rows', () {
       final q = EventService.buildEventQueries();
@@ -217,5 +218,38 @@ void main() {
       );
     });
 
+  });
+}
+
+void _eventLookupTests() {
+  group('EventService.buildEventLookupQueries', () {
+    final q = EventService.buildEventLookupQueries('kickoff');
+
+    test('matches by slug or id', () {
+      expect(
+        q,
+        hasQuery(
+          'or',
+          containing: [
+            '{"method":"equal","attribute":"slug","values":["kickoff"]}',
+            r'{"method":"equal","attribute":"$id","values":["kickoff"]}',
+          ],
+        ),
+      );
+    });
+
+    test('reads published events only and selects translations', () {
+      expect(q, hasQuery('equal', containing: ['status', 'published']));
+      expect(q.any((s) => s.contains('translation_refs.*')), isTrue);
+    });
+
+    test('has no date window, so a past event still opens', () {
+      expect(q.any((s) => s.contains('end_date')), isFalse);
+      expect(q.any((s) => s.contains('start_date')), isFalse);
+    });
+
+    test('asks for a single row', () {
+      expect(q, hasQuery('limit', containing: ['[1]']));
+    });
   });
 }

@@ -67,6 +67,16 @@ String jobRouteFor(String? idOrSlug) {
       : '/explore/volunteer/${Uri.encodeComponent(key)}';
 }
 
+/// The in-app route for an event link: `biso://event?id=<id>`, a push
+/// notification, or `https://biso.no/app/events/<slug>`. The detail screen
+/// reads either an id or a slug. Without one, the list of events.
+String eventRouteFor(String? idOrSlug) {
+  final key = idOrSlug?.trim() ?? '';
+  return key.isEmpty
+      ? '/explore/events'
+      : '/explore/events/${Uri.encodeComponent(key)}';
+}
+
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
@@ -187,7 +197,7 @@ class DeepLinkService {
         _go('/home');
         break;
       case 'events':
-        _go('/explore/events');
+        _go(eventRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
         break;
       case 'products':
       case 'marketplace':
@@ -250,13 +260,7 @@ class DeepLinkService {
     logPrint('🔗 Event deep link - ID: $eventId');
 
     if (eventId != null) {
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        // Navigate to events screen and then open the event modal
-        context.go('/explore/events', extra: {'eventId': eventId});
-      } else {
-        logPrint('🔴 No navigation context available for event deep link');
-      }
+      _go(eventRouteFor(eventId));
     } else {
       logPrint('🔴 Missing event ID in deep link');
     }

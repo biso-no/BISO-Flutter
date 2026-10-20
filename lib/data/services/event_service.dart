@@ -71,6 +71,20 @@ class EventService {
     ];
   }
 
+  /// Builds the query list for reading one event by [idOrSlug].
+  ///
+  /// A notification or link carries either the row id or the slug, so either
+  /// matches. There is deliberately no date window: a link to an event that
+  /// has ended still opens it.
+  static List<String> buildEventLookupQueries(String idOrSlug) {
+    return [
+      Query.equal('status', 'published'),
+      Query.or([Query.equal(r'$id', idOrSlug), Query.equal('slug', idOrSlug)]),
+      Query.select(['*', 'translation_refs.*']),
+      Query.limit(1),
+    ];
+  }
+
   /// Builds the query list for a count-only events read.
   ///
   /// Same filters as [buildEventQueries], but selects just `$id` and asks
@@ -84,11 +98,7 @@ class EventService {
     DateTime? now,
   }) {
     return [
-      ..._eventFilters(
-        campusId: campusId,
-        includePast: includePast,
-        now: now,
-      ),
+      ..._eventFilters(campusId: campusId, includePast: includePast, now: now),
       Query.select([r'$id']),
       Query.limit(1),
     ];
@@ -119,6 +129,19 @@ class EventService {
     return response.rows
         .map((row) => EventModel.fromAppwriteRow(rowData(row), locale: locale))
         .toList(growable: false);
+  }
+
+  /// One published event by its row id or slug, or null when there is none.
+  Future<EventModel?> getEvent(String idOrSlug, {String locale = 'no'}) async {
+    final response = await db.listRows(
+      databaseId: AppConstants.databaseId,
+      tableId: 'events',
+      queries: buildEventLookupQueries(idOrSlug),
+    );
+    final row = response.rows.firstOrNull;
+    return row == null
+        ? null
+        : EventModel.fromAppwriteRow(rowData(row), locale: locale);
   }
 
   /// How many events match the same filters [listEvents] uses.

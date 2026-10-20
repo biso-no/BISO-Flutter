@@ -6,6 +6,7 @@ import 'package:biso/data/models/event_model.dart';
 import 'package:biso/data/services/event_service.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
+import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/material.dart';

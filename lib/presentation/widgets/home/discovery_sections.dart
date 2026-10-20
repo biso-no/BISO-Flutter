@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/biso_colors.dart';
 import '../biso/biso_members_badge.dart';
 import '../../../data/models/event_model.dart';
+import '../../../data/services/deep_link_service.dart' show eventRouteFor;
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/models/job_model.dart';
 import '../premium/premium_html_renderer.dart';
@@ -35,7 +36,7 @@ class BisoEventCarousel extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () => context.go('/explore/events'),
+              onTap: () => context.push(eventRouteFor(event.id)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
