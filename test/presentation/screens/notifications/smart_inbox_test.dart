@@ -1,14 +1,18 @@
+import 'dart:convert';
+
 import 'package:biso/data/models/app_notification_model.dart';
 import 'package:biso/data/models/inbox_item.dart';
 import 'package:biso/presentation/screens/notifications/announcement_detail_screen.dart';
 import 'package:biso/presentation/screens/notifications/notifications_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
+import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -48,10 +52,23 @@ class _FakeInbox extends StateNotifier<NotificationInboxState>
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-List<Override> _overrides(List<AppNotification> items) => [
+const _student = 'u1';
+
+/// Opened burst items, as the student signed in as [_student] left them.
+void _openedBefore(Map<String, List<String>> opened) =>
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'inbox_opened_items_$_student': jsonEncode(opened),
+    });
+
+Override _openedItems() => inboxOpenedItemsProvider.overrideWith(
+  (ref) => InboxOpenedItemsNotifier(userId: _student),
+);
+
+List<Override> _overrides(List<AppNotification> items, {_FakeInbox? inbox}) => [
   notificationInboxProvider.overrideWith(
-    (ref) => _FakeInbox(NotificationInboxState(items: items)),
+    (ref) => inbox ?? _FakeInbox(NotificationInboxState(items: items)),
   ),
+  _openedItems(),
 ];
 
 Future<void> _pump(
@@ -59,6 +76,7 @@ Future<void> _pump(
   List<AppNotification> items, {
   Locale? locale,
   List<RouteBase> routes = const [],
+  _FakeInbox? inbox,
 }) => pumpBisoScreen(
   tester,
   NotificationsScreen(clock: () => _now),
@@ -66,7 +84,32 @@ Future<void> _pump(
   routed: routes.isNotEmpty,
   extraRoutes: routes,
   locale: locale,
-  overrides: _overrides(items),
+  overrides: _overrides(items, inbox: inbox),
+);
+
+Future<void> _pumpDetail(
+  WidgetTester tester,
+  AppNotification announcement, {
+  Locale? locale,
+  List<RouteBase> routes = const [],
+}) => pumpBisoScreen(
+  tester,
+  AnnouncementDetailScreen(announcementId: announcement.id),
+  inShell: false,
+  routed: routes.isNotEmpty,
+  extraRoutes: routes,
+  locale: locale,
+  overrides: [
+    announcementDetailProvider(
+      announcement.id,
+    ).overrideWith((ref) async => announcement),
+    _openedItems(),
+  ],
+);
+
+GoRoute _eventPage() => GoRoute(
+  path: '/explore/events/:id',
+  builder: (_, state) => Text('event page ${state.pathParameters['id']}'),
 );
 
 final _burstItems = [
@@ -80,6 +123,8 @@ final _burstItems = [
 ];
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
+
   final mixed = [
     _n('a', 'Fresh note'),
     _n('b', 'Old note', age: const Duration(days: 20)),
@@ -186,6 +231,7 @@ void main() {
       inShell: false,
       overrides: [
         announcementDetailProvider('b1').overrideWith((ref) async => burst),
+        _openedItems(),
       ],
     );
     expect(find.text('Bergen event 1'), findsOneWidget);
@@ -216,6 +262,7 @@ void main() {
         ],
         overrides: [
           announcementDetailProvider('b1').overrideWith((ref) async => burst),
+          _openedItems(),
         ],
       );
 
@@ -247,6 +294,7 @@ void main() {
             locale: locale,
             overrides: [
               announcementDetailProvider('c1').overrideWith((ref) async => n),
+              _openedItems(),
             ],
           );
           expect(
@@ -348,10 +396,144 @@ void main() {
       locale: const Locale('no'),
       overrides: [
         announcementDetailProvider('b1').overrideWith((ref) async => n),
+        _openedItems(),
       ],
     );
     expect(find.text('Kunngjøring'), findsOneWidget);
     expect(find.text('Ingen innhold.'), findsOneWidget);
     expect(find.textContaining('okt'), findsOneWidget);
+  });
+
+  group('opened burst cards leave the group', () {
+    final burst = _n('b1', '3 new events in Bergen', items: _burstItems);
+
+    testWidgets('one of three opened: two cards, 2 new, See all 3', (
+      tester,
+    ) async {
+      _openedBefore({
+        'b1': ['e2'],
+      });
+      await _pump(tester, [burst]);
+      expect(find.text('Bergen event 1'), findsOneWidget);
+      expect(find.text('Bergen event 2'), findsNothing);
+      expect(find.text('Bergen event 3'), findsOneWidget);
+      expect(find.text('2 new'), findsOneWidget);
+      expect(find.text('See all 3'), findsOneWidget);
+    });
+
+    testWidgets('all opened: no cards, the row stays', (tester) async {
+      _openedBefore({
+        'b1': ['e1', 'e2', 'e3'],
+      });
+      await _pump(tester, [burst.copyWith(read: true)]);
+      expect(find.text('3 new events in Bergen'), findsOneWidget);
+      for (final i in [1, 2, 3]) {
+        expect(find.text('Bergen event $i'), findsNothing);
+      }
+      expect(find.textContaining('new'), findsOneWidget); // the title only
+      expect(find.text('See all 3'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('items opened in another announcement do not count', (
+      tester,
+    ) async {
+      _openedBefore({
+        'other': ['e1', 'e2'],
+      });
+      await _pump(tester, [burst]);
+      expect(find.text('3 new'), findsOneWidget);
+      expect(find.text('Bergen event 1'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a tapped card is marked opened and read, and has left the strip on Back',
+      (tester) async {
+        final inbox = _FakeInbox(NotificationInboxState(items: [burst]));
+        await _pump(tester, [burst], inbox: inbox, routes: [_eventPage()]);
+
+        await tester.tap(find.text('Bergen event 2'));
+        await tester.pumpAndSettle();
+        expect(find.text('event page e2'), findsOneWidget);
+        expect(inbox.marked, ['b1']);
+
+        GoRouter.of(tester.element(find.text('event page e2'))).pop();
+        await tester.pumpAndSettle();
+        expect(find.text('Bergen event 2'), findsNothing);
+        expect(find.text('Bergen event 1'), findsOneWidget);
+        expect(find.text('2 new'), findsOneWidget);
+        expect(find.text('See all 3'), findsOneWidget);
+
+        final prefs = await SharedPreferences.getInstance();
+        expect(jsonDecode(prefs.getString('inbox_opened_items_$_student')!), {
+          'b1': ['e2'],
+        });
+      },
+    );
+
+    for (final (locale, opened) in [
+      (const Locale('en'), 'Opened'),
+      (const Locale('no'), 'Åpnet'),
+    ]) {
+      testWidgets('the detail lists every item, an opened one muted '
+          '(${locale.languageCode})', (tester) async {
+        _openedBefore({
+          'b1': ['e2'],
+        });
+        final semantics = tester.ensureSemantics();
+        await _pumpDetail(tester, burst.copyWith(read: true), locale: locale);
+
+        for (final i in [1, 2, 3]) {
+          expect(find.text('Bergen event $i'), findsOneWidget);
+        }
+        final palette = BisoPalette.of(
+          tester.element(find.text('Bergen event 2')),
+        );
+        Color? titleColor(String title) =>
+            tester.widget<Text>(find.text(title)).style?.color;
+        expect(titleColor('Bergen event 2'), palette.muted);
+        expect(titleColor('Bergen event 1'), palette.ink);
+        expect(find.byIcon(CupertinoIcons.checkmark_alt), findsOneWidget);
+
+        String rowLabel(String title) => tester
+            .getSemantics(
+              find.ancestor(
+                of: find.text(title),
+                matching: find.byType(BisoListRow),
+              ),
+            )
+            .label;
+        expect(rowLabel('Bergen event 2'), contains(opened));
+        expect(rowLabel('Bergen event 1'), isNot(contains(opened)));
+        semantics.dispose();
+      });
+    }
+
+    testWidgets('an item opened from the detail is marked opened there', (
+      tester,
+    ) async {
+      await _pumpDetail(
+        tester,
+        burst.copyWith(read: true),
+        routes: [_eventPage()],
+      );
+      expect(find.byIcon(CupertinoIcons.checkmark_alt), findsNothing);
+
+      await tester.tap(find.text('Bergen event 3'));
+      await tester.pumpAndSettle();
+      expect(find.text('event page e3'), findsOneWidget);
+
+      GoRouter.of(tester.element(find.text('event page e3'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Bergen event 3'), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.checkmark_alt), findsOneWidget);
+      final palette = BisoPalette.of(
+        tester.element(find.text('Bergen event 3')),
+      );
+      expect(
+        tester.widget<Text>(find.text('Bergen event 3')).style?.color,
+        palette.muted,
+      );
+    });
   });
 }

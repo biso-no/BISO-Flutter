@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import '../../../data/models/app_notification_model.dart';
 import '../../../data/models/inbox_item.dart';
 import '../../../data/services/announcement_route.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/notification/inbox_opened_items_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
 import 'inbox_widgets.dart';
@@ -124,6 +127,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final hasImage = items.any(
       (n) => !n.isUrgent && (n.image?.isNotEmpty ?? false),
     );
+    final opened = ref.watch(inboxOpenedItemsProvider);
     return BisoSection(
       title: title,
       padding: EdgeInsets.fromLTRB(16, title == null ? 8 : 20, 16, 0),
@@ -135,6 +139,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               key: ValueKey(n.id),
               notification: n,
               now: now,
+              openedItemIds: opened.openedFor(n.id),
               onTap: () => _handleTap(context, n),
               onOpenItem: (item) => _openItem(context, n, item),
               onSeeAll: () => _openAnnouncement(context, n),
@@ -151,32 +156,31 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     InboxDay.earlier => l10n.inboxDayEarlier,
   };
 
-  // Every tap pushes inside the tab shell, where the inbox lives too, so Back
-  // returns to the inbox.
+  // Every tap marks the notification read and pushes inside the tab shell,
+  // where the inbox lives too, so Back returns to the inbox. The marks update
+  // the inbox at once and are not waited for: marking read goes to the
+  // server, and the screen opens without that delay.
 
-  Future<void> _openItem(
-    BuildContext context,
-    AppNotification n,
-    InboxItem item,
-  ) async {
-    await ref.read(notificationInboxProvider.notifier).markRead(n);
-    if (context.mounted) context.push(item.route);
+  void _openItem(BuildContext context, AppNotification n, InboxItem item) {
+    // An opened card leaves the burst's strip.
+    unawaited(
+      ref.read(inboxOpenedItemsProvider.notifier).markOpened(n.id, item.id),
+    );
+    unawaited(ref.read(notificationInboxProvider.notifier).markRead(n));
+    context.push(item.route);
   }
 
-  Future<void> _openAnnouncement(
-    BuildContext context,
-    AppNotification n,
-  ) async {
-    await ref.read(notificationInboxProvider.notifier).markRead(n);
-    if (n.id.isNotEmpty && context.mounted) {
+  void _openAnnouncement(BuildContext context, AppNotification n) {
+    unawaited(ref.read(notificationInboxProvider.notifier).markRead(n));
+    if (n.id.isNotEmpty) {
       context.push('/announcements/${Uri.encodeComponent(n.id)}');
     }
   }
 
-  Future<void> _handleTap(BuildContext context, AppNotification n) async {
-    await ref.read(notificationInboxProvider.notifier).markRead(n);
+  void _handleTap(BuildContext context, AppNotification n) {
+    unawaited(ref.read(notificationInboxProvider.notifier).markRead(n));
     final route = announcementRouteFor(n);
-    if (route != null && context.mounted) context.push(route);
+    if (route != null) context.push(route);
   }
 }
 

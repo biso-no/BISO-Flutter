@@ -2889,6 +2889,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get inboxItemOpened => 'Opened';
+
+  @override
   String get inboxEmptyTitle => 'No notifications yet';
 
   @override

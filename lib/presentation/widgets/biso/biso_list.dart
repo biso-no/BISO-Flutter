@@ -165,6 +165,7 @@ class BisoListRow extends StatelessWidget {
     this.showChevron,
     this.onTap,
     this.destructive = false,
+    this.muted = false,
     this.titleMaxLines = 2,
   });
 
@@ -182,6 +183,10 @@ class BisoListRow extends StatelessWidget {
   final bool? showChevron;
   final VoidCallback? onTap;
   final bool destructive;
+
+  /// Greys the title, for a row already dealt with (such as an item the
+  /// student has opened) that stays tappable.
+  final bool muted;
   final int titleMaxLines;
 
   @override
@@ -209,7 +214,9 @@ class BisoListRow extends StatelessWidget {
                         maxLines: titleMaxLines,
                         overflow: TextOverflow.ellipsis,
                         style: text.titleMedium?.copyWith(
-                          color: destructive ? palette.error : palette.ink,
+                          color: destructive
+                              ? palette.error
+                              : (muted ? palette.muted : palette.ink),
                         ),
                       ),
                       if (subtitle != null)
@@ -239,10 +246,7 @@ class BisoListRow extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (trailing != null) ...[
-                  const SizedBox(width: 8),
-                  trailing!,
-                ],
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
                 if (chevron) ...[
                   const SizedBox(width: 8),
                   Icon(

@@ -1,6 +1,7 @@
 import 'package:biso/data/models/app_notification_model.dart';
 import 'package:biso/presentation/screens/notifications/notifications_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
+import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,9 @@ class _FakeInbox extends StateNotifier<NotificationInboxState>
 
 List<Override> _overrides(NotificationInboxState state) => [
   notificationInboxProvider.overrideWith((ref) => _FakeInbox(state)),
+  inboxOpenedItemsProvider.overrideWith(
+    (ref) => InboxOpenedItemsNotifier(userId: null),
+  ),
 ];
 
 void main() {

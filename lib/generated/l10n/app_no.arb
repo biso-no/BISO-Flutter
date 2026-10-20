@@ -3774,6 +3774,7 @@
   "inboxDayEarlier": "Tidligere",
   "inboxSeeAll": "Se alle {count}",
   "inboxNewCount": "{count} nye",
+  "inboxItemOpened": "Åpnet",
   "inboxEmptyTitle": "Ingen varsler ennå",
   "inboxEmptyMessage": "Oppdateringer fra BISO vises her.",
   "inboxJustNow": "Akkurat nå",

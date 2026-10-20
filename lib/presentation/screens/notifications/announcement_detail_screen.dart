@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
+import '../../../data/models/inbox_item.dart';
 import '../../../data/services/deep_link_service.dart';
+import '../../../providers/notification/inbox_opened_items_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
@@ -82,17 +86,36 @@ class _AnnouncementDetailScreenState
             ];
           }
           _maybeMarkRead(notification);
-          return _announcementSlivers(context, notification);
+          return _announcementSlivers(
+            context,
+            notification,
+            opened: ref
+                .watch(inboxOpenedItemsProvider)
+                .openedFor(notification.id),
+            onOpenItem: (item) {
+              unawaited(
+                ref
+                    .read(inboxOpenedItemsProvider.notifier)
+                    .markOpened(notification.id, item.id),
+              );
+              // Pushed, so Back returns to this list.
+              context.push(item.route);
+            },
+          );
         },
       ),
     );
   }
 }
 
+/// [opened] are the ids of the items the student has opened; every item is
+/// listed (this is "See all"), the opened ones greyed.
 List<Widget> _announcementSlivers(
   BuildContext context,
-  AppNotification notification,
-) {
+  AppNotification notification, {
+  required Set<String> opened,
+  required ValueChanged<InboxItem> onOpenItem,
+}) {
   final theme = Theme.of(context);
   final palette = BisoPalette.of(context);
   final hasHtml = notification.bodyHtml.trim().isNotEmpty;
@@ -171,8 +194,8 @@ List<Widget> _announcementSlivers(
                 InboxItemRow(
                   key: ValueKey('${item.type}-${item.id}'),
                   item: item,
-                  // Pushed, so Back returns to this list.
-                  onTap: () => context.push(item.route),
+                  opened: opened.contains(item.id),
+                  onTap: () => onOpenItem(item),
                 ),
             ],
           ),

@@ -3,11 +3,13 @@ import 'package:biso/data/models/app_notification_model.dart';
 import 'package:biso/data/models/inbox_item.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/main.dart';
+import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Back from content opened in the inbox returns to the inbox, and from
 /// content opened in an announcement to the announcement - not to the list
@@ -112,6 +114,7 @@ Future<GoRouter> _pumpApp(WidgetTester tester) async {
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
 
+  SharedPreferences.setMockInitialValues(<String, Object>{});
   final router = _router();
   addTearDown(router.dispose);
   await tester.pumpWidget(
@@ -121,6 +124,9 @@ Future<GoRouter> _pumpApp(WidgetTester tester) async {
           (ref) => _FakeInbox(NotificationInboxState(items: [_burst, _news])),
         ),
         announcementDetailProvider('b1').overrideWith((ref) async => _burst),
+        inboxOpenedItemsProvider.overrideWith(
+          (ref) => InboxOpenedItemsNotifier(userId: 'u1'),
+        ),
       ],
       child: MaterialApp.router(
         theme: PremiumTheme.build(Brightness.light),
@@ -173,6 +179,9 @@ void main() {
     await _back(tester, router);
     expect(find.text('3 new events in Bergen'), findsOneWidget);
     expect(find.text('events list'), findsNothing);
+    // The opened card has left the group.
+    expect(find.text('Bergen event 2'), findsNothing);
+    expect(find.text('2 new'), findsOneWidget);
 
     await _back(tester, router);
     expect(find.text('bell'), findsOneWidget);

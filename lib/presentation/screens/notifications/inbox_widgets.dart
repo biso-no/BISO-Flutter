@@ -131,7 +131,8 @@ class _UrgentTile extends StatelessWidget {
   }
 }
 
-/// One inbox row. A burst also shows a strip of its first items.
+/// One inbox row. A burst also shows a strip of its first items not yet
+/// opened, and a link to all of them.
 class InboxRow extends StatelessWidget {
   const InboxRow({
     super.key,
@@ -140,6 +141,7 @@ class InboxRow extends StatelessWidget {
     required this.onTap,
     required this.onOpenItem,
     required this.onSeeAll,
+    this.openedItemIds = const {},
   });
 
   final AppNotification notification;
@@ -147,6 +149,10 @@ class InboxRow extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<InboxItem> onOpenItem;
   final VoidCallback onSeeAll;
+
+  /// Ids of this burst's items the student has opened: they leave the strip
+  /// and the "new" count.
+  final Set<String> openedItemIds;
 
   @override
   Widget build(BuildContext context) {
@@ -168,14 +174,20 @@ class InboxRow extends StatelessWidget {
       tile = BisoIconTile(icon: _iconFor(type), accent: _accentFor(type));
     }
 
+    final unopened = [
+      for (final item in n.items)
+        if (!openedItemIds.contains(item.id)) item,
+    ];
+    final body = n.body.isNotEmpty ? n.body : null;
+
     final row = BisoListRow(
       // The tile's icon is decorative; the category word is kept for
       // screen readers.
       leading: Semantics(label: _categoryLabel(l10n, n), child: tile),
       title: n.title,
-      subtitle: n.isBurst
-          ? l10n.inboxNewCount(n.items.length)
-          : (n.body.isNotEmpty ? n.body : null),
+      subtitle: n.isBurst && unopened.isNotEmpty
+          ? l10n.inboxNewCount(unopened.length)
+          : body,
       value: inboxRelativeTime(l10n, n.createdAt, now),
       trailing: n.read
           ? null
@@ -196,7 +208,7 @@ class InboxRow extends StatelessWidget {
       children: [
         row,
         _BurstStrip(
-          items: n.items.take(_maxMiniCards).toList(),
+          items: unopened.take(_maxMiniCards).toList(),
           total: n.items.length,
           onOpenItem: onOpenItem,
           onSeeAll: onSeeAll,
@@ -230,24 +242,25 @@ class _BurstStrip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Cards size to their text, so large text scales never overflow.
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < items.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    _MiniCard(
-                      item: items[i],
-                      onTap: () => onOpenItem(items[i]),
-                    ),
+          if (items.isNotEmpty)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < items.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      _MiniCard(
+                        item: items[i],
+                        onTap: () => onOpenItem(items[i]),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: InkWell(
@@ -341,12 +354,19 @@ class _MiniCard extends StatelessWidget {
   }
 }
 
-/// A row for one item of a burst, on the announcement detail screen.
+/// A row for one item of a burst, on the announcement detail screen. An
+/// item the student has [opened] is greyed and ticked, and stays tappable.
 class InboxItemRow extends StatelessWidget {
-  const InboxItemRow({super.key, required this.item, required this.onTap});
+  const InboxItemRow({
+    super.key,
+    required this.item,
+    required this.onTap,
+    this.opened = false,
+  });
 
   final InboxItem item;
   final VoidCallback onTap;
+  final bool opened;
 
   @override
   Widget build(BuildContext context) {
@@ -362,6 +382,16 @@ class InboxItemRow extends StatelessWidget {
       subtitle: date == null
           ? null
           : MaterialLocalizations.of(context).formatShortDate(date.toLocal()),
+      muted: opened,
+      trailing: opened
+          ? Icon(
+              CupertinoIcons.checkmark_alt,
+              size: 17,
+              color: BisoPalette.of(context).muted,
+              semanticLabel: AppLocalizations.of(context)!.inboxItemOpened,
+            )
+          : null,
+      showChevron: true,
       onTap: onTap,
     );
   }

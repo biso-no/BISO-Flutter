@@ -3820,6 +3820,10 @@
       }
     }
   },
+  "inboxItemOpened": "Opened",
+  "@inboxItemOpened": {
+    "description": "Announcement detail: screen-reader label for a burst item the student has already opened"
+  },
   "inboxEmptyTitle": "No notifications yet",
   "@inboxEmptyTitle": {
     "description": "Inbox empty state title"

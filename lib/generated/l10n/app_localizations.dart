@@ -5271,6 +5271,12 @@ abstract class AppLocalizations {
   /// **'{count} new'**
   String inboxNewCount(int count);
 
+  /// Announcement detail: screen-reader label for a burst item the student has already opened
+  ///
+  /// In en, this message translates to:
+  /// **'Opened'**
+  String get inboxItemOpened;
+
   /// Inbox empty state title
   ///
   /// In en, this message translates to:

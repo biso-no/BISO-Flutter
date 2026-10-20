@@ -2897,6 +2897,9 @@ class AppLocalizationsNo extends AppLocalizations {
   }
 
   @override
+  String get inboxItemOpened => 'Åpnet';
+
+  @override
   String get inboxEmptyTitle => 'Ingen varsler ennå';
 
   @override
