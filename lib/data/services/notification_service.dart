@@ -1083,7 +1083,11 @@ class NotificationService {
             toDelete: const <String>{},
           )
         : computeTopicDiff(
-            desired: appwriteTopicIdsFor(intent: intent, campusId: campusId),
+            desired: appwriteTopicIdsFor(
+              intent: intent,
+              campusId: campusId,
+              locale: 'en', // Task 3 wires the real language
+            ),
             current: current,
           );
     if (diff.isEmpty) {

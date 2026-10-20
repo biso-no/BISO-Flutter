@@ -427,8 +427,8 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   const storedIds = <String, String>{
-    'general': 'sub-general',
-    'news_oslo': 'sub-news',
+    'general_en': 'sub-general',
+    'news_oslo_en': 'sub-news',
   };
 
   /// A device that has reconciled before: its target and subscribers exist on
@@ -440,8 +440,8 @@ void main() {
     });
     return _FakeServer()
       ..targets['target-1'] = 'token-1'
-      ..subscribers['sub-general'] = (topicId: 'general', targetId: 'target-1')
-      ..subscribers['sub-news'] = (topicId: 'news_oslo', targetId: 'target-1');
+      ..subscribers['sub-general'] = (topicId: 'general_en', targetId: 'target-1')
+      ..subscribers['sub-news'] = (topicId: 'news_oslo_en', targetId: 'target-1');
   }
 
   final store = DeviceSubscriptionStore();
@@ -656,9 +656,10 @@ void main() {
         final targetId = await store.readTargetId();
         expect(server.targets.keys, [targetId]);
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
       },
     );
@@ -780,9 +781,10 @@ void main() {
           reason: 'the target left behind is bound to the invalidated token',
         );
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
         expect(
           await store.readSubscriberIds(),
@@ -1092,7 +1094,7 @@ void main() {
         expect(behind, ReconcileOutcome.applied);
 
         final recorded = await store.readSubscriberIds();
-        expect(recorded.keys, {'general', 'news_oslo', 'news_national'});
+        expect(recorded.keys, {'general_en', 'general_oslo_en', 'news_oslo_en', 'news_national_en'});
         final requestsSoFar = messaging.createCalls;
 
         // The abandoned run's first subscribe finally answers.
@@ -1121,8 +1123,8 @@ void main() {
         expect(outcome, ReconcileOutcome.unavailable);
 
         final created = server.subscribers.entries.single;
-        expect(created.value.topicId, 'general');
-        expect(await store.readSubscriberIds(), {'general': created.key});
+        expect(created.value.topicId, 'general_en');
+        expect(await store.readSubscriberIds(), {'general_en': created.key});
 
         hold.complete();
         await tester.pump();
@@ -1216,11 +1218,11 @@ void main() {
           await reconcileFor(tester, service, elapse: kNotificationRunTimeout),
           ReconcileOutcome.unavailable,
         );
-        expect(server.subscribers, isNot(contains(subscribed['news_oslo'])));
+        expect(server.subscribers, isNot(contains(subscribed['news_oslo_en'])));
 
         lateAnswer.complete();
         await tester.pump();
-        expect(await store.readSubscriberIds(), isNot(contains('news_oslo')));
+        expect(await store.readSubscriberIds(), isNot(contains('news_oslo_en')));
 
         // News back on.
         account.intent = {...account.intent, 'news': true};
@@ -1229,7 +1231,7 @@ void main() {
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
         );
-        expect(await store.readSubscriberIds(), contains('news_oslo'));
+        expect(await store.readSubscriberIds(), contains('news_oslo_en'));
       },
     );
 
@@ -1242,19 +1244,19 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        // Create call 2 is news_oslo.
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        // Create call 3 is news_oslo.
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
         expect(
           await reconcileFor(tester, service, elapse: kNotificationRunTimeout),
           ReconcileOutcome.unavailable,
         );
-        expect(await store.readSubscriberIds(), isNot(contains('news_oslo')));
+        expect(await store.readSubscriberIds(), isNot(contains('news_oslo_en')));
 
         lateAnswer.complete();
         await tester.pump();
-        expect((await store.readSubscriberIds()).keys, {'general', 'news_oslo'});
+        expect((await store.readSubscriberIds()).keys, {'general_en', 'general_oslo_en', 'news_oslo_en'});
         expect(
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
@@ -1265,7 +1267,7 @@ void main() {
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         expect(
           (await serverSubscribersOnStoredTarget(server)).keys,
-          {'general'},
+          {'general_en', 'general_oslo_en'},
         );
       },
     );
@@ -1279,7 +1281,7 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
 
@@ -1297,9 +1299,10 @@ void main() {
         // The next student signs in, with news on too.
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
         expect(
           await store.readSubscriberIds(),
@@ -1316,7 +1319,7 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
         final oldTarget = await store.readTargetId();
@@ -1333,7 +1336,7 @@ void main() {
         lateAnswer.complete();
         await tester.pump();
         expect(await store.readTargetId(), newTarget);
-        expect((await store.readSubscriberIds()).keys, {'general'});
+        expect((await store.readSubscriberIds()).keys, {'general_en', 'general_oslo_en'});
         expect(
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
@@ -1348,19 +1351,19 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
         final lateSubscriber = (await serverSubscribersOnStoredTarget(
           server,
-        ))['news_oslo'];
+        ))['news_oslo_en'];
 
         // That subscriber is removed on the server - by an administrator,
         // say - and the next run subscribes this device afresh.
         server.subscribers.remove(lateSubscriber);
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         final recorded = await store.readSubscriberIds();
-        expect(recorded['news_oslo'], allOf(isNotNull, isNot(lateSubscriber)));
+        expect(recorded['news_oslo_en'], allOf(isNotNull, isNot(lateSubscriber)));
 
         lateAnswer.complete();
         await tester.pump();
@@ -1392,7 +1395,7 @@ void main() {
         account.intent = {...account.intent, 'news': true};
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         final recorded = await store.readSubscriberIds();
-        expect(recorded, contains('news_oslo'));
+        expect(recorded, contains('news_oslo_en'));
         expect(recorded, await serverSubscribersOnStoredTarget(server));
 
         lateAnswer.complete();
@@ -1409,39 +1412,42 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
 
         // The student swaps news for events. The next run subscribes to
-        // events_oslo (create call 3), then parks on events_national (4).
+        // events_oslo (create call 4), then parks on events_national (5).
         account.intent = {...account.intent, 'news': false, 'events': true};
-        final parked = messaging.holdCreateRequest[4] = Completer<void>();
+        final parked = messaging.holdCreateRequest[5] = Completer<void>();
         ReconcileOutcome? outcome;
         unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
         await tester.pump();
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'events_oslo',
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
         });
 
         // The abandoned run's news_oslo answer lands in between.
         lateAnswer.complete();
         await tester.pump();
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'events_oslo',
-          'news_oslo',
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
+          'news_oslo_en',
         });
 
         parked.complete();
         await tester.pump();
         expect(outcome, ReconcileOutcome.applied);
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'events_oslo',
-          'news_oslo',
-          'events_national',
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
+          'news_oslo_en',
+          'events_national_en',
         });
         expect(
           await store.readSubscriberIds(),
@@ -1492,9 +1498,10 @@ void main() {
         );
         expect(server.targets, {targetId: service.token});
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
         expect(
           await store.readSubscriberIds(),

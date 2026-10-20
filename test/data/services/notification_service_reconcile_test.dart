@@ -264,11 +264,12 @@ void main() {
               'its id stored on this device',
         );
         expect(messaging.subscribers.keys.toSet(), {
-          'general',
-          'news_oslo',
-          'news_national',
-          'events_oslo',
-          'events_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
+          'events_oslo_en',
+          'events_national_en',
         });
         expect(outcomes, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
       },
@@ -300,13 +301,13 @@ void main() {
         SharedPreferences.setMockInitialValues(<String, Object>{
           'push_target_id': 'target-1',
           'topic_subscriber_ids': jsonEncode(<String, String>{
-            'news_oslo': 'sub-news',
+            'news_oslo_en': 'sub-news',
           }),
         });
         final account = _FakeAccount(intentPrefs(events: false))
           ..shouldFail = true;
         final messaging = _FakeMessaging()
-          ..subscribers['news_oslo'] = 'sub-news';
+          ..subscribers['news_oslo_en'] = 'sub-news';
         final service = _ReconcilingService(account, messaging);
 
         final outcome = await service.reconcile(campusId: '1');
@@ -322,7 +323,7 @@ void main() {
           await DeviceSubscriptionStore().readSubscriberIds(),
           messaging.subscribers,
         );
-        expect(messaging.subscribers.keys.toSet(), {'general', 'news_oslo'});
+        expect(messaging.subscribers.keys.toSet(), {'general', 'news_oslo_en'});
       },
     );
 
@@ -455,9 +456,10 @@ void main() {
 
         expect(service.fcmToken, 'token-2');
         expect(messaging.subscribers.keys.toSet(), {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
       },
     );
@@ -482,9 +484,10 @@ void main() {
 
         expect(service.permissionChecks, 2, reason: 'one more reconcile run');
         expect(messaging.createCalls, [
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         ]);
       },
     );
@@ -498,11 +501,11 @@ void main() {
         SharedPreferences.setMockInitialValues(<String, Object>{
           'push_target_id': 'target-1',
           'topic_subscriber_ids': jsonEncode(<String, String>{
-            'news_oslo': 'sub-news',
+            'news_oslo_en': 'sub-news',
           }),
         });
         final messaging = _FakeMessaging()
-          ..subscribers['news_oslo'] = 'sub-news';
+          ..subscribers['news_oslo_en'] = 'sub-news';
         final service = _ReconcilingService(
           _FakeAccount(intentPrefs()),
           messaging,
@@ -522,7 +525,7 @@ void main() {
           await service.reconcile(campusId: '1'),
           ReconcileOutcome.applied,
         );
-        expect(messaging.createCalls, ['general', 'news_national']);
+        expect(messaging.createCalls, ['general_en', 'general_oslo_en', 'news_national_en']);
         expect(messaging.deleteCalls, isEmpty);
       },
     );
