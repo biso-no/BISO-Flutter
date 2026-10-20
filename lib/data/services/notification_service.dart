@@ -170,6 +170,11 @@ class NotificationService {
   /// — can re-run [reconcile] without a caller supplying it again.
   String? _lastCampusId;
 
+  /// The push language most recently passed to [reconcile], for the same
+  /// internal re-runs as [_lastCampusId]. English until a caller says
+  /// otherwise.
+  String _lastLocale = 'en';
+
   /// Whether [_lastCampusId] is a signed-in student's campus: set by
   /// [reconcile], and cleared by [clearToken]. Null means "no campus" only
   /// once this is set.
@@ -316,7 +321,7 @@ class NotificationService {
       return;
     }
     try {
-      await reconcile(campusId: _lastCampusId);
+      await reconcile(campusId: _lastCampusId, locale: _lastLocale);
     } catch (e) {
       debugPrint('onTokenRefresh: reconcile failed: $e');
     }
@@ -403,7 +408,7 @@ class NotificationService {
       // token-refresh path relies on, since this method has no campus id of
       // its own to pass in.
       try {
-        await reconcile(campusId: _lastCampusId);
+        await reconcile(campusId: _lastCampusId, locale: _lastLocale);
       } catch (e) {
         // reconcile() reports the failures it expects as a ReconcileOutcome;
         // this is whatever else escaped it. The grant is real regardless, and
@@ -473,6 +478,7 @@ class NotificationService {
   /// reconcile costs little and a device left unsubscribed is the bug.
   Future<ReconcileOutcome?> reconcileIfPermissionNewlyGranted({
     required String? campusId,
+    required String locale,
   }) async {
     final bool granted;
     try {
@@ -484,7 +490,7 @@ class NotificationService {
     final wasGranted = _lastSeenPermission == true;
     _lastSeenPermission = granted;
     if (!granted || wasGranted) return null;
-    return reconcile(campusId: campusId);
+    return reconcile(campusId: campusId, locale: locale);
   }
 
   /// Whether the OS currently grants notification permission (including
@@ -750,16 +756,21 @@ class NotificationService {
   /// [ReconcileOutcome.unavailable] if its run is abandoned: not finished
   /// within [kNotificationRunTimeout], or still in progress when [clearToken]
   /// is called.
-  Future<ReconcileOutcome> reconcile({required String? campusId}) {
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) {
     // Cached at call time, before the run is even queued, so a later token
     // refresh — which has no campusId of its own to pass in — reconciles
     // against the most recent campus this method was actually asked to use.
     _lastCampusId = campusId;
     _campusKnown = true;
+    final pushLocale = pushLocaleFor(locale);
+    _lastLocale = pushLocale;
 
     return _enqueue(
       'reconcile',
-      (run) => _reconcileNow(run, campusId),
+      (run) => _reconcileNow(run, campusId, pushLocale),
       onAbandoned: () => ReconcileOutcome.unavailable,
     );
   }
@@ -974,6 +985,7 @@ class NotificationService {
   Future<ReconcileOutcome> _reconcileNow(
     _QueueRun run,
     String? campusId,
+    String locale,
   ) async {
     final settlement = await _settlePendingTokenInvalidation(run);
     if (settlement == _Settlement.stillPending) {
@@ -1006,7 +1018,7 @@ class NotificationService {
       return ReconcileOutcome.permissionDenied;
     }
 
-    final outcome = await _reconcilePermitted(run, campusId);
+    final outcome = await _reconcilePermitted(run, campusId, locale);
     // A run that had permission but could not finish - no token, no push
     // target, no readable intent - forgets the permission it read, so the
     // next resume tries again (see [reconcileIfPermissionNewlyGranted]).
@@ -1019,6 +1031,7 @@ class NotificationService {
   Future<ReconcileOutcome> _reconcilePermitted(
     _QueueRun run,
     String? campusId,
+    String locale,
   ) async {
     // The launch fetch in initialize() can fail and leave no cached token, and
     // Firebase then throws here too (SERVICE_NOT_AVAILABLE, no network). That
@@ -1063,33 +1076,30 @@ class NotificationService {
     } catch (e) {
       // Reconciling against a guessed intent is exactly the harm this type
       // exists to prevent: it could subscribe a student to a topic they had
-      // deliberately turned off. So only kGeneralTopicId, which every device
-      // with permission holds whatever the student chose, is ensured below,
+      // deliberately turned off. So only the general channels in this
+      // device's language, which every device with permission holds whatever
+      // the student chose, are ensured below,
       // nothing is deleted, and the rest is retried on the next launch, auth
       // change, or campus change. Stopping here instead left a device that
       // had permission subscribed to nothing at all.
       debugPrint(
-        'reconcile: could not read topic intent; ensuring only '
-        '$kGeneralTopicId ($e)',
+        'reconcile: could not read topic intent; ensuring only the general '
+        'channels ($e)',
       );
     }
 
     final current = await _store.readSubscriberIds();
+    final desired = appwriteTopicIdsFor(
+      intent: intent ?? const <String, bool>{},
+      campusId: campusId,
+      locale: locale,
+    );
     final diff = intent == null
         ? TopicDiff(
-            toCreate: current.containsKey(kGeneralTopicId)
-                ? const <String>{}
-                : const <String>{kGeneralTopicId},
+            toCreate: desired.difference(current.keys.toSet()),
             toDelete: const <String>{},
           )
-        : computeTopicDiff(
-            desired: appwriteTopicIdsFor(
-              intent: intent,
-              campusId: campusId,
-              locale: 'en', // Task 3 wires the real language
-            ),
-            current: current,
-          );
+        : computeTopicDiff(desired: desired, current: current);
     if (diff.isEmpty) {
       return intent == null
           ? ReconcileOutcome.unavailable

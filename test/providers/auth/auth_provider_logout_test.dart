@@ -185,7 +185,7 @@ void main() {
         await tester.pump();
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
         await tester.pump();
         expect(outcome, isNull, reason: 'the reconcile hangs');
 

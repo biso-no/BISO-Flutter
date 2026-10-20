@@ -241,7 +241,7 @@ void main() {
 
         // The launch reconciler starts first and parks on its first
         // subscribe.
-        final launch = service.reconcile(campusId: '1');
+        final launch = service.reconcile(campusId: '1', locale: 'en');
         await pumpEventQueue();
 
         // Meanwhile the student turns Events on, and setTopic reconciles too.
@@ -251,7 +251,7 @@ void main() {
           'jobs': false,
           'shop': false,
         };
-        final toggle = service.reconcile(campusId: '1');
+        final toggle = service.reconcile(campusId: '1', locale: 'en');
         await pumpEventQueue();
 
         hold.complete();
@@ -284,8 +284,8 @@ void main() {
           _FakeMessaging(),
         )..targetThrowsOnce = StateError('storage unavailable');
 
-        final failing = service.reconcile(campusId: '1');
-        final queued = service.reconcile(campusId: '1');
+        final failing = service.reconcile(campusId: '1', locale: 'en');
+        final queued = service.reconcile(campusId: '1', locale: 'en');
 
         await expectLater(failing, throwsStateError);
         expect(await queued, ReconcileOutcome.applied);
@@ -293,10 +293,11 @@ void main() {
     );
 
     test(
-      'still subscribes this device to general when the topic intent cannot '
-      'be read, and deletes nothing: general does not depend on any choice, '
-      'and a run that stopped at the failed read left a student who had '
-      'allowed notifications with no subscription at all',
+      'still subscribes this device to its language channels when the topic '
+      'intent cannot be read, and deletes nothing: the general channels do '
+      'not depend on any choice, and a run that stopped at the failed read '
+      'left a student who had allowed notifications with no subscription at '
+      'all',
       () async {
         SharedPreferences.setMockInitialValues(<String, Object>{
           'push_target_id': 'target-1',
@@ -310,10 +311,10 @@ void main() {
           ..subscribers['news_oslo_en'] = 'sub-news';
         final service = _ReconcilingService(account, messaging);
 
-        final outcome = await service.reconcile(campusId: '1');
+        final outcome = await service.reconcile(campusId: '1', locale: 'en');
 
         expect(outcome, ReconcileOutcome.unavailable);
-        expect(messaging.createCalls, ['general']);
+        expect(messaging.createCalls.toSet(), {'general_en', 'general_oslo_en'});
         expect(
           messaging.deleteCalls,
           isEmpty,
@@ -323,34 +324,109 @@ void main() {
           await DeviceSubscriptionStore().readSubscriberIds(),
           messaging.subscribers,
         );
-        expect(messaging.subscribers.keys.toSet(), {'general', 'news_oslo_en'});
+        expect(messaging.subscribers.keys.toSet(), {
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+        });
       },
     );
 
     test(
-      'does nothing when the topic intent cannot be read and general is '
-      'already recorded on this device',
+      'with no readable intent, ensures the general channel in the requested '
+      'language, and no campus channel for National',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+        });
+        final messaging = _FakeMessaging();
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: false))..shouldFail = true,
+          messaging,
+        );
+
+        await service.reconcile(campusId: '5', locale: 'nb');
+
+        expect(messaging.createCalls, ['general_no']);
+      },
+    );
+
+    test(
+      'does nothing when the topic intent cannot be read and the general '
+      'channels are already recorded on this device',
       () async {
         SharedPreferences.setMockInitialValues(<String, Object>{
           'push_target_id': 'target-1',
           'topic_subscriber_ids': jsonEncode(<String, String>{
-            'general': 'sub-general',
+            'general_en': 'sub-general',
+            'general_oslo_en': 'sub-general-oslo',
           }),
         });
         final account = _FakeAccount(intentPrefs(events: false))
           ..shouldFail = true;
         final messaging = _FakeMessaging()
-          ..subscribers['general'] = 'sub-general';
+          ..subscribers['general_en'] = 'sub-general'
+          ..subscribers['general_oslo_en'] = 'sub-general-oslo';
         final service = _ReconcilingService(account, messaging);
 
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         expect(messaging.createCalls, isEmpty);
         expect(messaging.deleteCalls, isEmpty);
       },
     );
+
+    test(
+      'switching language moves every subscription to the other language in '
+      'one run',
+      () async {
+        const enIds = ['general_en', 'general_oslo_en', 'events_oslo_en', 'events_national_en'];
+        final noIds = enIds.map((id) => id.replaceAll('_en', '_no')).toList();
+        SharedPreferences.setMockInitialValues(<String, Object>{
+          'push_target_id': 'target-1',
+          'topic_subscriber_ids': jsonEncode(<String, String>{
+            for (final id in enIds) id: 'sub-$id',
+          }),
+        });
+        final messaging = _FakeMessaging();
+        for (final id in enIds) {
+          messaging.subscribers[id] = 'sub-$id';
+        }
+        final service = _ReconcilingService(
+          _FakeAccount(intentPrefs(events: true)..['notification_topics']['news'] = false),
+          messaging,
+        );
+
+        final outcome = await service.reconcile(campusId: '1', locale: 'no');
+
+        expect(outcome, ReconcileOutcome.applied);
+        expect(messaging.createCalls.toSet(), noIds.toSet());
+        expect(messaging.deleteCalls.toSet(), enIds.toSet());
+        expect(messaging.subscribers.keys.toSet(), noIds.toSet());
+        expect(
+          (await DeviceSubscriptionStore().readSubscriberIds()).keys.toSet(),
+          noIds.toSet(),
+        );
+      },
+    );
+
+    test('reconcile maps a Bokmål language code to the Norwegian channels', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'push_target_id': 'target-1',
+      });
+      final messaging = _FakeMessaging();
+      final service = _ReconcilingService(
+        _FakeAccount(intentPrefs(events: false)),
+        messaging,
+      );
+
+      await service.reconcile(campusId: '2', locale: 'nb');
+
+      expect(messaging.subscribers.keys, isNotEmpty);
+      expect(messaging.subscribers.keys.every((id) => id.endsWith('_no')), isTrue);
+    });
 
     test(
       'reports unavailable, rather than throwing, when the FCM token cannot '
@@ -364,7 +440,7 @@ void main() {
         )..tokenThrows = Exception('SERVICE_NOT_AVAILABLE');
 
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
       },
@@ -381,7 +457,7 @@ void main() {
         )..permissionThrows = PlatformException(code: 'unavailable');
 
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
       },
@@ -397,7 +473,7 @@ void main() {
         )..permitted = false;
 
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.permissionDenied,
         );
       },
@@ -447,7 +523,7 @@ void main() {
         // The launch reconciler runs for the student's campus, and has no
         // token to register yet.
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
 
@@ -476,7 +552,7 @@ void main() {
 
         await service.initialize(); // fails, so it is not yet initialized
         await service.initialize();
-        await service.reconcile(campusId: '1'); // no token yet
+        await service.reconcile(campusId: '1', locale: 'en'); // no token yet
         expect(service.permissionChecks, 1);
 
         service.tokenRefreshes.add('token-2');
@@ -522,7 +598,7 @@ void main() {
 
         // The launch reconcile, for the student's campus, uses that token.
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(messaging.createCalls, ['general_en', 'general_oslo_en', 'news_national_en']);
@@ -541,7 +617,7 @@ void main() {
         )..tokenThrows = Exception('APNS token has not been set yet');
 
         await service.initialize();
-        await service.reconcile(campusId: '1'); // no token yet
+        await service.reconcile(campusId: '1', locale: 'en'); // no token yet
         await service.clearToken();
         final checksBefore = service.permissionChecks;
 

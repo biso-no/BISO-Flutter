@@ -144,7 +144,9 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     this._campusId, {
     required String? studentId,
     required String? Function() signedInStudentId,
-  }) : _studentId = studentId,
+    String Function()? currentLanguage,
+  }) : _currentLanguage = currentLanguage ?? _defaultLanguage,
+       _studentId = studentId,
        _signedInStudentId = signedInStudentId,
        super(const AsyncValue.loading()) {
     _load();
@@ -152,6 +154,11 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
   final NotificationService _service;
   final String? _campusId;
+
+  /// The app language now, asked afresh on every commit, since the language
+  /// can change without this notifier being rebuilt.
+  final String Function() _currentLanguage;
+  static String _defaultLanguage() => 'en';
 
   /// The student this notifier was built for, and so the student every save
   /// it queues belongs to: [topicIntentProvider] builds a new notifier when
@@ -340,7 +347,10 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     if (!mounted || !_studentStillSignedIn) return ReconcileOutcome.unavailable;
 
     try {
-      return await _service.reconcile(campusId: _campusId);
+      return await _service.reconcile(
+        campusId: _campusId,
+        locale: _currentLanguage(),
+      );
     } catch (error) {
       // reconcile() is designed to report failure via ReconcileOutcome
       // rather than throw; this is a last-resort net for anything
@@ -405,6 +415,7 @@ final topicIntentProvider =
         studentId: studentId,
         signedInStudentId: () =>
             container.read(authStateProvider).signedInUserId,
+        currentLanguage: () => container.read(localeProvider).languageCode,
       );
     });
 
@@ -630,10 +641,11 @@ final topicReconcileProvider = FutureProvider<void>((ref) async {
       ),
     ),
   );
+  final language = ref.watch(localeProvider.select((l) => l.languageCode));
   if (!ready) return;
   await ref
       .read(notificationServiceProvider)
-      .reconcile(campusId: campusId);
+      .reconcile(campusId: campusId, locale: language);
 });
 
 /// Picks up notification permission granted outside the app.
@@ -655,7 +667,10 @@ final notificationPermissionResumeProvider = Provider<void>((ref) {
     try {
       await ref
           .read(notificationServiceProvider)
-          .reconcileIfPermissionNewlyGranted(campusId: auth.user?.campusId);
+          .reconcileIfPermissionNewlyGranted(
+            campusId: auth.user?.campusId,
+            locale: ref.read(localeProvider).languageCode,
+          );
     } catch (e) {
       debugPrint('notificationPermissionResumeProvider: reconcile failed: $e');
     }

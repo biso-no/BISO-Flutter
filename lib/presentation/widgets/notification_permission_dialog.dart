@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/services/notification_service.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/notification/notification_provider.dart';
+import '../../providers/ui/locale_provider.dart';
 
 /// The snackbar this dialog shows once permission was just granted and
 /// [NotificationService.reconcile] has run, based on what it reported.
@@ -156,6 +157,7 @@ class NotificationPermissionDialog extends ConsumerWidget {
                     .read(notificationServiceProvider)
                     .reconcile(
                       campusId: ref.read(authStateProvider).user?.campusId,
+                      locale: ref.read(localeProvider).languageCode,
                     );
 
                 if (context.mounted) {

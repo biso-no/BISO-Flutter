@@ -58,9 +58,14 @@ class _FakeNotificationService extends NotificationService {
       throw Exception('SERVICE_NOT_AVAILABLE');
 
   @override
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async {
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) async {
     reconcileCampusIds.add(campusId);
-    if (delegateReconcile) return super.reconcile(campusId: campusId);
+    if (delegateReconcile) {
+      return super.reconcile(campusId: campusId, locale: locale);
+    }
     final failure = reconcileThrows;
     if (failure != null) throw failure;
     return reconcileResult;
@@ -148,7 +153,7 @@ void main() {
         final service = _FakeNotificationService()..delegateReconcile = true;
         // Earlier in the session, the launch reconciler reconciled campus 3.
         // requestPermission takes no campus, so that is all it has to go on.
-        await service.reconcile(campusId: '3');
+        await service.reconcile(campusId: '3', locale: 'en');
 
         service
           ..delegateReconcile = false
@@ -171,7 +176,7 @@ void main() {
         final service = _FakeNotificationService()..delegateReconcile = true;
         // The launch reconciler finds notifications off.
         expect(
-          await service.reconcile(campusId: '3'),
+          await service.reconcile(campusId: '3', locale: 'en'),
           ReconcileOutcome.permissionDenied,
         );
         service.delegateReconcile = false;
@@ -179,14 +184,14 @@ void main() {
         // The student turns them on in the system settings, and comes back.
         service.permitted = true;
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '3'),
+          await service.reconcileIfPermissionNewlyGranted(campusId: '3', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(service.reconcileCampusIds, ['3', '3']);
 
         // Back again, with nothing changed.
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '3'),
+          await service.reconcileIfPermissionNewlyGranted(campusId: '3', locale: 'en'),
           isNull,
         );
         expect(service.reconcileCalls, 2);
@@ -203,7 +208,7 @@ void main() {
 
         service.permitted = true;
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+          await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
           isNull,
         );
         expect(service.reconcileCalls, 1);
@@ -221,20 +226,20 @@ void main() {
           ..delegateReconcile = true;
         // The launch reconcile has permission, but no FCM token yet.
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         service.delegateReconcile = false;
 
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+          await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(service.reconcileCalls, 2);
 
         // That one finished, so nothing more until something changes.
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+          await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
           isNull,
         );
         expect(service.reconcileCalls, 2);
@@ -245,11 +250,11 @@ void main() {
       final service = _FakeNotificationService()..permitted = false;
 
       expect(
-        await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+        await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
         isNull,
       );
       expect(
-        await service.reconcileIfPermissionNewlyGranted(campusId: '1'),
+        await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
         isNull,
       );
       expect(service.reconcileCalls, 0);

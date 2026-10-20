@@ -26,7 +26,10 @@ class _GrantingNotificationService extends NotificationService {
   Future<bool> requestPermission() async => true;
 
   @override
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async =>
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) async =>
       outcome;
 
   @override

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
@@ -8,10 +9,12 @@ import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
+import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const String _studentA = 'student-a';
 const String _studentB = 'student-b';
@@ -157,11 +160,18 @@ class _FakeNotificationService extends NotificationService {
 
   int reconcileCalls = 0;
   String? lastReconcileCampusId;
+  String? lastReconcileLocale;
+  final List<String> reconcileLocales = <String>[];
 
   @override
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async {
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) async {
     reconcileCalls++;
     lastReconcileCampusId = campusId;
+    lastReconcileLocale = locale;
+    reconcileLocales.add(locale);
     final failure = reconcileThrows;
     if (failure != null) throw failure;
     return reconcileResult;
@@ -761,6 +771,43 @@ void main() {
         expect(service.account.prefsByStudent[_studentB], isEmpty);
         expect(service.account.prefsByStudent[_studentA], seededIntent);
         expect(service.reconcileCalls, 0);
+      },
+    );
+  });
+
+  group('topicReconcileProvider', () {
+    test(
+      'changing the app language re-runs reconcile with the new language',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        final service = _FakeNotificationService(seededIntent);
+        final auth = _TestAuthNotifier();
+        final locale = LocaleNotifier(
+          deviceLocale: () => const ui.Locale('en'),
+          prefs: SharedPreferences.getInstance,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            notificationServiceProvider.overrideWithValue(service),
+            authStateProvider.overrideWith((ref) => auth),
+            localeProvider.overrideWith((ref) => locale),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(topicReconcileProvider, (_, _) {});
+        await pumpEventQueue();
+
+        auth.signIn(_studentA, campusId: '2');
+        await pumpEventQueue();
+        expect(service.lastReconcileLocale, 'en');
+        final before = service.reconcileCalls;
+
+        await locale.setLocale('no');
+        await pumpEventQueue();
+
+        expect(service.reconcileCalls, before + 1);
+        expect(service.lastReconcileLocale, 'no');
+        expect(service.lastReconcileCampusId, '2');
       },
     );
   });

@@ -97,7 +97,10 @@ class _FakeNotificationService implements NotificationService {
   }) async => true;
 
   @override
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async =>
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) async =>
       ReconcileOutcome.applied;
 
   @override

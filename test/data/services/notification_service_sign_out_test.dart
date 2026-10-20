@@ -557,7 +557,7 @@ void main() {
 
         // The next student signs in, and the launch reconciler runs.
         expect(
-          await restarted.reconcile(campusId: '2'),
+          await restarted.reconcile(campusId: '2', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         expect(restarted.deleteTokenCalls, 2, reason: 'retried again first');
@@ -569,7 +569,7 @@ void main() {
         // Firebase recovers.
         restarted.deleteTokenThrows = null;
         expect(
-          await restarted.reconcile(campusId: '2'),
+          await restarted.reconcile(campusId: '2', locale: 'en'),
           ReconcileOutcome.applied,
         );
 
@@ -644,7 +644,7 @@ void main() {
         messaging.deleteThrows = null;
         service.deleteTokenThrows = null;
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
 
@@ -689,7 +689,7 @@ void main() {
 
         logs.clear();
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         expect(logs, anyElement(startsWith(blocked)));
@@ -697,7 +697,7 @@ void main() {
         service.deleteTokenThrows = null;
         logs.clear();
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(logs, isNot(anyElement(startsWith(blocked))));
@@ -741,7 +741,7 @@ void main() {
         final service = _DeviceService(account, _FakeMessaging(server))
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
 
-        unawaited(service.reconcile(campusId: '1'));
+        unawaited(service.reconcile(campusId: '1', locale: 'en'));
         await tester.pump();
         final unrecorded = server.targets.keys.singleWhere(
           (id) => id != 'target-1',
@@ -768,7 +768,7 @@ void main() {
         account.session = 'student-b';
         service.deleteTokenThrows = null;
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
         await tester.pump();
 
         expect(outcome, ReconcileOutcome.applied);
@@ -809,7 +809,7 @@ void main() {
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
         await tester.pump(kNotificationRunTimeout);
         expect(outcome, ReconcileOutcome.unavailable);
         createAnswer.complete(); // too late to be recorded
@@ -830,7 +830,7 @@ void main() {
         // Firebase recovers, and this device registers again.
         service.deleteTokenThrows = null;
         ReconcileOutcome? next;
-        unawaited(service.reconcile(campusId: '1').then((o) => next = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => next = o));
         await tester.pump();
         expect(next, ReconcileOutcome.applied);
         expect(await store.readPendingTokenInvalidation(), isFalse);
@@ -852,7 +852,7 @@ void main() {
         final createAnswer = before.holdCreateTargetResponse[1] =
             Completer<void>();
         final killed = _DeviceService(before, _FakeMessaging(server));
-        unawaited(killed.reconcile(campusId: '1'));
+        unawaited(killed.reconcile(campusId: '1', locale: 'en'));
         await tester.pump(kNotificationRunTimeout);
         createAnswer.complete();
         await tester.pump();
@@ -868,7 +868,7 @@ void main() {
         final update = account.holdUpdateTarget[1] = Completer<void>();
         final relaunched = _DeviceService(account, _FakeMessaging(server))
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
-        unawaited(relaunched.reconcile(campusId: '1'));
+        unawaited(relaunched.reconcile(campusId: '1', locale: 'en'));
         await tester.pump();
         expect(account.updateTargetCalls, 1);
 
@@ -886,7 +886,7 @@ void main() {
         relaunched.deleteTokenThrows = null;
         ReconcileOutcome? outcome;
         unawaited(
-          relaunched.reconcile(campusId: '1').then((o) => outcome = o),
+          relaunched.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o),
         );
         await tester.pump();
         expect(outcome, ReconcileOutcome.applied);
@@ -908,7 +908,7 @@ void main() {
           _FakeMessaging(server),
         )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(server.targets, hasLength(1));
@@ -939,13 +939,13 @@ void main() {
         final service = _DeviceService(account, _FakeMessaging(server))
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         expect(account.createTargetCalls, 1);
 
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(
@@ -979,7 +979,7 @@ void main() {
         final service = _DeviceService(account, messaging);
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
         await tester.pump();
         expect(server.targets, hasLength(1));
         expect(server.subscribers, hasLength(1));
@@ -1020,9 +1020,9 @@ void main() {
         final hold = messaging.holdCreateRequest[1] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
-        final inFlight = service.reconcile(campusId: '1');
+        final inFlight = service.reconcile(campusId: '1', locale: 'en');
         await pumpEventQueue();
-        final queued = service.reconcile(campusId: '2'); // a campus change
+        final queued = service.reconcile(campusId: '2', locale: 'en'); // a campus change
         final signingOut = service.clearToken();
 
         expect(
@@ -1058,8 +1058,8 @@ void main() {
 
         ReconcileOutcome? hung;
         ReconcileOutcome? behind;
-        unawaited(service.reconcile(campusId: '1').then((o) => hung = o));
-        unawaited(service.reconcile(campusId: '1').then((o) => behind = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => hung = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => behind = o));
 
         await tester.pump(kNotificationRunTimeout - const Duration(seconds: 1));
         expect(hung, isNull, reason: 'still within its bound');
@@ -1087,8 +1087,8 @@ void main() {
         final service = _DeviceService(_FakeAccount(server), messaging);
 
         ReconcileOutcome? behind;
-        unawaited(service.reconcile(campusId: '1'));
-        unawaited(service.reconcile(campusId: '1').then((o) => behind = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en'));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => behind = o));
         await tester.pump(kNotificationRunTimeout);
         await tester.pump();
         expect(behind, ReconcileOutcome.applied);
@@ -1118,7 +1118,7 @@ void main() {
         final service = _DeviceService(_FakeAccount(server), messaging);
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
         await tester.pump(kNotificationRunTimeout);
         expect(outcome, ReconcileOutcome.unavailable);
 
@@ -1151,7 +1151,7 @@ void main() {
 
         // The next student signs in on this device.
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '2').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '2', locale: 'en').then((o) => outcome = o));
         await tester.pump();
         expect(outcome, ReconcileOutcome.applied);
         expect(service.deleteTokenCalls, 1, reason: 'the pending retry');
@@ -1180,7 +1180,7 @@ void main() {
       Duration elapse = Duration.zero,
     }) async {
       ReconcileOutcome? outcome;
-      unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+      unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
       await tester.pump(elapse);
       return outcome;
     }
@@ -1421,7 +1421,7 @@ void main() {
         account.intent = {...account.intent, 'news': false, 'events': true};
         final parked = messaging.holdCreateRequest[5] = Completer<void>();
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
         await tester.pump();
         expect((await store.readSubscriberIds()).keys, {
           'general_en',
