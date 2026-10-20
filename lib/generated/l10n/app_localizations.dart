@@ -5372,6 +5372,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'General'**
   String get inboxCategoryGeneral;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'Jobs'**
+  String get inboxFilterJobs;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement'**
+  String get announcementTitle;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement not found'**
+  String get announcementNotFoundTitle;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'It may have been removed.'**
+  String get announcementNotFoundMessage;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'No content.'**
+  String get announcementNoContent;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'View event'**
+  String get announcementViewEvent;
 }
 
 class _AppLocalizationsDelegate

@@ -26,6 +26,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/explore/marketplace_screen.dart',
   'lib/presentation/screens/notifications/notifications_screen.dart',
   'lib/presentation/screens/notifications/announcement_detail_screen.dart',
+  'lib/presentation/screens/notifications/inbox_widgets.dart',
   'lib/presentation/screens/explore/product_detail_screen.dart',
   'lib/presentation/screens/explore/campus_detail_screen.dart',
   'lib/presentation/screens/explore/campus_detail_components.dart',

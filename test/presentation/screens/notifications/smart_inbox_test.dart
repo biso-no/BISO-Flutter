@@ -99,6 +99,7 @@ void main() {
     expect(find.text('Tidligere'), findsOneWidget);
     expect(find.text('Fra BISO'), findsOneWidget);
     expect(find.text('Nyheter'), findsOneWidget);
+    expect(find.text('Stillinger'), findsOneWidget);
   });
 
   testWidgets('the News chip shows only news rows', (tester) async {
@@ -189,5 +190,61 @@ void main() {
     expect(find.byType(BisoPage), findsOneWidget);
     expect(find.text('No notifications yet'), findsOneWidget);
     expect(find.text('Updates from BISO will appear here.'), findsOneWidget);
+  });
+
+  testWidgets('urgent rows stay above the sections under every filter', (
+    tester,
+  ) async {
+    await _pump(tester, [
+      _n('a', 'Campus news', contentType: 'news'),
+      _n('u', 'Fire drill', category: 'urgent', age: const Duration(hours: 5)),
+    ]);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'News'));
+    await tester.pump();
+    expect(find.text('Fire drill'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Fire drill')).dy,
+      lessThan(tester.getTopLeft(find.text('Today')).dy),
+    );
+  });
+
+  testWidgets('the burst strip does not overflow at large text', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      MediaQuery(
+        data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+        child: NotificationsScreen(clock: () => _now),
+      ),
+      inShell: false,
+      overrides: _overrides([
+        _n('b1', '3 new events in Bergen', items: _burstItems),
+      ]),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('See all 3'), findsOneWidget);
+  });
+
+  testWidgets('the announcement detail is localized in Norwegian', (
+    tester,
+  ) async {
+    final n = _n(
+      'b1',
+      'Hei',
+      read: true,
+    ).copyWith(createdAt: DateTime(2026, 10, 5, 9, 30));
+    await pumpBisoScreen(
+      tester,
+      const AnnouncementDetailScreen(announcementId: 'b1'),
+      inShell: false,
+      locale: const Locale('no'),
+      overrides: [
+        announcementDetailProvider('b1').overrideWith((ref) async => n),
+      ],
+    );
+    expect(find.text('Kunngjøring'), findsOneWidget);
+    expect(find.text('Ingen innhold.'), findsOneWidget);
+    expect(find.textContaining('okt'), findsOneWidget);
   });
 }

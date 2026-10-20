@@ -9,6 +9,7 @@ import '../../../data/services/deep_link_service.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+import '../../../generated/l10n/app_localizations.dart';
 import 'inbox_widgets.dart';
 
 /// Rich detail view for a single announcement.
@@ -42,10 +43,11 @@ class _AnnouncementDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final detail = ref.watch(announcementDetailProvider(widget.announcementId));
 
     return BisoPage(
-      title: 'Announcement',
+      title: l10n.announcementTitle,
       largeTitle: false,
       leading: BisoBackButton(
         onPressed: () => NavigationUtils.safeGoBack(
@@ -68,13 +70,13 @@ class _AnnouncementDetailScreenState
         ],
         data: (notification) {
           if (notification == null) {
-            return const [
+            return [
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: BisoEmptyState(
                   icon: CupertinoIcons.tray,
-                  title: 'Announcement not found',
-                  message: 'It may have been removed.',
+                  title: l10n.announcementNotFoundTitle,
+                  message: l10n.announcementNotFoundMessage,
                 ),
               ),
             ];
@@ -106,7 +108,14 @@ List<Widget> _announcementSlivers(
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text(_categoryLabel(notification.category))),
+                Chip(
+                  label: Text(
+                    _categoryLabel(
+                      AppLocalizations.of(context)!,
+                      notification.category,
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -118,7 +127,7 @@ List<Widget> _announcementSlivers(
             ),
             const SizedBox(height: 8),
             Text(
-              _formatTimestamp(notification.createdAt),
+              _formatTimestamp(context, notification.createdAt),
               style: theme.textTheme.labelMedium?.copyWith(
                 color: palette.muted,
               ),
@@ -141,7 +150,7 @@ List<Widget> _announcementSlivers(
                 : Text(
                     notification.body.isNotEmpty
                         ? notification.body
-                        : 'No content.',
+                        : AppLocalizations.of(context)!.announcementNoContent,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.5,
                       color: palette.ink,
@@ -181,7 +190,7 @@ List<Widget> _announcementSlivers(
                 );
               },
               icon: const Icon(CupertinoIcons.calendar),
-              label: const Text('View event'),
+              label: Text(AppLocalizations.of(context)!.announcementViewEvent),
             ),
           ),
         ),
@@ -189,37 +198,25 @@ List<Widget> _announcementSlivers(
   ];
 }
 
-String _categoryLabel(String category) {
+String _categoryLabel(AppLocalizations l10n, String category) {
   switch (category) {
     case 'urgent':
-      return 'Urgent';
+      return l10n.inboxCategoryUrgent;
     case 'trip':
-      return 'Trip';
+      return l10n.inboxCategoryTrip;
     case 'event':
-      return 'Event';
+      return l10n.inboxCategoryEvent;
     default:
-      return 'General';
+      return l10n.inboxCategoryGeneral;
   }
 }
 
-String _formatTimestamp(DateTime date) {
+String _formatTimestamp(BuildContext context, DateTime date) {
   final local = date.toLocal();
-  final months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  final month = months[local.month - 1];
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$month ${local.day}, ${local.year} · $hour:$minute';
+  final material = MaterialLocalizations.of(context);
+  final time = material.formatTimeOfDay(
+    TimeOfDay.fromDateTime(local),
+    alwaysUse24HourFormat: true,
+  );
+  return '${material.formatMediumDate(local)} · $time';
 }

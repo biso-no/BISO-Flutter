@@ -2958,4 +2958,22 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get inboxCategoryGeneral => 'Generelt';
+
+  @override
+  String get inboxFilterJobs => 'Stillinger';
+
+  @override
+  String get announcementTitle => 'Kunngjøring';
+
+  @override
+  String get announcementNotFoundTitle => 'Fant ikke kunngjøringen';
+
+  @override
+  String get announcementNotFoundMessage => 'Den kan ha blitt fjernet.';
+
+  @override
+  String get announcementNoContent => 'Ingen innhold.';
+
+  @override
+  String get announcementViewEvent => 'Se arrangementet';
 }

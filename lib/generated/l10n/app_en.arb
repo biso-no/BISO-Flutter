@@ -3917,5 +3917,29 @@
   "inboxCategoryGeneral": "General",
   "@inboxCategoryGeneral": {
     "description": "Screen-reader category of an inbox row"
+  },
+  "inboxFilterJobs": "Jobs",
+  "@inboxFilterJobs": {
+    "description": "Notifications screens"
+  },
+  "announcementTitle": "Announcement",
+  "@announcementTitle": {
+    "description": "Notifications screens"
+  },
+  "announcementNotFoundTitle": "Announcement not found",
+  "@announcementNotFoundTitle": {
+    "description": "Notifications screens"
+  },
+  "announcementNotFoundMessage": "It may have been removed.",
+  "@announcementNotFoundMessage": {
+    "description": "Notifications screens"
+  },
+  "announcementNoContent": "No content.",
+  "@announcementNoContent": {
+    "description": "Notifications screens"
+  },
+  "announcementViewEvent": "View event",
+  "@announcementViewEvent": {
+    "description": "Notifications screens"
   }
 }

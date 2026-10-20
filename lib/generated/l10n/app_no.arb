@@ -3796,5 +3796,11 @@
   "inboxCategoryEvent": "Arrangement",
   "inboxCategoryNews": "Nyhet",
   "inboxCategoryJob": "Stilling",
-  "inboxCategoryGeneral": "Generelt"
+  "inboxCategoryGeneral": "Generelt",
+  "inboxFilterJobs": "Stillinger",
+  "announcementTitle": "Kunngjøring",
+  "announcementNotFoundTitle": "Fant ikke kunngjøringen",
+  "announcementNotFoundMessage": "Den kan ha blitt fjernet.",
+  "announcementNoContent": "Ingen innhold.",
+  "announcementViewEvent": "Se arrangementet"
 }

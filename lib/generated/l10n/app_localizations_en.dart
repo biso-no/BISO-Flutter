@@ -2950,4 +2950,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get inboxCategoryGeneral => 'General';
+
+  @override
+  String get inboxFilterJobs => 'Jobs';
+
+  @override
+  String get announcementTitle => 'Announcement';
+
+  @override
+  String get announcementNotFoundTitle => 'Announcement not found';
+
+  @override
+  String get announcementNotFoundMessage => 'It may have been removed.';
+
+  @override
+  String get announcementNoContent => 'No content.';
+
+  @override
+  String get announcementViewEvent => 'View event';
 }

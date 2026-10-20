@@ -226,15 +226,23 @@ class _BurstStrip extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            height: 128,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, i) =>
-                  _MiniCard(item: items[i], onTap: () => onOpenItem(items[i])),
+          // Cards size to their text, so large text scales never overflow.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    _MiniCard(
+                      item: items[i],
+                      onTap: () => onOpenItem(items[i]),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
           Align(

@@ -80,11 +80,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final now = (widget.clock ?? DateTime.now)();
     final filtered = applyFilter(state.items, _filter);
     final sections = groupByDay(filtered, now);
+    // Urgent rows stay pinned under every filter: a filter must not hide
+    // urgent information, so only the day groups are filtered.
     final grouped = {
-      for (final s in sections) ...{for (final n in s.items) n.id},
+      for (final s in groupByDay(state.items, now)) ...{
+        for (final n in s.items) n.id,
+      },
     };
     final pinned = [
-      for (final n in pinUrgent(filtered, now))
+      for (final n in pinUrgent(state.items, now))
         if (!grouped.contains(n.id)) n,
     ];
 
@@ -95,15 +99,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           onSelected: (f) => setState(() => _filter = f),
         ),
       ),
-      if (filtered.isEmpty)
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: BisoEmptyState(
-            icon: CupertinoIcons.bell,
-            title: l10n.inboxEmptyTitle,
-            message: l10n.inboxEmptyMessage,
-          ),
-        ),
+      if (filtered.isEmpty && pinned.isEmpty) empty,
       if (pinned.isNotEmpty)
         SliverToBoxAdapter(child: _group(context, null, pinned, now)),
       for (final section in sections)
@@ -214,7 +210,7 @@ class _FilterChips extends StatelessWidget {
       InboxFilter.all => l10n.all,
       InboxFilter.events => l10n.eventsMessage,
       InboxFilter.news => l10n.newsTitle,
-      InboxFilter.jobs => l10n.jobsMessage,
+      InboxFilter.jobs => l10n.inboxFilterJobs,
       InboxFilter.fromBiso => l10n.inboxFilterFromBiso,
     };
     return SingleChildScrollView(
