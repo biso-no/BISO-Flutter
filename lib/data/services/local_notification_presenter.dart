@@ -11,6 +11,38 @@ const String kDefaultChannelId = 'biso_default';
 /// Android channel for pushes with `category == 'urgent'`.
 const String kUrgentChannelId = 'biso_urgent';
 
+/// The notification small icon. The icon the manifest already references; kept
+/// from resource shrinking by `res/raw/keep.xml`.
+const String kNotificationIcon = '@mipmap/launcher_icon';
+
+/// Decodes a notification payload (`jsonEncode(message.data)`), or null when
+/// it is absent or not a JSON object.
+@visibleForTesting
+Map<String, dynamic>? decodeNotificationPayload(String? payload) {
+  if (payload == null || payload.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(payload);
+    return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+  } on FormatException catch (e) {
+    debugPrint('Ignoring malformed notification payload: $e');
+    return null;
+  }
+}
+
+/// Passes on the payload of the notification whose tap launched the app, if
+/// any. The plugin only reports taps while the app runs; a tap that starts a
+/// killed app is only visible through its launch details.
+@visibleForTesting
+Future<void> deliverLaunchTap(
+  Future<NotificationAppLaunchDetails?> Function() lookup,
+  void Function(Map<String, dynamic> data) onTap,
+) async {
+  final details = await lookup();
+  if (details == null || !details.didNotificationLaunchApp) return;
+  final data = decodeNotificationPayload(details.notificationResponse?.payload);
+  if (data != null) onTap(data);
+}
+
 /// The channel a push with [data] belongs on.
 @visibleForTesting
 String channelIdFor(Map<String, dynamic> data) =>
@@ -30,8 +62,13 @@ abstract class LocalNotificationPresenter {
 }
 
 class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
-  FlutterLocalNotificationsPresenter([FlutterLocalNotificationsPlugin? plugin])
-    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+  FlutterLocalNotificationsPresenter([
+    FlutterLocalNotificationsPlugin? plugin,
+    Future<NotificationAppLaunchDetails?> Function()? launchDetails,
+  ]) : _plugin = plugin ?? FlutterLocalNotificationsPlugin(),
+       _launchDetails = launchDetails;
+
+  final Future<NotificationAppLaunchDetails?> Function()? _launchDetails;
 
   final FlutterLocalNotificationsPlugin _plugin;
   int _nextId = 0;
@@ -53,17 +90,11 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
   }) async {
     await _plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings(kNotificationIcon),
       ),
       onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
-        if (payload == null || payload.isEmpty) return;
-        try {
-          final decoded = jsonDecode(payload);
-          if (decoded is Map) onTap(Map<String, dynamic>.from(decoded));
-        } on FormatException catch (e) {
-          debugPrint('Ignoring malformed notification payload: $e');
-        }
+        final data = decodeNotificationPayload(response.payload);
+        if (data != null) onTap(data);
       },
     );
     final android = _plugin
@@ -72,6 +103,10 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
         >();
     await android?.createNotificationChannel(_defaultChannel);
     await android?.createNotificationChannel(_urgentChannel);
+    await deliverLaunchTap(
+      _launchDetails ?? _plugin.getNotificationAppLaunchDetails,
+      onTap,
+    );
   }
 
   @override
@@ -91,7 +126,7 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
           isUrgent ? _urgentChannel.name : _defaultChannel.name,
           importance: isUrgent ? Importance.high : Importance.defaultImportance,
           priority: isUrgent ? Priority.high : Priority.defaultPriority,
-          icon: '@mipmap/ic_launcher',
+          icon: kNotificationIcon,
         ),
       ),
       payload: jsonEncode(data),

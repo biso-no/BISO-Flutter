@@ -15,12 +15,16 @@ class _UnusedAccount extends Account {
 }
 
 class _FakePresenter implements LocalNotificationPresenter {
+  bool throwOnInitialize = false;
+
   final List<RemoteMessage> shown = <RemoteMessage>[];
 
   @override
   Future<void> initialize({
     required void Function(Map<String, dynamic> data) onTap,
-  }) async {}
+  }) async {
+    if (throwOnInitialize) throw StateError('invalid_icon');
+  }
 
   @override
   Future<void> show(RemoteMessage message) async => shown.add(message);
@@ -76,6 +80,11 @@ void main() {
       expect(presenter.shown, isEmpty);
       expect(emitted, hasLength(1));
     });
+  });
+
+  test('a presenter that fails to initialize does not throw', () async {
+    final presenter = _FakePresenter()..throwOnInitialize = true;
+    await _service(presenter).initializeLocalPresenter();
   });
 
   group('tap routing', () {

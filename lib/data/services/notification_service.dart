@@ -259,11 +259,6 @@ class NotificationService {
     );
 
     // Listen to foreground messages
-    if (_isAndroid()) {
-      await _presenter.initialize(
-        onTap: (data) => handleNotificationTap(RemoteMessage(data: data)),
-      );
-    }
     FirebaseMessaging.onMessage.listen(handleForegroundMessage);
 
     // Listen to when user taps notification to open app
@@ -273,6 +268,23 @@ class NotificationService {
     final initialMessage = await _firebaseMessaging.getInitialMessage();
     if (initialMessage != null) {
       handleNotificationTap(initialMessage);
+    }
+
+    // Last, and guarded: a failure here must not cost the listeners above.
+    await initializeLocalPresenter();
+  }
+
+  /// Initializes the Android foreground presenter. Never throws: a failure
+  /// (e.g. a bad icon) only costs foreground display, not taps or tokens.
+  @visibleForTesting
+  Future<void> initializeLocalPresenter() async {
+    if (!_isAndroid()) return;
+    try {
+      await _presenter.initialize(
+        onTap: (data) => handleNotificationTap(RemoteMessage(data: data)),
+      );
+    } catch (e) {
+      debugPrint('Local notification presenter failed to initialize: $e');
     }
   }
 
