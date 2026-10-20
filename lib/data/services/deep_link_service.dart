@@ -77,6 +77,16 @@ String eventRouteFor(String? idOrSlug) {
       : '/explore/events/${Uri.encodeComponent(key)}';
 }
 
+/// The in-app route for a news link: `biso://news?id=<id>`, a push
+/// notification, or `https://biso.no/app/news/<slug>`. Without a key, the
+/// list of articles.
+String newsRouteFor(String? idOrSlug) {
+  final key = idOrSlug?.trim() ?? '';
+  return key.isEmpty
+      ? '/explore/news'
+      : '/explore/news/${Uri.encodeComponent(key)}';
+}
+
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
@@ -130,6 +140,9 @@ class DeepLinkService {
           break;
         case 'event':
           _handleEventDeepLink(uri);
+          break;
+        case 'news':
+          _go(newsRouteFor(uri.queryParameters['id']));
           break;
         case 'product':
           _handleProductDeepLink(uri);
@@ -198,6 +211,9 @@ class DeepLinkService {
         break;
       case 'events':
         _go(eventRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
+        break;
+      case 'news':
+        _go(newsRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
         break;
       case 'products':
       case 'marketplace':

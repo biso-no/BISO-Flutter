@@ -3769,5 +3769,25 @@
         "type": "String"
       }
     }
+  },
+  "newsTitle": "News",
+  "@newsTitle": {
+    "description": "News list/detail title and Explore entry"
+  },
+  "newsSubtitle": "Stories and updates from BISO",
+  "@newsSubtitle": {
+    "description": "Explore entry subtitle for News"
+  },
+  "latestNewsTitle": "Latest news",
+  "@latestNewsTitle": {
+    "description": "Home section heading"
+  },
+  "readOnBisoNo": "Read on biso.no",
+  "@readOnBisoNo": {
+    "description": "Button opening the article on the website"
+  },
+  "newsNotAvailable": "This article isn't available",
+  "@newsNotAvailable": {
+    "description": "News detail: the article does not exist"
   }
 }

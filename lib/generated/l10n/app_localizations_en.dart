@@ -2853,4 +2853,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String eventMembersPrice(String price) {
     return 'Members $price';
   }
+
+  @override
+  String get newsTitle => 'News';
+
+  @override
+  String get newsSubtitle => 'Stories and updates from BISO';
+
+  @override
+  String get latestNewsTitle => 'Latest news';
+
+  @override
+  String get readOnBisoNo => 'Read on biso.no';
+
+  @override
+  String get newsNotAvailable => 'This article isn\'t available';
 }

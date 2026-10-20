@@ -3769,5 +3769,10 @@
         "type": "String"
       }
     }
-  }
+  },
+  "newsTitle": "Nyheter",
+  "newsSubtitle": "Nyheter og oppdateringer fra BISO",
+  "latestNewsTitle": "Siste nytt",
+  "readOnBisoNo": "Les på biso.no",
+  "newsNotAvailable": "Denne artikkelen er ikke tilgjengelig"
 }

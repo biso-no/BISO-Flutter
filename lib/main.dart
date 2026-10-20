@@ -52,6 +52,8 @@ import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
 import 'presentation/screens/events/event_detail_screen.dart';
+import 'presentation/screens/news/news_detail_screen.dart';
+import 'presentation/screens/news/news_list_screen.dart';
 import 'presentation/screens/events/large_event_screen.dart';
 import 'presentation/screens/scanner/scanner_route.dart';
 import 'data/models/large_event_model.dart';
@@ -342,6 +344,20 @@ final _router = GoRouter(
                   name: 'event-detail',
                   builder: (context, state) => EventDetailScreen(
                     idOrSlug: state.pathParameters['eventId']!,
+                  ),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/news',
+              name: 'news',
+              builder: (context, state) => const NewsListScreen(),
+              routes: [
+                GoRoute(
+                  path: '/:newsId',
+                  name: 'news-detail',
+                  builder: (context, state) => NewsDetailScreen(
+                    idOrSlug: state.pathParameters['newsId']!,
                   ),
                 ),
               ],

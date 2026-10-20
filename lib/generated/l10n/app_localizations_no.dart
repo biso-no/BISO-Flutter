@@ -2861,4 +2861,19 @@ class AppLocalizationsNo extends AppLocalizations {
   String eventMembersPrice(String price) {
     return 'Medlemmer $price';
   }
+
+  @override
+  String get newsTitle => 'Nyheter';
+
+  @override
+  String get newsSubtitle => 'Nyheter og oppdateringer fra BISO';
+
+  @override
+  String get latestNewsTitle => 'Siste nytt';
+
+  @override
+  String get readOnBisoNo => 'Les på biso.no';
+
+  @override
+  String get newsNotAvailable => 'Denne artikkelen er ikke tilgjengelig';
 }

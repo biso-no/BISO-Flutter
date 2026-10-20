@@ -5210,6 +5210,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Members {price}'**
   String eventMembersPrice(String price);
+
+  /// News list/detail title and Explore entry
+  ///
+  /// In en, this message translates to:
+  /// **'News'**
+  String get newsTitle;
+
+  /// Explore entry subtitle for News
+  ///
+  /// In en, this message translates to:
+  /// **'Stories and updates from BISO'**
+  String get newsSubtitle;
+
+  /// Home section heading
+  ///
+  /// In en, this message translates to:
+  /// **'Latest news'**
+  String get latestNewsTitle;
+
+  /// Button opening the article on the website
+  ///
+  /// In en, this message translates to:
+  /// **'Read on biso.no'**
+  String get readOnBisoNo;
+
+  /// News detail: the article does not exist
+  ///
+  /// In en, this message translates to:
+  /// **'This article isn\'t available'**
+  String get newsNotAvailable;
 }
 
 class _AppLocalizationsDelegate

@@ -21,6 +21,9 @@ import '../../../data/models/campus_model.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/job_model.dart';
 import '../../../data/models/webshop_product_model.dart';
+import '../../../data/models/news_model.dart';
+import '../../../providers/news/news_provider.dart';
+import '../../widgets/home/news_carousel.dart';
 import '../auth/login_screen.dart';
 
 // === PREMIUM HOME PAGE ===
@@ -217,6 +220,9 @@ class PremiumHomePage extends ConsumerWidget {
     final eventsAsync = isCampusReady
         ? ref.watch(_latestEventsProvider(campusId))
         : const AsyncLoading<List<EventModel>>();
+    final newsAsync = isCampusReady
+        ? ref.watch(latestNewsProvider(campusId))
+        : const AsyncLoading<List<NewsModel>>();
     final webshopProductsAsync = isCampusReady
         ? ref.watch(_latestWebshopProductsProvider(campus.id))
         : const AsyncLoading<List<WebshopProduct>>();
@@ -256,6 +262,18 @@ class PremiumHomePage extends ConsumerWidget {
               BisoEventCarousel(events: items.cast<EventModel>()),
           ref: ref,
           providerFamily: _latestEventsProvider,
+          context: context,
+        ),
+
+        // Latest News Section
+        _buildPremiumContentSection<NewsModel>(
+          title: l10n.latestNewsTitle,
+          onViewAll: () => context.go('/explore/news'),
+          asyncData: newsAsync,
+          campusId: campusId,
+          contentBuilder: (items) => BisoNewsCarousel(news: items),
+          ref: ref,
+          providerFamily: latestNewsProvider,
           context: context,
         ),
 
