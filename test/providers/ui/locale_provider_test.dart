@@ -9,8 +9,10 @@ Future<void> _settle() => Future<void>.delayed(Duration.zero);
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  LocaleNotifier build(Locale Function() device) =>
-      LocaleNotifier(deviceLocale: device, prefs: SharedPreferences.getInstance);
+  LocaleNotifier build(Locale Function() device) => LocaleNotifier(
+    deviceLocale: device,
+    prefs: SharedPreferences.getInstance,
+  );
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 

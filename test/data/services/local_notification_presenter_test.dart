@@ -39,16 +39,19 @@ void _launchTests() {
           ),
         );
 
-    test('passes on the payload of the tap that launched the app once', () async {
-      final taps = <Map<String, dynamic>>[];
-      await deliverLaunchTap(
-        () async => launched(jsonEncode({'deep_link': 'biso://news?id=n1'})),
-        taps.add,
-      );
-      expect(taps, [
-        {'deep_link': 'biso://news?id=n1'},
-      ]);
-    });
+    test(
+      'passes on the payload of the tap that launched the app once',
+      () async {
+        final taps = <Map<String, dynamic>>[];
+        await deliverLaunchTap(
+          () async => launched(jsonEncode({'deep_link': 'biso://news?id=n1'})),
+          taps.add,
+        );
+        expect(taps, [
+          {'deep_link': 'biso://news?id=n1'},
+        ]);
+      },
+    );
 
     test('ignores invalid, missing, and non-launch details', () async {
       final taps = <Map<String, dynamic>>[];
@@ -67,15 +70,15 @@ void _launchTests() {
   test('the small icon is one the manifest uses and keep.xml protects', () {
     expect(kNotificationIcon, '@mipmap/launcher_icon');
     expect(
-      File('android/app/src/main/AndroidManifest.xml')
-          .readAsStringSync()
-          .contains(kNotificationIcon),
+      File(
+        'android/app/src/main/AndroidManifest.xml',
+      ).readAsStringSync().contains(kNotificationIcon),
       isTrue,
     );
     expect(
-      File('android/app/src/main/res/raw/keep.xml')
-          .readAsStringSync()
-          .contains('tools:keep="$kNotificationIcon"'),
+      File(
+        'android/app/src/main/res/raw/keep.xml',
+      ).readAsStringSync().contains('tools:keep="$kNotificationIcon"'),
       isTrue,
     );
   });

@@ -21,16 +21,15 @@ Locale _platformLocale() => PlatformDispatcher.instance.locale;
 ///
 /// An explicit choice (saved under `language`) wins. Otherwise the app follows
 /// the device language, including while the app is running.
-class LocaleNotifier extends StateNotifier<Locale>
-    with WidgetsBindingObserver {
+class LocaleNotifier extends StateNotifier<Locale> with WidgetsBindingObserver {
   LocaleNotifier({
     Locale Function()? deviceLocale,
     Future<SharedPreferences> Function()? prefs,
-  })  : _deviceLocale = deviceLocale ?? _platformLocale,
-        _prefs = prefs ?? SharedPreferences.getInstance,
-        super(
-          Locale(appLanguageForDevice((deviceLocale ?? _platformLocale)())),
-        ) {
+  }) : _deviceLocale = deviceLocale ?? _platformLocale,
+       _prefs = prefs ?? SharedPreferences.getInstance,
+       super(
+         Locale(appLanguageForDevice((deviceLocale ?? _platformLocale)())),
+       ) {
     _observe();
     _loadLocale();
   }

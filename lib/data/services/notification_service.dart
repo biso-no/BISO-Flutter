@@ -308,13 +308,10 @@ class NotificationService {
   void _listenForTokenRefresh() {
     if (_tokenRefreshes != null) return;
     try {
-      _tokenRefreshes = platformTokenRefreshes.listen(
-        (newToken) {
-          _fcmToken = newToken;
-          unawaited(_reconcileAfterTokenRefresh());
-        },
-        onError: (Object e) => debugPrint('onTokenRefresh failed: $e'),
-      );
+      _tokenRefreshes = platformTokenRefreshes.listen((newToken) {
+        _fcmToken = newToken;
+        unawaited(_reconcileAfterTokenRefresh());
+      }, onError: (Object e) => debugPrint('onTokenRefresh failed: $e'));
     } catch (e) {
       debugPrint('Could not listen for FCM token refreshes: $e');
     }
@@ -565,13 +562,10 @@ class NotificationService {
   /// Called by [initialize] at every launch. [reconcile] makes the same
   /// attempt before it resolves a push target, so one that fails here is
   /// retried then too.
-  Future<void> retryPendingTokenInvalidation() => _enqueue<void>(
-    'retryPendingTokenInvalidation',
-    (run) async {
-      await _settlePendingTokenInvalidation(run);
-    },
-    onAbandoned: () {},
-  );
+  Future<void> retryPendingTokenInvalidation() =>
+      _enqueue<void>('retryPendingTokenInvalidation', (run) async {
+        await _settlePendingTokenInvalidation(run);
+      }, onAbandoned: () {});
 
   /// Establish this device's Appwrite push target for [token] and return its id.
   ///
@@ -636,9 +630,7 @@ class NotificationService {
       return await _adoptTarget(target.$id, current) ? target.$id : null;
     } on AppwriteException catch (e) {
       if (e.code != 409) {
-        debugPrint(
-          'resolvePushTarget: create failed (${e.code}) ${e.message}',
-        );
+        debugPrint('resolvePushTarget: create failed (${e.code}) ${e.message}');
         return null;
       }
     }
@@ -1043,7 +1035,9 @@ class NotificationService {
     }
     _lastSeenPermission = permitted;
     if (!permitted) {
-      debugPrint('reconcile: notifications not permitted; intent kept for later');
+      debugPrint(
+        'reconcile: notifications not permitted; intent kept for later',
+      );
       return ReconcileOutcome.permissionDenied;
     }
 
@@ -1224,7 +1218,9 @@ class NotificationService {
       } on AppwriteException catch (e) {
         // Best-effort per topic: one failure must not abort the rest. The next
         // reconcile retries, because the diff recomputes from observed state.
-        debugPrint('reconcile: subscribe to $topicId failed (${e.code}) ${e.message}');
+        debugPrint(
+          'reconcile: subscribe to $topicId failed (${e.code}) ${e.message}',
+        );
         hadFailure = true;
         continue;
       }
@@ -1239,7 +1235,9 @@ class NotificationService {
         // store was read, which a run that still owns the store should never
         // see. The subscriber would then exist with no id on this device, and
         // that is no success.
-        debugPrint('reconcile: subscribed to $topicId, but could not record it');
+        debugPrint(
+          'reconcile: subscribed to $topicId, but could not record it',
+        );
         hadFailure = true;
       }
     }
@@ -1412,7 +1410,8 @@ class NotificationService {
       final updatedPrefs = Map<String, dynamic>.from(prefs.data);
       updatedPrefs['topic_subscriptions'] = _topicSubscriptions;
       updatedPrefs['topic_subscriber_ids'] = _topicSubscriberIds;
-      updatedPrefs['topic_subscriptions_updated_at'] = DateTime.now().toIso8601String();
+      updatedPrefs['topic_subscriptions_updated_at'] = DateTime.now()
+          .toIso8601String();
 
       await _account.updatePrefs(prefs: updatedPrefs);
       debugPrint('Topic subscriptions saved');
@@ -1472,7 +1471,7 @@ class NotificationService {
     // Handle navigation based on message data
     final data = message.data;
     final type = data['type'] as String?;
-    
+
     switch (type) {
       case 'chat':
         _handleChatNotification(data);
@@ -1813,11 +1812,8 @@ enum _Settlement {
 /// One run of [NotificationService]'s queue: a reconcile, a sign-out cleanup,
 /// or a launch retry of a pending token invalidation.
 class _QueueRun {
-  _QueueRun(
-    this._service,
-    this.label, {
-    required this.interruptibleBySignOut,
-  }) : _signOutsWhenQueued = _service._signOutRequests;
+  _QueueRun(this._service, this.label, {required this.interruptibleBySignOut})
+    : _signOutsWhenQueued = _service._signOutRequests;
 
   final NotificationService _service;
 
@@ -1865,6 +1861,5 @@ class _QueueRun {
 
   /// Whether [NotificationService.clearToken] has been called since this run
   /// was queued.
-  bool get signOutRequested =>
-      _service._signOutRequests != _signOutsWhenQueued;
+  bool get signOutRequested => _service._signOutRequests != _signOutsWhenQueued;
 }

@@ -96,10 +96,7 @@ void main() {
         navigatorKey: navigatorKey,
         initialLocation: '/',
         routes: [
-          GoRoute(
-            path: '/',
-            builder: (_, _) => const SizedBox(),
-          ),
+          GoRoute(path: '/', builder: (_, _) => const SizedBox()),
           GoRoute(
             path: '/explore/news/:id',
             builder: (_, state) {
@@ -130,10 +127,7 @@ void main() {
     testWidgets('a deep_link routes to the news article', (tester) async {
       await pumpRouter(tester);
       _service(_FakePresenter()).handleNotificationTap(
-        _message({
-          'type': 'announcement',
-          'deep_link': 'biso://news?id=n1',
-        }),
+        _message({'type': 'announcement', 'deep_link': 'biso://news?id=n1'}),
       );
       await tester.pumpAndSettle();
       expect(visited, ['/explore/news/n1']);

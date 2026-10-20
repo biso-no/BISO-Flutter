@@ -29,8 +29,7 @@ class _GrantingNotificationService extends NotificationService {
   Future<ReconcileOutcome> reconcile({
     required String? campusId,
     required String locale,
-  }) async =>
-      outcome;
+  }) async => outcome;
 
   @override
   Future<bool> getChatNotificationPreference() async => true;
@@ -81,74 +80,60 @@ void main() {
       expect(textOf(snackBar), contains('Notifications enabled'));
     });
 
-    test(
-      'unavailable says notifications are on but this device could not be '
-      'updated, instead of unconditionally celebrating a subscription that '
-      'does not exist',
-      () {
-        final snackBar = snackBarForGrantedOutcome(
-          ReconcileOutcome.unavailable,
-        );
+    test('unavailable says notifications are on but this device could not be '
+        'updated, instead of unconditionally celebrating a subscription that '
+        'does not exist', () {
+      final snackBar = snackBarForGrantedOutcome(ReconcileOutcome.unavailable);
 
-        expect(textOf(snackBar), isNot(contains('🎉')));
-        expect(textOf(snackBar), contains('could not be updated'));
-        expect(textOf(snackBar), contains('retry'));
-      },
-    );
+      expect(textOf(snackBar), isNot(contains('🎉')));
+      expect(textOf(snackBar), contains('could not be updated'));
+      expect(textOf(snackBar), contains('retry'));
+    });
 
-    test(
-      'partiallyFailed gets the same treatment as unavailable - both leave '
-      'this device without a full subscription',
-      () {
-        final snackBar = snackBarForGrantedOutcome(
-          ReconcileOutcome.partiallyFailed,
-        );
+    test('partiallyFailed gets the same treatment as unavailable - both leave '
+        'this device without a full subscription', () {
+      final snackBar = snackBarForGrantedOutcome(
+        ReconcileOutcome.partiallyFailed,
+      );
 
-        expect(textOf(snackBar), isNot(contains('🎉')));
-        expect(textOf(snackBar), contains('could not be updated'));
-        expect(textOf(snackBar), contains('retry'));
-      },
-    );
+      expect(textOf(snackBar), isNot(contains('🎉')));
+      expect(textOf(snackBar), contains('could not be updated'));
+      expect(textOf(snackBar), contains('retry'));
+    });
 
-    test(
-      'each outcome maps to exactly one message, and every outcome but '
-      'applied intentionally shares the same one, so the app never describes '
-      'one state two different ways',
-      () {
-        final applied = textOf(
-          snackBarForGrantedOutcome(ReconcileOutcome.applied),
-        );
-        final unavailable = textOf(
-          snackBarForGrantedOutcome(ReconcileOutcome.unavailable),
-        );
-        final partiallyFailed = textOf(
-          snackBarForGrantedOutcome(ReconcileOutcome.partiallyFailed),
-        );
-        final permissionDenied = textOf(
-          snackBarForGrantedOutcome(ReconcileOutcome.permissionDenied),
-        );
+    test('each outcome maps to exactly one message, and every outcome but '
+        'applied intentionally shares the same one, so the app never describes '
+        'one state two different ways', () {
+      final applied = textOf(
+        snackBarForGrantedOutcome(ReconcileOutcome.applied),
+      );
+      final unavailable = textOf(
+        snackBarForGrantedOutcome(ReconcileOutcome.unavailable),
+      );
+      final partiallyFailed = textOf(
+        snackBarForGrantedOutcome(ReconcileOutcome.partiallyFailed),
+      );
+      final permissionDenied = textOf(
+        snackBarForGrantedOutcome(ReconcileOutcome.permissionDenied),
+      );
 
-        expect(unavailable, partiallyFailed);
-        expect(permissionDenied, unavailable);
-        expect(applied, isNot(unavailable));
-      },
-    );
+      expect(unavailable, partiallyFailed);
+      expect(permissionDenied, unavailable);
+      expect(applied, isNot(unavailable));
+    });
 
-    test(
-      'permissionDenied also says this device could not be updated, rather '
-      'than celebrating or asserting: reconcile() re-reads the permission '
-      'itself, and nothing guarantees that read agrees with the grant a '
-      'moment earlier. The assert it replaces threw in debug after the '
-      'dialog had already popped, so the dialog popped a second time',
-      () {
-        final snackBar = snackBarForGrantedOutcome(
-          ReconcileOutcome.permissionDenied,
-        );
+    test('permissionDenied also says this device could not be updated, rather '
+        'than celebrating or asserting: reconcile() re-reads the permission '
+        'itself, and nothing guarantees that read agrees with the grant a '
+        'moment earlier. The assert it replaces threw in debug after the '
+        'dialog had already popped, so the dialog popped a second time', () {
+      final snackBar = snackBarForGrantedOutcome(
+        ReconcileOutcome.permissionDenied,
+      );
 
-        expect(textOf(snackBar), isNot(contains('🎉')));
-        expect(textOf(snackBar), contains('could not be updated'));
-      },
-    );
+      expect(textOf(snackBar), isNot(contains('🎉')));
+      expect(textOf(snackBar), contains('could not be updated'));
+    });
   });
 
   group('NotificationPermissionDialog, once permission is granted', () {
@@ -226,7 +211,8 @@ void main() {
           expect(
             find.text('screen underneath'),
             findsOneWidget,
-            reason: 'a throw after the dialog popped lands in its catch, '
+            reason:
+                'a throw after the dialog popped lands in its catch, '
                 'which pops again and closes the screen underneath',
           );
           expect(find.textContaining('could not be updated'), findsOneWidget);

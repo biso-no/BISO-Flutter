@@ -185,7 +185,11 @@ void main() {
         await tester.pump();
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o));
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => outcome = o),
+        );
         await tester.pump();
         expect(outcome, isNull, reason: 'the reconcile hangs');
 
@@ -225,28 +229,25 @@ void main() {
   });
 
   group('AuthNotifier.clearSession', () {
-    test(
-      'detaches this device from push notifications before deleting the '
-      'session, as sign-out does: deleting it alone left the previous '
-      "account's push target and live token on the device, so it went on "
-      "receiving that account's pushes and the next student's registration "
-      'was refused with a 409 no target of theirs matched',
-      () async {
-        final log = <String>[];
-        final authService = _FakeAuthService(log: log);
-        final notifier = AuthNotifier(
-          authService,
-          notificationService: _LoggingCleanupService(log),
-        );
-        await pumpEventQueue();
+    test('detaches this device from push notifications before deleting the '
+        'session, as sign-out does: deleting it alone left the previous '
+        "account's push target and live token on the device, so it went on "
+        "receiving that account's pushes and the next student's registration "
+        'was refused with a 409 no target of theirs matched', () async {
+      final log = <String>[];
+      final authService = _FakeAuthService(log: log);
+      final notifier = AuthNotifier(
+        authService,
+        notificationService: _LoggingCleanupService(log),
+      );
+      await pumpEventQueue();
 
-        await notifier.clearSession();
+      await notifier.clearSession();
 
-        expect(log, ['clearToken', 'clearSession']);
-        expect(notifier.state.isAuthenticated, isFalse);
-        expect(notifier.state.isLoading, isFalse);
-      },
-    );
+      expect(log, ['clearToken', 'clearSession']);
+      expect(notifier.state.isAuthenticated, isFalse);
+      expect(notifier.state.isLoading, isFalse);
+    });
 
     testWidgets(
       'deletes the session at kSignOutCleanupTimeout when the notification '
@@ -278,19 +279,22 @@ void main() {
       },
     );
 
-    test('still deletes the session when the notification cleanup throws', () async {
-      final authService = _FakeAuthService();
-      final notifier = AuthNotifier(
-        authService,
-        notificationService: _ThrowingCleanupService(),
-      );
-      await pumpEventQueue();
+    test(
+      'still deletes the session when the notification cleanup throws',
+      () async {
+        final authService = _FakeAuthService();
+        final notifier = AuthNotifier(
+          authService,
+          notificationService: _ThrowingCleanupService(),
+        );
+        await pumpEventQueue();
 
-      await notifier.clearSession();
+        await notifier.clearSession();
 
-      expect(authService.clearSessionCalls, 1);
-      expect(notifier.state.isAuthenticated, isFalse);
-      expect(notifier.state.error, isNull);
-    });
+        expect(authService.clearSessionCalls, 1);
+        expect(notifier.state.isAuthenticated, isFalse);
+        expect(notifier.state.error, isNull);
+      },
+    );
   });
 }

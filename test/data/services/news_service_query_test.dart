@@ -29,10 +29,7 @@ void main() {
 
     test('a National list is only National', () {
       final q = NewsService.buildNewsListQueries(campusId: '5');
-      expect(
-        q,
-        hasQuery('equal', containing: ['campus_id', '"values":["5"]']),
-      );
+      expect(q, hasQuery('equal', containing: ['campus_id', '"values":["5"]']));
     });
 
     test('omits the campus filter without a campus', () {

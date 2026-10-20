@@ -198,9 +198,7 @@ void main() {
     });
   });
 
-  testWidgets('Events builds on BisoPage in every appearance', (
-    tester,
-  ) async {
+  testWidgets('Events builds on BisoPage in every appearance', (tester) async {
     await expectBuildsCleanly(
       tester,
       () => const EventsScreen(),
@@ -249,11 +247,10 @@ void main() {
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -6000));
     await tester.pumpAndSettle();
 
-    expect(
-      service.offsets,
-      [0, 20],
-      reason: 'scrolling to the bottom must request the next page',
-    );
+    expect(service.offsets, [
+      0,
+      20,
+    ], reason: 'scrolling to the bottom must request the next page');
     expect(find.text('p20 0'), findsOneWidget);
   });
 
@@ -298,7 +295,8 @@ void main() {
       expect(
         endedChipText.style?.color,
         BisoPalette.light.muted,
-        reason: 'a completed event is past/inactive, not the active/'
+        reason:
+            'a completed event is past/inactive, not the active/'
             'selected meaning `link` carries',
       );
       expect(upcomingChipText.style?.color, BisoPalette.light.link);
@@ -340,7 +338,8 @@ void main() {
       expect(
         container.read(eventsSearchTermProvider),
         isNull,
-        reason: 'a one-character query is below the API minimum, so the list '
+        reason:
+            'a one-character query is below the API minimum, so the list '
             'must stop filtering by the previous query',
       );
       expect(service.searches.last, isNull);

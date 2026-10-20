@@ -308,10 +308,10 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
     final bool saved;
     try {
-      saved = await _service.saveTopicIntent(
-        <String, bool>{...confirmed, topicId: enabled},
-        onlyIf: () => _studentStillSignedIn,
-      );
+      saved = await _service.saveTopicIntent(<String, bool>{
+        ...confirmed,
+        topicId: enabled,
+      }, onlyIf: () => _studentStillSignedIn);
     } catch (error) {
       debugPrint(
         'TopicIntentNotifier.setTopic($topicId) failed to save: $error',
@@ -619,7 +619,10 @@ final unreadCountProvider = Provider<int>((ref) {
 /// user's read state. Keyed by announcement id. Used by the announcement
 /// detail screen.
 final announcementDetailProvider =
-    FutureProvider.family<AppNotification?, String>((ref, announcementId) async {
+    FutureProvider.family<AppNotification?, String>((
+      ref,
+      announcementId,
+    ) async {
       final service = ref.watch(notificationInboxServiceProvider);
       final userId = ref.watch(authStateProvider).user?.id;
       final locale = ref.watch(localeProvider).languageCode;
@@ -645,10 +648,8 @@ final announcementDetailProvider =
 final topicReconcileProvider = FutureProvider<void>((ref) async {
   final (ready, campusId) = ref.watch(
     authStateProvider.select(
-      (state) => (
-        !state.isLoading && state.isAuthenticated,
-        state.user?.campusId,
-      ),
+      (state) =>
+          (!state.isLoading && state.isAuthenticated, state.user?.campusId),
     ),
   );
   final language = ref.watch(localeProvider.select((l) => l.languageCode));

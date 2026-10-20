@@ -21,7 +21,10 @@ void main() {
   group('EventService.buildEventQueries', () {
     test('always filters to published rows', () {
       final q = EventService.buildEventQueries();
-      expect(q.any((s) => s.contains('status') && s.contains('published')), isTrue);
+      expect(
+        q.any((s) => s.contains('status') && s.contains('published')),
+        isTrue,
+      );
     });
 
     test('selects nested translations so they are returned', () {
@@ -36,7 +39,10 @@ void main() {
 
     test('filters by campus when provided', () {
       final q = EventService.buildEventQueries(campusId: '1');
-      expect(q.any((s) => s.contains('campus_id') && s.contains('"1"')), isTrue);
+      expect(
+        q.any((s) => s.contains('campus_id') && s.contains('"1"')),
+        isTrue,
+      );
     });
 
     test('omits the campus filter when campusId is null', () {
@@ -47,7 +53,9 @@ void main() {
     test('searches server-side with contains on the translated title', () {
       final q = EventService.buildEventQueries(search: 'dagene');
       expect(
-        q.any((s) => s.contains('contains') && s.contains('translation_refs.title')),
+        q.any(
+          (s) => s.contains('contains') && s.contains('translation_refs.title'),
+        ),
         isTrue,
       );
     });
@@ -83,7 +91,9 @@ void main() {
 
       final all = EventService.buildEventQueries(includePast: true, now: now);
       expect(
-        all.any((s) => s.contains('greaterThanEqual') && s.contains('start_date')),
+        all.any(
+          (s) => s.contains('greaterThanEqual') && s.contains('start_date'),
+        ),
         isFalse,
       );
     });
@@ -164,7 +174,6 @@ void main() {
       );
       expect(q.any((s) => s.contains('"method":"or"')), isFalse);
     });
-
   });
 
   group('EventService.buildEventCountQueries', () {
@@ -172,8 +181,14 @@ void main() {
       final now = DateTime.utc(2026, 9, 7);
       final q = EventService.buildEventCountQueries(campusId: '1', now: now);
 
-      expect(q.any((s) => s.contains('status') && s.contains('published')), isTrue);
-      expect(q.any((s) => s.contains('campus_id') && s.contains('"1"')), isTrue);
+      expect(
+        q.any((s) => s.contains('status') && s.contains('published')),
+        isTrue,
+      );
+      expect(
+        q.any((s) => s.contains('campus_id') && s.contains('"1"')),
+        isTrue,
+      );
       expect(
         q,
         hasQuery(
@@ -217,7 +232,6 @@ void main() {
         hasQuery('or', containing: ['end_date', '2026-09-23T12:00:00.000Z']),
       );
     });
-
   });
 }
 
@@ -238,23 +252,20 @@ void _eventLookupTests() {
       );
     });
 
-    test(
-      'reads published and cancelled events, so a link to a cancelled one '
-      'opens it with its Cancelled chip, and selects translations',
-      () {
-        expect(
-          q,
-          hasQuery(
-            'equal',
-            containing: [
-              '{"method":"equal","attribute":"status",'
-                  '"values":["published","cancelled"]}',
-            ],
-          ),
-        );
-        expect(q.any((s) => s.contains('translation_refs.*')), isTrue);
-      },
-    );
+    test('reads published and cancelled events, so a link to a cancelled one '
+        'opens it with its Cancelled chip, and selects translations', () {
+      expect(
+        q,
+        hasQuery(
+          'equal',
+          containing: [
+            '{"method":"equal","attribute":"status",'
+                '"values":["published","cancelled"]}',
+          ],
+        ),
+      );
+      expect(q.any((s) => s.contains('translation_refs.*')), isTrue);
+    });
 
     test('has no date window, so a past event still opens', () {
       expect(q.any((s) => s.contains('end_date')), isFalse);

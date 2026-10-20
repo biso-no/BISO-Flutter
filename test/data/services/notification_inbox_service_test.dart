@@ -400,21 +400,18 @@ void main() {
       ),
     ];
 
-    test(
-      'still shows the student\'s own-campus, national and all-campuses '
-      'topic announcements when more than the fetch limit of newer ones '
-      'belong to other campuses: the limit was applied before the campus '
-      'filter, so they were never fetched at all',
-      () async {
-        final db = _FakeTablesDB(announcements(newerElsewhere: 120));
+    test('still shows the student\'s own-campus, national and all-campuses '
+        'topic announcements when more than the fetch limit of newer ones '
+        'belong to other campuses: the limit was applied before the campus '
+        'filter, so they were never fetched at all', () async {
+      final db = _FakeTablesDB(announcements(newerElsewhere: 120));
 
-        expect(await inboxIds(db, campusId: '1'), [
-          'oslo',
-          'national',
-          'all-campuses',
-        ]);
-      },
-    );
+      expect(await inboxIds(db, campusId: '1'), [
+        'oslo',
+        'national',
+        'all-campuses',
+      ]);
+    });
 
     test(
       'asks for the student\'s campus and national by the indexed campus_id, '
@@ -432,7 +429,10 @@ void main() {
             ['isNull'],
           ]),
         );
-        expect(campusFilters(db).expand((filter) => filter), isNot(contains(null)));
+        expect(
+          campusFilters(db).expand((filter) => filter),
+          isNot(contains(null)),
+        );
         for (final read in topicReads(db)) {
           expect(
             read,
@@ -525,36 +525,33 @@ void main() {
       },
     );
 
-    test(
-      'a historical row with a bare legacy audience_value such as "events" '
-      'now reaches only students on its own campus, national, or everyone '
-      'when its campus_id is null - it used to be fetched, and shown, for '
-      'every campus',
-      () async {
-        final rows = [
-          _topicRow(
-            'legacy-bergen',
-            campusId: '2',
-            audienceValue: 'events',
-            sentAt: at(2),
-          ),
-          _topicRow(
-            'legacy-all-campuses',
-            campusId: null,
-            audienceValue: 'events',
-            sentAt: at(1),
-          ),
-        ];
-
-        expect(await inboxIds(_FakeTablesDB(rows), campusId: '1'), [
-          'legacy-all-campuses',
-        ]);
-        expect(await inboxIds(_FakeTablesDB(rows), campusId: '2'), [
+    test('a historical row with a bare legacy audience_value such as "events" '
+        'now reaches only students on its own campus, national, or everyone '
+        'when its campus_id is null - it used to be fetched, and shown, for '
+        'every campus', () async {
+      final rows = [
+        _topicRow(
           'legacy-bergen',
+          campusId: '2',
+          audienceValue: 'events',
+          sentAt: at(2),
+        ),
+        _topicRow(
           'legacy-all-campuses',
-        ]);
-      },
-    );
+          campusId: null,
+          audienceValue: 'events',
+          sentAt: at(1),
+        ),
+      ];
+
+      expect(await inboxIds(_FakeTablesDB(rows), campusId: '1'), [
+        'legacy-all-campuses',
+      ]);
+      expect(await inboxIds(_FakeTablesDB(rows), campusId: '2'), [
+        'legacy-bergen',
+        'legacy-all-campuses',
+      ]);
+    });
   });
 
   group('fetchInbox joinedAt and new columns', () {
@@ -570,34 +567,38 @@ void main() {
 
     final joined = DateTime.utc(2026, 9, 1);
 
-    test('drops a broadcast sent before joinedAt and keeps one after', () async {
-      final db = _FakeTablesDB([
-        _broadcastRow('before', sentAt: joined.subtract(const Duration(days: 1))),
-        _broadcastRow('after', sentAt: joined.add(const Duration(days: 1))),
-      ]);
-      final items = await NotificationInboxService(tablesDb: db).fetchInbox(
-        userId: 'u',
-        locale: 'en',
-        campusId: '2',
-        joinedAt: joined,
-      );
-      expect([for (final i in items) i.id], ['after']);
-      expect(items.single.isBurst, isFalse);
-      expect(items.single.items.single.id, 'n1');
-      expect(items.single.contentType, 'news');
-      expect(items.single.image, contains('file1'));
-    });
+    test(
+      'drops a broadcast sent before joinedAt and keeps one after',
+      () async {
+        final db = _FakeTablesDB([
+          _broadcastRow(
+            'before',
+            sentAt: joined.subtract(const Duration(days: 1)),
+          ),
+          _broadcastRow('after', sentAt: joined.add(const Duration(days: 1))),
+        ]);
+        final items = await NotificationInboxService(tablesDb: db).fetchInbox(
+          userId: 'u',
+          locale: 'en',
+          campusId: '2',
+          joinedAt: joined,
+        );
+        expect([for (final i in items) i.id], ['after']);
+        expect(items.single.isBurst, isFalse);
+        expect(items.single.items.single.id, 'n1');
+        expect(items.single.contentType, 'news');
+        expect(items.single.image, contains('file1'));
+      },
+    );
 
     test('hides another campus broadcast', () async {
       final db = _FakeTablesDB([
         _broadcastRow('oslo', sentAt: joined, audienceValue: 'general_oslo'),
         _broadcastRow('all', sentAt: joined, audienceValue: 'general'),
       ]);
-      final items = await NotificationInboxService(tablesDb: db).fetchInbox(
-        userId: 'u',
-        locale: 'en',
-        campusId: '2',
-      );
+      final items = await NotificationInboxService(
+        tablesDb: db,
+      ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
       expect([for (final i in items) i.id], ['all']);
     });
 
@@ -615,17 +616,25 @@ void main() {
           },
         ],
         userNotifications: [
-          {'\$id': 'un1',
-            '\$createdAt': '2026-09-01T00:00:00.000Z', 'user_id': 'u', 'announcement_id': 'oslo', 'read': true},
-          {'\$id': 'un2',
-            '\$createdAt': '2026-09-01T00:00:00.000Z', 'user_id': 'u', 'announcement_id': 'direct', 'read': false},
+          {
+            '\$id': 'un1',
+            '\$createdAt': '2026-09-01T00:00:00.000Z',
+            'user_id': 'u',
+            'announcement_id': 'oslo',
+            'read': true,
+          },
+          {
+            '\$id': 'un2',
+            '\$createdAt': '2026-09-01T00:00:00.000Z',
+            'user_id': 'u',
+            'announcement_id': 'direct',
+            'read': false,
+          },
         ],
       );
-      final items = await NotificationInboxService(tablesDb: db).fetchInbox(
-        userId: 'u',
-        locale: 'en',
-        campusId: '2',
-      );
+      final items = await NotificationInboxService(
+        tablesDb: db,
+      ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
       expect([for (final i in items) i.id], ['direct']);
     });
 
@@ -692,22 +701,19 @@ void main() {
       }),
     };
 
-    test(
-      'fetchAnnouncementById loads it - tapping its push opens this, and it '
-      'failed with "type \'String\' is not a subtype of type '
-      '\'Map<String, dynamic>\'"',
-      () async {
-        final notification = await NotificationInboxService(
-          tablesDb: _FakeTablesDB([sentBroadcast()]),
-        ).fetchAnnouncementById(announcementId: 'announcement-1', locale: 'en');
+    test('fetchAnnouncementById loads it - tapping its push opens this, and it '
+        'failed with "type \'String\' is not a subtype of type '
+        '\'Map<String, dynamic>\'"', () async {
+      final notification = await NotificationInboxService(
+        tablesDb: _FakeTablesDB([sentBroadcast()]),
+      ).fetchAnnouncementById(announcementId: 'announcement-1', locale: 'en');
 
-        expect(notification, isNotNull);
-        expect(notification!.id, 'announcement-1');
-        expect(notification.title, 'Hello');
-        expect(notification.body, 'World');
-        expect(notification.deepLink, 'biso://announcement?id=announcement-1');
-      },
-    );
+      expect(notification, isNotNull);
+      expect(notification!.id, 'announcement-1');
+      expect(notification.title, 'Hello');
+      expect(notification.body, 'World');
+      expect(notification.deepLink, 'biso://announcement?id=announcement-1');
+    });
 
     test('fetchInbox lists it', () async {
       final items = await NotificationInboxService(

@@ -124,7 +124,8 @@ void main() {
       expect(
         renderedRowCount(tester),
         21,
-        reason: 'the trailing spinner row is present while page 2 is in '
+        reason:
+            'the trailing spinner row is present while page 2 is in '
             'flight',
       );
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -170,7 +171,8 @@ void main() {
       expect(
         renderedRowCount(tester),
         20,
-        reason: 'the dropped stale-locale page must have released '
+        reason:
+            'the dropped stale-locale page must have released '
             '_isLoadingMore; otherwise the trailing spinner row outlives '
             'the request that raised it, for the life of the screen',
       );
@@ -190,7 +192,8 @@ void main() {
       expect(
         service.calls.last.locale,
         'no',
-        reason: 'paging must resume, for the new locale, after a dropped '
+        reason:
+            'paging must resume, for the new locale, after a dropped '
             'page; pre-fix _onScroll bails on the still-latched '
             '_isLoadingMore and this page is never requested',
       );

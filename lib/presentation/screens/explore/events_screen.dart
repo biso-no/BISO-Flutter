@@ -305,9 +305,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     if (_isLoading) {
       contentSlivers = [
         const SliverToBoxAdapter(
-          child: Column(
-            children: [BisoSkeleton.card(), BisoSkeleton.card()],
-          ),
+          child: Column(children: [BisoSkeleton.card(), BisoSkeleton.card()]),
         ),
       ];
     } else {

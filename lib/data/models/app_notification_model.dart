@@ -64,7 +64,9 @@ class AppNotification extends Equatable {
   bool get isUrgent => category == 'urgent';
 
   InboxFilter get filter {
-    if (contentType == 'event' || category == 'event') return InboxFilter.events;
+    if (contentType == 'event' || category == 'event') {
+      return InboxFilter.events;
+    }
     if (contentType == 'news' || category == 'news') return InboxFilter.news;
     if (contentType == 'job' || category == 'job') return InboxFilter.jobs;
     return InboxFilter.fromBiso;
@@ -86,21 +88,30 @@ class AppNotification extends Equatable {
     final bodyNo = (doc['body_no'] as String?)?.trim();
     final bodyEn = (doc['body_en'] as String?)?.trim();
 
-    final title = (isNorwegian ? (titleNo ?? titleEn) : (titleEn ?? titleNo)) ?? '';
-    final bodyHtml = (isNorwegian ? (bodyNo ?? bodyEn) : (bodyEn ?? bodyNo)) ?? '';
+    final title =
+        (isNorwegian ? (titleNo ?? titleEn) : (titleEn ?? titleNo)) ?? '';
+    final bodyHtml =
+        (isNorwegian ? (bodyNo ?? bodyEn) : (bodyEn ?? bodyNo)) ?? '';
     // The admin authors the body in a rich (HTML) block editor; the inbox list
     // shows plain text, so strip tags here and keep the raw HTML for a future
     // rich detail view.
     final body = _stripHtml(bodyHtml);
 
     final rawEventId = doc['event_id'] as String?;
-    final eventId = (rawEventId != null && rawEventId.isNotEmpty) ? rawEventId : null;
+    final eventId = (rawEventId != null && rawEventId.isNotEmpty)
+        ? rawEventId
+        : null;
 
     final rawDeepLink = doc['deep_link'] as String?;
-    final deepLink = (rawDeepLink != null && rawDeepLink.isNotEmpty) ? rawDeepLink : null;
+    final deepLink = (rawDeepLink != null && rawDeepLink.isNotEmpty)
+        ? rawDeepLink
+        : null;
 
     // sent_at ?? $createdAt (fall back to "now" if both are missing/invalid).
-    final createdAt = _parseDate(doc['sent_at']) ?? _parseDate(doc['\$createdAt']) ?? DateTime.now();
+    final createdAt =
+        _parseDate(doc['sent_at']) ??
+        _parseDate(doc['\$createdAt']) ??
+        DateTime.now();
 
     return AppNotification(
       id: (doc['\$id'] as String?) ?? '',

@@ -145,7 +145,9 @@ class NotificationPermissionDialog extends ConsumerWidget {
 
               if (granted) {
                 // Enable chat notifications and default topic subscriptions
-                final notifier = ref.read(notificationPreferencesProvider.notifier);
+                final notifier = ref.read(
+                  notificationPreferencesProvider.notifier,
+                );
                 await notifier.updateChatNotifications(true);
 
                 // `products` was never a real topic, and `events`/`jobs` are

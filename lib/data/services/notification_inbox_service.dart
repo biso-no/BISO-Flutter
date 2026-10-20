@@ -246,15 +246,20 @@ class NotificationInboxService {
       }
 
       // 4. Merge unique by announcement id and build the localized list.
-      final items = announcementById.entries.map((entry) {
-        return AppNotification.fromAnnouncement(
-          entry.value,
-          locale: locale,
-          read: readByAnnouncement[entry.key] ?? false,
-          userNotificationId: userNotificationIdByAnnouncement[entry.key],
-        );
-      }).where((n) => joinedAt == null || !n.createdAt.isBefore(joinedAt)).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final items =
+          announcementById.entries
+              .map((entry) {
+                return AppNotification.fromAnnouncement(
+                  entry.value,
+                  locale: locale,
+                  read: readByAnnouncement[entry.key] ?? false,
+                  userNotificationId:
+                      userNotificationIdByAnnouncement[entry.key],
+                );
+              })
+              .where((n) => joinedAt == null || !n.createdAt.isBefore(joinedAt))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       return items;
     } on AppwriteException catch (e) {
@@ -501,7 +506,10 @@ class NotificationInboxService {
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {
     for (var i = 0; i < source.length; i += size) {
-      yield source.sublist(i, i + size > source.length ? source.length : i + size);
+      yield source.sublist(
+        i,
+        i + size > source.length ? source.length : i + size,
+      );
     }
   }
 }

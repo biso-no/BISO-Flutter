@@ -111,109 +111,103 @@ void main() {
       },
     );
 
-    test(
-      'does not reconcile when permission is denied - there is nothing yet '
-      'to subscribe',
-      () async {
-        final service = _FakeNotificationService()..granted = false;
+    test('does not reconcile when permission is denied - there is nothing yet '
+        'to subscribe', () async {
+      final service = _FakeNotificationService()..granted = false;
 
-        final result = await service.requestPermission();
+      final result = await service.requestPermission();
 
-        expect(result, isFalse);
-        expect(service.reconcileCalls, 0);
-      },
-    );
+      expect(result, isFalse);
+      expect(service.reconcileCalls, 0);
+    });
 
-    test(
-      'still reports the permission as granted even when reconcile could '
-      'not fully update this device - reconcile is best-effort here, and a '
-      'partiallyFailed subscribe must not be mistaken for a denied '
-      'permission',
-      () async {
-        final service = _FakeNotificationService()
-          ..granted = true
-          ..reconcileResult = ReconcileOutcome.partiallyFailed;
+    test('still reports the permission as granted even when reconcile could '
+        'not fully update this device - reconcile is best-effort here, and a '
+        'partiallyFailed subscribe must not be mistaken for a denied '
+        'permission', () async {
+      final service = _FakeNotificationService()
+        ..granted = true
+        ..reconcileResult = ReconcileOutcome.partiallyFailed;
 
-        final result = await service.requestPermission();
+      final result = await service.requestPermission();
 
-        expect(result, isTrue);
-        expect(service.reconcileCalls, 1);
-      },
-    );
+      expect(result, isTrue);
+      expect(service.reconcileCalls, 1);
+    });
 
-    test(
-      'reports a genuine grant as granted even when reconcile throws, and '
-      'reconciles against the campus this device was last reconciled for: '
-      'subscribing is best-effort here, and a throw from it - e.g. getToken '
-      'failing when the launch token fetch already had - used to be caught '
-      'as a failed permission request, telling a student who had just '
-      'granted permission to enable it in system settings and leaving their '
-      'chat notifications off',
-      () async {
-        final service = _FakeNotificationService()..delegateReconcile = true;
-        // Earlier in the session, the launch reconciler reconciled campus 3.
-        // requestPermission takes no campus, so that is all it has to go on.
-        await service.reconcile(campusId: '3', locale: 'en');
+    test('reports a genuine grant as granted even when reconcile throws, and '
+        'reconciles against the campus this device was last reconciled for: '
+        'subscribing is best-effort here, and a throw from it - e.g. getToken '
+        'failing when the launch token fetch already had - used to be caught '
+        'as a failed permission request, telling a student who had just '
+        'granted permission to enable it in system settings and leaving their '
+        'chat notifications off', () async {
+      final service = _FakeNotificationService()..delegateReconcile = true;
+      // Earlier in the session, the launch reconciler reconciled campus 3.
+      // requestPermission takes no campus, so that is all it has to go on.
+      await service.reconcile(campusId: '3', locale: 'en');
 
-        service
-          ..delegateReconcile = false
-          ..reconcileThrows = Exception('getToken: SERVICE_NOT_AVAILABLE');
-        final result = await service.requestPermission();
+      service
+        ..delegateReconcile = false
+        ..reconcileThrows = Exception('getToken: SERVICE_NOT_AVAILABLE');
+      final result = await service.requestPermission();
 
-        expect(result, isTrue);
-        expect(service.reconcileCampusIds, ['3', '3']);
-      },
-    );
+      expect(result, isTrue);
+      expect(service.reconcileCampusIds, ['3', '3']);
+    });
   });
 
   group('reconcileIfPermissionNewlyGranted', () {
-    test(
-      'reconciles once when notifications were turned on in the system '
-      'settings after a reconcile found them off: nothing else reconciles '
-      'when the student comes back, so this device stayed unsubscribed '
-      'until the next launch',
-      () async {
-        final service = _FakeNotificationService()..delegateReconcile = true;
-        // The launch reconciler finds notifications off.
-        expect(
-          await service.reconcile(campusId: '3', locale: 'en'),
-          ReconcileOutcome.permissionDenied,
-        );
-        service.delegateReconcile = false;
+    test('reconciles once when notifications were turned on in the system '
+        'settings after a reconcile found them off: nothing else reconciles '
+        'when the student comes back, so this device stayed unsubscribed '
+        'until the next launch', () async {
+      final service = _FakeNotificationService()..delegateReconcile = true;
+      // The launch reconciler finds notifications off.
+      expect(
+        await service.reconcile(campusId: '3', locale: 'en'),
+        ReconcileOutcome.permissionDenied,
+      );
+      service.delegateReconcile = false;
 
-        // The student turns them on in the system settings, and comes back.
-        service.permitted = true;
-        expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '3', locale: 'en'),
-          ReconcileOutcome.applied,
-        );
-        expect(service.reconcileCampusIds, ['3', '3']);
+      // The student turns them on in the system settings, and comes back.
+      service.permitted = true;
+      expect(
+        await service.reconcileIfPermissionNewlyGranted(
+          campusId: '3',
+          locale: 'en',
+        ),
+        ReconcileOutcome.applied,
+      );
+      expect(service.reconcileCampusIds, ['3', '3']);
 
-        // Back again, with nothing changed.
-        expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '3', locale: 'en'),
-          isNull,
-        );
-        expect(service.reconcileCalls, 2);
-      },
-    );
+      // Back again, with nothing changed.
+      expect(
+        await service.reconcileIfPermissionNewlyGranted(
+          campusId: '3',
+          locale: 'en',
+        ),
+        isNull,
+      );
+      expect(service.reconcileCalls, 2);
+    });
 
-    test(
-      'does not reconcile again for a grant made in the app, which has '
-      'reconciled already',
-      () async {
-        final service = _FakeNotificationService()..granted = true;
-        expect(await service.requestPermission(), isTrue);
-        expect(service.reconcileCalls, 1);
+    test('does not reconcile again for a grant made in the app, which has '
+        'reconciled already', () async {
+      final service = _FakeNotificationService()..granted = true;
+      expect(await service.requestPermission(), isTrue);
+      expect(service.reconcileCalls, 1);
 
-        service.permitted = true;
-        expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
-          isNull,
-        );
-        expect(service.reconcileCalls, 1);
-      },
-    );
+      service.permitted = true;
+      expect(
+        await service.reconcileIfPermissionNewlyGranted(
+          campusId: '1',
+          locale: 'en',
+        ),
+        isNull,
+      );
+      expect(service.reconcileCalls, 1);
+    });
 
     test(
       'retries on the next resume when a reconcile that had permission could '
@@ -232,14 +226,20 @@ void main() {
         service.delegateReconcile = false;
 
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
+          await service.reconcileIfPermissionNewlyGranted(
+            campusId: '1',
+            locale: 'en',
+          ),
           ReconcileOutcome.applied,
         );
         expect(service.reconcileCalls, 2);
 
         // That one finished, so nothing more until something changes.
         expect(
-          await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
+          await service.reconcileIfPermissionNewlyGranted(
+            campusId: '1',
+            locale: 'en',
+          ),
           isNull,
         );
         expect(service.reconcileCalls, 2);
@@ -250,11 +250,17 @@ void main() {
       final service = _FakeNotificationService()..permitted = false;
 
       expect(
-        await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
+        await service.reconcileIfPermissionNewlyGranted(
+          campusId: '1',
+          locale: 'en',
+        ),
         isNull,
       );
       expect(
-        await service.reconcileIfPermissionNewlyGranted(campusId: '1', locale: 'en'),
+        await service.reconcileIfPermissionNewlyGranted(
+          campusId: '1',
+          locale: 'en',
+        ),
         isNull,
       );
       expect(service.reconcileCalls, 0);

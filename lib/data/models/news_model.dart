@@ -50,7 +50,8 @@ class NewsModel extends Equatable {
       image: appwriteImageUrl(row['image']),
       campusId: (row['campus_id'] ?? '').toString(),
       author: row['author']?.toString(),
-      publishedAt: created ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      publishedAt:
+          created ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       sticky: row['sticky'] == true,
     );
   }

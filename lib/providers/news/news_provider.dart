@@ -16,7 +16,11 @@ final latestNewsProvider = FutureProvider.autoDispose
       final locale = ref.watch(localeProvider).languageCode;
       return ref
           .watch(newsServiceProvider)
-          .listNews(campusId: campusId, locale: locale, limit: _latestNewsLimit);
+          .listNews(
+            campusId: campusId,
+            locale: locale,
+            limit: _latestNewsLimit,
+          );
     });
 
 /// One published article by slug or row id; null when it does not exist.
