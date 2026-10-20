@@ -75,6 +75,28 @@ class NotificationInboxService {
   // within reasonable request sizes.
   static const int _idChunkSize = 25;
 
+  /// The `announcements` columns the inbox reads. Every announcements read
+  /// selects them, so the table's `data` column is never fetched.
+  ///
+  /// The admin stores a sent announcement's push payload in `data`, as a JSON
+  /// string. The SDK's `Row.fromMap` takes `map['data'] ?? map` as a row's
+  /// data, so a fetched `data` column replaces the whole row and parsing
+  /// throws `type 'String' is not a subtype of type 'Map<String, dynamic>'`.
+  static final String _selectAnnouncementColumns = Query.select([
+    '\$id',
+    '\$createdAt',
+    'title_en',
+    'title_no',
+    'body_en',
+    'body_no',
+    'category',
+    'event_id',
+    'deep_link',
+    'sent_at',
+    'audience_type',
+    'audience_value',
+  ]);
+
   /// [tablesDb] stands in for the shared [db] in tests.
   NotificationInboxService({TablesDB? tablesDb}) : _tablesDbOverride = tablesDb;
 
@@ -135,6 +157,7 @@ class NotificationInboxService {
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
+          _selectAnnouncementColumns,
           Query.equal('status', 'sent'),
           Query.equal('audience_type', 'broadcast'),
           Query.orderDesc('sent_at'),
@@ -165,6 +188,7 @@ class NotificationInboxService {
           databaseId: AppConstants.databaseId,
           tableId: _announcementsTable,
           queries: [
+            _selectAnnouncementColumns,
             Query.equal('\$id', chunk),
             Query.limit(chunk.length),
           ],
@@ -218,6 +242,7 @@ class NotificationInboxService {
     }.toList();
 
     List<String> topicQueries(String campusFilter) => [
+      _selectAnnouncementColumns,
       Query.equal('status', 'sent'),
       Query.equal('audience_type', 'topic'),
       campusFilter,
@@ -270,6 +295,7 @@ class NotificationInboxService {
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
         queries: [
+          _selectAnnouncementColumns,
           Query.equal('\$id', announcementId),
           Query.limit(1),
         ],
