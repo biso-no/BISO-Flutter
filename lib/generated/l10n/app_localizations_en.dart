@@ -2841,4 +2841,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String eventOrganizedBy(String name) {
     return 'Organized by $name';
   }
+
+  @override
+  String get eventGetTickets => 'Get tickets';
+
+  @override
+  String get eventTicketsMembersHint =>
+      'This event is for BISO members. If you are a member, check your membership under Profile → Membership.';
+
+  @override
+  String eventMembersPrice(String price) {
+    return 'Members $price';
+  }
 }

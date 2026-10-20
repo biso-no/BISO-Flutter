@@ -4,6 +4,7 @@ import 'package:biso/presentation/screens/events/event_detail_screen.dart';
 import 'package:biso/providers/event/event_segment_provider.dart';
 import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -79,5 +80,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(BisoPage), findsOneWidget);
+  });
+
+  testWidgets('speaks Norwegian under the no locale', (tester) async {
+    final event = EventModel(
+      id: 'ev-2',
+      title: 'Galla',
+      description: '<p>Fest.</p>',
+      startDate: DateTime.utc(2030, 9, 3, 17),
+      campusId: '1',
+      contactName: 'Kari',
+      memberOnly: true,
+      price: 400,
+      memberPrice: 250,
+      ticketUrl: 'https://tickets.example/gala',
+    );
+    await pumpBisoScreen(
+      tester,
+      const EventDetailScreen(idOrSlug: 'galla'),
+      locale: const Locale('no'),
+      overrides: _overrides(event),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Beskrivelse'), findsOneWidget);
+    expect(find.text('Arrangert av Kari'), findsOneWidget);
+    expect(find.text('Kun for medlemmer'), findsWidgets);
+    expect(find.textContaining('Medlemmer NOK 250'), findsOneWidget);
+    expect(
+      find.textContaining('Dette arrangementet er for BISO'),
+      findsOneWidget,
+    );
   });
 }

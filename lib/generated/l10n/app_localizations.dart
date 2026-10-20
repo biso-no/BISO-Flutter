@@ -5192,6 +5192,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Organized by {name}'**
   String eventOrganizedBy(String name);
+
+  /// Event detail: button to the ticket page
+  ///
+  /// In en, this message translates to:
+  /// **'Get tickets'**
+  String get eventGetTickets;
+
+  /// Event detail: why the ticket button is locked for a non-member
+  ///
+  /// In en, this message translates to:
+  /// **'This event is for BISO members. If you are a member, check your membership under Profile → Membership.'**
+  String get eventTicketsMembersHint;
+
+  /// Event price line: the member price, e.g. Members NOK 250
+  ///
+  /// In en, this message translates to:
+  /// **'Members {price}'**
+  String eventMembersPrice(String price);
 }
 
 class _AppLocalizationsDelegate

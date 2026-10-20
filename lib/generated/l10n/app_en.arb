@@ -3752,5 +3752,22 @@
         "type": "String"
       }
     }
+  },
+  "eventGetTickets": "Get tickets",
+  "@eventGetTickets": {
+    "description": "Event detail: button to the ticket page"
+  },
+  "eventTicketsMembersHint": "This event is for BISO members. If you are a member, check your membership under Profile → Membership.",
+  "@eventTicketsMembersHint": {
+    "description": "Event detail: why the ticket button is locked for a non-member"
+  },
+  "eventMembersPrice": "Members {price}",
+  "@eventMembersPrice": {
+    "description": "Event price line: the member price, e.g. Members NOK 250",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
   }
 }

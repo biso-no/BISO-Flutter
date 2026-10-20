@@ -2849,4 +2849,16 @@ class AppLocalizationsNo extends AppLocalizations {
   String eventOrganizedBy(String name) {
     return 'Arrangert av $name';
   }
+
+  @override
+  String get eventGetTickets => 'Kjøp billett';
+
+  @override
+  String get eventTicketsMembersHint =>
+      'Dette arrangementet er for BISO-medlemmer. Er du medlem, sjekk medlemskapet ditt under Profil → Medlemskap.';
+
+  @override
+  String eventMembersPrice(String price) {
+    return 'Medlemmer $price';
+  }
 }

@@ -61,15 +61,17 @@ Color eventStatusColor(EventLifecycle lifecycle, BisoPalette palette) {
 ///
 /// The member price is shown to everyone: it is what membership gets you.
 /// Tickets are sold by a third party, which is what applies it.
-String? eventPriceLabel(EventModel event) {
+String? eventPriceLabel(EventModel event, AppLocalizations l10n) {
   String nok(double amount) => 'NOK ${amount.toStringAsFixed(0)}';
   final price = event.price != null && event.price! > 0 ? event.price : null;
   final member = event.memberPrice;
   if (price == null) {
-    return member != null && member > 0 ? 'Members ${nok(member)}' : null;
+    return member != null && member > 0
+        ? l10n.eventMembersPrice(nok(member))
+        : null;
   }
   if (member != null && member < price) {
-    return '${nok(price)} · Members ${nok(member)}';
+    return '${nok(price)} · ${l10n.eventMembersPrice(nok(member))}';
   }
   return nok(price);
 }
@@ -150,7 +152,7 @@ class EventDetailBody extends ConsumerWidget {
     final lang = ref.watch(localeProvider).languageCode;
     final lifecycle = eventLifecycleOf(event);
     final statusColor = eventStatusColor(lifecycle, palette);
-    final price = eventPriceLabel(event);
+    final price = eventPriceLabel(event, l10n);
     final contactName = event.contactName;
 
     return Column(
@@ -274,6 +276,7 @@ class _TicketButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
+    final l10n = AppLocalizations.of(context)!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -286,13 +289,14 @@ class _TicketButton extends StatelessWidget {
           icon: Icon(
             blockedAsNonMember ? CupertinoIcons.lock : CupertinoIcons.tickets,
           ),
-          label: Text(blockedAsNonMember ? 'Members only' : 'Get tickets'),
+          label: Text(
+            blockedAsNonMember ? l10n.membersOnlyTitle : l10n.eventGetTickets,
+          ),
         ),
         if (blockedAsNonMember) ...[
           const SizedBox(height: 8),
           Text(
-            'This event is for BISO members. If you are a member, check your '
-            'membership under Profile → Membership.',
+            l10n.eventTicketsMembersHint,
             style: theme.textTheme.bodySmall?.copyWith(color: palette.muted),
           ),
         ],

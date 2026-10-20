@@ -537,7 +537,7 @@ class _EventCard extends StatelessWidget {
                         ),
                     ],
                   ),
-                  if (eventPriceLabel(event) case final price?) ...[
+                  if (eventPriceLabel(event, l10n) case final price?) ...[
                     const SizedBox(height: 12),
                     Text(price, style: theme.textTheme.titleSmall),
                   ],
