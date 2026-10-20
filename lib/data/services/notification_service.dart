@@ -1,17 +1,17 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart'
     as permission_handler;
 import 'package:appwrite/appwrite.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/notification_topics.dart';
 import 'appwrite_service.dart';
 import 'deep_link_service.dart';
 import 'device_subscription_store.dart';
+import 'local_notification_presenter.dart';
 import 'topic_reconciler.dart';
 
 /// Reads the stored topic flags out of an Appwrite prefs value.
@@ -130,7 +130,9 @@ class NotificationService {
   NotificationService._internal()
     : _account = account,
       _messagingOverride = null,
-      _store = DeviceSubscriptionStore();
+      _store = DeviceSubscriptionStore(),
+      _presenter = FlutterLocalNotificationsPresenter(),
+      _isAndroid = _platformIsAndroid;
 
   /// Builds a throwaway instance against a caller-supplied [Account] — and,
   /// optionally, [Messaging] and a [DeviceSubscriptionStore] — so the
@@ -142,8 +144,18 @@ class NotificationService {
     this._account, {
     Messaging? messaging,
     DeviceSubscriptionStore? store,
+    LocalNotificationPresenter? presenter,
+    bool Function()? isAndroid,
   }) : _messagingOverride = messaging,
-       _store = store ?? DeviceSubscriptionStore();
+       _store = store ?? DeviceSubscriptionStore(),
+       _presenter = presenter ?? FlutterLocalNotificationsPresenter(),
+       _isAndroid = isAndroid ?? _platformIsAndroid;
+
+  static bool _platformIsAndroid() => !kIsWeb && Platform.isAndroid;
+
+  /// Shows pushes that arrive while the app is open (Android only).
+  final LocalNotificationPresenter _presenter;
+  final bool Function() _isAndroid;
 
   static final FirebaseMessaging _firebaseMessaging =
       FirebaseMessaging.instance;
@@ -247,15 +259,20 @@ class NotificationService {
     );
 
     // Listen to foreground messages
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    if (_isAndroid()) {
+      await _presenter.initialize(
+        onTap: (data) => handleNotificationTap(RemoteMessage(data: data)),
+      );
+    }
+    FirebaseMessaging.onMessage.listen(handleForegroundMessage);
 
     // Listen to when user taps notification to open app
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+    FirebaseMessaging.onMessageOpenedApp.listen(handleNotificationTap);
 
     // Handle notification when app is launched from terminated state
     final initialMessage = await _firebaseMessaging.getInitialMessage();
     if (initialMessage != null) {
-      _handleNotificationTap(initialMessage);
+      handleNotificationTap(initialMessage);
     }
   }
 
@@ -1377,13 +1394,24 @@ class NotificationService {
   }
 
   /// Handle foreground messages
-  void _handleForegroundMessage(RemoteMessage message) {
+  @visibleForTesting
+  void handleForegroundMessage(RemoteMessage message) {
     debugPrint('Received foreground message: ${message.messageId}');
     debugPrint('Message data: ${message.data}');
 
     if (message.notification != null) {
       debugPrint('Message notification: ${message.notification!.title}');
       debugPrint('Message body: ${message.notification!.body}');
+    }
+
+    // iOS presents the push itself (see the presentation options above);
+    // Android does not, so show it.
+    if (_isAndroid()) {
+      unawaited(
+        _presenter.show(message).catchError((Object e) {
+          debugPrint('Failed to show foreground notification: $e');
+        }),
+      );
     }
 
     // Broadcast to listeners (e.g. the inbox provider) so they can refresh
@@ -1394,7 +1422,8 @@ class NotificationService {
   }
 
   /// Handle notification tap
-  void _handleNotificationTap(RemoteMessage message) {
+  @visibleForTesting
+  void handleNotificationTap(RemoteMessage message) {
     debugPrint('Notification tapped: ${message.messageId}');
     debugPrint('Message data: ${message.data}');
 
@@ -1428,9 +1457,10 @@ class NotificationService {
 
   /// Handle announcement notification tap.
   ///
-  /// Prefers the server-provided `deep_link` (e.g. `biso://event?id=<id>` or
-  /// `biso://announcement?id=<id>`). Falls back to event handling when an
-  /// `event_id` is present, otherwise opens the notifications inbox.
+  /// Prefers the server-provided `deep_link` (e.g. `biso://event?id=<id>`),
+  /// then `content_type` + `content_id`, then `announcement_id`, and
+  /// finally opens the notifications inbox. Every step goes through
+  /// [DeepLinkService], which queues until the navigator exists (cold start).
   void _handleAnnouncementNotification(Map<String, dynamic> data) {
     final deepLinkService = DeepLinkService();
 
@@ -1440,6 +1470,21 @@ class NotificationService {
       if (uri != null) {
         debugPrint('Navigating via announcement deep link: $deepLink');
         deepLinkService.handleDeepLink(uri);
+        return;
+      }
+    }
+
+    final contentId = data['content_id'] as String?;
+    if (contentId != null && contentId.isNotEmpty) {
+      final route = switch (data['content_type']) {
+        'event' => eventRouteFor(contentId),
+        'news' => newsRouteFor(contentId),
+        'job' => jobRouteFor(contentId),
+        _ => null,
+      };
+      if (route != null) {
+        debugPrint('Navigating to announcement content: $route');
+        deepLinkService.queueRoute(route);
         return;
       }
     }
@@ -1461,10 +1506,7 @@ class NotificationService {
     }
 
     debugPrint('Opening notifications inbox for announcement');
-    final context = navigatorKey.currentContext;
-    if (context != null) {
-      context.go('/notifications');
-    }
+    deepLinkService.queueRoute('/notifications');
   }
 
   /// Handle chat notification tap

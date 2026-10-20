@@ -94,6 +94,7 @@ class DeepLinkService {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
   final List<Uri> _pendingUris = [];
+  final List<String> _pendingRoutes = [];
 
   Future<void> initialize() async {
     _appLinks = AppLinks();
@@ -418,13 +419,33 @@ class DeepLinkService {
     _handleDeepLink(uri);
   }
 
+  /// Navigates to an in-app [location], or queues it until a navigator exists
+  /// (a cold start from a notification tap), when [flushPendingLinks] replays it.
+  void queueRoute(String location) {
+    if (navigatorKey.currentContext == null) {
+      _pendingRoutes.add(location);
+      logPrint(
+        '🔗 Queued route until navigation is ready: ${linkForLog(location)}',
+      );
+      return;
+    }
+    _go(location);
+  }
+
+  @visibleForTesting
+  List<String> get pendingRoutesForTest => List.unmodifiable(_pendingRoutes);
+
   void flushPendingLinks() {
-    if (navigatorKey.currentContext == null || _pendingUris.isEmpty) return;
+    if (navigatorKey.currentContext == null) return;
+    if (_pendingUris.isEmpty && _pendingRoutes.isEmpty) return;
     final pending = List<Uri>.from(_pendingUris);
+    final pendingRoutes = List<String>.from(_pendingRoutes);
     _pendingUris.clear();
+    _pendingRoutes.clear();
     for (final uri in pending) {
       _handleDeepLink(uri);
     }
+    pendingRoutes.forEach(_go);
   }
 
   void _openExpenseRoute(Uri uri, {required List<String> pathSegments}) {

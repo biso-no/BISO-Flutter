@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="BISO"
         android:name="${applicationName}"
@@ -109,6 +110,12 @@
                 <data android:scheme="appwrite-callback-biso"/>
             </intent-filter>
         </activity>
+
+        <!-- Channel FCM uses for pushes that arrive while the app is in the
+             background. Created by FlutterLocalNotificationsPresenter. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="biso_default" />
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
