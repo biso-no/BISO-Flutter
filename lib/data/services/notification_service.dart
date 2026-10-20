@@ -9,6 +9,7 @@ import 'package:appwrite/appwrite.dart';
 
 import '../../core/constants/notification_topics.dart';
 import 'appwrite_service.dart';
+import 'announcement_route.dart';
 import 'deep_link_service.dart';
 import 'device_subscription_store.dart';
 import 'local_notification_presenter.dart';
@@ -1498,56 +1499,15 @@ class NotificationService {
 
   /// Handle announcement notification tap.
   ///
-  /// Prefers the server-provided `deep_link` (e.g. `biso://event?id=<id>`),
-  /// then `content_type` + `content_id`, then `announcement_id`, and
-  /// finally opens the notifications inbox. Every step goes through
-  /// [DeepLinkService], which queues until the navigator exists (cold start).
+  /// Opens what the same announcement's inbox row opens
+  /// ([announcementRouteForData]): its `deep_link`, then `content_type` +
+  /// `content_id`, then `event_id`, then `announcement_id`, and with none of
+  /// them the notifications inbox. Goes through [DeepLinkService], which
+  /// queues until the navigator exists (cold start).
   void _handleAnnouncementNotification(Map<String, dynamic> data) {
-    final deepLinkService = DeepLinkService();
-
-    final deepLink = data['deep_link'] as String?;
-    if (deepLink != null && deepLink.isNotEmpty) {
-      final uri = Uri.tryParse(deepLink);
-      if (uri != null) {
-        debugPrint('Navigating via announcement deep link: $deepLink');
-        deepLinkService.handleDeepLink(uri);
-        return;
-      }
-    }
-
-    final contentId = data['content_id'] as String?;
-    if (contentId != null && contentId.isNotEmpty) {
-      final route = switch (data['content_type']) {
-        'event' => eventRouteFor(contentId),
-        'news' => newsRouteFor(contentId),
-        'job' => jobRouteFor(contentId),
-        _ => null,
-      };
-      if (route != null) {
-        debugPrint('Navigating to announcement content: $route');
-        deepLinkService.queueRoute(route);
-        return;
-      }
-    }
-
-    final eventId = data['event_id'] as String?;
-    if (eventId != null && eventId.isNotEmpty) {
-      debugPrint('Navigating to announcement event: $eventId');
-      deepLinkService.handleDeepLink(Uri.parse('biso://event?id=$eventId'));
-      return;
-    }
-
-    final announcementId = data['announcement_id'] as String?;
-    if (announcementId != null && announcementId.isNotEmpty) {
-      debugPrint('Navigating to announcement detail: $announcementId');
-      deepLinkService.handleDeepLink(
-        Uri.parse('biso://announcement?id=$announcementId'),
-      );
-      return;
-    }
-
-    debugPrint('Opening notifications inbox for announcement');
-    deepLinkService.queueRoute('/notifications');
+    final route = announcementRouteForData(data) ?? '/notifications';
+    debugPrint('Opening announcement tap: $route');
+    DeepLinkService().queueRoute(route);
   }
 
   /// Handle chat notification tap

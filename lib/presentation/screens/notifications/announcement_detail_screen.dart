@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
@@ -170,8 +171,8 @@ List<Widget> _announcementSlivers(
                 InboxItemRow(
                   key: ValueKey('${item.type}-${item.id}'),
                   item: item,
-                  // Pushed where it can be, so Back returns to this list.
-                  onTap: () => NavigationUtils.openInShell(context, item.route),
+                  // Pushed, so Back returns to this list.
+                  onTap: () => context.push(item.route),
                 ),
             ],
           ),
@@ -184,11 +185,9 @@ List<Widget> _announcementSlivers(
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () {
-                DeepLinkService().handleDeepLink(
-                  Uri.parse('biso://event?id=${notification.eventId}'),
-                );
-              },
+              // Pushed, so Back returns to the announcement.
+              onPressed: () =>
+                  context.push(eventRouteFor(notification.eventId)),
               icon: const Icon(CupertinoIcons.calendar),
               label: Text(AppLocalizations.of(context)!.announcementViewEvent),
             ),

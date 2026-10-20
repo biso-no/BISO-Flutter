@@ -480,6 +480,7 @@ final _router = GoRouter(
             ),
           ],
         ),
+        ...inboxRoutes(),
       ],
     ),
 
@@ -497,19 +498,34 @@ final _router = GoRouter(
         return _LargeEventLoader(slug: slug);
       },
     ),
-    GoRoute(
-      path: '/notifications',
-      name: 'notifications',
-      builder: (context, state) => const NotificationsScreen(),
-    ),
-    GoRoute(
-      path: '/announcements/:id',
-      name: 'announcement-detail',
-      builder: (context, state) =>
-          AnnouncementDetailScreen(announcementId: state.pathParameters['id']!),
-    ),
   ],
 );
+
+/// The app's router, so tests can check where its routes sit.
+@visibleForTesting
+GoRouter get appRouter => _router;
+
+/// The inbox and an announcement's detail.
+///
+/// They sit inside the tab shell, beside the tabs, so the event, article or
+/// vacancy they open (also in the shell) is pushed above them and Back
+/// returns to them. Outside the shell they could not push it: go_router
+/// cannot stack a second copy of the shell, and the shell is already below
+/// them when Home's bell opens the inbox.
+@visibleForTesting
+List<RouteBase> inboxRoutes() => [
+  GoRoute(
+    path: '/notifications',
+    name: 'notifications',
+    builder: (context, state) => const NotificationsScreen(),
+  ),
+  GoRoute(
+    path: '/announcements/:id',
+    name: 'announcement-detail',
+    builder: (context, state) =>
+        AnnouncementDetailScreen(announcementId: state.pathParameters['id']!),
+  ),
+];
 
 // App Shell that contains the bottom navigation and manages tab state
 class _AppShell extends ConsumerStatefulWidget {

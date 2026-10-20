@@ -7,7 +7,7 @@ import '../../../core/utils/inbox_layout.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
 import '../../../data/models/inbox_item.dart';
-import '../../../data/services/deep_link_service.dart';
+import '../../../data/services/announcement_route.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
@@ -151,14 +151,16 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     InboxDay.earlier => l10n.inboxDayEarlier,
   };
 
+  // Every tap pushes inside the tab shell, where the inbox lives too, so Back
+  // returns to the inbox.
+
   Future<void> _openItem(
     BuildContext context,
     AppNotification n,
     InboxItem item,
   ) async {
     await ref.read(notificationInboxProvider.notifier).markRead(n);
-    // Pushed where it can be, so Back returns to the inbox.
-    if (context.mounted) NavigationUtils.openInShell(context, item.route);
+    if (context.mounted) context.push(item.route);
   }
 
   Future<void> _openAnnouncement(
@@ -167,32 +169,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   ) async {
     await ref.read(notificationInboxProvider.notifier).markRead(n);
     if (n.id.isNotEmpty && context.mounted) {
-      context.push('/announcements/${n.id}');
+      context.push('/announcements/${Uri.encodeComponent(n.id)}');
     }
   }
 
-  Future<void> _handleTap(BuildContext context, AppNotification item) async {
-    await ref.read(notificationInboxProvider.notifier).markRead(item);
-
-    if (item.deepLink != null && item.deepLink!.isNotEmpty) {
-      final uri = Uri.tryParse(item.deepLink!);
-      if (uri != null) {
-        DeepLinkService().handleDeepLink(uri);
-        return;
-      }
-    }
-
-    if (item.eventId != null && item.eventId!.isNotEmpty) {
-      DeepLinkService().handleDeepLink(
-        Uri.parse('biso://event?id=${item.eventId}'),
-      );
-      return;
-    }
-
-    // No deep link or event: open the rich announcement detail directly.
-    if (item.id.isNotEmpty && context.mounted) {
-      context.go('/announcements/${item.id}');
-    }
+  Future<void> _handleTap(BuildContext context, AppNotification n) async {
+    await ref.read(notificationInboxProvider.notifier).markRead(n);
+    final route = announcementRouteFor(n);
+    if (route != null && context.mounted) context.push(route);
   }
 }
 

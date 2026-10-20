@@ -1,7 +1,5 @@
-import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/app_notification_model.dart';
 import 'package:biso/data/models/inbox_item.dart';
-import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/notifications/announcement_detail_screen.dart';
 import 'package:biso/presentation/screens/notifications/notifications_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
@@ -229,64 +227,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Bergen event 2'), findsOneWidget);
       expect(find.text('3 new events in Bergen'), findsWidgets);
-    },
-  );
-
-  testWidgets(
-    'an item opened from an announcement above the tab shell still opens: '
-    'go_router cannot push a second copy of the shell, so it goes instead',
-    (tester) async {
-      final burst = _n(
-        'b1',
-        '3 new events in Bergen',
-        items: _burstItems,
-        read: true,
-      );
-      final router = GoRouter(
-        initialLocation: '/home',
-        routes: [
-          ShellRoute(
-            builder: (_, _, child) => child,
-            routes: [
-              GoRoute(path: '/home', builder: (_, _) => const Text('home')),
-              GoRoute(
-                path: '/explore/events/:id',
-                builder: (_, state) =>
-                    Text('event page ${state.pathParameters['id']}'),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/announcements/:id',
-            builder: (_, state) => AnnouncementDetailScreen(
-              announcementId: state.pathParameters['id']!,
-            ),
-          ),
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            announcementDetailProvider('b1').overrideWith((ref) async => burst),
-          ],
-          child: MaterialApp.router(
-            theme: PremiumTheme.build(Brightness.light),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            routerConfig: router,
-          ),
-        ),
-      );
-      // As from Home's bell: the announcement sits above the shell.
-      router.push('/announcements/b1');
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Bergen event 2'));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('event page e2'), findsOneWidget);
     },
   );
 

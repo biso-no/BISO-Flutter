@@ -86,6 +86,119 @@ String newsRouteFor(String? idOrSlug) {
       : '/explore/news/${Uri.encodeComponent(key)}';
 }
 
+/// The in-app location [uri] opens, or null when it opens no plain location.
+///
+/// Covers `biso://` links and `https://biso.no` universal links (with or
+/// without the `/app` prefix) to an event, article, vacancy, product, the
+/// shop, the membership page, an announcement or a tab. Null for a sign-in,
+/// expense, chat or debug link, which each need more than a location, for a
+/// link missing the id it needs, and for a link the app does not know.
+///
+/// [DeepLinkService] goes to this location. The inbox pushes it instead, so
+/// Back returns to the inbox.
+String? routeForDeepLink(Uri uri) => switch (uri.scheme) {
+  'biso' => _bisoRouteFor(uri),
+  'https' || 'http' => _isBisoHost(uri) ? _universalRouteFor(uri) : null,
+  _ => null,
+};
+
+bool _isBisoHost(Uri uri) {
+  final host = uri.host.toLowerCase();
+  return host == 'biso.no' || host == 'www.biso.no';
+}
+
+/// The path segments of a universal link below its optional `/app` prefix.
+List<String> _appSegments(Uri uri) {
+  final segments = uri.pathSegments;
+  return segments.isNotEmpty && segments.first == 'app'
+      ? segments.skip(1).toList()
+      : segments;
+}
+
+String? _bisoRouteFor(Uri uri) {
+  final id = uri.queryParameters['id'];
+  return switch (uri.host) {
+    'event' => id == null ? null : eventRouteFor(id),
+    'news' => newsRouteFor(id),
+    'job' => jobRouteFor(id),
+    'product' => id == null ? '/explore/products' : '/explore/products/$id',
+    'shop' => _shopRouteFor(uri),
+    'announcement' =>
+      id == null || id.isEmpty
+          ? null
+          : '/announcements/${Uri.encodeComponent(id)}',
+    'membership' => membershipRouteFor(uri.queryParameters),
+    _ => null,
+  };
+}
+
+String? _universalRouteFor(Uri uri) {
+  // `/auth/...` is a sign-in link, which [magicLinkRouteFor] handles.
+  if (uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'auth') {
+    return null;
+  }
+  final segments = _appSegments(uri);
+  if (segments.isEmpty) return '/home';
+  final key = segments.length >= 2 ? segments[1] : null;
+  return switch (segments.first) {
+    'home' => '/home',
+    'events' => eventRouteFor(key),
+    'news' => newsRouteFor(key),
+    'products' || 'marketplace' =>
+      key == null ? '/explore/products' : '/explore/products/$key',
+    'shop' => _shopUniversalRouteFor(uri, segments),
+    'jobs' || 'volunteer' => jobRouteFor(key),
+    'profile' => '/profile',
+    'membership' => membershipRouteFor(uri.queryParameters),
+    _ => null,
+  };
+}
+
+/// The location of a `biso://shop/...` link, such as the post-payment return
+/// from Vipps or Stripe.
+///
+/// `/api/checkout/return` on the website reconciles the payment and books
+/// the revenue, then bounces an app checkout here as
+/// `biso://shop/order?orderId=…&status=…`. The status is only a first
+/// impression — the order screen verifies with the server itself, because a
+/// deep link can be dropped by the browser or arrive before the provider has
+/// finished settling.
+String _shopRouteFor(Uri uri) {
+  final path = uri.path;
+  final orderId = uri.queryParameters['orderId'];
+  if (path == '/order' || path == '/orders') {
+    return orderId != null && orderId.isNotEmpty
+        ? _orderRoute(orderId, uri.queryParameters['status'])
+        : '/explore/products/orders';
+  }
+  if (path == '/cart') return '/explore/products/cart';
+  return '/explore/products';
+}
+
+/// The same destinations over `https://biso.no/app/shop/...`, so a link
+/// shared outside the app opens the same place.
+String _shopUniversalRouteFor(Uri uri, List<String> segments) {
+  if (segments.length >= 2 && segments[1] == 'order') {
+    final id = segments.length >= 3
+        ? segments[2]
+        : uri.queryParameters['orderId'];
+    return id != null && id.isNotEmpty
+        ? _orderRoute(id, uri.queryParameters['status'])
+        : '/explore/products/orders';
+  }
+  if (segments.length >= 2 && segments[1] == 'cart') {
+    return '/explore/products/cart';
+  }
+  return '/explore/products';
+}
+
+String _orderRoute(String orderId, String? status) {
+  final base = '/explore/products/order/${Uri.encodeComponent(orderId)}';
+  return status == null || status.isEmpty
+      ? base
+      : '$base?status=${Uri.encodeComponent(status)}';
+}
+
 class DeepLinkService {
   static final DeepLinkService _instance = DeepLinkService._internal();
   factory DeepLinkService() => _instance;
@@ -133,54 +246,33 @@ class DeepLinkService {
       return;
     }
 
-    if (uri.scheme == 'biso') {
-      switch (uri.host) {
-        case 'auth':
-          _handleAuthDeepLink(uri);
-          break;
-        case 'event':
-          _handleEventDeepLink(uri);
-          break;
-        case 'news':
-          _go(newsRouteFor(uri.queryParameters['id']));
-          break;
-        case 'product':
-          _handleProductDeepLink(uri);
-          break;
-        case 'shop':
-          _handleShopDeepLink(uri);
-          break;
-        case 'job':
-          _handleJobDeepLink(uri);
-          break;
-        case 'expense':
-          _handleExpenseDeepLink(uri);
-          break;
-        case 'chat':
-          _handleChatDeepLink(uri);
-          break;
-        case 'announcement':
-          _handleAnnouncementDeepLink(uri);
-          break;
-        case 'membership':
-          _go(membershipRouteFor(uri.queryParameters));
-          break;
-        case 'debug':
-          if (kDebugMode) _handleDebugDeepLink(uri);
-          break;
-        default:
-          logPrint('🔴 Unknown deep link host: ${uri.host}');
-      }
-    } else if (uri.scheme == 'https' || uri.scheme == 'http') {
-      _handleUniversalLink(uri);
-    } else {
-      logPrint('🔴 Unknown deep link scheme: ${uri.scheme}');
+    switch (uri.scheme) {
+      case 'biso':
+        _handleBisoLink(uri);
+      case 'https' || 'http':
+        _handleUniversalLink(uri);
+      default:
+        logPrint('🔴 Unknown deep link scheme: ${uri.scheme}');
+    }
+  }
+
+  void _handleBisoLink(Uri uri) {
+    switch (uri.host) {
+      case 'auth':
+        _handleAuthDeepLink(uri);
+      case 'expense':
+        _openExpenseRoute(uri, pathSegments: uri.pathSegments);
+      case 'chat':
+        _handleChatDeepLink(uri);
+      case 'debug':
+        if (kDebugMode) _handleDebugDeepLink(uri);
+      default:
+        _goToLink(uri);
     }
   }
 
   void _handleUniversalLink(Uri uri) {
-    final host = uri.host.toLowerCase();
-    if (host != 'biso.no' && host != 'www.biso.no') {
+    if (!_isBisoHost(uri)) {
       logPrint('🔴 Unknown universal link host: ${uri.host}');
       return;
     }
@@ -197,52 +289,24 @@ class DeepLinkService {
       return;
     }
 
-    final appSegments = segments.isNotEmpty && segments.first == 'app'
-        ? segments.skip(1).toList()
-        : segments;
-    if (appSegments.isEmpty) {
-      _go('/home');
+    final appSegments = _appSegments(uri);
+    if (appSegments.isNotEmpty &&
+        (appSegments.first == 'expenses' || appSegments.first == 'expense')) {
+      _openExpenseRoute(uri, pathSegments: appSegments);
       return;
     }
 
-    switch (appSegments.first) {
-      case 'home':
-        _go('/home');
-        break;
-      case 'events':
-        _go(eventRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
-        break;
-      case 'news':
-        _go(newsRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
-        break;
-      case 'products':
-      case 'marketplace':
-        if (appSegments.length >= 2) {
-          _go('/explore/products/${appSegments[1]}');
-        } else {
-          _go('/explore/products');
-        }
-        break;
-      case 'shop':
-        _handleShopUniversalLink(uri, appSegments);
-        break;
-      case 'jobs':
-      case 'volunteer':
-        _go(jobRouteFor(appSegments.length >= 2 ? appSegments[1] : null));
-        break;
-      case 'expenses':
-      case 'expense':
-        _openExpenseRoute(uri, pathSegments: appSegments);
-        break;
-      case 'profile':
-        _go('/profile');
-        break;
-      case 'membership':
-        _go(membershipRouteFor(uri.queryParameters));
-        break;
-      default:
-        logPrint('🔴 Unknown universal link path: ${uri.path}');
+    _goToLink(uri);
+  }
+
+  /// Goes to the location [uri] opens (see [routeForDeepLink]).
+  void _goToLink(Uri uri) {
+    final route = routeForDeepLink(uri);
+    if (route == null) {
+      logPrint('🔴 Unhandled deep link: ${linkForLog(uri)}');
+      return;
     }
+    _go(route);
   }
 
   void _handleAuthDeepLink(Uri uri) {
@@ -267,120 +331,6 @@ class DeepLinkService {
 
   void dispose() {
     _linkSubscription?.cancel();
-  }
-
-  /// Handle event deep links
-  void _handleEventDeepLink(Uri uri) {
-    final eventId = uri.queryParameters['id'];
-
-    logPrint('🔗 Event deep link - ID: $eventId');
-
-    if (eventId != null) {
-      _go(eventRouteFor(eventId));
-    } else {
-      logPrint('🔴 Missing event ID in deep link');
-    }
-  }
-
-  /// Handles the post-payment return from Vipps or Stripe.
-  ///
-  /// `/api/checkout/return` on the website reconciles the payment and books
-  /// the revenue, then bounces an app checkout here as
-  /// `biso://shop/order?orderId=…&status=…`. The status is only a first
-  /// impression — the order screen verifies with the server itself, because a
-  /// deep link can be dropped by the browser or arrive before the provider has
-  /// finished settling.
-  void _handleShopDeepLink(Uri uri) {
-    final path = uri.path;
-    final orderId = uri.queryParameters['orderId'];
-
-    logPrint('🔗 Shop deep link - path: $path order: $orderId');
-
-    if (path == '/order' || path == '/orders') {
-      if (orderId != null && orderId.isNotEmpty) {
-        _go(_orderRoute(orderId, uri.queryParameters['status']));
-      } else {
-        _go('/explore/products/orders');
-      }
-      return;
-    }
-    if (path == '/cart') {
-      _go('/explore/products/cart');
-      return;
-    }
-    _go('/explore/products');
-  }
-
-  /// The same destinations over `https://biso.no/app/shop/...`, so a link
-  /// shared outside the app opens the same place.
-  void _handleShopUniversalLink(Uri uri, List<String> segments) {
-    final orderId = uri.queryParameters['orderId'];
-    if (segments.length >= 2 && segments[1] == 'order') {
-      final id = segments.length >= 3 ? segments[2] : orderId;
-      if (id != null && id.isNotEmpty) {
-        _go(_orderRoute(id, uri.queryParameters['status']));
-        return;
-      }
-      _go('/explore/products/orders');
-      return;
-    }
-    if (segments.length >= 2 && segments[1] == 'cart') {
-      _go('/explore/products/cart');
-      return;
-    }
-    _go('/explore/products');
-  }
-
-  String _orderRoute(String orderId, String? status) {
-    final base = '/explore/products/order/${Uri.encodeComponent(orderId)}';
-    return status == null || status.isEmpty
-        ? base
-        : '$base?status=${Uri.encodeComponent(status)}';
-  }
-
-  /// Handle product deep links
-  void _handleProductDeepLink(Uri uri) {
-    final productId = uri.queryParameters['id'];
-
-    logPrint('🔗 Product deep link - ID: $productId');
-
-    if (productId != null) {
-      _go('/explore/products/$productId');
-    } else {
-      _go('/explore/products');
-    }
-  }
-
-  /// Handle job deep links
-  void _handleJobDeepLink(Uri uri) {
-    final jobId = uri.queryParameters['id'];
-    logPrint('🔗 Job deep link - ID: $jobId');
-    _go(jobRouteFor(jobId));
-  }
-
-  /// Handle expense deep links
-  void _handleExpenseDeepLink(Uri uri) {
-    _openExpenseRoute(uri, pathSegments: uri.pathSegments);
-  }
-
-  /// Handle announcement deep links
-  void _handleAnnouncementDeepLink(Uri uri) {
-    final announcementId = uri.queryParameters['id'];
-
-    logPrint('🔗 Announcement deep link - ID: $announcementId');
-
-    if (announcementId != null && announcementId.isNotEmpty) {
-      final context = navigatorKey.currentContext;
-      if (context != null) {
-        context.go('/announcements/$announcementId');
-      } else {
-        logPrint(
-          '🔴 No navigation context available for announcement deep link',
-        );
-      }
-    } else {
-      logPrint('🔴 Missing announcement ID in deep link');
-    }
   }
 
   /// Handle chat deep links

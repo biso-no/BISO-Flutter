@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:appwrite/appwrite.dart';
+import 'package:biso/data/services/announcement_route.dart';
 import 'package:biso/data/services/deep_link_service.dart';
 import 'package:biso/data/services/local_notification_presenter.dart';
 import 'package:biso/data/services/notification_service.dart';
@@ -112,6 +113,20 @@ void main() {
             },
           ),
           GoRoute(
+            path: '/explore/volunteer/:id',
+            builder: (_, state) {
+              visited.add(state.uri.toString());
+              return const SizedBox();
+            },
+          ),
+          GoRoute(
+            path: '/announcements/:id',
+            builder: (_, state) {
+              visited.add(state.uri.toString());
+              return const SizedBox();
+            },
+          ),
+          GoRoute(
             path: '/notifications',
             builder: (_, state) {
               visited.add(state.uri.toString());
@@ -148,6 +163,36 @@ void main() {
       await tester.pumpAndSettle();
       expect(visited, ['/explore/events/e1']);
     });
+
+    for (final data in <Map<String, dynamic>>[
+      {'announcement_id': 'a1', 'deep_link': 'biso://news?id=n1'},
+      {'announcement_id': 'a1', 'deep_link': 'biso://job?id=j1'},
+      {
+        'announcement_id': 'a1',
+        'deep_link': '',
+        'content_type': 'event',
+        'content_id': 'e1',
+      },
+      {
+        'announcement_id': 'a1',
+        'deep_link': 'biso://nowhere',
+        'content_type': 'news',
+        'content_id': 'n2',
+      },
+      {'announcement_id': 'a1', 'event_id': 'e7'},
+      {'announcement_id': 'a1'},
+    ]) {
+      testWidgets('a tap opens what the inbox row opens: $data', (
+        tester,
+      ) async {
+        await pumpRouter(tester);
+        _service(
+          _FakePresenter(),
+        ).handleNotificationTap(_message({'type': 'announcement', ...data}));
+        await tester.pumpAndSettle();
+        expect(visited, [announcementRouteForData(data)]);
+      });
+    }
 
     test('an empty payload queues /notifications until a context exists', () {
       // No navigator is mounted: this is a cold start.
