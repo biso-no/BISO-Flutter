@@ -9,9 +9,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The `announcements` table, answering the reads `fetchInbox` makes the way
-/// Appwrite would: `equal` (any of the listed values), `isNull`, `orderDesc`
-/// and `limit`. Any other query method throws, so a query this fake does not
-/// understand cannot pass silently. `user_notifications` is empty.
+/// Appwrite would: `equal` (any of the listed values), `isNull`, `orderDesc`,
+/// `limit` and `select`. Any other query method throws, so a query this fake
+/// does not understand cannot pass silently. `user_notifications` is empty.
+///
+/// Rows go through the SDK's own `RowList.fromMap`, exactly as the real
+/// `listRows` parses a response, so a column the SDK cannot parse fails here
+/// the way it fails on a device.
 class _FakeTablesDB extends TablesDB {
   _FakeTablesDB(this.announcements) : super(Client());
 
@@ -47,6 +51,7 @@ class _FakeTablesDB extends TablesDB {
     Iterable<Map<String, dynamic>> rows = table;
     String? newestFirstBy;
     int? limit;
+    List<String>? selected;
     for (final query in decoded) {
       final attribute = query['attribute'] as String?;
       final values = query['values'] as List<dynamic>? ?? const [];
@@ -59,6 +64,8 @@ class _FakeTablesDB extends TablesDB {
           newestFirstBy = attribute;
         case 'limit':
           limit = values.single as int;
+        case 'select':
+          selected = values.cast<String>();
         default:
           throw UnsupportedError('unsupported query: $query');
       }
@@ -73,22 +80,19 @@ class _FakeTablesDB extends TablesDB {
     }
     final max = limit;
     if (max != null && result.length > max) result = result.sublist(0, max);
-    return models.RowList(
-      total: result.length,
-      rows: [
+    final columns = selected;
+    return models.RowList.fromMap({
+      'total': result.length,
+      'rows': [
         for (final row in result)
-          models.Row(
-            $id: row['\$id'] as String,
-            $sequence: '0',
-            $tableId: tableId,
-            $databaseId: databaseId,
-            $createdAt: '',
-            $updatedAt: '',
-            $permissions: const [],
-            data: row,
-          ),
+          columns == null
+              ? row
+              : {
+                  for (final column in columns)
+                    if (row.containsKey(column)) column: row[column],
+                },
       ],
-    );
+    });
   }
 }
 
@@ -502,5 +506,77 @@ void main() {
         ]);
       },
     );
+  });
+
+  group('announcement rows with a data column', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    setUpAll(() {
+      // Constructing an Appwrite Client asks path_provider for a cookie
+      // directory, which has no implementation under `flutter test`.
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (call) async => Directory.systemTemp.path,
+          );
+    });
+
+    tearDownAll(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            null,
+          );
+    });
+
+    /// A broadcast as the admin leaves it once sent: the push payload is kept,
+    /// as a JSON string, in the row's own `data` column. The SDK's
+    /// `Row.fromMap` reads `map['data'] ?? map` as the row's data, so when that
+    /// column is fetched the string replaces the whole row and parsing throws.
+    Map<String, dynamic> sentBroadcast() => <String, dynamic>{
+      '\$id': 'announcement-1',
+      '\$createdAt': '2026-10-19T12:00:00.000+00:00',
+      'status': 'sent',
+      'audience_type': 'broadcast',
+      'title_en': 'Hello',
+      'body_en': '<p>World</p>',
+      'category': 'general',
+      'deep_link': 'biso://announcement?id=announcement-1',
+      'sent_at': '2026-10-19T12:00:00.000+00:00',
+      'data': jsonEncode({
+        'type': 'announcement',
+        'announcement_id': 'announcement-1',
+        'event_id': '',
+        'segment_id': '',
+        'deep_link': 'biso://announcement?id=announcement-1',
+        'category': 'general',
+      }),
+    };
+
+    test(
+      'fetchAnnouncementById loads it - tapping its push opens this, and it '
+      'failed with "type \'String\' is not a subtype of type '
+      '\'Map<String, dynamic>\'"',
+      () async {
+        final notification = await NotificationInboxService(
+          tablesDb: _FakeTablesDB([sentBroadcast()]),
+        ).fetchAnnouncementById(announcementId: 'announcement-1', locale: 'en');
+
+        expect(notification, isNotNull);
+        expect(notification!.id, 'announcement-1');
+        expect(notification.title, 'Hello');
+        expect(notification.body, 'World');
+        expect(notification.deepLink, 'biso://announcement?id=announcement-1');
+      },
+    );
+
+    test('fetchInbox lists it', () async {
+      final items = await NotificationInboxService(
+        tablesDb: _FakeTablesDB([sentBroadcast()]),
+      ).fetchInbox(userId: 'user-1', locale: 'en', campusId: '1');
+
+      expect([for (final item in items) item.id], ['announcement-1']);
+      expect(items.single.title, 'Hello');
+    });
   });
 }
