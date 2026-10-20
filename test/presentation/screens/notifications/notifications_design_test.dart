@@ -62,9 +62,7 @@ void main() {
         tester,
         const NotificationsScreen(),
         inShell: false,
-        overrides: _overrides(
-          NotificationInboxState(items: [_unread, _read]),
-        ),
+        overrides: _overrides(NotificationInboxState(items: [_unread, _read])),
       );
 
       final unreadRow = tester.widget<BisoListRow>(
@@ -104,9 +102,7 @@ void main() {
         tester,
         const NotificationsScreen(),
         inShell: false,
-        overrides: _overrides(
-          NotificationInboxState(items: [_unread, _read]),
-        ),
+        overrides: _overrides(NotificationInboxState(items: [_unread, _read])),
       );
 
       final eventRow = tester.getSemantics(

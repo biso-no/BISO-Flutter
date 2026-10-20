@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
@@ -8,6 +9,7 @@ import '../../../data/services/deep_link_service.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+import 'inbox_widgets.dart';
 
 /// Rich detail view for a single announcement.
 ///
@@ -46,8 +48,10 @@ class _AnnouncementDetailScreenState
       title: 'Announcement',
       largeTitle: false,
       leading: BisoBackButton(
-        onPressed: () =>
-            NavigationUtils.safeGoBack(context, fallbackRoute: '/notifications'),
+        onPressed: () => NavigationUtils.safeGoBack(
+          context,
+          fallbackRoute: '/notifications',
+        ),
       ),
       slivers: detail.when(
         loading: () => const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
@@ -101,7 +105,9 @@ List<Widget> _announcementSlivers(
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: [Chip(label: Text(_categoryLabel(notification.category)))],
+              children: [
+                Chip(label: Text(_categoryLabel(notification.category))),
+              ],
             ),
             const SizedBox(height: 16),
             Text(
@@ -145,6 +151,23 @@ List<Widget> _announcementSlivers(
         ),
       ),
     ),
+    if (notification.items.isNotEmpty)
+      SliverToBoxAdapter(
+        child: BisoSection(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: BisoListGroup(
+            dividerIndent: kInboxThumbDividerIndent,
+            children: [
+              for (final item in notification.items)
+                InboxItemRow(
+                  key: ValueKey('${item.type}-${item.id}'),
+                  item: item,
+                  onTap: () => context.go(item.route),
+                ),
+            ],
+          ),
+        ),
+      ),
     if (notification.eventId != null && notification.eventId!.isNotEmpty)
       SliverToBoxAdapter(
         child: Padding(

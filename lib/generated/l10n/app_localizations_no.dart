@@ -2876,4 +2876,86 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get newsNotAvailable => 'Denne artikkelen er ikke tilgjengelig';
+
+  @override
+  String get inboxFilterFromBiso => 'Fra BISO';
+
+  @override
+  String get inboxDayToday => 'I dag';
+
+  @override
+  String get inboxDayYesterday => 'I går';
+
+  @override
+  String get inboxDayThisWeek => 'Denne uken';
+
+  @override
+  String get inboxDayEarlier => 'Tidligere';
+
+  @override
+  String inboxSeeAll(int count) {
+    return 'Se alle $count';
+  }
+
+  @override
+  String inboxNewCount(int count) {
+    return '$count nye';
+  }
+
+  @override
+  String get inboxEmptyTitle => 'Ingen varsler ennå';
+
+  @override
+  String get inboxEmptyMessage => 'Oppdateringer fra BISO vises her.';
+
+  @override
+  String get inboxJustNow => 'Akkurat nå';
+
+  @override
+  String inboxMinutesAgo(int count) {
+    return '$count min siden';
+  }
+
+  @override
+  String inboxHoursAgo(int count) {
+    return '$count t siden';
+  }
+
+  @override
+  String inboxDaysAgo(int count) {
+    return '$count d siden';
+  }
+
+  @override
+  String inboxWeeksAgo(int count) {
+    return '$count u siden';
+  }
+
+  @override
+  String inboxMonthsAgo(int count) {
+    return '$count md siden';
+  }
+
+  @override
+  String inboxYearsAgo(int count) {
+    return '$count år siden';
+  }
+
+  @override
+  String get inboxCategoryUrgent => 'Haster';
+
+  @override
+  String get inboxCategoryTrip => 'Tur';
+
+  @override
+  String get inboxCategoryEvent => 'Arrangement';
+
+  @override
+  String get inboxCategoryNews => 'Nyhet';
+
+  @override
+  String get inboxCategoryJob => 'Stilling';
+
+  @override
+  String get inboxCategoryGeneral => 'Generelt';
 }

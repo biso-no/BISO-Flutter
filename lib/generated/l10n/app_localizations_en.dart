@@ -2868,4 +2868,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get newsNotAvailable => 'This article isn\'t available';
+
+  @override
+  String get inboxFilterFromBiso => 'From BISO';
+
+  @override
+  String get inboxDayToday => 'Today';
+
+  @override
+  String get inboxDayYesterday => 'Yesterday';
+
+  @override
+  String get inboxDayThisWeek => 'This week';
+
+  @override
+  String get inboxDayEarlier => 'Earlier';
+
+  @override
+  String inboxSeeAll(int count) {
+    return 'See all $count';
+  }
+
+  @override
+  String inboxNewCount(int count) {
+    return '$count new';
+  }
+
+  @override
+  String get inboxEmptyTitle => 'No notifications yet';
+
+  @override
+  String get inboxEmptyMessage => 'Updates from BISO will appear here.';
+
+  @override
+  String get inboxJustNow => 'Just now';
+
+  @override
+  String inboxMinutesAgo(int count) {
+    return '${count}m ago';
+  }
+
+  @override
+  String inboxHoursAgo(int count) {
+    return '${count}h ago';
+  }
+
+  @override
+  String inboxDaysAgo(int count) {
+    return '${count}d ago';
+  }
+
+  @override
+  String inboxWeeksAgo(int count) {
+    return '${count}w ago';
+  }
+
+  @override
+  String inboxMonthsAgo(int count) {
+    return '${count}mo ago';
+  }
+
+  @override
+  String inboxYearsAgo(int count) {
+    return '${count}y ago';
+  }
+
+  @override
+  String get inboxCategoryUrgent => 'Urgent';
+
+  @override
+  String get inboxCategoryTrip => 'Trip';
+
+  @override
+  String get inboxCategoryEvent => 'Event';
+
+  @override
+  String get inboxCategoryNews => 'News';
+
+  @override
+  String get inboxCategoryJob => 'Job';
+
+  @override
+  String get inboxCategoryGeneral => 'General';
 }

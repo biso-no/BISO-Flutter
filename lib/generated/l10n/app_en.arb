@@ -3789,5 +3789,133 @@
   "newsNotAvailable": "This article isn't available",
   "@newsNotAvailable": {
     "description": "News detail: the article does not exist"
+  },
+  "inboxFilterFromBiso": "From BISO",
+  "@inboxFilterFromBiso": {
+    "description": "Inbox filter chip: messages sent by BISO itself"
+  },
+  "inboxDayToday": "Today",
+  "@inboxDayToday": {
+    "description": "Inbox day group"
+  },
+  "inboxDayYesterday": "Yesterday",
+  "@inboxDayYesterday": {
+    "description": "Inbox day group"
+  },
+  "inboxDayThisWeek": "This week",
+  "@inboxDayThisWeek": {
+    "description": "Inbox day group"
+  },
+  "inboxDayEarlier": "Earlier",
+  "@inboxDayEarlier": {
+    "description": "Inbox day group"
+  },
+  "inboxSeeAll": "See all {count}",
+  "@inboxSeeAll": {
+    "description": "Inbox burst: link to every item",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxNewCount": "{count} new",
+  "@inboxNewCount": {
+    "description": "Inbox burst row subtitle",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxEmptyTitle": "No notifications yet",
+  "@inboxEmptyTitle": {
+    "description": "Inbox empty state title"
+  },
+  "inboxEmptyMessage": "Updates from BISO will appear here.",
+  "@inboxEmptyMessage": {
+    "description": "Inbox empty state message"
+  },
+  "inboxJustNow": "Just now",
+  "@inboxJustNow": {
+    "description": "Relative time"
+  },
+  "inboxMinutesAgo": "{count}m ago",
+  "@inboxMinutesAgo": {
+    "description": "Relative time",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxHoursAgo": "{count}h ago",
+  "@inboxHoursAgo": {
+    "description": "Relative time",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxDaysAgo": "{count}d ago",
+  "@inboxDaysAgo": {
+    "description": "Relative time",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxWeeksAgo": "{count}w ago",
+  "@inboxWeeksAgo": {
+    "description": "Relative time",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxMonthsAgo": "{count}mo ago",
+  "@inboxMonthsAgo": {
+    "description": "Relative time",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxYearsAgo": "{count}y ago",
+  "@inboxYearsAgo": {
+    "description": "Relative time",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxCategoryUrgent": "Urgent",
+  "@inboxCategoryUrgent": {
+    "description": "Screen-reader category of an inbox row"
+  },
+  "inboxCategoryTrip": "Trip",
+  "@inboxCategoryTrip": {
+    "description": "Screen-reader category of an inbox row"
+  },
+  "inboxCategoryEvent": "Event",
+  "@inboxCategoryEvent": {
+    "description": "Screen-reader category of an inbox row"
+  },
+  "inboxCategoryNews": "News",
+  "@inboxCategoryNews": {
+    "description": "Screen-reader category of an inbox row"
+  },
+  "inboxCategoryJob": "Job",
+  "@inboxCategoryJob": {
+    "description": "Screen-reader category of an inbox row"
+  },
+  "inboxCategoryGeneral": "General",
+  "@inboxCategoryGeneral": {
+    "description": "Screen-reader category of an inbox row"
   }
 }

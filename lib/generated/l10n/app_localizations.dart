@@ -5240,6 +5240,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This article isn\'t available'**
   String get newsNotAvailable;
+
+  /// Inbox filter chip: messages sent by BISO itself
+  ///
+  /// In en, this message translates to:
+  /// **'From BISO'**
+  String get inboxFilterFromBiso;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get inboxDayToday;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get inboxDayYesterday;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get inboxDayThisWeek;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier'**
+  String get inboxDayEarlier;
+
+  /// Inbox burst: link to every item
+  ///
+  /// In en, this message translates to:
+  /// **'See all {count}'**
+  String inboxSeeAll(int count);
+
+  /// Inbox burst row subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'{count} new'**
+  String inboxNewCount(int count);
+
+  /// Inbox empty state title
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications yet'**
+  String get inboxEmptyTitle;
+
+  /// Inbox empty state message
+  ///
+  /// In en, this message translates to:
+  /// **'Updates from BISO will appear here.'**
+  String get inboxEmptyMessage;
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'Just now'**
+  String get inboxJustNow;
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}m ago'**
+  String inboxMinutesAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}h ago'**
+  String inboxHoursAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}d ago'**
+  String inboxDaysAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}w ago'**
+  String inboxWeeksAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}mo ago'**
+  String inboxMonthsAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}y ago'**
+  String inboxYearsAgo(int count);
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent'**
+  String get inboxCategoryUrgent;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Trip'**
+  String get inboxCategoryTrip;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get inboxCategoryEvent;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'News'**
+  String get inboxCategoryNews;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Job'**
+  String get inboxCategoryJob;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get inboxCategoryGeneral;
 }
 
 class _AppLocalizationsDelegate
