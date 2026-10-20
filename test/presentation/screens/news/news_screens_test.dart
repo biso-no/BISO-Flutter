@@ -1,4 +1,3 @@
-import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/data/models/app_config.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/presentation/screens/explore/explore_screen.dart';
@@ -6,6 +5,7 @@ import 'package:biso/presentation/screens/news/news_detail_screen.dart';
 import 'package:biso/presentation/screens/news/news_list_screen.dart';
 import 'package:biso/data/models/news_model.dart';
 import 'package:biso/data/services/news_service.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/campus/campus_data_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
@@ -53,6 +53,8 @@ NewsModel _news({
 class _FakeNewsService extends NewsService {
   _FakeNewsService(this.items);
   final List<NewsModel> items;
+  final campusIds = <String?>[];
+  final offsets = <int>[];
 
   @override
   Future<List<NewsModel>> listNews({
@@ -60,12 +62,19 @@ class _FakeNewsService extends NewsService {
     String locale = 'no',
     int limit = 20,
     int offset = 0,
-  }) async => items;
+  }) async {
+    campusIds.add(campusId);
+    offsets.add(offset);
+    return items.skip(offset).take(limit).toList();
+  }
 }
 
-List<Override> _listOverrides(List<NewsModel> items) => [
+List<Override> _listOverrides(
+  List<NewsModel> items, {
+  _FakeNewsService? service,
+}) => [
   filterCampusProvider.overrideWithValue(_campus),
-  newsServiceProvider.overrideWithValue(_FakeNewsService(items)),
+  newsServiceProvider.overrideWithValue(service ?? _FakeNewsService(items)),
   allCampusesProvider.overrideWith((ref) async => const [_campus]),
 ];
 
@@ -90,6 +99,60 @@ void main() {
 
     expect(find.text('Autumn news'), findsOneWidget);
     expect(find.text('Winter news'), findsOneWidget);
+  });
+
+  List<NewsModel> many(int count) => [
+    for (var i = 0; i < count; i++) _news(id: 'n$i', title: 'Story $i'),
+  ];
+
+  testWidgets('a full first page shows more than 6 rows', (tester) async {
+    final service = _FakeNewsService(many(20));
+    await pumpBisoScreen(
+      tester,
+      const NewsListScreen(),
+      overrides: _listOverrides(const [], service: service),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byType(BisoListRow, skipOffstage: false).evaluate().length,
+      greaterThan(6),
+    );
+  });
+
+  testWidgets('scrolling to the end requests page two at offset 20', (
+    tester,
+  ) async {
+    final service = _FakeNewsService(many(25));
+    await pumpBisoScreen(
+      tester,
+      const NewsListScreen(),
+      overrides: _listOverrides(const [], service: service),
+    );
+    await tester.pumpAndSettle();
+    expect(service.offsets, [0]);
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -20000));
+    await tester.pumpAndSettle();
+
+    expect(service.offsets, [0, 20]);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -20000));
+    await tester.pumpAndSettle();
+    expect(find.text('Story 24'), findsOneWidget);
+    // A short second page ends paging.
+    expect(service.offsets, [0, 20]);
+  });
+
+  testWidgets('the list reads the selected campus', (tester) async {
+    final service = _FakeNewsService(many(3));
+    await pumpBisoScreen(
+      tester,
+      const NewsListScreen(),
+      overrides: _listOverrides(const [], service: service),
+    );
+    await tester.pumpAndSettle();
+
+    expect(service.campusIds, [_campus.id]);
   });
 
   testWidgets('the detail renders an HTML body', (tester) async {
