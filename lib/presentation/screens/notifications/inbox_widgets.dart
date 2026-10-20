@@ -27,10 +27,13 @@ IconData _iconFor(String? type) => switch (type) {
   _ => CupertinoIcons.bell,
 };
 
+const _contentCategories = {'event', 'news', 'job'};
+
 /// The type that colours a notification's tile: its linked content type, or
-/// `event` for the legacy event category.
+/// its category when that names a content type and no content is linked.
 String? _tileType(AppNotification n) =>
-    n.contentType ?? (n.category == 'event' ? 'event' : null);
+    n.contentType ??
+    (_contentCategories.contains(n.category) ? n.category : null);
 
 String _categoryLabel(AppLocalizations l10n, AppNotification n) {
   if (n.isUrgent) return l10n.inboxCategoryUrgent;

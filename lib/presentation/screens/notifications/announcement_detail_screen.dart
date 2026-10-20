@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
@@ -171,7 +170,8 @@ List<Widget> _announcementSlivers(
                 InboxItemRow(
                   key: ValueKey('${item.type}-${item.id}'),
                   item: item,
-                  onTap: () => context.go(item.route),
+                  // Pushed where it can be, so Back returns to this list.
+                  onTap: () => NavigationUtils.openInShell(context, item.route),
                 ),
             ],
           ),
@@ -206,6 +206,10 @@ String _categoryLabel(AppLocalizations l10n, String category) {
       return l10n.inboxCategoryTrip;
     case 'event':
       return l10n.inboxCategoryEvent;
+    case 'news':
+      return l10n.inboxCategoryNews;
+    case 'job':
+      return l10n.inboxCategoryJob;
     default:
       return l10n.inboxCategoryGeneral;
   }

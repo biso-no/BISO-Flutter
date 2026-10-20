@@ -17,6 +17,27 @@ class NavigationUtils {
     }
   }
 
+  /// Opens [location], a screen inside the tab shell, from a screen outside
+  /// it (the inbox, an announcement): pushed when go_router allows it, so
+  /// Back returns here, and gone to otherwise.
+  ///
+  /// go_router cannot hold two copies of the shell, so a push only works
+  /// while the shell is not already on the stack below - as when a
+  /// notification tap opened this screen. Pushed with the shell below, as
+  /// when Home opened the inbox, it fails an assertion in debug and breaks
+  /// navigation in release.
+  static void openInShell(BuildContext context, String location) {
+    final router = GoRouter.of(context);
+    final shellBelow = router.routerDelegate.currentConfiguration.matches.any(
+      (match) => match is ShellRouteMatch,
+    );
+    if (shellBelow) {
+      router.go(location);
+    } else {
+      router.push(location);
+    }
+  }
+
   /// Alias for safeGoBack - for consistency with different naming conventions
   static void goBackSafely(
     BuildContext context, {

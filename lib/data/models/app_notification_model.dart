@@ -17,7 +17,7 @@ class AppNotification extends Equatable {
   final String title; // localized title
   final String body; // localized body as plain text (HTML stripped)
   final String bodyHtml; // localized body as raw HTML (for rich rendering)
-  final String category; // general | trip | urgent | event
+  final String category; // general | trip | urgent | event | news | job
   final String? eventId;
   final String? deepLink;
   final Map<String, dynamic> data;
@@ -65,8 +65,8 @@ class AppNotification extends Equatable {
 
   InboxFilter get filter {
     if (contentType == 'event' || category == 'event') return InboxFilter.events;
-    if (contentType == 'news') return InboxFilter.news;
-    if (contentType == 'job') return InboxFilter.jobs;
+    if (contentType == 'news' || category == 'news') return InboxFilter.news;
+    if (contentType == 'job' || category == 'job') return InboxFilter.jobs;
     return InboxFilter.fromBiso;
   }
 

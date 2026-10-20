@@ -157,7 +157,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     InboxItem item,
   ) async {
     await ref.read(notificationInboxProvider.notifier).markRead(n);
-    if (context.mounted) context.go(item.route);
+    // Pushed where it can be, so Back returns to the inbox.
+    if (context.mounted) NavigationUtils.openInShell(context, item.route);
   }
 
   Future<void> _openAnnouncement(
@@ -166,7 +167,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   ) async {
     await ref.read(notificationInboxProvider.notifier).markRead(n);
     if (n.id.isNotEmpty && context.mounted) {
-      context.go('/announcements/${n.id}');
+      context.push('/announcements/${n.id}');
     }
   }
 

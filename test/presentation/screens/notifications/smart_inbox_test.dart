@@ -1,9 +1,12 @@
+import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/app_notification_model.dart';
 import 'package:biso/data/models/inbox_item.dart';
+import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/notifications/announcement_detail_screen.dart';
 import 'package:biso/presentation/screens/notifications/notifications_screen.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,6 +148,11 @@ void main() {
     await tester.tap(find.text('Bergen event 2'));
     await tester.pumpAndSettle();
     expect(find.text('event page e2'), findsOneWidget);
+
+    // Pushed, not gone to: Back returns to the inbox.
+    GoRouter.of(tester.element(find.text('event page e2'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('See all 3'), findsOneWidget);
   });
 
   testWidgets('See all opens the announcement detail route', (tester) async {
@@ -161,6 +169,10 @@ void main() {
     await tester.tap(find.text('See all 3'));
     await tester.pumpAndSettle();
     expect(find.text('detail b1'), findsOneWidget);
+
+    GoRouter.of(tester.element(find.text('detail b1'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('See all 3'), findsOneWidget);
   });
 
   testWidgets('the announcement detail lists a burst\'s items', (tester) async {
@@ -181,6 +193,161 @@ void main() {
     expect(find.text('Bergen event 1'), findsOneWidget);
     expect(find.text('Bergen event 2'), findsOneWidget);
     expect(find.text('Bergen event 3'), findsOneWidget);
+  });
+
+  testWidgets(
+    'an item opened from the announcement detail goes back to the detail',
+    (tester) async {
+      final burst = _n(
+        'b1',
+        '3 new events in Bergen',
+        items: _burstItems,
+        read: true,
+      );
+      await pumpBisoScreen(
+        tester,
+        const AnnouncementDetailScreen(announcementId: 'b1'),
+        inShell: false,
+        routed: true,
+        extraRoutes: [
+          GoRoute(
+            path: '/explore/events/:id',
+            builder: (_, state) =>
+                Text('event page ${state.pathParameters['id']}'),
+          ),
+        ],
+        overrides: [
+          announcementDetailProvider('b1').overrideWith((ref) async => burst),
+        ],
+      );
+
+      await tester.tap(find.text('Bergen event 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('event page e2'), findsOneWidget);
+
+      GoRouter.of(tester.element(find.text('event page e2'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Bergen event 2'), findsOneWidget);
+      expect(find.text('3 new events in Bergen'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    'an item opened from an announcement above the tab shell still opens: '
+    'go_router cannot push a second copy of the shell, so it goes instead',
+    (tester) async {
+      final burst = _n(
+        'b1',
+        '3 new events in Bergen',
+        items: _burstItems,
+        read: true,
+      );
+      final router = GoRouter(
+        initialLocation: '/home',
+        routes: [
+          ShellRoute(
+            builder: (_, _, child) => child,
+            routes: [
+              GoRoute(path: '/home', builder: (_, _) => const Text('home')),
+              GoRoute(
+                path: '/explore/events/:id',
+                builder: (_, state) =>
+                    Text('event page ${state.pathParameters['id']}'),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/announcements/:id',
+            builder: (_, state) => AnnouncementDetailScreen(
+              announcementId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            announcementDetailProvider('b1').overrideWith((ref) async => burst),
+          ],
+          child: MaterialApp.router(
+            theme: PremiumTheme.build(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      // As from Home's bell: the announcement sits above the shell.
+      router.push('/announcements/b1');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Bergen event 2'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('event page e2'), findsOneWidget);
+    },
+  );
+
+  for (final (locale, news, job) in [
+    (const Locale('en'), 'News', 'Job'),
+    (const Locale('no'), 'Nyhet', 'Stilling'),
+  ]) {
+    testWidgets(
+      'the announcement detail labels a category-only news or job row '
+      '(${locale.languageCode})',
+      (tester) async {
+        for (final (category, label) in [('news', news), ('job', job)]) {
+          final n = _n('c1', 'Hello', category: category, read: true);
+          await pumpBisoScreen(
+            tester,
+            const AnnouncementDetailScreen(announcementId: 'c1'),
+            inShell: false,
+            locale: locale,
+            overrides: [
+              announcementDetailProvider('c1').overrideWith((ref) async => n),
+            ],
+          );
+          expect(
+            find.widgetWithText(Chip, label),
+            findsOneWidget,
+            reason: category,
+          );
+          await tester.pumpWidget(const SizedBox());
+        }
+      },
+    );
+  }
+
+  testWidgets('category-only news and job rows tile as news and jobs', (
+    tester,
+  ) async {
+    await _pump(tester, [
+      _n('n', 'Campus news', category: 'news'),
+      _n('j', 'Open role', category: 'job'),
+    ]);
+    BisoIconTile tileOf(String title) => tester.widget<BisoIconTile>(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text(title),
+          matching: find.byType(BisoListRow),
+        ),
+        matching: find.byType(BisoIconTile),
+      ),
+    );
+    expect(tileOf('Campus news').icon, CupertinoIcons.news);
+    expect(tileOf('Campus news').accent, BisoAccent.violet);
+    expect(tileOf('Open role').icon, CupertinoIcons.briefcase);
+    expect(tileOf('Open role').accent, BisoAccent.teal);
+
+    final jobsChip = find.widgetWithText(ChoiceChip, 'Jobs');
+    await tester.ensureVisible(jobsChip);
+    await tester.pumpAndSettle();
+    await tester.tap(jobsChip);
+    await tester.pump();
+    expect(find.text('Open role'), findsOneWidget);
+    expect(find.text('Campus news'), findsNothing);
   });
 
   testWidgets('still builds on BisoPage, and the empty state shows', (

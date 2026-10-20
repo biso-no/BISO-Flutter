@@ -51,6 +51,9 @@ void main() {
       expect(f({'category': 'event'}), InboxFilter.events);
       expect(f({'content_type': 'job'}), InboxFilter.jobs);
       expect(f({'category': 'general'}), InboxFilter.fromBiso);
+      // A row with only a category is filed like `event` is.
+      expect(f({'category': 'news'}), InboxFilter.news);
+      expect(f({'category': 'job'}), InboxFilter.jobs);
     });
 
     test('defaults and urgency', () {
