@@ -209,6 +209,29 @@ void main() {
     );
   });
 
+  testWidgets('the empty state speaks Norwegian under the no locale', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const EventsScreen(),
+      routed: true,
+      locale: const Locale('no'),
+      overrides: [
+        eventServiceProvider.overrideWithValue(_FixedEventService(const [])),
+        filterCampusProvider.overrideWithValue(_campus),
+        campusInitializedProvider.overrideWithValue(true),
+      ],
+    );
+
+    expect(find.text('Ingen hendelser funnet'), findsOneWidget);
+    expect(
+      find.text('Det finnes ingen hendelser som matcher dine kriterier.'),
+      findsOneWidget,
+    );
+    expect(find.text('No Events Found'), findsNothing);
+  });
+
   testWidgets('scrolling to the bottom of the list loads the next page', (
     tester,
   ) async {

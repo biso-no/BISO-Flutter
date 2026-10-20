@@ -321,8 +321,8 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                 child: BisoEmptyState(
                   icon: CupertinoIcons.calendar,
                   accent: BisoAccent.blue,
-                  title: 'No Events Found',
-                  message: 'There are no events matching your criteria.',
+                  title: l10n.noEventsFoundMessage,
+                  message: l10n.thereAreNoEventsMatchingYourCriteriaMessage,
                 ),
               ),
             ]
