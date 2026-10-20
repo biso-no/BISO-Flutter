@@ -17,9 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// `listRows` parses a response, so a column the SDK cannot parse fails here
 /// the way it fails on a device.
 class _FakeTablesDB extends TablesDB {
-  _FakeTablesDB(this.announcements) : super(Client());
+  _FakeTablesDB(this.announcements, {this.userNotifications = const []})
+    : super(Client());
 
   final List<Map<String, dynamic>> announcements;
+  final List<Map<String, dynamic>> userNotifications;
 
   /// The decoded queries of every `announcements` read, in call order.
   final List<List<Map<String, dynamic>>> announcementReads = [];
@@ -43,7 +45,7 @@ class _FakeTablesDB extends TablesDB {
         table = announcements;
         announcementReads.add(decoded);
       case 'user_notifications':
-        table = const [];
+        table = userNotifications;
       default:
         throw StateError('unexpected table $tableId');
     }
@@ -597,6 +599,34 @@ void main() {
         campusId: '2',
       );
       expect([for (final i in items) i.id], ['all']);
+    });
+
+    test('a user_notifications row does not let a hidden broadcast back in, '
+        'but a users-audience row still shows', () async {
+      final db = _FakeTablesDB(
+        [
+          _broadcastRow('oslo', sentAt: joined, audienceValue: 'general_oslo'),
+          {
+            '\$id': 'direct',
+            'status': 'sent',
+            'audience_type': 'users',
+            'title_en': 'direct',
+            'sent_at': joined.toIso8601String(),
+          },
+        ],
+        userNotifications: [
+          {'\$id': 'un1',
+            '\$createdAt': '2026-09-01T00:00:00.000Z', 'user_id': 'u', 'announcement_id': 'oslo', 'read': true},
+          {'\$id': 'un2',
+            '\$createdAt': '2026-09-01T00:00:00.000Z', 'user_id': 'u', 'announcement_id': 'direct', 'read': false},
+        ],
+      );
+      final items = await NotificationInboxService(tablesDb: db).fetchInbox(
+        userId: 'u',
+        locale: 'en',
+        campusId: '2',
+      );
+      expect([for (final i in items) i.id], ['direct']);
     });
 
     test('selects items, image and content_type but never data', () async {

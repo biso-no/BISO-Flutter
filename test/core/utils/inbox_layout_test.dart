@@ -88,6 +88,20 @@ void main() {
       expect(ids(sections[3].items), ['eight-days']);
     });
 
+    test('counts calendar days across the spring DST change', () {
+      // Local-midnight arithmetic is 23h on 2027-03-28 -> 03-29 in zones that
+      // spring forward then (e.g. TZ=Europe/Oslo); calendar dates are not.
+      final dstNow = DateTime(2027, 3, 29, 12);
+      final sections = groupByDay([
+        n('sunday', DateTime(2027, 3, 28, 12)),
+        n('week', DateTime(2027, 3, 22, 12)),
+      ], dstNow);
+      expect(sections[0].day, InboxDay.yesterday);
+      expect(ids(sections[0].items), ['sunday']);
+      expect(sections[1].day, InboxDay.thisWeek);
+      expect(ids(sections[1].items), ['week']);
+    });
+
     test('pinned urgent rows are excluded and empty groups omitted', () {
       final sections = groupByDay([
         n('u', now, category: 'urgent'),

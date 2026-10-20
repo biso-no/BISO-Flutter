@@ -72,8 +72,12 @@ class InboxItem extends Equatable {
         InboxItem(
           type: type,
           id: id,
-          titleEn: element['title_en'] as String?,
-          titleNo: element['title_no'] as String?,
+          titleEn: element['title_en'] is String
+              ? element['title_en'] as String
+              : null,
+          titleNo: element['title_no'] is String
+              ? element['title_no'] as String
+              : null,
           image: appwriteImageUrl(element['image']),
           date: date is String ? DateTime.tryParse(date) : null,
           campusId: campus is String && campus.isNotEmpty ? campus : null,

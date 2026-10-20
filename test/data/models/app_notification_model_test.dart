@@ -113,6 +113,19 @@ void main() {
       expect(InboxItem.listFromJson('{"a":1}'), isEmpty);
     });
 
+    test('non-string titles become null without failing other elements', () {
+      final items = InboxItem.listFromJson(
+        jsonEncode([
+          {'type': 'news', 'id': 'n1', 'title_en': 5, 'title_no': 'No'},
+          {'type': 'news', 'id': 'n2', 'title_en': 'En'},
+        ]),
+      );
+      expect(items, hasLength(2));
+      expect(items.first.titleEn, isNull);
+      expect(items.first.titleNo, 'No');
+      expect(items.last.titleEn, 'En');
+    });
+
     test('listFromJson skips unknown types and missing ids', () {
       final items = InboxItem.listFromJson(
         jsonEncode([

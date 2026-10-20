@@ -236,6 +236,11 @@ class NotificationInboxService {
           ],
         );
         for (final row in rows.rows) {
+          // A user_notifications row (e.g. from marking a broadcast read) must
+          // not let an announcement back in that the audience rules hid.
+          if (!_isAudienceVisible(row.data, topicIntent, campusId: campusId)) {
+            continue;
+          }
           announcementById[row.$id] = _rowToMap(row);
         }
       }
@@ -471,6 +476,27 @@ class NotificationInboxService {
       topicIntent,
       campusId: campusId,
     );
+  }
+
+  /// Audience check for a fetched row: broadcasts by [isBroadcastVisible],
+  /// topics by [_isTopicVisible]; targeted audiences are always kept.
+  bool _isAudienceVisible(
+    Map<String, dynamic> data,
+    Map<String, bool> topicIntent, {
+    required String? campusId,
+  }) {
+    switch (data['audience_type']) {
+      case 'broadcast':
+        return isBroadcastVisible(
+          audienceValue: data['audience_value'] as String?,
+          rowCampusId: data['campus_id'] as String?,
+          campusId: campusId,
+        );
+      case 'topic':
+        return _isTopicVisible(data, topicIntent, campusId: campusId);
+      default:
+        return true;
+    }
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {

@@ -26,12 +26,14 @@ List<AppNotification> pinUrgent(List<AppNotification> items, DateTime now) {
 /// Groups [items] by local calendar day relative to [now]. Pinned urgent rows
 /// are left out (they render above the groups). Empty groups are omitted.
 List<InboxSection> groupByDay(List<AppNotification> items, DateTime now) {
-  final today = DateTime(now.year, now.month, now.day);
+  // Calendar dates in UTC, so a 23h or 25h local day (DST change) still
+  // counts as exactly one day.
+  final today = DateTime.utc(now.year, now.month, now.day);
   final buckets = {for (final d in InboxDay.values) d: <AppNotification>[]};
   for (final n in items) {
     if (_isPinned(n, now)) continue;
     final t = n.createdAt.toLocal();
-    final day = DateTime(t.year, t.month, t.day);
+    final day = DateTime.utc(t.year, t.month, t.day);
     final diff = today.difference(day).inDays;
     final bucket = diff <= 0
         ? InboxDay.today
