@@ -3797,5 +3797,11 @@
   "announcementNoContent": "Ingen innhold.",
   "announcementViewEvent": "Se arrangementet",
   "notificationChannelDefault": "BISO",
-  "notificationChannelUrgent": "Viktig fra BISO"
+  "notificationChannelUrgent": "Viktig fra BISO",
+  "updateRequiredTitle": "På tide å oppdatere",
+  "updateRequiredBody": "Denne versjonen av BISO-appen støttes ikke lenger. Oppdater for å fortsette å bruke appen.",
+  "updateRecommendedTitle": "En ny versjon er tilgjengelig",
+  "updateRecommendedBody": "Oppdater BISO-appen for å få de siste forbedringene.",
+  "updateButton": "Oppdater",
+  "updateNotNow": "Ikke nå"
 }

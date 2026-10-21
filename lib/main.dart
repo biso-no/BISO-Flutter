@@ -48,6 +48,8 @@ import 'presentation/screens/profile/profile_screen.dart';
 import 'presentation/screens/notifications/notifications_screen.dart';
 import 'presentation/screens/notifications/announcement_detail_screen.dart';
 import 'presentation/widgets/notification_topics_prompt.dart';
+import 'presentation/widgets/update_recommended_dialog.dart';
+import 'presentation/widgets/update_required_overlay.dart';
 import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
@@ -57,11 +59,13 @@ import 'presentation/screens/news/news_list_screen.dart';
 import 'presentation/screens/events/large_event_screen.dart';
 import 'presentation/screens/scanner/scanner_route.dart';
 import 'data/models/large_event_model.dart';
+import 'data/models/update_decision.dart';
 import 'data/services/large_event_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
 import 'data/services/expense_intake_service.dart';
 import 'providers/campus/campus_provider.dart';
+import 'providers/config/update_prompt_provider.dart';
 import 'providers/membership/membership_checkout_provider.dart';
 import 'providers/membership/membership_overview_provider.dart';
 import 'providers/notification/notification_provider.dart';
@@ -153,21 +157,38 @@ class BisoApp extends ConsumerWidget {
       ref.watch(membershipCheckoutControllerProvider.notifier);
     }
 
+    // Ask for the config again when the app comes back after an hour or more,
+    // so a student who never closes the app still hears of a new minimum
+    // version. Watched from launch, which is when its clock starts.
+    ref.watch(appConfigResumeRefreshProvider);
+    // Whether to block the app or nudge an update. The block is drawn by
+    // `UpdateRequiredOverlay` below; watching it here too rebuilds the app
+    // when a fresh answer arrives, so the nudge below is tried again then.
+    final updatePrompt = ref.watch(updatePromptProvider);
+
     // Ask a signed-in student which topics they want, once. Gated the same way
     // as the checkout controller: not until the session has resolved, and only
-    // once a profile exists so it never lands on top of onboarding.
-    final promptEligible = ref.watch(
-      authStateProvider.select(
-        (state) =>
-            !state.isLoading && state.isAuthenticated && !state.needsOnboarding,
-      ),
-    );
-    if (promptEligible) {
+    // once a profile exists so it never lands on top of onboarding. Never
+    // under the update block either, where it could not be seen.
+    final promptEligible =
+        ref.watch(
+          authStateProvider.select(
+            (state) =>
+                !state.isLoading &&
+                state.isAuthenticated &&
+                !state.needsOnboarding,
+          ),
+        ) &&
+        updatePrompt != UpdatePrompt.required;
+    final updateRecommended = updatePrompt == UpdatePrompt.recommended;
+    if (promptEligible || updateRecommended) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final context = navigatorKey.currentContext;
-        if (context != null) {
-          maybeShowTopicsPrompt(context, ref);
-        }
+        if (context == null) return;
+        if (promptEligible) maybeShowTopicsPrompt(context, ref);
+        // After the topics prompt, so the popup waits for one that has just
+        // started deciding whether to show. Signed in or not.
+        if (updateRecommended) maybeShowUpdateRecommended(context, ref);
       });
     }
 
@@ -202,6 +223,9 @@ class BisoApp extends ConsumerWidget {
       ],
       supportedLocales: const [Locale('en'), Locale('no')],
       routerConfig: _router,
+      // Above the Navigator, so the block covers every route.
+      builder: (context, child) =>
+          UpdateRequiredOverlay(child: child ?? const SizedBox.shrink()),
     );
   }
 }

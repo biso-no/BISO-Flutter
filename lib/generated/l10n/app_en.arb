@@ -3945,5 +3945,29 @@
   "notificationChannelUrgent": "Urgent from BISO",
   "@notificationChannelUrgent": {
     "description": "Android notification channel name for urgent pushes"
+  },
+  "updateRequiredTitle": "Time to update",
+  "@updateRequiredTitle": {
+    "description": "Full-screen block shown when the installed app is below BISO's minimum version"
+  },
+  "updateRequiredBody": "This version of the BISO app is no longer supported. Update to keep using the app.",
+  "@updateRequiredBody": {
+    "description": "Full-screen block shown when the installed app is below BISO's minimum version"
+  },
+  "updateRecommendedTitle": "A new version is available",
+  "@updateRecommendedTitle": {
+    "description": "Dismissible popup shown when the installed app is below BISO's recommended version"
+  },
+  "updateRecommendedBody": "Update the BISO app to get the latest improvements.",
+  "@updateRecommendedBody": {
+    "description": "Dismissible popup shown when the installed app is below BISO's recommended version"
+  },
+  "updateButton": "Update",
+  "@updateButton": {
+    "description": "Opens the store to update the app, on the update block and the update popup"
+  },
+  "updateNotNow": "Not now",
+  "@updateNotNow": {
+    "description": "Dismisses the update popup for a few days"
   }
 }

@@ -2971,4 +2971,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationChannelUrgent => 'Urgent from BISO';
+
+  @override
+  String get updateRequiredTitle => 'Time to update';
+
+  @override
+  String get updateRequiredBody =>
+      'This version of the BISO app is no longer supported. Update to keep using the app.';
+
+  @override
+  String get updateRecommendedTitle => 'A new version is available';
+
+  @override
+  String get updateRecommendedBody =>
+      'Update the BISO app to get the latest improvements.';
+
+  @override
+  String get updateButton => 'Update';
+
+  @override
+  String get updateNotNow => 'Not now';
 }

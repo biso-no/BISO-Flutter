@@ -5414,6 +5414,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Urgent from BISO'**
   String get notificationChannelUrgent;
+
+  /// Full-screen block shown when the installed app is below BISO's minimum version
+  ///
+  /// In en, this message translates to:
+  /// **'Time to update'**
+  String get updateRequiredTitle;
+
+  /// Full-screen block shown when the installed app is below BISO's minimum version
+  ///
+  /// In en, this message translates to:
+  /// **'This version of the BISO app is no longer supported. Update to keep using the app.'**
+  String get updateRequiredBody;
+
+  /// Dismissible popup shown when the installed app is below BISO's recommended version
+  ///
+  /// In en, this message translates to:
+  /// **'A new version is available'**
+  String get updateRecommendedTitle;
+
+  /// Dismissible popup shown when the installed app is below BISO's recommended version
+  ///
+  /// In en, this message translates to:
+  /// **'Update the BISO app to get the latest improvements.'**
+  String get updateRecommendedBody;
+
+  /// Opens the store to update the app, on the update block and the update popup
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get updateButton;
+
+  /// Dismisses the update popup for a few days
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get updateNotNow;
 }
 
 class _AppLocalizationsDelegate
