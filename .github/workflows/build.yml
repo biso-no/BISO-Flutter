@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 env:
-  FLUTTER_VERSION: '3.32.8'  # Your actual Flutter version
+  FLUTTER_VERSION: '3.47.2'  # Match the local toolchain; dependencies need Dart >= 3.10
   APP_VERSION: '2.0.1'
   BUILD_NUMBER: '82'
 
