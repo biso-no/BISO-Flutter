@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:biso/data/models/app_config.dart';
+import 'package:biso/data/models/update_policy.dart';
 import 'package:biso/data/services/app_config_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -35,6 +37,76 @@ void main() {
 
     expect(config.expensesEnabled, isFalse);
     expect(config.marketplaceEnabled, isTrue);
+  });
+
+  test('reads the version policy for each platform from the network', () async {
+    final config = await serviceReturning(
+      http.Response(
+        jsonEncode({
+          'features': {
+            'departures': true,
+            'expenses': false,
+            'marketplace': true,
+          },
+          'versions': {
+            'ios': {'minimum': '2.4.0', 'recommended': null},
+            'android': {'minimum': '2.4.0', 'recommended': '2.4.1'},
+          },
+        }),
+        200,
+      ),
+    ).getConfig();
+
+    expect(config.source, AppConfigSource.network);
+    expect(config.iosUpdates, const UpdatePolicy(minimum: '2.4.0'));
+    expect(
+      config.androidUpdates,
+      const UpdatePolicy(minimum: '2.4.0', recommended: '2.4.1'),
+    );
+  });
+
+  test(
+    'a cached config says it came from the cache and carries no policy',
+    () async {
+      await serviceReturning(
+        http.Response(
+          jsonEncode({
+            'features': {
+              'departures': true,
+              'expenses': true,
+              'marketplace': true,
+            },
+            'versions': {
+              'ios': {'minimum': '9.9.9'},
+            },
+          }),
+          200,
+        ),
+      ).getConfig();
+
+      final config = await offlineService().getConfig();
+
+      expect(config.source, AppConfigSource.cache);
+      expect(config.iosUpdates, UpdatePolicy.none);
+    },
+  );
+
+  test('a malformed versions object means no policy', () async {
+    final config = await serviceReturning(
+      http.Response(
+        jsonEncode({
+          'features': {},
+          'versions': {
+            'ios': 'soon',
+            'android': {'minimum': 240},
+          },
+        }),
+        200,
+      ),
+    ).getConfig();
+
+    expect(config.iosUpdates, UpdatePolicy.none);
+    expect(config.androidUpdates.minimum, isNull);
   });
 
   test(

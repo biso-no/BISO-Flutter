@@ -75,7 +75,10 @@ class AppConfigService {
     if (age > _cacheTtl.inMilliseconds) return null;
 
     try {
-      return AppConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      return AppConfig.fromJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+        source: AppConfigSource.cache,
+      );
     } catch (_) {
       return null;
     }
