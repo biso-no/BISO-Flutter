@@ -78,11 +78,13 @@ class DepartmentService {
               ...translation,
               'department_ref': dept,
             });
-    }).toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    }).toList()..sort((a, b) => a.name.compareTo(b.name));
   }
 
-  Future<DepartmentModel?> getDepartmentById(String id, {String locale = 'en'}) async {
+  Future<DepartmentModel?> getDepartmentById(
+    String id, {
+    String locale = 'en',
+  }) async {
     try {
       final results = await Future.wait([
         db.getRow(
@@ -105,10 +107,9 @@ class DepartmentService {
       final dept = results[0] as models.Row;
       final translations = results[1] as models.RowList;
       if (publicRows([dept.data]).isEmpty) return null;
-      return mergeTranslations(
-        [dept.data],
-        translations.rows.map((row) => row.data),
-      ).single;
+      return mergeTranslations([
+        dept.data,
+      ], translations.rows.map((row) => row.data)).single;
     } catch (_) {
       return null;
     }
@@ -118,7 +119,7 @@ class DepartmentService {
     String departmentId,
   ) async {
     // Collection name assumed to be 'department_socials' per spec
-      final docs = await db.listRows(
+    final docs = await db.listRows(
       databaseId: AppConstants.databaseId,
       tableId: 'department_socials',
       queries: [

@@ -177,7 +177,8 @@ class DeviceSubscriptionStore {
       if (decoded is! Map) return <String, String>{};
       return <String, String>{
         for (final entry in decoded.entries)
-          if (entry.value is String) entry.key.toString(): entry.value as String,
+          if (entry.value is String)
+            entry.key.toString(): entry.value as String,
       };
     } catch (e) {
       debugPrint('DeviceSubscriptionStore: unreadable subscriber ids: $e');

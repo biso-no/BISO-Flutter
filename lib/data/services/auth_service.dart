@@ -160,12 +160,12 @@ class AuthService {
   }
 
   Future<UserModel> verifyMagicLink(String userId, String secret) async {
-    logPrint(
-      '🔗 DEBUG: Starting verifyMagicLink with userId: $userId',
-    );
+    logPrint('🔗 DEBUG: Starting verifyMagicLink with userId: $userId');
     try {
       // Create session with magic link tokens
-      logPrint('🔗 DEBUG: About to call _account.createSession for magic link...');
+      logPrint(
+        '🔗 DEBUG: About to call _account.createSession for magic link...',
+      );
       logPrint('🔗 DEBUG: Parameters - userId: $userId');
       final session = await _account.createSession(
         userId: userId,
@@ -193,7 +193,8 @@ class AuthService {
         // User profile doesn't exist, will need onboarding
       }
 
-      final result = userProfile ??
+      final result =
+          userProfile ??
           UserModel(
             id: accountUser.$id,
             name: accountUser.name,
@@ -207,17 +208,26 @@ class AuthService {
       );
       logPrint('🔗 DEBUG: AppwriteException - Type: ${e.type}');
       logPrint('🔗 DEBUG: AppwriteException - Response: ${e.response}');
-      
+
       // Handle specific magic link errors
       if (e.message?.contains('Invalid credentials') == true ||
           e.message?.contains('User (role: guests) missing scope') == true ||
           e.code == 401) {
-        throw MagicLinkException('This magic link has expired or is invalid. Please request a new one.');
-      } else if (e.message?.contains('A user with the same email already exists') == true) {
-        throw MagicLinkException('You may already have an active session. Try clearing your session and signing in again.');
+        throw MagicLinkException(
+          'This magic link has expired or is invalid. Please request a new one.',
+        );
+      } else if (e.message?.contains(
+            'A user with the same email already exists',
+          ) ==
+          true) {
+        throw MagicLinkException(
+          'You may already have an active session. Try clearing your session and signing in again.',
+        );
       }
-      
-      throw MagicLinkException('Failed to sign in with magic link: ${e.message}');
+
+      throw MagicLinkException(
+        'Failed to sign in with magic link: ${e.message}',
+      );
     } catch (e) {
       logPrint('🔗 DEBUG: General exception: $e');
       throw MagicLinkException('Magic link sign-in failed');
@@ -225,9 +235,7 @@ class AuthService {
   }
 
   Future<UserModel> verifyOtp(String userId, String secret) async {
-    logPrint(
-      '🔥 DEBUG: Starting verifyOtp with userId: $userId',
-    );
+    logPrint('🔥 DEBUG: Starting verifyOtp with userId: $userId');
     try {
       // Create session with OTP
       logPrint('🔥 DEBUG: About to call _account.createSession...');
@@ -259,7 +267,8 @@ class AuthService {
         // User profile doesn't exist, will need onboarding
       }
 
-      final result = userProfile ??
+      final result =
+          userProfile ??
           UserModel(
             id: accountUser.$id,
             name: accountUser.name,

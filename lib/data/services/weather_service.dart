@@ -22,11 +22,13 @@ class WeatherOptions {
 
 /// Service for fetching weather data from MET Norway Locationforecast API
 class WeatherService {
-  static const String _baseUrl = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
-  static const String _defaultUserAgent = 'BISO-Flutter-App/1.0 (https://biso.no/)';
+  static const String _baseUrl =
+      'https://api.met.no/weatherapi/locationforecast/2.0/compact';
+  static const String _defaultUserAgent =
+      'BISO-Flutter-App/1.0 (https://biso.no/)';
 
   /// Fetches current weather data from the MET Norway Locationforecast API
-  /// 
+  ///
   /// [options] Configuration options including coordinates and user agent
   /// Returns weather data or throws an exception on error
   static Future<WeatherModel> getCurrentWeather(WeatherOptions options) async {
@@ -42,14 +44,12 @@ class WeatherService {
       // Make the API request with proper headers
       final response = await http.get(
         url,
-        headers: {
-          'User-Agent': options.userAgent,
-        },
+        headers: {'User-Agent': options.userAgent},
       );
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body) as Map<String, dynamic>;
-        
+
         return WeatherModel.fromJson(
           jsonData,
           latitude: lat,
@@ -72,7 +72,7 @@ class WeatherService {
   }
 
   /// Fetches weather data for a specific campus
-  /// 
+  ///
   /// [campus] The campus to fetch weather for
   /// [userAgent] User agent string for the API request (optional)
   /// Returns weather data for the campus
@@ -81,22 +81,24 @@ class WeatherService {
     String? userAgent,
   }) async {
     final coordinates = CampusCoordinates.getCoordinates(campus);
-    
+
     if (coordinates == null) {
       throw WeatherException('Unknown campus: ${campus.displayName}');
     }
 
-    return getCurrentWeather(WeatherOptions(
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
-      altitude: coordinates.altitude,
-      userAgent: userAgent ?? _defaultUserAgent,
-      locationName: campus.displayName,
-    ));
+    return getCurrentWeather(
+      WeatherOptions(
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        altitude: coordinates.altitude,
+        userAgent: userAgent ?? _defaultUserAgent,
+        locationName: campus.displayName,
+      ),
+    );
   }
 
   /// Fetches weather data for a campus by name
-  /// 
+  ///
   /// [campusName] The name of the campus (Oslo, Bergen, Trondheim, Stavanger)
   /// [userAgent] User agent string for the API request (optional)
   /// Returns weather data for the campus
@@ -105,29 +107,37 @@ class WeatherService {
     String? userAgent,
   }) async {
     final coordinates = CampusCoordinates.getCoordinatesByName(campusName);
-    
+
     if (coordinates == null) {
       throw WeatherException('Unknown campus: $campusName');
     }
 
-    return getCurrentWeather(WeatherOptions(
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
-      altitude: coordinates.altitude,
-      userAgent: userAgent ?? _defaultUserAgent,
-      locationName: campusName,
-    ));
+    return getCurrentWeather(
+      WeatherOptions(
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        altitude: coordinates.altitude,
+        userAgent: userAgent ?? _defaultUserAgent,
+        locationName: campusName,
+      ),
+    );
   }
 
   /// Handles API error responses
   static void _handleApiError(int statusCode, String? reasonPhrase) {
     switch (statusCode) {
       case 403:
-        throw WeatherException('Access forbidden. Check your User-Agent header.');
+        throw WeatherException(
+          'Access forbidden. Check your User-Agent header.',
+        );
       case 429:
-        throw WeatherException('Too many requests. Please reduce your request frequency.');
+        throw WeatherException(
+          'Too many requests. Please reduce your request frequency.',
+        );
       default:
-        throw WeatherException('API error: $statusCode ${reasonPhrase ?? 'Unknown error'}');
+        throw WeatherException(
+          'API error: $statusCode ${reasonPhrase ?? 'Unknown error'}',
+        );
     }
   }
 }
@@ -135,9 +145,9 @@ class WeatherService {
 /// Custom exception for weather-related errors
 class WeatherException implements Exception {
   final String message;
-  
+
   const WeatherException(this.message);
-  
+
   @override
   String toString() => 'WeatherException: $message';
 }
@@ -185,8 +195,5 @@ class _CacheEntry {
   final WeatherModel data;
   final DateTime expiresAt;
 
-  _CacheEntry({
-    required this.data,
-    required this.expiresAt,
-  });
+  _CacheEntry({required this.data, required this.expiresAt});
 }

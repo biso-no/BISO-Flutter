@@ -167,7 +167,9 @@ class PublicProfileService {
         queries: queries,
       );
 
-      return documents.rows.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
+      return documents.rows
+          .map((doc) => PublicProfileModel.fromMap(doc.data))
+          .toList();
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to search public profiles: ${e.message}',
@@ -193,7 +195,9 @@ class PublicProfileService {
         ],
       );
 
-      return documents.rows.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
+      return documents.rows
+          .map((doc) => PublicProfileModel.fromMap(doc.data))
+          .toList();
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to get multiple public profiles: ${e.message}',
@@ -261,7 +265,9 @@ class PublicProfileService {
         ],
       );
 
-      return documents.rows.map((doc) => PublicProfileModel.fromMap(doc.data)).toList();
+      return documents.rows
+          .map((doc) => PublicProfileModel.fromMap(doc.data))
+          .toList();
     } on AppwriteException catch (e) {
       throw PublicProfileException(
         'Failed to get campus public profiles: ${e.message}',

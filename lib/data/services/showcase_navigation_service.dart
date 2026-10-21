@@ -6,12 +6,16 @@ import '../models/large_event_model.dart';
 
 /// Service for handling navigation based on showcase type
 class ShowcaseNavigationService {
-  static const ShowcaseNavigationService _instance = ShowcaseNavigationService._internal();
+  static const ShowcaseNavigationService _instance =
+      ShowcaseNavigationService._internal();
   factory ShowcaseNavigationService() => _instance;
   const ShowcaseNavigationService._internal();
 
   /// Handle CTA press for different showcase types
-  Future<void> handleShowcaseCTA(BuildContext context, LargeEventModel item) async {
+  Future<void> handleShowcaseCTA(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     switch (item.showcaseType) {
       case ShowcaseType.webshopProduct:
         await _handleWebshopProduct(context, item);
@@ -31,7 +35,10 @@ class ShowcaseNavigationService {
     }
   }
 
-  Future<void> _handleWebshopProduct(BuildContext context, LargeEventModel item) async {
+  Future<void> _handleWebshopProduct(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     if (item.productId != null) {
       // Navigate to specific product detail
       context.pushNamed(
@@ -47,13 +54,19 @@ class ShowcaseNavigationService {
     }
   }
 
-  Future<void> _handleExternalEvent(BuildContext context, LargeEventModel item) async {
+  Future<void> _handleExternalEvent(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     if (item.externalUrl != null) {
       // Open external event URL (e.g., TicketCo)
       await _launchExternalUrl(item.externalUrl!);
     } else if (item.ticketcoEventId != null) {
       // Construct TicketCo URL if we have event ID
-      final ticketcoUrl = _buildTicketCoUrl(item.ticketcoEventId!, item.ticketcoOrgId);
+      final ticketcoUrl = _buildTicketCoUrl(
+        item.ticketcoEventId!,
+        item.ticketcoOrgId,
+      );
       await _launchExternalUrl(ticketcoUrl);
     } else {
       // Fallback to events page
@@ -61,7 +74,10 @@ class ShowcaseNavigationService {
     }
   }
 
-  Future<void> _handleJobOpportunity(BuildContext context, LargeEventModel item) async {
+  Future<void> _handleJobOpportunity(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     final jobId = item.jobId;
     if (jobId != null) {
       context.go('/explore/volunteer/${Uri.encodeComponent(jobId)}');
@@ -74,7 +90,10 @@ class ShowcaseNavigationService {
     }
   }
 
-  Future<void> _handleAnnouncement(BuildContext context, LargeEventModel item) async {
+  Future<void> _handleAnnouncement(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     if (item.externalUrl != null) {
       // Open external announcement URL
       await _launchExternalUrl(item.externalUrl!);
@@ -84,7 +103,10 @@ class ShowcaseNavigationService {
     }
   }
 
-  Future<void> _handleLargeEvent(BuildContext context, LargeEventModel item) async {
+  Future<void> _handleLargeEvent(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     if (item.externalUrl != null) {
       // Open external event URL
       await _launchExternalUrl(item.externalUrl!);
@@ -101,10 +123,7 @@ class ShowcaseNavigationService {
   Future<void> _launchExternalUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -116,7 +135,10 @@ class ShowcaseNavigationService {
     }
   }
 
-  Future<void> _showAnnouncementDialog(BuildContext context, LargeEventModel item) async {
+  Future<void> _showAnnouncementDialog(
+    BuildContext context,
+    LargeEventModel item,
+  ) async {
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -126,9 +148,9 @@ class ShowcaseNavigationService {
           ),
           title: Text(
             item.name,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           content: SingleChildScrollView(
             child: Column(
