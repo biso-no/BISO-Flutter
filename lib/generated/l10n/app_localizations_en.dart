@@ -2965,4 +2965,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get announcementViewEvent => 'View event';
+
+  @override
+  String get notificationChannelDefault => 'BISO';
+
+  @override
+  String get notificationChannelUrgent => 'Urgent from BISO';
 }

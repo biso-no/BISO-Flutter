@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:ui' show Color, Locale;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../../generated/l10n/app_localizations.dart';
 
 /// Android channel for ordinary pushes. Also named in the manifest as
 /// Firebase's default channel.
@@ -11,9 +14,37 @@ const String kDefaultChannelId = 'biso_default';
 /// Android channel for pushes with `category == 'urgent'`.
 const String kUrgentChannelId = 'biso_urgent';
 
-/// The notification small icon. The icon the manifest already references; kept
-/// from resource shrinking by `res/raw/keep.xml`.
-const String kNotificationIcon = '@mipmap/launcher_icon';
+/// The notification small icon: a monochrome vector, as the Android status bar
+/// requires. Also named in the manifest as Firebase's default icon; kept from
+/// resource shrinking by `res/raw/keep.xml`.
+const String kNotificationIcon = '@drawable/ic_stat_biso';
+
+/// Accent colour of the small icon (the logo blue), matching
+/// `notification_accent` in `res/values/colors.xml`.
+const Color kNotificationColor = Color(0xFF3D9BE0);
+
+const int _fnvOffsetBasis = 0x811c9dc5;
+const int _fnvPrime = 0x01000193;
+const int _mask32 = 0xffffffff;
+const int _mask31 = 0x7fffffff;
+
+/// A notification id derived from the push, so a re-delivered push replaces its
+/// earlier notification instead of showing twice, and ids survive restarts.
+/// Null when the push carries neither an `announcement_id` nor a message id.
+@visibleForTesting
+int? notificationIdFor(Map<String, dynamic> data, String? messageId) {
+  final announcementId = data['announcement_id'];
+  final key = announcementId is String && announcementId.isNotEmpty
+      ? 'a:$announcementId'
+      : (messageId != null && messageId.isNotEmpty ? 'm:$messageId' : null);
+  if (key == null) return null;
+  // FNV-1a, 32 bit. String.hashCode is not stable across runs.
+  var hash = _fnvOffsetBasis;
+  for (final unit in utf8.encode(key)) {
+    hash = ((hash ^ unit) * _fnvPrime) & _mask32;
+  }
+  return hash & _mask31;
+}
 
 /// Decodes a notification payload (`jsonEncode(message.data)`), or null when
 /// it is absent or not a JSON object.
@@ -59,6 +90,9 @@ abstract class LocalNotificationPresenter {
   });
 
   Future<void> show(RemoteMessage message);
+
+  /// Names the channels in [languageCode] ('en' or 'no').
+  Future<void> setLanguage(String languageCode);
 }
 
 class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
@@ -73,16 +107,35 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
   final FlutterLocalNotificationsPlugin _plugin;
   int _nextId = 0;
 
-  static const _defaultChannel = AndroidNotificationChannel(
+  String _languageCode = 'en';
+
+  AndroidNotificationChannel get _defaultChannel => AndroidNotificationChannel(
     kDefaultChannelId,
-    'BISO',
+    lookupAppLocalizations(Locale(_languageCode)).notificationChannelDefault,
     importance: Importance.defaultImportance,
   );
-  static const _urgentChannel = AndroidNotificationChannel(
+
+  AndroidNotificationChannel get _urgentChannel => AndroidNotificationChannel(
     kUrgentChannelId,
-    'Urgent from BISO',
+    lookupAppLocalizations(Locale(_languageCode)).notificationChannelUrgent,
     importance: Importance.high,
   );
+
+  @override
+  Future<void> setLanguage(String languageCode) async {
+    _languageCode = languageCode;
+    await _createChannels();
+  }
+
+  Future<void> _createChannels() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    // Creating a channel again with the same id renames it.
+    await android?.createNotificationChannel(_defaultChannel);
+    await android?.createNotificationChannel(_urgentChannel);
+  }
 
   @override
   Future<void> initialize({
@@ -97,12 +150,7 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
         if (data != null) onTap(data);
       },
     );
-    final android = _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    await android?.createNotificationChannel(_defaultChannel);
-    await android?.createNotificationChannel(_urgentChannel);
+    await _createChannels();
     await deliverLaunchTap(
       _launchDetails ?? _plugin.getNotificationAppLaunchDetails,
       onTap,
@@ -117,7 +165,7 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
     final channelId = channelIdFor(data);
     final isUrgent = channelId == kUrgentChannelId;
     await _plugin.show(
-      id: _nextId++,
+      id: notificationIdFor(data, message.messageId) ?? _nextId++,
       title: title,
       body: body,
       notificationDetails: NotificationDetails(
@@ -127,6 +175,7 @@ class FlutterLocalNotificationsPresenter implements LocalNotificationPresenter {
           importance: isUrgent ? Importance.high : Importance.defaultImportance,
           priority: isUrgent ? Priority.high : Priority.defaultPriority,
           icon: kNotificationIcon,
+          color: kNotificationColor,
         ),
       ),
       payload: jsonEncode(data),

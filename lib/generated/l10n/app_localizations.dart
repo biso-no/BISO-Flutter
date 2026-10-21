@@ -5402,6 +5402,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View event'**
   String get announcementViewEvent;
+
+  /// Android notification channel name for ordinary pushes
+  ///
+  /// In en, this message translates to:
+  /// **'BISO'**
+  String get notificationChannelDefault;
+
+  /// Android notification channel name for urgent pushes
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent from BISO'**
+  String get notificationChannelUrgent;
 }
 
 class _AppLocalizationsDelegate

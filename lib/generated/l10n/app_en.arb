@@ -3937,5 +3937,13 @@
   "announcementViewEvent": "View event",
   "@announcementViewEvent": {
     "description": "Notifications screens"
+  },
+  "notificationChannelDefault": "BISO",
+  "@notificationChannelDefault": {
+    "description": "Android notification channel name for ordinary pushes"
+  },
+  "notificationChannelUrgent": "Urgent from BISO",
+  "@notificationChannelUrgent": {
+    "description": "Android notification channel name for urgent pushes"
   }
 }

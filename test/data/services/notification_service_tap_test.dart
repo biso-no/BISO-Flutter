@@ -17,6 +17,7 @@ class _UnusedAccount extends Account {
 
 class _FakePresenter implements LocalNotificationPresenter {
   bool throwOnInitialize = false;
+  bool throwOnSetLanguage = false;
 
   final List<RemoteMessage> shown = <RemoteMessage>[];
 
@@ -29,6 +30,14 @@ class _FakePresenter implements LocalNotificationPresenter {
 
   @override
   Future<void> show(RemoteMessage message) async => shown.add(message);
+
+  final List<String> languages = <String>[];
+
+  @override
+  Future<void> setLanguage(String languageCode) async {
+    if (throwOnSetLanguage) throw StateError('channel');
+    languages.add(languageCode);
+  }
 }
 
 NotificationService _service(_FakePresenter presenter, {bool android = true}) =>
@@ -86,6 +95,37 @@ void main() {
   test('a presenter that fails to initialize does not throw', () async {
     final presenter = _FakePresenter()..throwOnInitialize = true;
     await _service(presenter).initializeLocalPresenter();
+  });
+
+  test('initializing names the channels in the device language', () async {
+    final presenter = _FakePresenter();
+    await _service(presenter).initializeLocalPresenter();
+    expect(presenter.languages, hasLength(1));
+    expect(presenter.languages.single, anyOf('en', 'no'));
+  });
+
+  test('a setLanguage failure does not throw out of init', () async {
+    final presenter = _FakePresenter()..throwOnSetLanguage = true;
+    await _service(presenter).initializeLocalPresenter();
+  });
+
+  test('reconcile renames the channels once per locale', () async {
+    final presenter = _FakePresenter();
+    final service = _service(presenter);
+    Future<void> reconcile(String locale) async {
+      try {
+        await service.reconcile(campusId: '1', locale: locale);
+      } catch (_) {
+        // The backend is not available here; only the channels matter.
+      }
+    }
+
+    await reconcile('no');
+    await reconcile('no');
+    expect(presenter.languages, ['no']);
+    await reconcile('en');
+    await reconcile('en');
+    expect(presenter.languages, ['no', 'en']);
   });
 
   group('tap routing', () {

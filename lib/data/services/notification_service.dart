@@ -286,6 +286,30 @@ class NotificationService {
       );
     } catch (e) {
       debugPrint('Local notification presenter failed to initialize: $e');
+      return;
+    }
+    await _applyChannelLanguage(
+      _reconciledLocale ??
+          pushLocaleFor(PlatformDispatcher.instance.locale.languageCode),
+    );
+  }
+
+  /// The push language the channels are (being) named in.
+  String? _channelLocale;
+
+  /// The push language most recently passed to [reconcile], if any.
+  String? _reconciledLocale;
+
+  /// Renames the Android channels for [locale] unless already done. Never
+  /// throws; a failure is retried the next time.
+  Future<void> _applyChannelLanguage(String locale) async {
+    if (!_isAndroid() || _channelLocale == locale) return;
+    _channelLocale = locale;
+    try {
+      await _presenter.setLanguage(locale);
+    } catch (e) {
+      _channelLocale = null;
+      debugPrint('Local notification channel language failed: $e');
     }
   }
 
@@ -789,6 +813,8 @@ class NotificationService {
     _campusKnown = true;
     final pushLocale = pushLocaleFor(locale);
     _lastLocale = pushLocale;
+    _reconciledLocale = pushLocale;
+    unawaited(_applyChannelLanguage(pushLocale));
 
     return _enqueue(
       'reconcile',

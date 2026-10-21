@@ -2973,4 +2973,10 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get announcementViewEvent => 'Se arrangementet';
+
+  @override
+  String get notificationChannelDefault => 'BISO';
+
+  @override
+  String get notificationChannelUrgent => 'Viktig fra BISO';
 }
