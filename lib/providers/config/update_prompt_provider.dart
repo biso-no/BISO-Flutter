@@ -103,7 +103,12 @@ class UpdatePromptNotifier extends Notifier<UpdatePrompt> {
   ///
   /// Snoozes the version the last fresh answer recommends for this platform.
   /// A higher recommendation later is a new reason to ask and shows again.
+  ///
+  /// Does nothing during a block ([UpdatePrompt.required]): there is no way
+  /// past the required screen, so nothing is stored and the block stays.
   Future<void> snooze() async {
+    if (state == UpdatePrompt.required) return;
+
     final recommended = _fresh == null ? null : _policyOf(_fresh!).recommended;
     state = UpdatePrompt.none;
     if (recommended == null) return;

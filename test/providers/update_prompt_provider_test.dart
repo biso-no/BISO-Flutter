@@ -346,6 +346,22 @@ void main() {
       expect(await settle(container), UpdatePrompt.required);
     });
 
+    test('snooze cannot get past a block', () async {
+      final container = start(
+        _FakeConfigService([
+          _network(
+            android: const UpdatePolicy(minimum: '2.4.0', recommended: '2.4.1'),
+          ),
+        ]),
+      );
+      expect(await settle(container), UpdatePrompt.required);
+
+      await container.read(updatePromptProvider.notifier).snooze();
+
+      expect(container.read(updatePromptProvider), UpdatePrompt.required);
+      expect(await UpdateSnoozeStore().read(), isNull);
+    });
+
     test('snooze without a fresh recommendation stores nothing', () async {
       final container = start(_FakeConfigService([_cached()]));
       expect(await settle(container), UpdatePrompt.none);
