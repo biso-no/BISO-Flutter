@@ -97,8 +97,10 @@ class _FakeNotificationService implements NotificationService {
   }) async => true;
 
   @override
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async =>
-      ReconcileOutcome.applied;
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) async => ReconcileOutcome.applied;
 
   @override
   Future<bool> getChatNotificationPreference() async => true;

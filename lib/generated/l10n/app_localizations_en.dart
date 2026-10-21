@@ -2824,4 +2824,151 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationsImportantAlwaysIncluded =>
       'You will always get important announcements from BISO.';
+
+  @override
+  String get membersOnlyTitle => 'Members only';
+
+  @override
+  String get eventNotAvailable => 'This event isn\'t available';
+
+  @override
+  String eventOrganizedBy(String name) {
+    return 'Organized by $name';
+  }
+
+  @override
+  String get eventGetTickets => 'Get tickets';
+
+  @override
+  String get eventTicketsMembersHint =>
+      'This event is for BISO members. If you are a member, check your membership under Profile → Membership.';
+
+  @override
+  String eventMembersPrice(String price) {
+    return 'Members $price';
+  }
+
+  @override
+  String get newsTitle => 'News';
+
+  @override
+  String get newsSubtitle => 'Stories and updates from BISO';
+
+  @override
+  String get latestNewsTitle => 'Latest news';
+
+  @override
+  String get readOnBisoNo => 'Read on biso.no';
+
+  @override
+  String get newsNotAvailable => 'This article isn\'t available';
+
+  @override
+  String get inboxFilterFromBiso => 'From BISO';
+
+  @override
+  String get inboxDayToday => 'Today';
+
+  @override
+  String get inboxDayYesterday => 'Yesterday';
+
+  @override
+  String get inboxDayThisWeek => 'This week';
+
+  @override
+  String get inboxDayEarlier => 'Earlier';
+
+  @override
+  String inboxSeeAll(int count) {
+    return 'See all $count';
+  }
+
+  @override
+  String inboxNewCount(int count) {
+    return '$count new';
+  }
+
+  @override
+  String get inboxItemOpened => 'Opened';
+
+  @override
+  String get inboxEmptyTitle => 'No notifications yet';
+
+  @override
+  String get inboxEmptyMessage => 'Updates from BISO will appear here.';
+
+  @override
+  String get inboxJustNow => 'Just now';
+
+  @override
+  String inboxMinutesAgo(int count) {
+    return '${count}m ago';
+  }
+
+  @override
+  String inboxHoursAgo(int count) {
+    return '${count}h ago';
+  }
+
+  @override
+  String inboxDaysAgo(int count) {
+    return '${count}d ago';
+  }
+
+  @override
+  String inboxWeeksAgo(int count) {
+    return '${count}w ago';
+  }
+
+  @override
+  String inboxMonthsAgo(int count) {
+    return '${count}mo ago';
+  }
+
+  @override
+  String inboxYearsAgo(int count) {
+    return '${count}y ago';
+  }
+
+  @override
+  String get inboxCategoryUrgent => 'Urgent';
+
+  @override
+  String get inboxCategoryTrip => 'Trip';
+
+  @override
+  String get inboxCategoryEvent => 'Event';
+
+  @override
+  String get inboxCategoryNews => 'News';
+
+  @override
+  String get inboxCategoryJob => 'Job';
+
+  @override
+  String get inboxCategoryGeneral => 'General';
+
+  @override
+  String get inboxFilterJobs => 'Jobs';
+
+  @override
+  String get announcementTitle => 'Announcement';
+
+  @override
+  String get announcementNotFoundTitle => 'Announcement not found';
+
+  @override
+  String get announcementNotFoundMessage => 'It may have been removed.';
+
+  @override
+  String get announcementNoContent => 'No content.';
+
+  @override
+  String get announcementViewEvent => 'View event';
+
+  @override
+  String get notificationChannelDefault => 'BISO';
+
+  @override
+  String get notificationChannelUrgent => 'Urgent from BISO';
 }

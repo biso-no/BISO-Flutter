@@ -1,33 +1,59 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/inbox_layout.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
-import '../../../data/services/deep_link_service.dart';
+import '../../../data/models/inbox_item.dart';
+import '../../../data/services/announcement_route.dart';
+import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/notification/inbox_opened_items_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
+import 'inbox_widgets.dart';
 
-/// In-app notification inbox. Lists announcements addressed to the current
-/// user (broadcast + targeted) and lets them open the linked content.
-class NotificationsScreen extends ConsumerWidget {
-  const NotificationsScreen({super.key});
+/// In-app notification inbox: filter chips, pinned urgent rows, then the
+/// rest grouped by day. Lists announcements addressed to the current user
+/// (broadcast + targeted) and lets them open the linked content.
+class NotificationsScreen extends ConsumerStatefulWidget {
+  const NotificationsScreen({super.key, this.clock});
+
+  /// Source of "now" for pinning, grouping and relative times. Tests inject
+  /// a fixed clock.
+  final DateTime Function()? clock;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  InboxFilter _filter = InboxFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(notificationInboxProvider);
 
     return BisoPage(
-      title: 'Notifications',
+      title: l10n.notificationsMessage,
       leading: BisoBackButton(
         onPressed: () => NavigationUtils.safeGoBack(context),
       ),
       onRefresh: () => ref.read(notificationInboxProvider.notifier).refresh(),
-      slivers: _buildSlivers(ref, state),
+      slivers: _buildSlivers(context, l10n, state),
     );
   }
 
-  List<Widget> _buildSlivers(WidgetRef ref, NotificationInboxState state) {
+  List<Widget> _buildSlivers(
+    BuildContext context,
+    AppLocalizations l10n,
+    NotificationInboxState state,
+  ) {
     if (state.isLoading && state.items.isEmpty) {
       return const [SliverToBoxAdapter(child: BisoSkeleton.rows())];
     }
@@ -38,148 +64,166 @@ class NotificationsScreen extends ConsumerWidget {
           hasScrollBody: false,
           child: BisoErrorState(
             message: state.error,
-            onRetry: () =>
-                ref.read(notificationInboxProvider.notifier).load(),
+            onRetry: () => ref.read(notificationInboxProvider.notifier).load(),
           ),
         ),
       ];
     }
 
-    if (state.items.isEmpty) {
-      return const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: BisoEmptyState(
-            icon: CupertinoIcons.bell,
-            title: 'No notifications yet',
-            message: 'Updates from BISO will appear here.',
-          ),
-        ),
-      ];
-    }
+    final empty = SliverFillRemaining(
+      hasScrollBody: false,
+      child: BisoEmptyState(
+        icon: CupertinoIcons.bell,
+        title: l10n.inboxEmptyTitle,
+        message: l10n.inboxEmptyMessage,
+      ),
+    );
+    if (state.items.isEmpty) return [empty];
+
+    final now = (widget.clock ?? DateTime.now)();
+    final filtered = applyFilter(state.items, _filter);
+    final sections = groupByDay(filtered, now);
+    // Urgent rows stay pinned under every filter: a filter must not hide
+    // urgent information, so only the day groups are filtered.
+    final grouped = {
+      for (final s in groupByDay(state.items, now)) ...{
+        for (final n in s.items) n.id,
+      },
+    };
+    final pinned = [
+      for (final n in pinUrgent(state.items, now))
+        if (!grouped.contains(n.id)) n,
+    ];
 
     return [
-      SliverBisoListGroup(
-        itemCount: state.items.length,
-        itemBuilder: (context, index) {
-          final item = state.items[index];
-          return _NotificationRow(
-            notification: item,
-            onTap: () => _handleTap(context, ref, item),
-          );
-        },
+      SliverToBoxAdapter(
+        child: _FilterChips(
+          selected: _filter,
+          onSelected: (f) => setState(() => _filter = f),
+        ),
       ),
+      if (filtered.isEmpty && pinned.isEmpty) empty,
+      if (pinned.isNotEmpty)
+        SliverToBoxAdapter(child: _group(context, null, pinned, now)),
+      for (final section in sections)
+        SliverToBoxAdapter(
+          child: _group(
+            context,
+            _dayLabel(l10n, section.day),
+            section.items,
+            now,
+          ),
+        ),
+      const SliverToBoxAdapter(child: SizedBox(height: 24)),
     ];
   }
 
-  Future<void> _handleTap(
+  Widget _group(
     BuildContext context,
-    WidgetRef ref,
-    AppNotification item,
-  ) async {
-    await ref.read(notificationInboxProvider.notifier).markRead(item);
+    String? title,
+    List<AppNotification> items,
+    DateTime now,
+  ) {
+    final hasImage = items.any(
+      (n) => !n.isUrgent && (n.image?.isNotEmpty ?? false),
+    );
+    final opened = ref.watch(inboxOpenedItemsProvider);
+    return BisoSection(
+      title: title,
+      padding: EdgeInsets.fromLTRB(16, title == null ? 8 : 20, 16, 0),
+      child: BisoListGroup(
+        dividerIndent: hasImage ? kInboxThumbDividerIndent : 60,
+        children: [
+          for (final n in items)
+            InboxRow(
+              key: ValueKey(n.id),
+              notification: n,
+              now: now,
+              openedItemIds: opened.openedFor(n.id),
+              onTap: () => _handleTap(context, n),
+              onOpenItem: (item) => _openItem(context, n, item),
+              onSeeAll: () => _openAnnouncement(context, n),
+            ),
+        ],
+      ),
+    );
+  }
 
-    if (item.deepLink != null && item.deepLink!.isNotEmpty) {
-      final uri = Uri.tryParse(item.deepLink!);
-      if (uri != null) {
-        DeepLinkService().handleDeepLink(uri);
-        return;
-      }
-    }
+  String _dayLabel(AppLocalizations l10n, InboxDay day) => switch (day) {
+    InboxDay.today => l10n.inboxDayToday,
+    InboxDay.yesterday => l10n.inboxDayYesterday,
+    InboxDay.thisWeek => l10n.inboxDayThisWeek,
+    InboxDay.earlier => l10n.inboxDayEarlier,
+  };
 
-    if (item.eventId != null && item.eventId!.isNotEmpty) {
-      DeepLinkService().handleDeepLink(
-        Uri.parse('biso://event?id=${item.eventId}'),
-      );
-      return;
-    }
+  // Every tap marks the notification read and pushes inside the tab shell,
+  // where the inbox lives too, so Back returns to the inbox. The marks update
+  // the inbox at once and are not waited for: marking read goes to the
+  // server, and the screen opens without that delay.
 
-    // No deep link or event: open the rich announcement detail directly.
-    if (item.id.isNotEmpty && context.mounted) {
-      context.go('/announcements/${item.id}');
+  void _openItem(BuildContext context, AppNotification n, InboxItem item) {
+    // An opened card leaves the burst's strip.
+    unawaited(
+      ref.read(inboxOpenedItemsProvider.notifier).markOpened(n.id, item.id),
+    );
+    unawaited(ref.read(notificationInboxProvider.notifier).markRead(n));
+    context.push(item.route);
+  }
+
+  void _openAnnouncement(BuildContext context, AppNotification n) {
+    unawaited(ref.read(notificationInboxProvider.notifier).markRead(n));
+    if (n.id.isNotEmpty) {
+      context.push('/announcements/${Uri.encodeComponent(n.id)}');
     }
+  }
+
+  void _handleTap(BuildContext context, AppNotification n) {
+    unawaited(ref.read(notificationInboxProvider.notifier).markRead(n));
+    final route = announcementRouteFor(n);
+    if (route != null) context.push(route);
   }
 }
 
-class _NotificationRow extends StatelessWidget {
-  const _NotificationRow({required this.notification, required this.onTap});
+class _FilterChips extends StatelessWidget {
+  const _FilterChips({required this.selected, required this.onSelected});
 
-  final AppNotification notification;
-  final VoidCallback onTap;
+  final InboxFilter selected;
+  final ValueChanged<InboxFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final palette = BisoPalette.of(context);
-    final isUnread = !notification.read;
-
-    return BisoListRow(
-      // The tile's icon is decorative; the old category chip's word
-      // ("Urgent", "Trip", "Event", "General") is kept for screen readers.
-      leading: Semantics(
-        label: _categoryLabel(notification.category),
-        child: BisoIconTile(
-          icon: _categoryIcon(notification.category),
-          accent: _categoryAccent(notification.category),
-        ),
-      ),
-      title: notification.title,
-      subtitle: notification.body.isNotEmpty ? notification.body : null,
-      value: _relativeTime(notification.createdAt),
-      trailing: isUnread
-          ? DecoratedBox(
-              decoration: BoxDecoration(
-                color: palette.link,
-                shape: BoxShape.circle,
+    final text = Theme.of(context).textTheme;
+    String label(InboxFilter f) => switch (f) {
+      InboxFilter.all => l10n.all,
+      InboxFilter.events => l10n.eventsMessage,
+      InboxFilter.news => l10n.newsTitle,
+      InboxFilter.jobs => l10n.inboxFilterJobs,
+      InboxFilter.fromBiso => l10n.inboxFilterFromBiso,
+    };
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          for (final f in InboxFilter.values) ...[
+            ChoiceChip(
+              label: Text(label(f)),
+              selected: f == selected,
+              showCheckmark: false,
+              backgroundColor: palette.surface,
+              selectedColor: palette.primary,
+              side: BorderSide(color: palette.hairline),
+              labelStyle: text.labelLarge?.copyWith(
+                color: f == selected ? palette.onPrimary : palette.ink,
               ),
-              child: const SizedBox(width: 8, height: 8),
-            )
-          : null,
-      onTap: onTap,
+              onSelected: (_) => onSelected(f),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
     );
-  }
-}
-
-// The only topic this screen colors distinctly is `event`, matching R6's
-// events/departures/calendar -> blue. `trip`, `urgent` and `general` have no
-// counterpart in the shop/units/expenses topic set R6 documents, so they fall
-// to the neutral bell the brief specifies as the default.
-BisoAccent _categoryAccent(String category) =>
-    category == 'event' ? BisoAccent.blue : BisoAccent.neutral;
-
-IconData _categoryIcon(String category) {
-  switch (category) {
-    case 'urgent':
-      return CupertinoIcons.exclamationmark_triangle;
-    case 'trip':
-      return CupertinoIcons.airplane;
-    case 'event':
-      return CupertinoIcons.calendar;
-    default:
-      return CupertinoIcons.bell;
-  }
-}
-
-String _relativeTime(DateTime date) {
-  final diff = DateTime.now().difference(date);
-  if (diff.inSeconds < 60) return 'Just now';
-  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-  if (diff.inHours < 24) return '${diff.inHours}h ago';
-  if (diff.inDays < 7) return '${diff.inDays}d ago';
-  if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
-  if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
-  return '${(diff.inDays / 365).floor()}y ago';
-}
-
-// Verbatim from the pre-migration category chip (git show 521b307).
-String _categoryLabel(String category) {
-  switch (category) {
-    case 'urgent':
-      return 'Urgent';
-    case 'trip':
-      return 'Trip';
-    case 'event':
-      return 'Event';
-    default:
-      return 'General';
   }
 }

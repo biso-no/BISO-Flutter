@@ -146,6 +146,13 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
         subtitle: l10n.campusEventsActivitiesMessage,
         onTap: () => context.go('/explore/events'),
       ),
+      _CategoryData(
+        icon: CupertinoIcons.news,
+        accent: BisoAccent.violet,
+        title: l10n.newsTitle,
+        subtitle: l10n.newsSubtitle,
+        onTap: () => context.go('/explore/news'),
+      ),
       if (config.departuresEnabled)
         _CategoryData(
           icon: CupertinoIcons.tram_fill,

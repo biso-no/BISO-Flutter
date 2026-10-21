@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
@@ -8,10 +9,12 @@ import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
+import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const String _studentA = 'student-a';
 const String _studentB = 'student-b';
@@ -157,11 +160,18 @@ class _FakeNotificationService extends NotificationService {
 
   int reconcileCalls = 0;
   String? lastReconcileCampusId;
+  String? lastReconcileLocale;
+  final List<String> reconcileLocales = <String>[];
 
   @override
-  Future<ReconcileOutcome> reconcile({required String? campusId}) async {
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) async {
     reconcileCalls++;
     lastReconcileCampusId = campusId;
+    lastReconcileLocale = locale;
+    reconcileLocales.add(locale);
     final failure = reconcileThrows;
     if (failure != null) throw failure;
     return reconcileResult;
@@ -351,87 +361,85 @@ void main() {
       expect(service.reconcileCalls, 0);
     });
 
-    test(
-      'serialises overlapping calls so the server ends up holding both '
-      'changes, instead of whichever save "arrives" last winning with a '
-      'stale snapshot (finding 3): without serialising the actual save '
-      'calls, releasing the second call\'s save before the first\'s lets '
-      'the older payload land last and resurrect "events: true"',
-      () async {
-        final gates = [Completer<void>(), Completer<void>()];
-        final service = _FakeNotificationService(seededIntent)
-          ..saveGates = gates;
-        final notifier = await buildNotifier(service);
+    test('serialises overlapping calls so the server ends up holding both '
+        'changes, instead of whichever save "arrives" last winning with a '
+        'stale snapshot (finding 3): without serialising the actual save '
+        'calls, releasing the second call\'s save before the first\'s lets '
+        'the older payload land last and resurrect "events: true"', () async {
+      final gates = [Completer<void>(), Completer<void>()];
+      final service = _FakeNotificationService(seededIntent)..saveGates = gates;
+      final notifier = await buildNotifier(service);
 
-        final futureA = notifier.setTopic('news', false);
-        final futureB = notifier.setTopic('events', false);
+      final futureA = notifier.setTopic('news', false);
+      final futureB = notifier.setTopic('events', false);
 
-        // Resolve out of call order: the *second* call's "network response"
-        // arrives first. Serialised saves never let the second call's save
-        // start until the first one has finished, so this ordering cannot
-        // matter to them; unserialised saves fire both at once, and this is
-        // exactly the ordering that lets the first call's stale payload land
-        // last and win.
-        gates[1].complete();
-        await pumpEventQueue();
-        gates[0].complete();
+      // Resolve out of call order: the *second* call's "network response"
+      // arrives first. Serialised saves never let the second call's save
+      // start until the first one has finished, so this ordering cannot
+      // matter to them; unserialised saves fire both at once, and this is
+      // exactly the ordering that lets the first call's stale payload land
+      // last and win.
+      gates[1].complete();
+      await pumpEventQueue();
+      gates[0].complete();
 
-        final results = await Future.wait([futureA, futureB]);
+      final results = await Future.wait([futureA, futureB]);
 
-        expect(results, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
-        expect(
-          service.lastSaved,
-          {'news': false, 'events': false, 'jobs': true, 'shop': true},
-          reason: 'the last write to actually reach the server must contain '
-              'both changes',
-        );
-        expect(
-          notifier.state.value,
-          {'news': false, 'events': false, 'jobs': true, 'shop': true},
-        );
-      },
-    );
+      expect(results, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
+      expect(
+        service.lastSaved,
+        {'news': false, 'events': false, 'jobs': true, 'shop': true},
+        reason:
+            'the last write to actually reach the server must contain '
+            'both changes',
+      );
+      expect(notifier.state.value, {
+        'news': false,
+        'events': false,
+        'jobs': true,
+        'shop': true,
+      });
+    });
 
-    test(
-      'a queued save is built on what the server has confirmed, so a later '
-      "call does not resurrect an earlier call's change after that change "
-      'failed (finding 3): the failed "news" change must not be dragged '
-      'along by the "events" save that runs after it',
-      () async {
-        final service = _FakeNotificationService(seededIntent)
-          ..saveThrows = Exception('offline')
-          ..saveThrowsOnCall = 1;
-        final notifier = await buildNotifier(service);
+    test('a queued save is built on what the server has confirmed, so a later '
+        "call does not resurrect an earlier call's change after that change "
+        'failed (finding 3): the failed "news" change must not be dragged '
+        'along by the "events" save that runs after it', () async {
+      final service = _FakeNotificationService(seededIntent)
+        ..saveThrows = Exception('offline')
+        ..saveThrowsOnCall = 1;
+      final notifier = await buildNotifier(service);
 
-        final futureA = notifier.setTopic('news', false);
-        final futureB = notifier.setTopic('events', false);
-        final results = await Future.wait([futureA, futureB]);
+      final futureA = notifier.setTopic('news', false);
+      final futureB = notifier.setTopic('events', false);
+      final results = await Future.wait([futureA, futureB]);
 
-        expect(results[0], isNull, reason: "news's save failed");
-        expect(
-          results[1],
-          ReconcileOutcome.applied,
-          reason: "events's save succeeded",
-        );
-        expect(
-          service.saveCalls,
-          2,
-          reason: 'both calls must still attempt to save exactly once',
-        );
-        expect(
-          service.lastSaved,
-          {'news': true, 'events': false, 'jobs': true, 'shop': true},
-          reason: '"news" must be back to true - its own save failed - and '
-              'must not be dragged along by the events save that ran after '
-              'it',
-        );
-        expect(
-          notifier.state.value,
-          {'news': true, 'events': false, 'jobs': true, 'shop': true},
-          reason: 'the switches must show exactly what the server has',
-        );
-      },
-    );
+      expect(results[0], isNull, reason: "news's save failed");
+      expect(
+        results[1],
+        ReconcileOutcome.applied,
+        reason: "events's save succeeded",
+      );
+      expect(
+        service.saveCalls,
+        2,
+        reason: 'both calls must still attempt to save exactly once',
+      );
+      expect(
+        service.lastSaved,
+        {'news': true, 'events': false, 'jobs': true, 'shop': true},
+        reason:
+            '"news" must be back to true - its own save failed - and '
+            'must not be dragged along by the events save that ran after '
+            'it',
+      );
+      expect(notifier.state.value, {
+        'news': true,
+        'events': false,
+        'jobs': true,
+        'shop': true,
+      }, reason: 'the switches must show exactly what the server has');
+    });
 
     test(
       'a successful save never writes the switches back, so it cannot revert '
@@ -478,14 +486,18 @@ void main() {
         final results = await Future.wait([futureA, futureB]);
 
         expect(results, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
-        expect(
-          service.lastSaved,
-          {'news': false, 'events': false, 'jobs': true, 'shop': true},
-        );
-        expect(
-          notifier.state.value,
-          {'news': false, 'events': false, 'jobs': true, 'shop': true},
-        );
+        expect(service.lastSaved, {
+          'news': false,
+          'events': false,
+          'jobs': true,
+          'shop': true,
+        });
+        expect(notifier.state.value, {
+          'news': false,
+          'events': false,
+          'jobs': true,
+          'shop': true,
+        });
       },
     );
 
@@ -568,48 +580,45 @@ void main() {
       },
     );
 
-    test(
-      'a topic turned off and back on, with both saves succeeding, never '
-      'flicks back to off in between: the first save used to write its own '
-      'value back to the switch when it landed, while the second tap was '
-      'still queued',
-      () async {
-        final gates = [Completer<void>(), Completer<void>()];
-        final service = _FakeNotificationService(seededIntent)
-          ..saveGates = gates;
-        final notifier = await buildNotifier(service);
+    test('a topic turned off and back on, with both saves succeeding, never '
+        'flicks back to off in between: the first save used to write its own '
+        'value back to the switch when it landed, while the second tap was '
+        'still queued', () async {
+      final gates = [Completer<void>(), Completer<void>()];
+      final service = _FakeNotificationService(seededIntent)..saveGates = gates;
+      final notifier = await buildNotifier(service);
 
-        final off = notifier.setTopic('news', false);
-        await pumpEventQueue(); // off's save is on the wire.
-        final on = notifier.setTopic('news', true);
+      final off = notifier.setTopic('news', false);
+      await pumpEventQueue(); // off's save is on the wire.
+      final on = notifier.setTopic('news', true);
 
-        final shown = <bool?>[];
-        final removeListener = notifier.addListener(
-          (state) => shown.add(state.value?['news']),
-          fireImmediately: false,
-        );
+      final shown = <bool?>[];
+      final removeListener = notifier.addListener(
+        (state) => shown.add(state.value?['news']),
+        fireImmediately: false,
+      );
 
-        gates[0].complete();
-        await pumpEventQueue();
-        expect(service.saveCalls, 2, reason: "on's save is now on the wire");
-        expect(notifier.state.value?['news'], isTrue);
+      gates[0].complete();
+      await pumpEventQueue();
+      expect(service.saveCalls, 2, reason: "on's save is now on the wire");
+      expect(notifier.state.value?['news'], isTrue);
 
-        gates[1].complete();
-        final results = await Future.wait([off, on]);
-        removeListener();
+      gates[1].complete();
+      final results = await Future.wait([off, on]);
+      removeListener();
 
-        expect(results, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
-        expect(
-          shown,
-          isNot(contains(false)),
-          reason: 'the student last turned news on, so nothing may show it '
-              'off again',
-        );
-        final server = await service.loadTopicIntent();
-        expect(server['news'], isTrue);
-        expect(notifier.state.value, server);
-      },
-    );
+      expect(results, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
+      expect(
+        shown,
+        isNot(contains(false)),
+        reason:
+            'the student last turned news on, so nothing may show it '
+            'off again',
+      );
+      final server = await service.loadTopicIntent();
+      expect(server['news'], isTrue);
+      expect(notifier.state.value, server);
+    });
 
     test(
       'commits that run after the notifier is disposed - topicIntentProvider '
@@ -636,15 +645,16 @@ void main() {
         }
         final results = await Future.wait([news, events, jobs]);
 
-        expect(
-          results,
-          [ReconcileOutcome.unavailable, ReconcileOutcome.unavailable, null],
-          reason: 'saved but not reconciled from here, twice; then not saved',
-        );
+        expect(results, [
+          ReconcileOutcome.unavailable,
+          ReconcileOutcome.unavailable,
+          null,
+        ], reason: 'saved but not reconciled from here, twice; then not saved');
         expect(
           service.reconcileCalls,
           0,
-          reason: 'the rebuilt notifier and the launch reconciler own the '
+          reason:
+              'the rebuilt notifier and the launch reconciler own the '
               'new campus',
         );
         expect(await service.loadTopicIntent(), {
@@ -656,38 +666,35 @@ void main() {
       },
     );
 
-    test(
-      'a reload leaves a tap whose save has not resolved on screen, and '
-      'waits behind queued saves rather than racing them: its read could '
-      'otherwise answer after a save landed and hand back the intent from '
-      'before it, and with no write-back after a save nothing would put the '
-      'switch right again',
-      () async {
-        final service = _FakeNotificationService(seededIntent);
-        final notifier = await buildNotifier(service);
+    test('a reload leaves a tap whose save has not resolved on screen, and '
+        'waits behind queued saves rather than racing them: its read could '
+        'otherwise answer after a save landed and hand back the intent from '
+        'before it, and with no write-back after a save nothing would put the '
+        'switch right again', () async {
+      final service = _FakeNotificationService(seededIntent);
+      final notifier = await buildNotifier(service);
 
-        final readHold = Completer<void>();
-        service.account.holdNextRead = readHold;
-        final reloading = notifier.refresh();
-        await pumpEventQueue(); // the reload's read is out.
+      final readHold = Completer<void>();
+      service.account.holdNextRead = readHold;
+      final reloading = notifier.refresh();
+      await pumpEventQueue(); // the reload's read is out.
 
-        final saving = notifier.setTopic('news', false);
-        expect(notifier.state.value?['news'], isFalse);
+      final saving = notifier.setTopic('news', false);
+      expect(notifier.state.value?['news'], isFalse);
 
-        readHold.complete();
-        await reloading;
-        expect(
-          notifier.state.value?['news'],
-          isFalse,
-          reason: 'the reload must not hide a tap whose save has not resolved',
-        );
+      readHold.complete();
+      await reloading;
+      expect(
+        notifier.state.value?['news'],
+        isFalse,
+        reason: 'the reload must not hide a tap whose save has not resolved',
+      );
 
-        expect(await saving, ReconcileOutcome.applied);
-        final server = await service.loadTopicIntent();
-        expect(server['news'], isFalse);
-        expect(notifier.state.value, server);
-      },
-    );
+      expect(await saving, ReconcileOutcome.applied);
+      final server = await service.loadTopicIntent();
+      expect(server['news'], isFalse);
+      expect(notifier.state.value, server);
+    });
 
     test(
       'a save still queued when its student signs out and another signs in '
@@ -765,6 +772,43 @@ void main() {
     );
   });
 
+  group('topicReconcileProvider', () {
+    test(
+      'changing the app language re-runs reconcile with the new language',
+      () async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        final service = _FakeNotificationService(seededIntent);
+        final auth = _TestAuthNotifier();
+        final locale = LocaleNotifier(
+          deviceLocale: () => const ui.Locale('en'),
+          prefs: SharedPreferences.getInstance,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            notificationServiceProvider.overrideWithValue(service),
+            authStateProvider.overrideWith((ref) => auth),
+            localeProvider.overrideWith((ref) => locale),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.listen(topicReconcileProvider, (_, _) {});
+        await pumpEventQueue();
+
+        auth.signIn(_studentA, campusId: '2');
+        await pumpEventQueue();
+        expect(service.lastReconcileLocale, 'en');
+        final before = service.reconcileCalls;
+
+        await locale.setLocale('no');
+        await pumpEventQueue();
+
+        expect(service.reconcileCalls, before + 1);
+        expect(service.lastReconcileLocale, 'no');
+        expect(service.lastReconcileCampusId, '2');
+      },
+    );
+  });
+
   group('topicIntentProvider', () {
     test(
       'builds a new notifier when a different student signs in, even on the '
@@ -803,10 +847,7 @@ void main() {
         // Student B's own changes are saved to B's account.
         await pumpEventQueue(); // B's notifier's load
         expect(await forB.setTopic('jobs', false), ReconcileOutcome.applied);
-        expect(
-          await service.loadTopicIntent(),
-          containsPair('jobs', false),
-        );
+        expect(await service.loadTopicIntent(), containsPair('jobs', false));
         expect(service.account.prefsByStudent[_studentA], seededIntent);
       },
     );
@@ -851,25 +892,22 @@ void main() {
       return (container, service, auth);
     }
 
-    test(
-      'reconciles once, for the campus on the student\'s profile, when the '
-      'app comes back with notifications turned on since they were last '
-      'read: a student who allowed them in the system settings stayed '
-      'unsubscribed until the next launch',
-      () async {
-        final (_, service, auth) = await start();
-        auth.signIn(_studentA, campusId: '2');
+    test('reconciles once, for the campus on the student\'s profile, when the '
+        'app comes back with notifications turned on since they were last '
+        'read: a student who allowed them in the system settings stayed '
+        'unsubscribed until the next launch', () async {
+      final (_, service, auth) = await start();
+      auth.signIn(_studentA, campusId: '2');
 
-        service.permitted = false;
-        await backgroundAndResume();
-        expect(service.reconcileCalls, 0);
+      service.permitted = false;
+      await backgroundAndResume();
+      expect(service.reconcileCalls, 0);
 
-        service.permitted = true;
-        await backgroundAndResume();
-        expect(service.reconcileCalls, 1);
-        expect(service.lastReconcileCampusId, '2');
-      },
-    );
+      service.permitted = true;
+      await backgroundAndResume();
+      expect(service.reconcileCalls, 1);
+      expect(service.lastReconcileCampusId, '2');
+    });
 
     test('does not reconcile on a resume when nothing has changed', () async {
       final (_, service, auth) = await start();

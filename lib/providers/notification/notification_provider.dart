@@ -144,7 +144,9 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     this._campusId, {
     required String? studentId,
     required String? Function() signedInStudentId,
-  }) : _studentId = studentId,
+    String Function()? currentLanguage,
+  }) : _currentLanguage = currentLanguage ?? _defaultLanguage,
+       _studentId = studentId,
        _signedInStudentId = signedInStudentId,
        super(const AsyncValue.loading()) {
     _load();
@@ -152,6 +154,11 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
   final NotificationService _service;
   final String? _campusId;
+
+  /// The app language now, asked afresh on every commit, since the language
+  /// can change without this notifier being rebuilt.
+  final String Function() _currentLanguage;
+  static String _defaultLanguage() => 'en';
 
   /// The student this notifier was built for, and so the student every save
   /// it queues belongs to: [topicIntentProvider] builds a new notifier when
@@ -301,10 +308,10 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
     final bool saved;
     try {
-      saved = await _service.saveTopicIntent(
-        <String, bool>{...confirmed, topicId: enabled},
-        onlyIf: () => _studentStillSignedIn,
-      );
+      saved = await _service.saveTopicIntent(<String, bool>{
+        ...confirmed,
+        topicId: enabled,
+      }, onlyIf: () => _studentStillSignedIn);
     } catch (error) {
       debugPrint(
         'TopicIntentNotifier.setTopic($topicId) failed to save: $error',
@@ -340,7 +347,10 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
     if (!mounted || !_studentStillSignedIn) return ReconcileOutcome.unavailable;
 
     try {
-      return await _service.reconcile(campusId: _campusId);
+      return await _service.reconcile(
+        campusId: _campusId,
+        locale: _currentLanguage(),
+      );
     } catch (error) {
       // reconcile() is designed to report failure via ReconcileOutcome
       // rather than throw; this is a last-resort net for anything
@@ -405,6 +415,7 @@ final topicIntentProvider =
         studentId: studentId,
         signedInStudentId: () =>
             container.read(authStateProvider).signedInUserId,
+        currentLanguage: () => container.read(localeProvider).languageCode,
       );
     });
 
@@ -446,6 +457,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   final String? _userId;
   final String _locale;
   final String? _campusId;
+  final DateTime? _joinedAt;
 
   RealtimeSubscription? _subscription;
   StreamSubscription<void>? _foregroundSubscription;
@@ -456,10 +468,12 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     required String? userId,
     required String locale,
     required String? campusId,
+    DateTime? joinedAt,
   }) : _notificationService = notificationService,
        _userId = userId,
        _locale = locale,
        _campusId = campusId,
+       _joinedAt = joinedAt,
        super(const NotificationInboxState()) {
     if (_userId != null && _userId.isNotEmpty) {
       load();
@@ -509,6 +523,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
         locale: _locale,
         campusId: _campusId,
         topicIntent: topicIntent,
+        joinedAt: _joinedAt,
       );
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
@@ -528,6 +543,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
         locale: _locale,
         campusId: _campusId,
         topicIntent: topicIntent,
+        joinedAt: _joinedAt,
       );
       state = state.copyWith(items: items, clearError: true);
     } catch (e) {
@@ -580,12 +596,17 @@ final notificationInboxProvider =
         authStateProvider.select((state) => state.user?.campusId),
       );
 
+      final joinedAt = ref.watch(
+        authStateProvider.select((state) => state.user?.createdAt),
+      );
+
       return NotificationInboxNotifier(
         service,
         notificationService: notificationService,
         userId: userId,
         locale: locale,
         campusId: campusId,
+        joinedAt: joinedAt,
       );
     });
 
@@ -598,7 +619,10 @@ final unreadCountProvider = Provider<int>((ref) {
 /// user's read state. Keyed by announcement id. Used by the announcement
 /// detail screen.
 final announcementDetailProvider =
-    FutureProvider.family<AppNotification?, String>((ref, announcementId) async {
+    FutureProvider.family<AppNotification?, String>((
+      ref,
+      announcementId,
+    ) async {
       final service = ref.watch(notificationInboxServiceProvider);
       final userId = ref.watch(authStateProvider).user?.id;
       final locale = ref.watch(localeProvider).languageCode;
@@ -624,16 +648,15 @@ final announcementDetailProvider =
 final topicReconcileProvider = FutureProvider<void>((ref) async {
   final (ready, campusId) = ref.watch(
     authStateProvider.select(
-      (state) => (
-        !state.isLoading && state.isAuthenticated,
-        state.user?.campusId,
-      ),
+      (state) =>
+          (!state.isLoading && state.isAuthenticated, state.user?.campusId),
     ),
   );
+  final language = ref.watch(localeProvider.select((l) => l.languageCode));
   if (!ready) return;
   await ref
       .read(notificationServiceProvider)
-      .reconcile(campusId: campusId);
+      .reconcile(campusId: campusId, locale: language);
 });
 
 /// Picks up notification permission granted outside the app.
@@ -655,7 +678,10 @@ final notificationPermissionResumeProvider = Provider<void>((ref) {
     try {
       await ref
           .read(notificationServiceProvider)
-          .reconcileIfPermissionNewlyGranted(campusId: auth.user?.campusId);
+          .reconcileIfPermissionNewlyGranted(
+            campusId: auth.user?.campusId,
+            locale: ref.read(localeProvider).languageCode,
+          );
     } catch (e) {
       debugPrint('notificationPermissionResumeProvider: reconcile failed: $e');
     }

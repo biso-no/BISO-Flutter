@@ -1,7 +1,9 @@
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/event_model.dart';
 import 'package:biso/data/services/event_service.dart';
+import 'package:biso/presentation/screens/events/event_detail_screen.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
+import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
@@ -9,6 +11,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -86,6 +89,10 @@ class _FixedEventService extends EventService {
     if (offset > 0) return const [];
     return _events;
   }
+
+  @override
+  Future<EventModel?> getEvent(String idOrSlug, {String locale = 'no'}) async =>
+      _events.where((e) => e.id == idOrSlug).firstOrNull;
 }
 
 /// Signed out, so the detail sheet's personalised trip card renders nothing
@@ -119,6 +126,14 @@ Future<void> _openGala(
     tester,
     const EventsScreen(),
     routed: true,
+    // A card opens the event's own screen.
+    extraRoutes: [
+      GoRoute(
+        path: '/explore/events/:eventId',
+        builder: (context, state) =>
+            EventDetailScreen(idOrSlug: state.pathParameters['eventId']!),
+      ),
+    ],
     overrides: [
       eventServiceProvider.overrideWithValue(
         _FixedEventService([_ticketed(memberOnly: memberOnly)]),
@@ -183,15 +198,36 @@ void main() {
     });
   });
 
-  testWidgets('Events builds on BisoPage in every appearance', (
-    tester,
-  ) async {
+  testWidgets('Events builds on BisoPage in every appearance', (tester) async {
     await expectBuildsCleanly(
       tester,
       () => const EventsScreen(),
       routed: true,
       overrides: _overrides(_FakeEventService()),
     );
+  });
+
+  testWidgets('the empty state speaks Norwegian under the no locale', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const EventsScreen(),
+      routed: true,
+      locale: const Locale('no'),
+      overrides: [
+        eventServiceProvider.overrideWithValue(_FixedEventService(const [])),
+        filterCampusProvider.overrideWithValue(_campus),
+        campusInitializedProvider.overrideWithValue(true),
+      ],
+    );
+
+    expect(find.text('Ingen hendelser funnet'), findsOneWidget);
+    expect(
+      find.text('Det finnes ingen hendelser som matcher dine kriterier.'),
+      findsOneWidget,
+    );
+    expect(find.text('No Events Found'), findsNothing);
   });
 
   testWidgets('scrolling to the bottom of the list loads the next page', (
@@ -211,11 +247,10 @@ void main() {
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -6000));
     await tester.pumpAndSettle();
 
-    expect(
-      service.offsets,
-      [0, 20],
-      reason: 'scrolling to the bottom must request the next page',
-    );
+    expect(service.offsets, [
+      0,
+      20,
+    ], reason: 'scrolling to the bottom must request the next page');
     expect(find.text('p20 0'), findsOneWidget);
   });
 
@@ -260,7 +295,8 @@ void main() {
       expect(
         endedChipText.style?.color,
         BisoPalette.light.muted,
-        reason: 'a completed event is past/inactive, not the active/'
+        reason:
+            'a completed event is past/inactive, not the active/'
             'selected meaning `link` carries',
       );
       expect(upcomingChipText.style?.color, BisoPalette.light.link);
@@ -302,7 +338,8 @@ void main() {
       expect(
         container.read(eventsSearchTermProvider),
         isNull,
-        reason: 'a one-character query is below the API minimum, so the list '
+        reason:
+            'a one-character query is below the API minimum, so the list '
             'must stop filtering by the previous query',
       );
       expect(service.searches.last, isNull);

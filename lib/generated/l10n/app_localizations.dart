@@ -5162,6 +5162,258 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You will always get important announcements from BISO.'**
   String get notificationsImportantAlwaysIncluded;
+
+  /// Members-only event: the locked ticket button's label
+  ///
+  /// In en, this message translates to:
+  /// **'Members only'**
+  String get membersOnlyTitle;
+
+  /// Event detail: the event does not exist
+  ///
+  /// In en, this message translates to:
+  /// **'This event isn\'t available'**
+  String get eventNotAvailable;
+
+  /// Event detail: who organizes it
+  ///
+  /// In en, this message translates to:
+  /// **'Organized by {name}'**
+  String eventOrganizedBy(String name);
+
+  /// Event detail: button to the ticket page
+  ///
+  /// In en, this message translates to:
+  /// **'Get tickets'**
+  String get eventGetTickets;
+
+  /// Event detail: why the ticket button is locked for a non-member
+  ///
+  /// In en, this message translates to:
+  /// **'This event is for BISO members. If you are a member, check your membership under Profile → Membership.'**
+  String get eventTicketsMembersHint;
+
+  /// Event price line: the member price, e.g. Members NOK 250
+  ///
+  /// In en, this message translates to:
+  /// **'Members {price}'**
+  String eventMembersPrice(String price);
+
+  /// News list/detail title and Explore entry
+  ///
+  /// In en, this message translates to:
+  /// **'News'**
+  String get newsTitle;
+
+  /// Explore entry subtitle for News
+  ///
+  /// In en, this message translates to:
+  /// **'Stories and updates from BISO'**
+  String get newsSubtitle;
+
+  /// Home section heading
+  ///
+  /// In en, this message translates to:
+  /// **'Latest news'**
+  String get latestNewsTitle;
+
+  /// Button opening the article on the website
+  ///
+  /// In en, this message translates to:
+  /// **'Read on biso.no'**
+  String get readOnBisoNo;
+
+  /// News detail: the article does not exist
+  ///
+  /// In en, this message translates to:
+  /// **'This article isn\'t available'**
+  String get newsNotAvailable;
+
+  /// Inbox filter chip: messages sent by BISO itself
+  ///
+  /// In en, this message translates to:
+  /// **'From BISO'**
+  String get inboxFilterFromBiso;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get inboxDayToday;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get inboxDayYesterday;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get inboxDayThisWeek;
+
+  /// Inbox day group
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier'**
+  String get inboxDayEarlier;
+
+  /// Inbox burst: link to every item
+  ///
+  /// In en, this message translates to:
+  /// **'See all {count}'**
+  String inboxSeeAll(int count);
+
+  /// Inbox burst row subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'{count} new'**
+  String inboxNewCount(int count);
+
+  /// Announcement detail: screen-reader label for a burst item the student has already opened
+  ///
+  /// In en, this message translates to:
+  /// **'Opened'**
+  String get inboxItemOpened;
+
+  /// Inbox empty state title
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications yet'**
+  String get inboxEmptyTitle;
+
+  /// Inbox empty state message
+  ///
+  /// In en, this message translates to:
+  /// **'Updates from BISO will appear here.'**
+  String get inboxEmptyMessage;
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'Just now'**
+  String get inboxJustNow;
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}m ago'**
+  String inboxMinutesAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}h ago'**
+  String inboxHoursAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}d ago'**
+  String inboxDaysAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}w ago'**
+  String inboxWeeksAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}mo ago'**
+  String inboxMonthsAgo(int count);
+
+  /// Relative time
+  ///
+  /// In en, this message translates to:
+  /// **'{count}y ago'**
+  String inboxYearsAgo(int count);
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent'**
+  String get inboxCategoryUrgent;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Trip'**
+  String get inboxCategoryTrip;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get inboxCategoryEvent;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'News'**
+  String get inboxCategoryNews;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'Job'**
+  String get inboxCategoryJob;
+
+  /// Screen-reader category of an inbox row
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get inboxCategoryGeneral;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'Jobs'**
+  String get inboxFilterJobs;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement'**
+  String get announcementTitle;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement not found'**
+  String get announcementNotFoundTitle;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'It may have been removed.'**
+  String get announcementNotFoundMessage;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'No content.'**
+  String get announcementNoContent;
+
+  /// Notifications screens
+  ///
+  /// In en, this message translates to:
+  /// **'View event'**
+  String get announcementViewEvent;
+
+  /// Android notification channel name for ordinary pushes
+  ///
+  /// In en, this message translates to:
+  /// **'BISO'**
+  String get notificationChannelDefault;
+
+  /// Android notification channel name for urgent pushes
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent from BISO'**
+  String get notificationChannelUrgent;
 }
 
 class _AppLocalizationsDelegate

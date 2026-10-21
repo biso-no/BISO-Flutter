@@ -4,6 +4,7 @@ import 'package:biso/data/models/event_model.dart';
 import 'package:biso/data/services/event_service.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
+import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,53 +58,47 @@ void main() {
     expect(startDate.isUtc, isTrue);
   });
 
-  test(
-    'formatting the raw parsed DateTime always prints the UTC wall clock, '
-    'independent of the host machine\'s own time zone',
-    () {
-      // No .toLocal() involved, so this holds on every dev machine and CI
-      // runner regardless of its own local time zone.
-      expect(DateFormat('MMM dd, HH:mm').format(startDate), 'Sep 22, 10:00');
-    },
-  );
+  test('formatting the raw parsed DateTime always prints the UTC wall clock, '
+      'independent of the host machine\'s own time zone', () {
+    // No .toLocal() involved, so this holds on every dev machine and CI
+    // runner regardless of its own local time zone.
+    expect(DateFormat('MMM dd, HH:mm').format(startDate), 'Sep 22, 10:00');
+  });
 
-  test(
-    'formatting startDate.toLocal() prints the device wall-clock time, '
-    'which differs from the raw UTC formatting whenever the host itself is '
-    'not on UTC',
-    () {
-      final hostOffset = startDate.toLocal().timeZoneOffset;
-      final rawFormatted = DateFormat('MMM dd, HH:mm').format(startDate);
-      final localFormatted = DateFormat(
-        'MMM dd, HH:mm',
-      ).format(startDate.toLocal());
+  test('formatting startDate.toLocal() prints the device wall-clock time, '
+      'which differs from the raw UTC formatting whenever the host itself is '
+      'not on UTC', () {
+    final hostOffset = startDate.toLocal().timeZoneOffset;
+    final rawFormatted = DateFormat('MMM dd, HH:mm').format(startDate);
+    final localFormatted = DateFormat(
+      'MMM dd, HH:mm',
+    ).format(startDate.toLocal());
 
-      if (hostOffset == Duration.zero) {
-        // The bug is invisible on a UTC-local machine (e.g. this repo's own
-        // CI, a default GitHub Actions ubuntu-latest runner) because
-        // toLocal() is a no-op there — document that rather than asserting
-        // a difference that cannot exist in this environment.
-        expect(localFormatted, rawFormatted);
-      } else {
-        expect(
-          localFormatted,
-          isNot(equals(rawFormatted)),
-          reason:
-              'a UTC-offset input must format to the local wall clock, not '
-              'the UTC one, whenever the device has a non-zero UTC offset',
-        );
-      }
+    if (hostOffset == Duration.zero) {
+      // The bug is invisible on a UTC-local machine (e.g. this repo's own
+      // CI, a default GitHub Actions ubuntu-latest runner) because
+      // toLocal() is a no-op there — document that rather than asserting
+      // a difference that cannot exist in this environment.
+      expect(localFormatted, rawFormatted);
+    } else {
+      expect(
+        localFormatted,
+        isNot(equals(rawFormatted)),
+        reason:
+            'a UTC-offset input must format to the local wall clock, not '
+            'the UTC one, whenever the device has a non-zero UTC offset',
+      );
+    }
 
-      // Pin the exact reproduction from the bug report: Oslo is UTC+2 in
-      // September (CEST). This assertion only runs when the test happens to
-      // execute on a +2 host (e.g. a Norway-based dev machine); it is a
-      // no-op everywhere else, same as the branch above already covers a
-      // UTC runner correctly.
-      if (hostOffset == const Duration(hours: 2)) {
-        expect(localFormatted, 'Sep 22, 12:00');
-      }
-    },
-  );
+    // Pin the exact reproduction from the bug report: Oslo is UTC+2 in
+    // September (CEST). This assertion only runs when the test happens to
+    // execute on a +2 host (e.g. a Norway-based dev machine); it is a
+    // no-op everywhere else, same as the branch above already covers a
+    // UTC runner correctly.
+    if (hostOffset == const Duration(hours: 2)) {
+      expect(localFormatted, 'Sep 22, 12:00');
+    }
+  });
 
   testWidgets(
     'EventsScreen renders the event start time converted to the device '

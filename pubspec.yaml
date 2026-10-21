@@ -1,7 +1,7 @@
 name: biso
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.2.7+91
+version: 2.2.9+93
 
 environment:
   sdk: ^3.8.1
@@ -54,6 +54,7 @@ dependencies:
   connectivity_plus: ^7.3.1
   wakelock_plus: ^1.5.2
   screen_brightness: ^2.1.11
+  flutter_local_notifications: ^22.3.2
 
 dev_dependencies:
   flutter_test:

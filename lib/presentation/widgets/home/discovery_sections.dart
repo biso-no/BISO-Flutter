@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/biso_colors.dart';
 import '../biso/biso_members_badge.dart';
 import '../../../data/models/event_model.dart';
+import '../../../data/services/deep_link_service.dart' show eventRouteFor;
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/models/job_model.dart';
 import '../premium/premium_html_renderer.dart';
+import 'feed_image.dart';
 
 class BisoEventCarousel extends StatelessWidget {
   final List<EventModel> events;
@@ -35,13 +36,13 @@ class BisoEventCarousel extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () => context.go('/explore/events'),
+              onTap: () => context.push(eventRouteFor(event.id)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
-                    child: _FeedImage(
+                    child: BisoFeedImage(
                       url: event.images.firstOrNull,
                       height: 180,
                       fallback: CupertinoIcons.calendar,
@@ -124,7 +125,7 @@ class BisoWebshopCarousel extends StatelessWidget {
                     borderRadius: BorderRadius.circular(18),
                     child: Stack(
                       children: [
-                        _FeedImage(
+                        BisoFeedImage(
                           url: product.images.firstOrNull,
                           height: 174,
                           fallback: CupertinoIcons.bag,
@@ -230,34 +231,6 @@ class BisoJobList extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _FeedImage extends StatelessWidget {
-  const _FeedImage({this.url, required this.height, required this.fallback});
-  final String? url;
-  final double height;
-  final IconData fallback;
-  @override
-  Widget build(BuildContext context) {
-    final palette = BisoPalette.of(context);
-    Widget placeholder() => ColoredBox(
-      color: palette.surfaceRaised,
-      child: Center(child: Icon(fallback, size: 32, color: palette.muted)),
-    );
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: url?.isNotEmpty == true
-          ? CachedNetworkImage(
-              imageUrl: url!,
-              fit: BoxFit.cover,
-              memCacheWidth: 1000,
-              placeholder: (_, _) => placeholder(),
-              errorWidget: (_, _, _) => placeholder(),
-            )
-          : placeholder(),
     );
   }
 }

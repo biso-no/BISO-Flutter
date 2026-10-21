@@ -3727,5 +3727,75 @@
   "notificationsImportantAlwaysIncluded": "Du får alltid viktige kunngjøringer fra BISO.",
   "@notificationsImportantAlwaysIncluded": {
     "description": "Notification topics prompt: important announcements are not a choice"
-  }
+  },
+  "membersOnlyTitle": "Kun for medlemmer",
+  "@membersOnlyTitle": {
+    "description": "Members-only event: the locked ticket button's label"
+  },
+  "eventNotAvailable": "Dette arrangementet er ikke tilgjengelig",
+  "@eventNotAvailable": {
+    "description": "Event detail: the event does not exist"
+  },
+  "eventOrganizedBy": "Arrangert av {name}",
+  "@eventOrganizedBy": {
+    "description": "Event detail: who organizes it",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventGetTickets": "Kjøp billett",
+  "@eventGetTickets": {
+    "description": "Event detail: button to the ticket page"
+  },
+  "eventTicketsMembersHint": "Dette arrangementet er for BISO-medlemmer. Er du medlem, sjekk medlemskapet ditt under Profil → Medlemskap.",
+  "@eventTicketsMembersHint": {
+    "description": "Event detail: why the ticket button is locked for a non-member"
+  },
+  "eventMembersPrice": "Medlemmer {price}",
+  "@eventMembersPrice": {
+    "description": "Event price line: the member price, e.g. Members NOK 250",
+    "placeholders": {
+      "price": {
+        "type": "String"
+      }
+    }
+  },
+  "newsTitle": "Nyheter",
+  "newsSubtitle": "Nyheter og oppdateringer fra BISO",
+  "latestNewsTitle": "Siste nytt",
+  "readOnBisoNo": "Les på biso.no",
+  "newsNotAvailable": "Denne artikkelen er ikke tilgjengelig",
+  "inboxFilterFromBiso": "Fra BISO",
+  "inboxDayToday": "I dag",
+  "inboxDayYesterday": "I går",
+  "inboxDayThisWeek": "Denne uken",
+  "inboxDayEarlier": "Tidligere",
+  "inboxSeeAll": "Se alle {count}",
+  "inboxNewCount": "{count} nye",
+  "inboxItemOpened": "Åpnet",
+  "inboxEmptyTitle": "Ingen varsler ennå",
+  "inboxEmptyMessage": "Oppdateringer fra BISO vises her.",
+  "inboxJustNow": "Akkurat nå",
+  "inboxMinutesAgo": "{count} min siden",
+  "inboxHoursAgo": "{count} t siden",
+  "inboxDaysAgo": "{count} d siden",
+  "inboxWeeksAgo": "{count} u siden",
+  "inboxMonthsAgo": "{count} md siden",
+  "inboxYearsAgo": "{count} år siden",
+  "inboxCategoryUrgent": "Haster",
+  "inboxCategoryTrip": "Tur",
+  "inboxCategoryEvent": "Arrangement",
+  "inboxCategoryNews": "Nyhet",
+  "inboxCategoryJob": "Stilling",
+  "inboxCategoryGeneral": "Generelt",
+  "inboxFilterJobs": "Stillinger",
+  "announcementTitle": "Kunngjøring",
+  "announcementNotFoundTitle": "Fant ikke kunngjøringen",
+  "announcementNotFoundMessage": "Den kan ha blitt fjernet.",
+  "announcementNoContent": "Ingen innhold.",
+  "announcementViewEvent": "Se arrangementet",
+  "notificationChannelDefault": "BISO",
+  "notificationChannelUrgent": "Viktig fra BISO"
 }

@@ -48,10 +48,7 @@ class EventSegmentService {
       final segmentRows = await db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _segmentsTable,
-        queries: [
-          Query.equal('\$id', segmentIds),
-          Query.limit(_fetchLimit),
-        ],
+        queries: [Query.equal('\$id', segmentIds), Query.limit(_fetchLimit)],
       );
 
       return segmentRows.rows

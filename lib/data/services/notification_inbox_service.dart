@@ -58,6 +58,31 @@ bool isTopicAudienceVisible(
   return true;
 }
 
+/// Whether a `broadcast` announcement should appear for a student on
+/// [campusId].
+///
+/// New rows carry their channel in [audienceValue]: `general` (everyone) or
+/// `general_{slug}`. Older rows have no `audience_value`; their channel is
+/// derived from [rowCampusId] (`1`-`4` name a campus, anything else is
+/// national and so everyone's).
+@visibleForTesting
+bool isBroadcastVisible({
+  required String? audienceValue,
+  required String? rowCampusId,
+  required String? campusId,
+}) {
+  if (audienceValue != null && audienceValue.isNotEmpty) {
+    if (audienceValue == kGeneralTopicId) return true;
+    if (audienceValue.startsWith('${kGeneralTopicId}_')) {
+      return audienceValue == '${kGeneralTopicId}_${campusSlugFor(campusId)}';
+    }
+    return true;
+  }
+  final rowSlug = campusSlugFor(rowCampusId);
+  if (rowSlug == kNationalSlug) return true;
+  return rowSlug == campusSlugFor(campusId);
+}
+
 /// Reads/writes the in-app notification inbox backed by the Appwrite
 /// `announcements` and `user_notifications` collections in database `app`.
 ///
@@ -95,6 +120,13 @@ class NotificationInboxService {
     'sent_at',
     'audience_type',
     'audience_value',
+    'campus_id',
+    'source',
+    'content_type',
+    'content_id',
+    'content_ids',
+    'items',
+    'image',
   ]);
 
   /// [tablesDb] stands in for the shared [db] in tests.
@@ -123,11 +155,14 @@ class NotificationInboxService {
   /// it is scoped to this student's campus (or national) and they haven't
   /// explicitly opted out of that topic's logical intent (default-show when
   /// the topic is absent from the map — see [isTopicAudienceVisible]).
+  /// Broadcasts are filtered by [isBroadcastVisible], and anything sent before
+  /// [joinedAt] (when the student's profile was created) is dropped.
   Future<List<AppNotification>> fetchInbox({
     required String userId,
     required String locale,
     required String? campusId,
     Map<String, bool> topicIntent = const {},
+    DateTime? joinedAt,
   }) async {
     try {
       // 1. Targeted notifications for this user (read state + row id).
@@ -168,6 +203,13 @@ class NotificationInboxService {
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
+        if (!isBroadcastVisible(
+          audienceValue: row.data['audience_value'] as String?,
+          rowCampusId: row.data['campus_id'] as String?,
+          campusId: campusId,
+        )) {
+          continue;
+        }
         announcementById[row.$id] = _rowToMap(row);
       }
       for (final row in topicRows) {
@@ -194,19 +236,30 @@ class NotificationInboxService {
           ],
         );
         for (final row in rows.rows) {
+          // A user_notifications row (e.g. from marking a broadcast read) must
+          // not let an announcement back in that the audience rules hid.
+          if (!_isAudienceVisible(row.data, topicIntent, campusId: campusId)) {
+            continue;
+          }
           announcementById[row.$id] = _rowToMap(row);
         }
       }
 
       // 4. Merge unique by announcement id and build the localized list.
-      final items = announcementById.entries.map((entry) {
-        return AppNotification.fromAnnouncement(
-          entry.value,
-          locale: locale,
-          read: readByAnnouncement[entry.key] ?? false,
-          userNotificationId: userNotificationIdByAnnouncement[entry.key],
-        );
-      }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final items =
+          announcementById.entries
+              .map((entry) {
+                return AppNotification.fromAnnouncement(
+                  entry.value,
+                  locale: locale,
+                  read: readByAnnouncement[entry.key] ?? false,
+                  userNotificationId:
+                      userNotificationIdByAnnouncement[entry.key],
+                );
+              })
+              .where((n) => joinedAt == null || !n.createdAt.isBefore(joinedAt))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       return items;
     } on AppwriteException catch (e) {
@@ -430,9 +483,33 @@ class NotificationInboxService {
     );
   }
 
+  /// Audience check for a fetched row: broadcasts by [isBroadcastVisible],
+  /// topics by [_isTopicVisible]; targeted audiences are always kept.
+  bool _isAudienceVisible(
+    Map<String, dynamic> data,
+    Map<String, bool> topicIntent, {
+    required String? campusId,
+  }) {
+    switch (data['audience_type']) {
+      case 'broadcast':
+        return isBroadcastVisible(
+          audienceValue: data['audience_value'] as String?,
+          rowCampusId: data['campus_id'] as String?,
+          campusId: campusId,
+        );
+      case 'topic':
+        return _isTopicVisible(data, topicIntent, campusId: campusId);
+      default:
+        return true;
+    }
+  }
+
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {
     for (var i = 0; i < source.length; i += size) {
-      yield source.sublist(i, i + size > source.length ? source.length : i + size);
+      yield source.sublist(
+        i,
+        i + size > source.length ? source.length : i + size,
+      );
     }
   }
 }

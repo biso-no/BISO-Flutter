@@ -56,27 +56,25 @@ models.Target _target({required String id, required String identifier}) =>
       expired: false,
     );
 
-models.User _user({
-  required String id,
-  required List<models.Target> targets,
-}) => models.User(
-  $id: id,
-  $createdAt: '',
-  $updatedAt: '',
-  name: id,
-  registration: '',
-  status: true,
-  labels: const <String>[],
-  passwordUpdate: '',
-  email: '$id@bi.no',
-  phone: '',
-  emailVerification: true,
-  phoneVerification: false,
-  mfa: false,
-  prefs: models.Preferences(data: <String, dynamic>{}),
-  targets: targets,
-  accessedAt: '',
-);
+models.User _user({required String id, required List<models.Target> targets}) =>
+    models.User(
+      $id: id,
+      $createdAt: '',
+      $updatedAt: '',
+      name: id,
+      registration: '',
+      status: true,
+      labels: const <String>[],
+      passwordUpdate: '',
+      email: '$id@bi.no',
+      phone: '',
+      emailVerification: true,
+      phoneVerification: false,
+      mfa: false,
+      prefs: models.Preferences(data: <String, dynamic>{}),
+      targets: targets,
+      accessedAt: '',
+    );
 
 models.Subscriber _subscriber({
   required String id,
@@ -236,13 +234,11 @@ class _FakeMessaging extends Messaging {
   /// [createSubscriber] calls, by number, that the server carries out at
   /// once but whose answer waits for the completer: a subscribe that has
   /// landed, and whose response is late.
-  final Map<int, Completer<void>> holdCreateResponse =
-      <int, Completer<void>>{};
+  final Map<int, Completer<void>> holdCreateResponse = <int, Completer<void>>{};
 
   /// [deleteSubscriber] calls, by number, that the server carries out at
   /// once but whose answer waits for the completer.
-  final Map<int, Completer<void>> holdDeleteResponse =
-      <int, Completer<void>>{};
+  final Map<int, Completer<void>> holdDeleteResponse = <int, Completer<void>>{};
 
   /// When set, [deleteSubscriber] throws it instead of deleting.
   AppwriteException? deleteThrows;
@@ -295,11 +291,8 @@ class _FakeMessaging extends Messaging {
 /// The real [NotificationService] — its queue, `reconcile`, `clearToken` and
 /// `resolvePushTarget` — with only the Firebase calls stood in for.
 class _DeviceService extends NotificationService {
-  _DeviceService(
-    super.account,
-    _FakeMessaging messaging, {
-    super.store,
-  }) : super.withAccount(messaging: messaging);
+  _DeviceService(super.account, _FakeMessaging messaging, {super.store})
+    : super.withAccount(messaging: messaging);
 
   /// This device's FCM token. [deletePlatformToken] replaces it, as Firebase
   /// issues a fresh token once the old one is deleted.
@@ -427,8 +420,8 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   const storedIds = <String, String>{
-    'general': 'sub-general',
-    'news_oslo': 'sub-news',
+    'general_en': 'sub-general',
+    'news_oslo_en': 'sub-news',
   };
 
   /// A device that has reconciled before: its target and subscribers exist on
@@ -440,35 +433,38 @@ void main() {
     });
     return _FakeServer()
       ..targets['target-1'] = 'token-1'
-      ..subscribers['sub-general'] = (topicId: 'general', targetId: 'target-1')
-      ..subscribers['sub-news'] = (topicId: 'news_oslo', targetId: 'target-1');
+      ..subscribers['sub-general'] = (
+        topicId: 'general_en',
+        targetId: 'target-1',
+      )
+      ..subscribers['sub-news'] = (
+        topicId: 'news_oslo_en',
+        targetId: 'target-1',
+      );
   }
 
   final store = DeviceSubscriptionStore();
 
   group('clearToken', () {
-    test(
-      'keeps the stored ids and records a pending token invalidation when '
-      'neither the target deletion nor deleteToken() succeeds: the target is '
-      'still bound to a live token, so this device keeps receiving the '
-      'signed-out student\'s pushes - and clearing the ids unconditionally '
-      'erased the only record of what was left to clean up',
-      () async {
-        final server = registeredDevice();
-        final account = _FakeAccount(server)
-          ..deleteTargetThrows = AppwriteException('offline', 0);
-        final messaging = _FakeMessaging(server)
-          ..deleteThrows = AppwriteException('offline', 0);
-        final service = _DeviceService(account, messaging)
-          ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+    test('keeps the stored ids and records a pending token invalidation when '
+        'neither the target deletion nor deleteToken() succeeds: the target is '
+        'still bound to a live token, so this device keeps receiving the '
+        'signed-out student\'s pushes - and clearing the ids unconditionally '
+        'erased the only record of what was left to clean up', () async {
+      final server = registeredDevice();
+      final account = _FakeAccount(server)
+        ..deleteTargetThrows = AppwriteException('offline', 0);
+      final messaging = _FakeMessaging(server)
+        ..deleteThrows = AppwriteException('offline', 0);
+      final service = _DeviceService(account, messaging)
+        ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
 
-        await service.clearToken();
+      await service.clearToken();
 
-        expect(await store.readSubscriberIds(), storedIds);
-        expect(await store.readTargetId(), 'target-1');
-        expect(await store.readPendingTokenInvalidation(), isTrue);
-      },
-    );
+      expect(await store.readSubscriberIds(), storedIds);
+      expect(await store.readTargetId(), 'target-1');
+      expect(await store.readPendingTokenInvalidation(), isTrue);
+    });
 
     test(
       'clears the stored ids, with nothing left pending, once the push target '
@@ -490,26 +486,23 @@ void main() {
       },
     );
 
-    test(
-      'clears the stored ids, with nothing left pending, once deleteToken() '
-      'succeeds - even though the target deletion failed: the target is left '
-      'bound to a token that no longer reaches this device',
-      () async {
-        final server = registeredDevice();
-        final account = _FakeAccount(server)
-          ..deleteTargetThrows = AppwriteException('offline', 0);
-        final messaging = _FakeMessaging(server)
-          ..deleteThrows = AppwriteException('offline', 0);
-        final service = _DeviceService(account, messaging);
+    test('clears the stored ids, with nothing left pending, once deleteToken() '
+        'succeeds - even though the target deletion failed: the target is left '
+        'bound to a token that no longer reaches this device', () async {
+      final server = registeredDevice();
+      final account = _FakeAccount(server)
+        ..deleteTargetThrows = AppwriteException('offline', 0);
+      final messaging = _FakeMessaging(server)
+        ..deleteThrows = AppwriteException('offline', 0);
+      final service = _DeviceService(account, messaging);
 
-        await service.clearToken();
+      await service.clearToken();
 
-        expect(service.deleteTokenCalls, 1);
-        expect(await store.readSubscriberIds(), isEmpty);
-        expect(await store.readTargetId(), isNull);
-        expect(await store.readPendingTokenInvalidation(), isFalse);
-      },
-    );
+      expect(service.deleteTokenCalls, 1);
+      expect(await store.readSubscriberIds(), isEmpty);
+      expect(await store.readTargetId(), isNull);
+      expect(await store.readPendingTokenInvalidation(), isFalse);
+    });
 
     test(
       'completes, and still invalidates the token, when the store can be '
@@ -538,14 +531,12 @@ void main() {
       'stale ids are dropped and the fresh token is used',
       () async {
         final server = registeredDevice();
-        final signingOut =
-            _DeviceService(
-                _FakeAccount(server)
-                  ..deleteTargetThrows = AppwriteException('offline', 0),
-                _FakeMessaging(server)
-                  ..deleteThrows = AppwriteException('offline', 0),
-              )
-              ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+        final signingOut = _DeviceService(
+          _FakeAccount(server)
+            ..deleteTargetThrows = AppwriteException('offline', 0),
+          _FakeMessaging(server)
+            ..deleteThrows = AppwriteException('offline', 0),
+        )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
         await signingOut.clearToken();
 
         // The next start. Firebase still cannot delete the token.
@@ -557,7 +548,7 @@ void main() {
 
         // The next student signs in, and the launch reconciler runs.
         expect(
-          await restarted.reconcile(campusId: '2'),
+          await restarted.reconcile(campusId: '2', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         expect(restarted.deleteTokenCalls, 2, reason: 'retried again first');
@@ -569,7 +560,7 @@ void main() {
         // Firebase recovers.
         restarted.deleteTokenThrows = null;
         expect(
-          await restarted.reconcile(campusId: '2'),
+          await restarted.reconcile(campusId: '2', locale: 'en'),
           ReconcileOutcome.applied,
         );
 
@@ -577,7 +568,8 @@ void main() {
         expect(
           account.updateTargetCalls,
           0,
-          reason: 'the stale target id is dropped with the stale ids, so the '
+          reason:
+              'the stale target id is dropped with the stale ids, so the '
               'fresh token is never bound to the signed-out account\'s target',
         );
         expect(account.createTargetCalls, 1);
@@ -644,7 +636,7 @@ void main() {
         messaging.deleteThrows = null;
         service.deleteTokenThrows = null;
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
 
@@ -656,52 +648,49 @@ void main() {
         final targetId = await store.readTargetId();
         expect(server.targets.keys, [targetId]);
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
       },
     );
 
-    test(
-      'a reconcile held back by it logs so, in words of its own: it reports '
-      'unavailable, as any reconcile that cannot run does, and without that '
-      'line a device stuck behind the marker looks no different in the logs '
-      'from one that is merely offline',
-      () async {
-        final logs = <String>[];
-        final printToConsole = debugPrint;
-        debugPrint = (String? message, {int? wrapWidth}) {
-          if (message != null) logs.add(message);
-        };
-        addTearDown(() => debugPrint = printToConsole);
-        const blocked = 'reconcile: blocked by a pending token invalidation';
+    test('a reconcile held back by it logs so, in words of its own: it reports '
+        'unavailable, as any reconcile that cannot run does, and without that '
+        'line a device stuck behind the marker looks no different in the logs '
+        'from one that is merely offline', () async {
+      final logs = <String>[];
+      final printToConsole = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) logs.add(message);
+      };
+      addTearDown(() => debugPrint = printToConsole);
+      const blocked = 'reconcile: blocked by a pending token invalidation';
 
-        final server = registeredDevice();
-        final service = _DeviceService(
-          _FakeAccount(server)
-            ..deleteTargetThrows = AppwriteException('offline', 0),
-          _FakeMessaging(server)
-            ..deleteThrows = AppwriteException('offline', 0),
-        )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
-        await service.clearToken();
+      final server = registeredDevice();
+      final service = _DeviceService(
+        _FakeAccount(server)
+          ..deleteTargetThrows = AppwriteException('offline', 0),
+        _FakeMessaging(server)..deleteThrows = AppwriteException('offline', 0),
+      )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+      await service.clearToken();
 
-        logs.clear();
-        expect(
-          await service.reconcile(campusId: '1'),
-          ReconcileOutcome.unavailable,
-        );
-        expect(logs, anyElement(startsWith(blocked)));
+      logs.clear();
+      expect(
+        await service.reconcile(campusId: '1', locale: 'en'),
+        ReconcileOutcome.unavailable,
+      );
+      expect(logs, anyElement(startsWith(blocked)));
 
-        service.deleteTokenThrows = null;
-        logs.clear();
-        expect(
-          await service.reconcile(campusId: '1'),
-          ReconcileOutcome.applied,
-        );
-        expect(logs, isNot(anyElement(startsWith(blocked))));
-      },
-    );
+      service.deleteTokenThrows = null;
+      logs.clear();
+      expect(
+        await service.reconcile(campusId: '1', locale: 'en'),
+        ReconcileOutcome.applied,
+      );
+      expect(logs, isNot(anyElement(startsWith(blocked))));
+    });
   });
 
   group('a push target created with no id recorded', () {
@@ -712,12 +701,13 @@ void main() {
         registeredDevice()..targets['target-1'] = 'token-0';
 
     /// The server's subscribers on [targetId], by topic.
-    Map<String, String> subscribersOn(_FakeServer server, String? targetId) =>
-        <String, String>{
-          for (final entry in server.subscribers.entries)
-            if (entry.value.targetId == targetId)
-              entry.value.topicId: entry.key,
-        };
+    Map<String, String> subscribersOn(
+      _FakeServer server,
+      String? targetId,
+    ) => <String, String>{
+      for (final entry in server.subscribers.entries)
+        if (entry.value.targetId == targetId) entry.value.topicId: entry.key,
+    };
 
     testWidgets(
       'keeps the pending invalidation when sign-out deletes the stored target '
@@ -740,7 +730,7 @@ void main() {
         final service = _DeviceService(account, _FakeMessaging(server))
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
 
-        unawaited(service.reconcile(campusId: '1'));
+        unawaited(service.reconcile(campusId: '1', locale: 'en'));
         await tester.pump();
         final unrecorded = server.targets.keys.singleWhere(
           (id) => id != 'target-1',
@@ -752,11 +742,9 @@ void main() {
         unawaited(service.clearToken().then((_) => signedOut = true));
         await tester.pump();
         expect(signedOut, isTrue);
-        expect(
-          server.targets.keys,
-          [unrecorded],
-          reason: 'the stored target is deleted, and nothing else is',
-        );
+        expect(server.targets.keys, [
+          unrecorded,
+        ], reason: 'the stored target is deleted, and nothing else is');
         expect(await store.readPendingTokenInvalidation(), isTrue);
 
         createAnswer.complete();
@@ -767,7 +755,11 @@ void main() {
         account.session = 'student-b';
         service.deleteTokenThrows = null;
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => outcome = o),
+        );
         await tester.pump();
 
         expect(outcome, ReconcileOutcome.applied);
@@ -780,9 +772,10 @@ void main() {
           reason: 'the target left behind is bound to the invalidated token',
         );
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
         expect(
           await store.readSubscriberIds(),
@@ -807,7 +800,11 @@ void main() {
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => outcome = o),
+        );
         await tester.pump(kNotificationRunTimeout);
         expect(outcome, ReconcileOutcome.unavailable);
         createAnswer.complete(); // too late to be recorded
@@ -828,7 +825,9 @@ void main() {
         // Firebase recovers, and this device registers again.
         service.deleteTokenThrows = null;
         ReconcileOutcome? next;
-        unawaited(service.reconcile(campusId: '1').then((o) => next = o));
+        unawaited(
+          service.reconcile(campusId: '1', locale: 'en').then((o) => next = o),
+        );
         await tester.pump();
         expect(next, ReconcileOutcome.applied);
         expect(await store.readPendingTokenInvalidation(), isFalse);
@@ -850,7 +849,7 @@ void main() {
         final createAnswer = before.holdCreateTargetResponse[1] =
             Completer<void>();
         final killed = _DeviceService(before, _FakeMessaging(server));
-        unawaited(killed.reconcile(campusId: '1'));
+        unawaited(killed.reconcile(campusId: '1', locale: 'en'));
         await tester.pump(kNotificationRunTimeout);
         createAnswer.complete();
         await tester.pump();
@@ -866,7 +865,7 @@ void main() {
         final update = account.holdUpdateTarget[1] = Completer<void>();
         final relaunched = _DeviceService(account, _FakeMessaging(server))
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
-        unawaited(relaunched.reconcile(campusId: '1'));
+        unawaited(relaunched.reconcile(campusId: '1', locale: 'en'));
         await tester.pump();
         expect(account.updateTargetCalls, 1);
 
@@ -884,7 +883,9 @@ void main() {
         relaunched.deleteTokenThrows = null;
         ReconcileOutcome? outcome;
         unawaited(
-          relaunched.reconcile(campusId: '1').then((o) => outcome = o),
+          relaunched
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => outcome = o),
         );
         await tester.pump();
         expect(outcome, ReconcileOutcome.applied);
@@ -894,31 +895,28 @@ void main() {
       },
     );
 
-    test(
-      'does not hold back a sign-out once the target this device created is '
-      'recorded: deleting it still counts the device detached though '
-      'deleteToken() failed, since only a target with no id recorded can be '
-      'left bound to the token',
-      () async {
-        final server = _FakeServer();
-        final service = _DeviceService(
-          _FakeAccount(server),
-          _FakeMessaging(server),
-        )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
-        expect(
-          await service.reconcile(campusId: '1'),
-          ReconcileOutcome.applied,
-        );
-        expect(server.targets, hasLength(1));
+    test('does not hold back a sign-out once the target this device created is '
+        'recorded: deleting it still counts the device detached though '
+        'deleteToken() failed, since only a target with no id recorded can be '
+        'left bound to the token', () async {
+      final server = _FakeServer();
+      final service = _DeviceService(
+        _FakeAccount(server),
+        _FakeMessaging(server),
+      )..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
+      expect(
+        await service.reconcile(campusId: '1', locale: 'en'),
+        ReconcileOutcome.applied,
+      );
+      expect(server.targets, hasLength(1));
 
-        await service.clearToken();
+      await service.clearToken();
 
-        expect(server.targets, isEmpty);
-        expect(await store.readPendingTokenInvalidation(), isFalse);
-        expect(await store.readTargetId(), isNull);
-        expect(await store.readSubscriberIds(), isEmpty);
-      },
-    );
+      expect(server.targets, isEmpty);
+      expect(await store.readPendingTokenInvalidation(), isFalse);
+      expect(await store.readTargetId(), isNull);
+      expect(await store.readSubscriberIds(), isEmpty);
+    });
 
     test(
       'does not hold one back after a create that got no answer either, once '
@@ -928,22 +926,20 @@ void main() {
       () async {
         final server = registeredDevice();
         final account = _FakeAccount(server)
-          ..updateTargetThrowsOnce = AppwriteException(
-            'Network is unreachable',
-          )
+          ..updateTargetThrowsOnce = AppwriteException('Network is unreachable')
           ..createTargetThrowsOnce = AppwriteException(
             'Network is unreachable',
           );
         final service = _DeviceService(account, _FakeMessaging(server))
           ..deleteTokenThrows = Exception('SERVICE_NOT_AVAILABLE');
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.unavailable,
         );
         expect(account.createTargetCalls, 1);
 
         expect(
-          await service.reconcile(campusId: '1'),
+          await service.reconcile(campusId: '1', locale: 'en'),
           ReconcileOutcome.applied,
         );
         expect(
@@ -977,7 +973,11 @@ void main() {
         final service = _DeviceService(account, messaging);
 
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => outcome = o),
+        );
         await tester.pump();
         expect(server.targets, hasLength(1));
         expect(server.subscribers, hasLength(1));
@@ -1018,9 +1018,12 @@ void main() {
         final hold = messaging.holdCreateRequest[1] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
-        final inFlight = service.reconcile(campusId: '1');
+        final inFlight = service.reconcile(campusId: '1', locale: 'en');
         await pumpEventQueue();
-        final queued = service.reconcile(campusId: '2'); // a campus change
+        final queued = service.reconcile(
+          campusId: '2',
+          locale: 'en',
+        ); // a campus change
         final signingOut = service.clearToken();
 
         expect(
@@ -1056,8 +1059,14 @@ void main() {
 
         ReconcileOutcome? hung;
         ReconcileOutcome? behind;
-        unawaited(service.reconcile(campusId: '1').then((o) => hung = o));
-        unawaited(service.reconcile(campusId: '1').then((o) => behind = o));
+        unawaited(
+          service.reconcile(campusId: '1', locale: 'en').then((o) => hung = o),
+        );
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => behind = o),
+        );
 
         await tester.pump(kNotificationRunTimeout - const Duration(seconds: 1));
         expect(hung, isNull, reason: 'still within its bound');
@@ -1085,14 +1094,23 @@ void main() {
         final service = _DeviceService(_FakeAccount(server), messaging);
 
         ReconcileOutcome? behind;
-        unawaited(service.reconcile(campusId: '1'));
-        unawaited(service.reconcile(campusId: '1').then((o) => behind = o));
+        unawaited(service.reconcile(campusId: '1', locale: 'en'));
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => behind = o),
+        );
         await tester.pump(kNotificationRunTimeout);
         await tester.pump();
         expect(behind, ReconcileOutcome.applied);
 
         final recorded = await store.readSubscriberIds();
-        expect(recorded.keys, {'general', 'news_oslo', 'news_national'});
+        expect(recorded.keys, {
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
+        });
         final requestsSoFar = messaging.createCalls;
 
         // The abandoned run's first subscribe finally answers.
@@ -1104,30 +1122,29 @@ void main() {
       },
     );
 
-    testWidgets(
-      'a reconcile abandoned at its bound has already recorded the '
-      'subscribers it created before it hung: recorded only once the run '
-      'finished, their ids were lost with it, and those subscribers could '
-      'never be removed from this device',
-      (tester) async {
-        final server = _FakeServer();
-        final messaging = _FakeMessaging(server);
-        final hold = messaging.holdCreateRequest[2] = Completer<void>();
-        final service = _DeviceService(_FakeAccount(server), messaging);
+    testWidgets('a reconcile abandoned at its bound has already recorded the '
+        'subscribers it created before it hung: recorded only once the run '
+        'finished, their ids were lost with it, and those subscribers could '
+        'never be removed from this device', (tester) async {
+      final server = _FakeServer();
+      final messaging = _FakeMessaging(server);
+      final hold = messaging.holdCreateRequest[2] = Completer<void>();
+      final service = _DeviceService(_FakeAccount(server), messaging);
 
-        ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
-        await tester.pump(kNotificationRunTimeout);
-        expect(outcome, ReconcileOutcome.unavailable);
+      ReconcileOutcome? outcome;
+      unawaited(
+        service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o),
+      );
+      await tester.pump(kNotificationRunTimeout);
+      expect(outcome, ReconcileOutcome.unavailable);
 
-        final created = server.subscribers.entries.single;
-        expect(created.value.topicId, 'general');
-        expect(await store.readSubscriberIds(), {'general': created.key});
+      final created = server.subscribers.entries.single;
+      expect(created.value.topicId, 'general_en');
+      expect(await store.readSubscriberIds(), {'general_en': created.key});
 
-        hold.complete();
-        await tester.pump();
-      },
-    );
+      hold.complete();
+      await tester.pump();
+    });
 
     testWidgets(
       'a sign-out cleanup abandoned at its bound does nothing when its '
@@ -1149,7 +1166,11 @@ void main() {
 
         // The next student signs in on this device.
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '2').then((o) => outcome = o));
+        unawaited(
+          service
+              .reconcile(campusId: '2', locale: 'en')
+              .then((o) => outcome = o),
+        );
         await tester.pump();
         expect(outcome, ReconcileOutcome.applied);
         expect(service.deleteTokenCalls, 1, reason: 'the pending retry');
@@ -1178,7 +1199,9 @@ void main() {
       Duration elapse = Duration.zero,
     }) async {
       ReconcileOutcome? outcome;
-      unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+      unawaited(
+        service.reconcile(campusId: '1', locale: 'en').then((o) => outcome = o),
+      );
       await tester.pump(elapse);
       return outcome;
     }
@@ -1216,11 +1239,14 @@ void main() {
           await reconcileFor(tester, service, elapse: kNotificationRunTimeout),
           ReconcileOutcome.unavailable,
         );
-        expect(server.subscribers, isNot(contains(subscribed['news_oslo'])));
+        expect(server.subscribers, isNot(contains(subscribed['news_oslo_en'])));
 
         lateAnswer.complete();
         await tester.pump();
-        expect(await store.readSubscriberIds(), isNot(contains('news_oslo')));
+        expect(
+          await store.readSubscriberIds(),
+          isNot(contains('news_oslo_en')),
+        );
 
         // News back on.
         account.intent = {...account.intent, 'news': true};
@@ -1229,7 +1255,7 @@ void main() {
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
         );
-        expect(await store.readSubscriberIds(), contains('news_oslo'));
+        expect(await store.readSubscriberIds(), contains('news_oslo_en'));
       },
     );
 
@@ -1242,19 +1268,26 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        // Create call 2 is news_oslo.
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        // Create call 3 is news_oslo.
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
 
         expect(
           await reconcileFor(tester, service, elapse: kNotificationRunTimeout),
           ReconcileOutcome.unavailable,
         );
-        expect(await store.readSubscriberIds(), isNot(contains('news_oslo')));
+        expect(
+          await store.readSubscriberIds(),
+          isNot(contains('news_oslo_en')),
+        );
 
         lateAnswer.complete();
         await tester.pump();
-        expect((await store.readSubscriberIds()).keys, {'general', 'news_oslo'});
+        expect((await store.readSubscriberIds()).keys, {
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+        });
         expect(
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
@@ -1263,10 +1296,10 @@ void main() {
         // So turning news off does remove it.
         account.intent = {...account.intent, 'news': false};
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
-        expect(
-          (await serverSubscribersOnStoredTarget(server)).keys,
-          {'general'},
-        );
+        expect((await serverSubscribersOnStoredTarget(server)).keys, {
+          'general_en',
+          'general_oslo_en',
+        });
       },
     );
 
@@ -1279,7 +1312,7 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
 
@@ -1297,9 +1330,10 @@ void main() {
         // The next student signs in, with news on too.
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
+          'general_en',
+          'general_oslo_en',
+          'news_oslo_en',
+          'news_national_en',
         });
         expect(
           await store.readSubscriberIds(),
@@ -1316,7 +1350,7 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
         final oldTarget = await store.readTargetId();
@@ -1333,7 +1367,10 @@ void main() {
         lateAnswer.complete();
         await tester.pump();
         expect(await store.readTargetId(), newTarget);
-        expect((await store.readSubscriberIds()).keys, {'general'});
+        expect((await store.readSubscriberIds()).keys, {
+          'general_en',
+          'general_oslo_en',
+        });
         expect(
           await store.readSubscriberIds(),
           await serverSubscribersOnStoredTarget(server),
@@ -1348,19 +1385,22 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
         final lateSubscriber = (await serverSubscribersOnStoredTarget(
           server,
-        ))['news_oslo'];
+        ))['news_oslo_en'];
 
         // That subscriber is removed on the server - by an administrator,
         // say - and the next run subscribes this device afresh.
         server.subscribers.remove(lateSubscriber);
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         final recorded = await store.readSubscriberIds();
-        expect(recorded['news_oslo'], allOf(isNotNull, isNot(lateSubscriber)));
+        expect(
+          recorded['news_oslo_en'],
+          allOf(isNotNull, isNot(lateSubscriber)),
+        );
 
         lateAnswer.complete();
         await tester.pump();
@@ -1392,7 +1432,7 @@ void main() {
         account.intent = {...account.intent, 'news': true};
         expect(await reconcileFor(tester, service), ReconcileOutcome.applied);
         final recorded = await store.readSubscriberIds();
-        expect(recorded, contains('news_oslo'));
+        expect(recorded, contains('news_oslo_en'));
         expect(recorded, await serverSubscribersOnStoredTarget(server));
 
         lateAnswer.complete();
@@ -1409,39 +1449,46 @@ void main() {
         final server = _FakeServer();
         final account = _FakeAccount(server);
         final messaging = _FakeMessaging(server);
-        final lateAnswer = messaging.holdCreateResponse[2] = Completer<void>();
+        final lateAnswer = messaging.holdCreateResponse[3] = Completer<void>();
         final service = _DeviceService(account, messaging);
         await reconcileFor(tester, service, elapse: kNotificationRunTimeout);
 
         // The student swaps news for events. The next run subscribes to
-        // events_oslo (create call 3), then parks on events_national (4).
+        // events_oslo (create call 4), then parks on events_national (5).
         account.intent = {...account.intent, 'news': false, 'events': true};
-        final parked = messaging.holdCreateRequest[4] = Completer<void>();
+        final parked = messaging.holdCreateRequest[5] = Completer<void>();
         ReconcileOutcome? outcome;
-        unawaited(service.reconcile(campusId: '1').then((o) => outcome = o));
+        unawaited(
+          service
+              .reconcile(campusId: '1', locale: 'en')
+              .then((o) => outcome = o),
+        );
         await tester.pump();
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'events_oslo',
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
         });
 
         // The abandoned run's news_oslo answer lands in between.
         lateAnswer.complete();
         await tester.pump();
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'events_oslo',
-          'news_oslo',
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
+          'news_oslo_en',
         });
 
         parked.complete();
         await tester.pump();
         expect(outcome, ReconcileOutcome.applied);
         expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'events_oslo',
-          'news_oslo',
-          'events_national',
+          'general_en',
+          'general_oslo_en',
+          'events_oslo_en',
+          'news_oslo_en',
+          'events_national_en',
         });
         expect(
           await store.readSubscriberIds(),
@@ -1452,59 +1499,53 @@ void main() {
   });
 
   group('a sign-out whose session deletion fails', () {
-    test(
-      'leaves the student signed in, and their device registered and '
-      'subscribed again: the cleanup has already detached it by then, and '
-      'the launch reconciler brings it back only because logout() sets '
-      'isLoading and clears it again',
-      () async {
-        final server = _FakeServer();
-        final service = _DeviceService(
-          _FakeAccount(server),
-          _FakeMessaging(server),
-        );
-        final auth = _SessionKeepingAuthNotifier(service);
-        final container = ProviderContainer(
-          overrides: [
-            notificationServiceProvider.overrideWithValue(service),
-            authStateProvider.overrideWith((ref) => auth),
-          ],
-        );
-        addTearDown(container.dispose);
-        // Kept alive and rebuilt on every change, as BisoApp.build keeps it.
-        container.listen(topicReconcileProvider, (previous, next) {});
-        await pumpEventQueue(); // the auth notifier's own session check
+    test('leaves the student signed in, and their device registered and '
+        'subscribed again: the cleanup has already detached it by then, and '
+        'the launch reconciler brings it back only because logout() sets '
+        'isLoading and clears it again', () async {
+      final server = _FakeServer();
+      final service = _DeviceService(
+        _FakeAccount(server),
+        _FakeMessaging(server),
+      );
+      final auth = _SessionKeepingAuthNotifier(service);
+      final container = ProviderContainer(
+        overrides: [
+          notificationServiceProvider.overrideWithValue(service),
+          authStateProvider.overrideWith((ref) => auth),
+        ],
+      );
+      addTearDown(container.dispose);
+      // Kept alive and rebuilt on every change, as BisoApp.build keeps it.
+      container.listen(topicReconcileProvider, (previous, next) {});
+      await pumpEventQueue(); // the auth notifier's own session check
 
-        auth.signIn('student-a', campusId: '1');
-        await pumpEventQueue();
-        final firstTarget = await store.readTargetId();
-        expect(server.targets.keys, [firstTarget]);
+      auth.signIn('student-a', campusId: '1');
+      await pumpEventQueue();
+      final firstTarget = await store.readTargetId();
+      expect(server.targets.keys, [firstTarget]);
 
-        await auth.logout();
-        await pumpEventQueue();
+      await auth.logout();
+      await pumpEventQueue();
 
-        expect(container.read(authStateProvider).isAuthenticated, isTrue);
-        final targetId = await store.readTargetId();
-        expect(
-          targetId,
-          allOf(isNotNull, isNot(firstTarget)),
-          reason: 'the cleanup deleted the first target',
-        );
-        expect(server.targets, {targetId: service.token});
-        expect((await store.readSubscriberIds()).keys, {
-          'general',
-          'news_oslo',
-          'news_national',
-        });
-        expect(
-          await store.readSubscriberIds(),
-          <String, String>{
-            for (final entry in server.subscribers.entries)
-              if (entry.value.targetId == targetId)
-                entry.value.topicId: entry.key,
-          },
-        );
-      },
-    );
+      expect(container.read(authStateProvider).isAuthenticated, isTrue);
+      final targetId = await store.readTargetId();
+      expect(
+        targetId,
+        allOf(isNotNull, isNot(firstTarget)),
+        reason: 'the cleanup deleted the first target',
+      );
+      expect(server.targets, {targetId: service.token});
+      expect((await store.readSubscriberIds()).keys, {
+        'general_en',
+        'general_oslo_en',
+        'news_oslo_en',
+        'news_national_en',
+      });
+      expect(await store.readSubscriberIds(), <String, String>{
+        for (final entry in server.subscribers.entries)
+          if (entry.value.targetId == targetId) entry.value.topicId: entry.key,
+      });
+    });
   });
 }

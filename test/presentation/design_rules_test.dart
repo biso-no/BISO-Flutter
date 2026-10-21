@@ -26,6 +26,7 @@ const migratedFiles = <String>[
   'lib/presentation/screens/explore/marketplace_screen.dart',
   'lib/presentation/screens/notifications/notifications_screen.dart',
   'lib/presentation/screens/notifications/announcement_detail_screen.dart',
+  'lib/presentation/screens/notifications/inbox_widgets.dart',
   'lib/presentation/screens/explore/product_detail_screen.dart',
   'lib/presentation/screens/explore/campus_detail_screen.dart',
   'lib/presentation/screens/explore/campus_detail_components.dart',
@@ -69,6 +70,11 @@ const migratedFiles = <String>[
   'lib/presentation/screens/jobs/job_detail_screen.dart',
   'lib/presentation/screens/jobs/job_application_screen.dart',
   'lib/presentation/screens/jobs/my_applications_screen.dart',
+  'lib/presentation/screens/events/event_detail_screen.dart',
+  'lib/presentation/widgets/event/event_detail_body.dart',
+  'lib/presentation/screens/news/news_list_screen.dart',
+  'lib/presentation/screens/news/news_detail_screen.dart',
+  'lib/presentation/widgets/home/news_carousel.dart',
 ];
 
 final _lineRules = <String, RegExp>{

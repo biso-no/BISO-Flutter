@@ -25,15 +25,13 @@ class ChatService {
   String get _chatsChannel =>
       Channel.tablesdb(AppConstants.databaseId).table('chats').row().toString();
 
-  String get _chatMessagesChannel =>
-      Channel.tablesdb(
-        AppConstants.databaseId,
-      ).table('chat_messages').row().toString();
+  String get _chatMessagesChannel => Channel.tablesdb(
+    AppConstants.databaseId,
+  ).table('chat_messages').row().toString();
 
-  String get _typingIndicatorsChannel =>
-      Channel.tablesdb(
-        AppConstants.databaseId,
-      ).table('typing_indicators').row().toString();
+  String get _typingIndicatorsChannel => Channel.tablesdb(
+    AppConstants.databaseId,
+  ).table('typing_indicators').row().toString();
 
   // Get user's chats
   Future<List<ChatModel>> getUserChats(String userId) async {
@@ -48,7 +46,9 @@ class ChatService {
         ],
       );
 
-      final chats = documents.rows.map((doc) => ChatModel.fromMap(doc.data)).toList();
+      final chats = documents.rows
+          .map((doc) => ChatModel.fromMap(doc.data))
+          .toList();
 
       _chatsController.add(chats);
       return chats;
@@ -237,7 +237,9 @@ class ChatService {
           databaseId: AppConstants.databaseId,
           tableId: 'chats',
           rowId: chatId,
-          data: {'participants': Operator.arrayAppend([userId])},
+          data: {
+            'participants': Operator.arrayAppend([userId]),
+          },
         );
 
         // Update team members if team exists
@@ -1100,7 +1102,8 @@ class ChatService {
       );
 
       // Delete associated team if it was auto-created for this chat
-      if (teamId != null && chat.data['metadata']?['auto_team_created'] == true) {
+      if (teamId != null &&
+          chat.data['metadata']?['auto_team_created'] == true) {
         try {
           await db.deleteRow(
             databaseId: AppConstants.databaseId,

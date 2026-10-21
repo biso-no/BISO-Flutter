@@ -7,6 +7,7 @@ import '../../core/theme/biso_sheet.dart';
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/notification/notification_provider.dart';
+import '../../providers/ui/locale_provider.dart';
 
 /// Asked once, the first time a student reaches the app signed in.
 ///
@@ -159,7 +160,10 @@ class _NotificationTopicsPromptState
     try {
       await service.requestPermission();
       final campusId = ref.read(authStateProvider).user?.campusId;
-      await service.reconcile(campusId: campusId);
+      await service.reconcile(
+        campusId: campusId,
+        locale: ref.read(localeProvider).languageCode,
+      );
     } catch (e) {
       debugPrint('NotificationTopicsPrompt: could not subscribe now: $e');
     } finally {

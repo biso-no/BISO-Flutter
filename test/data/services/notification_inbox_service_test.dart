@@ -17,9 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// `listRows` parses a response, so a column the SDK cannot parse fails here
 /// the way it fails on a device.
 class _FakeTablesDB extends TablesDB {
-  _FakeTablesDB(this.announcements) : super(Client());
+  _FakeTablesDB(this.announcements, {this.userNotifications = const []})
+    : super(Client());
 
   final List<Map<String, dynamic>> announcements;
+  final List<Map<String, dynamic>> userNotifications;
 
   /// The decoded queries of every `announcements` read, in call order.
   final List<List<Map<String, dynamic>>> announcementReads = [];
@@ -43,7 +45,7 @@ class _FakeTablesDB extends TablesDB {
         table = announcements;
         announcementReads.add(decoded);
       case 'user_notifications':
-        table = const [];
+        table = userNotifications;
       default:
         throw StateError('unexpected table $tableId');
     }
@@ -111,7 +113,54 @@ Map<String, dynamic> _topicRow(
   'sent_at': sentAt.toIso8601String(),
 };
 
+Map<String, dynamic> _broadcastRow(
+  String id, {
+  required DateTime sentAt,
+  String? audienceValue,
+  String? campusId,
+}) => <String, dynamic>{
+  '\$id': id,
+  'status': 'sent',
+  'audience_type': 'broadcast',
+  'audience_value': audienceValue,
+  'campus_id': campusId,
+  'title_en': id,
+  'sent_at': sentAt.toIso8601String(),
+  'items': '[{"type":"news","id":"n1"}]',
+  'image': 'file1',
+  'content_type': 'news',
+  'data': '{"x":1}',
+};
+
 void main() {
+  group('isBroadcastVisible', () {
+    bool visible(String? value, String? rowCampus, String? campus) =>
+        isBroadcastVisible(
+          audienceValue: value,
+          rowCampusId: rowCampus,
+          campusId: campus,
+        );
+
+    test('general is visible to everyone', () {
+      expect(visible('general', null, '2'), isTrue);
+    });
+    test('general_bergen is visible to campus 2', () {
+      expect(visible('general_bergen', '2', '2'), isTrue);
+    });
+    test('general_oslo is hidden from campus 2', () {
+      expect(visible('general_oslo', '1', '2'), isFalse);
+    });
+    test('legacy null value with campus_id 1 is hidden from campus 2', () {
+      expect(visible(null, '1', '2'), isFalse);
+    });
+    test('legacy null value with null campus_id is visible', () {
+      expect(visible(null, null, '2'), isTrue);
+    });
+    test('legacy null value with campus_id 5 is visible', () {
+      expect(visible(null, '5', '2'), isTrue);
+    });
+  });
+
   group('isTopicAudienceVisible', () {
     test(
       'hides a campus-scoped announcement when the student has turned that '
@@ -351,21 +400,18 @@ void main() {
       ),
     ];
 
-    test(
-      'still shows the student\'s own-campus, national and all-campuses '
-      'topic announcements when more than the fetch limit of newer ones '
-      'belong to other campuses: the limit was applied before the campus '
-      'filter, so they were never fetched at all',
-      () async {
-        final db = _FakeTablesDB(announcements(newerElsewhere: 120));
+    test('still shows the student\'s own-campus, national and all-campuses '
+        'topic announcements when more than the fetch limit of newer ones '
+        'belong to other campuses: the limit was applied before the campus '
+        'filter, so they were never fetched at all', () async {
+      final db = _FakeTablesDB(announcements(newerElsewhere: 120));
 
-        expect(await inboxIds(db, campusId: '1'), [
-          'oslo',
-          'national',
-          'all-campuses',
-        ]);
-      },
-    );
+      expect(await inboxIds(db, campusId: '1'), [
+        'oslo',
+        'national',
+        'all-campuses',
+      ]);
+    });
 
     test(
       'asks for the student\'s campus and national by the indexed campus_id, '
@@ -383,7 +429,10 @@ void main() {
             ['isNull'],
           ]),
         );
-        expect(campusFilters(db).expand((filter) => filter), isNot(contains(null)));
+        expect(
+          campusFilters(db).expand((filter) => filter),
+          isNot(contains(null)),
+        );
         for (final read in topicReads(db)) {
           expect(
             read,
@@ -476,36 +525,135 @@ void main() {
       },
     );
 
-    test(
-      'a historical row with a bare legacy audience_value such as "events" '
-      'now reaches only students on its own campus, national, or everyone '
-      'when its campus_id is null - it used to be fetched, and shown, for '
-      'every campus',
-      () async {
-        final rows = [
-          _topicRow(
-            'legacy-bergen',
-            campusId: '2',
-            audienceValue: 'events',
-            sentAt: at(2),
-          ),
-          _topicRow(
-            'legacy-all-campuses',
-            campusId: null,
-            audienceValue: 'events',
-            sentAt: at(1),
-          ),
-        ];
-
-        expect(await inboxIds(_FakeTablesDB(rows), campusId: '1'), [
-          'legacy-all-campuses',
-        ]);
-        expect(await inboxIds(_FakeTablesDB(rows), campusId: '2'), [
+    test('a historical row with a bare legacy audience_value such as "events" '
+        'now reaches only students on its own campus, national, or everyone '
+        'when its campus_id is null - it used to be fetched, and shown, for '
+        'every campus', () async {
+      final rows = [
+        _topicRow(
           'legacy-bergen',
+          campusId: '2',
+          audienceValue: 'events',
+          sentAt: at(2),
+        ),
+        _topicRow(
           'legacy-all-campuses',
+          campusId: null,
+          audienceValue: 'events',
+          sentAt: at(1),
+        ),
+      ];
+
+      expect(await inboxIds(_FakeTablesDB(rows), campusId: '1'), [
+        'legacy-all-campuses',
+      ]);
+      expect(await inboxIds(_FakeTablesDB(rows), campusId: '2'), [
+        'legacy-bergen',
+        'legacy-all-campuses',
+      ]);
+    });
+  });
+
+  group('fetchInbox joinedAt and new columns', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    setUpAll(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (call) async => Directory.systemTemp.path,
+          );
+    });
+
+    final joined = DateTime.utc(2026, 9, 1);
+
+    test(
+      'drops a broadcast sent before joinedAt and keeps one after',
+      () async {
+        final db = _FakeTablesDB([
+          _broadcastRow(
+            'before',
+            sentAt: joined.subtract(const Duration(days: 1)),
+          ),
+          _broadcastRow('after', sentAt: joined.add(const Duration(days: 1))),
         ]);
+        final items = await NotificationInboxService(tablesDb: db).fetchInbox(
+          userId: 'u',
+          locale: 'en',
+          campusId: '2',
+          joinedAt: joined,
+        );
+        expect([for (final i in items) i.id], ['after']);
+        expect(items.single.isBurst, isFalse);
+        expect(items.single.items.single.id, 'n1');
+        expect(items.single.contentType, 'news');
+        expect(items.single.image, contains('file1'));
       },
     );
+
+    test('hides another campus broadcast', () async {
+      final db = _FakeTablesDB([
+        _broadcastRow('oslo', sentAt: joined, audienceValue: 'general_oslo'),
+        _broadcastRow('all', sentAt: joined, audienceValue: 'general'),
+      ]);
+      final items = await NotificationInboxService(
+        tablesDb: db,
+      ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
+      expect([for (final i in items) i.id], ['all']);
+    });
+
+    test('a user_notifications row does not let a hidden broadcast back in, '
+        'but a users-audience row still shows', () async {
+      final db = _FakeTablesDB(
+        [
+          _broadcastRow('oslo', sentAt: joined, audienceValue: 'general_oslo'),
+          {
+            '\$id': 'direct',
+            'status': 'sent',
+            'audience_type': 'users',
+            'title_en': 'direct',
+            'sent_at': joined.toIso8601String(),
+          },
+        ],
+        userNotifications: [
+          {
+            '\$id': 'un1',
+            '\$createdAt': '2026-09-01T00:00:00.000Z',
+            'user_id': 'u',
+            'announcement_id': 'oslo',
+            'read': true,
+          },
+          {
+            '\$id': 'un2',
+            '\$createdAt': '2026-09-01T00:00:00.000Z',
+            'user_id': 'u',
+            'announcement_id': 'direct',
+            'read': false,
+          },
+        ],
+      );
+      final items = await NotificationInboxService(
+        tablesDb: db,
+      ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
+      expect([for (final i in items) i.id], ['direct']);
+    });
+
+    test('selects items, image and content_type but never data', () async {
+      final db = _FakeTablesDB([_broadcastRow('a', sentAt: joined)]);
+      await NotificationInboxService(
+        tablesDb: db,
+      ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
+      final selects = [
+        for (final read in db.announcementReads)
+          for (final q in read)
+            if (q['method'] == 'select') (q['values'] as List).cast<String>(),
+      ];
+      expect(selects, isNotEmpty);
+      for (final columns in selects) {
+        expect(columns, containsAll(['items', 'image', 'content_type']));
+        expect(columns, isNot(contains('data')));
+      }
+    });
   });
 
   group('announcement rows with a data column', () {
@@ -553,22 +701,19 @@ void main() {
       }),
     };
 
-    test(
-      'fetchAnnouncementById loads it - tapping its push opens this, and it '
-      'failed with "type \'String\' is not a subtype of type '
-      '\'Map<String, dynamic>\'"',
-      () async {
-        final notification = await NotificationInboxService(
-          tablesDb: _FakeTablesDB([sentBroadcast()]),
-        ).fetchAnnouncementById(announcementId: 'announcement-1', locale: 'en');
+    test('fetchAnnouncementById loads it - tapping its push opens this, and it '
+        'failed with "type \'String\' is not a subtype of type '
+        '\'Map<String, dynamic>\'"', () async {
+      final notification = await NotificationInboxService(
+        tablesDb: _FakeTablesDB([sentBroadcast()]),
+      ).fetchAnnouncementById(announcementId: 'announcement-1', locale: 'en');
 
-        expect(notification, isNotNull);
-        expect(notification!.id, 'announcement-1');
-        expect(notification.title, 'Hello');
-        expect(notification.body, 'World');
-        expect(notification.deepLink, 'biso://announcement?id=announcement-1');
-      },
-    );
+      expect(notification, isNotNull);
+      expect(notification!.id, 'announcement-1');
+      expect(notification.title, 'Hello');
+      expect(notification.body, 'World');
+      expect(notification.deepLink, 'biso://announcement?id=announcement-1');
+    });
 
     test('fetchInbox lists it', () async {
       final items = await NotificationInboxService(

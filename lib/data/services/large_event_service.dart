@@ -16,7 +16,9 @@ class LargeEventService {
         queries: [Query.equal('isActive', true), Query.orderDesc('priority')],
       );
 
-      return results.rows.map((doc) => LargeEventModel.fromMap(doc.data)).toList(growable: false);
+      return results.rows
+          .map((doc) => LargeEventModel.fromMap(doc.data))
+          .toList(growable: false);
     } catch (e, st) {
       debugPrint('LargeEventService.fetchActiveEvents error: $e\n$st');
       rethrow;

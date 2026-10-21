@@ -51,6 +51,9 @@ import 'presentation/widgets/notification_topics_prompt.dart';
 import 'providers/auth/auth_provider.dart';
 import 'providers/ui/locale_provider.dart';
 import 'providers/ui/theme_mode_provider.dart';
+import 'presentation/screens/events/event_detail_screen.dart';
+import 'presentation/screens/news/news_detail_screen.dart';
+import 'presentation/screens/news/news_list_screen.dart';
 import 'presentation/screens/events/large_event_screen.dart';
 import 'presentation/screens/scanner/scanner_route.dart';
 import 'data/models/large_event_model.dart';
@@ -62,6 +65,7 @@ import 'providers/campus/campus_provider.dart';
 import 'providers/membership/membership_checkout_provider.dart';
 import 'providers/membership/membership_overview_provider.dart';
 import 'providers/notification/notification_provider.dart';
+import 'providers/notification/push_language_sync_provider.dart';
 import 'providers/shop/checkout_provider.dart';
 
 // Background message handler for Firebase
@@ -170,6 +174,8 @@ class BisoApp extends ConsumerWidget {
     // Reconcile this device's subscriptions at launch, and again whenever the
     // student or their campus changes. Nothing else covers a returning user.
     ref.watch(topicReconcileProvider);
+    // Tell the server which language to push in.
+    ref.watch(pushLanguageSyncProvider);
     // And whenever the app comes back with notifications newly allowed in
     // the system settings, which none of the above notices.
     ref.watch(notificationPermissionResumeProvider);
@@ -332,6 +338,29 @@ final _router = GoRouter(
               path: '/events',
               name: 'events',
               builder: (context, state) => const EventsScreen(),
+              routes: [
+                GoRoute(
+                  path: '/:eventId',
+                  name: 'event-detail',
+                  builder: (context, state) => EventDetailScreen(
+                    idOrSlug: state.pathParameters['eventId']!,
+                  ),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/news',
+              name: 'news',
+              builder: (context, state) => const NewsListScreen(),
+              routes: [
+                GoRoute(
+                  path: '/:newsId',
+                  name: 'news-detail',
+                  builder: (context, state) => NewsDetailScreen(
+                    idOrSlug: state.pathParameters['newsId']!,
+                  ),
+                ),
+              ],
             ),
             GoRoute(
               path: '/departures',
@@ -451,6 +480,7 @@ final _router = GoRouter(
             ),
           ],
         ),
+        ...inboxRoutes(),
       ],
     ),
 
@@ -468,19 +498,34 @@ final _router = GoRouter(
         return _LargeEventLoader(slug: slug);
       },
     ),
-    GoRoute(
-      path: '/notifications',
-      name: 'notifications',
-      builder: (context, state) => const NotificationsScreen(),
-    ),
-    GoRoute(
-      path: '/announcements/:id',
-      name: 'announcement-detail',
-      builder: (context, state) =>
-          AnnouncementDetailScreen(announcementId: state.pathParameters['id']!),
-    ),
   ],
 );
+
+/// The app's router, so tests can check where its routes sit.
+@visibleForTesting
+GoRouter get appRouter => _router;
+
+/// The inbox and an announcement's detail.
+///
+/// They sit inside the tab shell, beside the tabs, so the event, article or
+/// vacancy they open (also in the shell) is pushed above them and Back
+/// returns to them. Outside the shell they could not push it: go_router
+/// cannot stack a second copy of the shell, and the shell is already below
+/// them when Home's bell opens the inbox.
+@visibleForTesting
+List<RouteBase> inboxRoutes() => [
+  GoRoute(
+    path: '/notifications',
+    name: 'notifications',
+    builder: (context, state) => const NotificationsScreen(),
+  ),
+  GoRoute(
+    path: '/announcements/:id',
+    name: 'announcement-detail',
+    builder: (context, state) =>
+        AnnouncementDetailScreen(announcementId: state.pathParameters['id']!),
+  ),
+];
 
 // App Shell that contains the bottom navigation and manages tab state
 class _AppShell extends ConsumerStatefulWidget {

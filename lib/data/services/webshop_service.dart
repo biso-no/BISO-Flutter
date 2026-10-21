@@ -41,10 +41,7 @@ class WebshopService {
 
     if (listedOnly) {
       queries.add(
-        Query.or([
-          Query.equal('unlisted', false),
-          Query.isNull('unlisted'),
-        ]),
+        Query.or([Query.equal('unlisted', false), Query.isNull('unlisted')]),
       );
     }
 
@@ -114,7 +111,9 @@ class WebshopService {
     );
 
     return response.rows
-        .map((row) => WebshopProduct.fromAppwriteRow(rowData(row), locale: locale))
+        .map(
+          (row) => WebshopProduct.fromAppwriteRow(rowData(row), locale: locale),
+        )
         .toList(growable: false);
   }
 
@@ -144,7 +143,10 @@ class WebshopService {
   }
 
   /// Reads a single published webshop product by its Appwrite row id.
-  Future<WebshopProduct?> getProductById(String id, {String locale = 'no'}) async {
+  Future<WebshopProduct?> getProductById(
+    String id, {
+    String locale = 'no',
+  }) async {
     final response = await db.listRows(
       databaseId: AppConstants.databaseId,
       tableId: collectionId,

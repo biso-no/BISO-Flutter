@@ -1,17 +1,18 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart'
     as permission_handler;
 import 'package:appwrite/appwrite.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/notification_topics.dart';
 import 'appwrite_service.dart';
+import 'announcement_route.dart';
 import 'deep_link_service.dart';
 import 'device_subscription_store.dart';
+import 'local_notification_presenter.dart';
 import 'topic_reconciler.dart';
 
 /// Reads the stored topic flags out of an Appwrite prefs value.
@@ -130,7 +131,9 @@ class NotificationService {
   NotificationService._internal()
     : _account = account,
       _messagingOverride = null,
-      _store = DeviceSubscriptionStore();
+      _store = DeviceSubscriptionStore(),
+      _presenter = FlutterLocalNotificationsPresenter(),
+      _isAndroid = _platformIsAndroid;
 
   /// Builds a throwaway instance against a caller-supplied [Account] — and,
   /// optionally, [Messaging] and a [DeviceSubscriptionStore] — so the
@@ -142,8 +145,18 @@ class NotificationService {
     this._account, {
     Messaging? messaging,
     DeviceSubscriptionStore? store,
+    LocalNotificationPresenter? presenter,
+    bool Function()? isAndroid,
   }) : _messagingOverride = messaging,
-       _store = store ?? DeviceSubscriptionStore();
+       _store = store ?? DeviceSubscriptionStore(),
+       _presenter = presenter ?? FlutterLocalNotificationsPresenter(),
+       _isAndroid = isAndroid ?? _platformIsAndroid;
+
+  static bool _platformIsAndroid() => !kIsWeb && Platform.isAndroid;
+
+  /// Shows pushes that arrive while the app is open (Android only).
+  final LocalNotificationPresenter _presenter;
+  final bool Function() _isAndroid;
 
   static final FirebaseMessaging _firebaseMessaging =
       FirebaseMessaging.instance;
@@ -169,6 +182,11 @@ class NotificationService {
   /// decoupled from any UI event that would otherwise carry the campus along
   /// — can re-run [reconcile] without a caller supplying it again.
   String? _lastCampusId;
+
+  /// The push language most recently passed to [reconcile], for the same
+  /// internal re-runs as [_lastCampusId]. English until a caller says
+  /// otherwise.
+  String _lastLocale = 'en';
 
   /// Whether [_lastCampusId] is a signed-in student's campus: set by
   /// [reconcile], and cleared by [clearToken]. Null means "no campus" only
@@ -242,15 +260,56 @@ class NotificationService {
     );
 
     // Listen to foreground messages
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    FirebaseMessaging.onMessage.listen(handleForegroundMessage);
 
     // Listen to when user taps notification to open app
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+    FirebaseMessaging.onMessageOpenedApp.listen(handleNotificationTap);
 
     // Handle notification when app is launched from terminated state
     final initialMessage = await _firebaseMessaging.getInitialMessage();
     if (initialMessage != null) {
-      _handleNotificationTap(initialMessage);
+      handleNotificationTap(initialMessage);
+    }
+
+    // Last, and guarded: a failure here must not cost the listeners above.
+    await initializeLocalPresenter();
+  }
+
+  /// Initializes the Android foreground presenter. Never throws: a failure
+  /// (e.g. a bad icon) only costs foreground display, not taps or tokens.
+  @visibleForTesting
+  Future<void> initializeLocalPresenter() async {
+    if (!_isAndroid()) return;
+    try {
+      await _presenter.initialize(
+        onTap: (data) => handleNotificationTap(RemoteMessage(data: data)),
+      );
+    } catch (e) {
+      debugPrint('Local notification presenter failed to initialize: $e');
+      return;
+    }
+    await _applyChannelLanguage(
+      _reconciledLocale ??
+          pushLocaleFor(PlatformDispatcher.instance.locale.languageCode),
+    );
+  }
+
+  /// The push language the channels are (being) named in.
+  String? _channelLocale;
+
+  /// The push language most recently passed to [reconcile], if any.
+  String? _reconciledLocale;
+
+  /// Renames the Android channels for [locale] unless already done. Never
+  /// throws; a failure is retried the next time.
+  Future<void> _applyChannelLanguage(String locale) async {
+    if (!_isAndroid() || _channelLocale == locale) return;
+    _channelLocale = locale;
+    try {
+      await _presenter.setLanguage(locale);
+    } catch (e) {
+      _channelLocale = null;
+      debugPrint('Local notification channel language failed: $e');
     }
   }
 
@@ -274,13 +333,10 @@ class NotificationService {
   void _listenForTokenRefresh() {
     if (_tokenRefreshes != null) return;
     try {
-      _tokenRefreshes = platformTokenRefreshes.listen(
-        (newToken) {
-          _fcmToken = newToken;
-          unawaited(_reconcileAfterTokenRefresh());
-        },
-        onError: (Object e) => debugPrint('onTokenRefresh failed: $e'),
-      );
+      _tokenRefreshes = platformTokenRefreshes.listen((newToken) {
+        _fcmToken = newToken;
+        unawaited(_reconcileAfterTokenRefresh());
+      }, onError: (Object e) => debugPrint('onTokenRefresh failed: $e'));
     } catch (e) {
       debugPrint('Could not listen for FCM token refreshes: $e');
     }
@@ -316,7 +372,7 @@ class NotificationService {
       return;
     }
     try {
-      await reconcile(campusId: _lastCampusId);
+      await reconcile(campusId: _lastCampusId, locale: _lastLocale);
     } catch (e) {
       debugPrint('onTokenRefresh: reconcile failed: $e');
     }
@@ -403,7 +459,7 @@ class NotificationService {
       // token-refresh path relies on, since this method has no campus id of
       // its own to pass in.
       try {
-        await reconcile(campusId: _lastCampusId);
+        await reconcile(campusId: _lastCampusId, locale: _lastLocale);
       } catch (e) {
         // reconcile() reports the failures it expects as a ReconcileOutcome;
         // this is whatever else escaped it. The grant is real regardless, and
@@ -473,6 +529,7 @@ class NotificationService {
   /// reconcile costs little and a device left unsubscribed is the bug.
   Future<ReconcileOutcome?> reconcileIfPermissionNewlyGranted({
     required String? campusId,
+    required String locale,
   }) async {
     final bool granted;
     try {
@@ -484,7 +541,7 @@ class NotificationService {
     final wasGranted = _lastSeenPermission == true;
     _lastSeenPermission = granted;
     if (!granted || wasGranted) return null;
-    return reconcile(campusId: campusId);
+    return reconcile(campusId: campusId, locale: locale);
   }
 
   /// Whether the OS currently grants notification permission (including
@@ -530,13 +587,10 @@ class NotificationService {
   /// Called by [initialize] at every launch. [reconcile] makes the same
   /// attempt before it resolves a push target, so one that fails here is
   /// retried then too.
-  Future<void> retryPendingTokenInvalidation() => _enqueue<void>(
-    'retryPendingTokenInvalidation',
-    (run) async {
-      await _settlePendingTokenInvalidation(run);
-    },
-    onAbandoned: () {},
-  );
+  Future<void> retryPendingTokenInvalidation() =>
+      _enqueue<void>('retryPendingTokenInvalidation', (run) async {
+        await _settlePendingTokenInvalidation(run);
+      }, onAbandoned: () {});
 
   /// Establish this device's Appwrite push target for [token] and return its id.
   ///
@@ -601,9 +655,7 @@ class NotificationService {
       return await _adoptTarget(target.$id, current) ? target.$id : null;
     } on AppwriteException catch (e) {
       if (e.code != 409) {
-        debugPrint(
-          'resolvePushTarget: create failed (${e.code}) ${e.message}',
-        );
+        debugPrint('resolvePushTarget: create failed (${e.code}) ${e.message}');
         return null;
       }
     }
@@ -750,16 +802,23 @@ class NotificationService {
   /// [ReconcileOutcome.unavailable] if its run is abandoned: not finished
   /// within [kNotificationRunTimeout], or still in progress when [clearToken]
   /// is called.
-  Future<ReconcileOutcome> reconcile({required String? campusId}) {
+  Future<ReconcileOutcome> reconcile({
+    required String? campusId,
+    required String locale,
+  }) {
     // Cached at call time, before the run is even queued, so a later token
     // refresh — which has no campusId of its own to pass in — reconciles
     // against the most recent campus this method was actually asked to use.
     _lastCampusId = campusId;
     _campusKnown = true;
+    final pushLocale = pushLocaleFor(locale);
+    _lastLocale = pushLocale;
+    _reconciledLocale = pushLocale;
+    unawaited(_applyChannelLanguage(pushLocale));
 
     return _enqueue(
       'reconcile',
-      (run) => _reconcileNow(run, campusId),
+      (run) => _reconcileNow(run, campusId, pushLocale),
       onAbandoned: () => ReconcileOutcome.unavailable,
     );
   }
@@ -974,6 +1033,7 @@ class NotificationService {
   Future<ReconcileOutcome> _reconcileNow(
     _QueueRun run,
     String? campusId,
+    String locale,
   ) async {
     final settlement = await _settlePendingTokenInvalidation(run);
     if (settlement == _Settlement.stillPending) {
@@ -1002,11 +1062,13 @@ class NotificationService {
     }
     _lastSeenPermission = permitted;
     if (!permitted) {
-      debugPrint('reconcile: notifications not permitted; intent kept for later');
+      debugPrint(
+        'reconcile: notifications not permitted; intent kept for later',
+      );
       return ReconcileOutcome.permissionDenied;
     }
 
-    final outcome = await _reconcilePermitted(run, campusId);
+    final outcome = await _reconcilePermitted(run, campusId, locale);
     // A run that had permission but could not finish - no token, no push
     // target, no readable intent - forgets the permission it read, so the
     // next resume tries again (see [reconcileIfPermissionNewlyGranted]).
@@ -1019,6 +1081,7 @@ class NotificationService {
   Future<ReconcileOutcome> _reconcilePermitted(
     _QueueRun run,
     String? campusId,
+    String locale,
   ) async {
     // The launch fetch in initialize() can fail and leave no cached token, and
     // Firebase then throws here too (SERVICE_NOT_AVAILABLE, no network). That
@@ -1063,29 +1126,40 @@ class NotificationService {
     } catch (e) {
       // Reconciling against a guessed intent is exactly the harm this type
       // exists to prevent: it could subscribe a student to a topic they had
-      // deliberately turned off. So only kGeneralTopicId, which every device
-      // with permission holds whatever the student chose, is ensured below,
-      // nothing is deleted, and the rest is retried on the next launch, auth
-      // change, or campus change. Stopping here instead left a device that
-      // had permission subscribed to nothing at all.
+      // deliberately turned off. So only the general channels in this
+      // device's language, which every device with permission holds whatever
+      // the student chose, are ensured below. The only subscriptions deleted
+      // are ones no choice could keep: anything in the other language, which
+      // would otherwise reach this phone twice, and the general channels of
+      // another campus. The student's own topics in this language are left
+      // alone, and retried on the next launch, auth change, or campus change.
+      // Stopping here instead left a device that had permission subscribed to
+      // nothing at all.
       debugPrint(
-        'reconcile: could not read topic intent; ensuring only '
-        '$kGeneralTopicId ($e)',
+        'reconcile: could not read topic intent; ensuring only the general '
+        'channels ($e)',
       );
     }
 
     final current = await _store.readSubscriberIds();
+    final desired = appwriteTopicIdsFor(
+      intent: intent ?? const <String, bool>{},
+      campusId: campusId,
+      locale: locale,
+    );
+    // With no readable intent, only what no choice could keep is deleted: a
+    // channel in the other language, or a general channel (see above).
+    bool noChoiceKeeps(String topicId) =>
+        topicId.startsWith('${kGeneralTopicId}_') ||
+        kPushLocales.any((l) => l != locale && topicId.endsWith('_$l'));
     final diff = intent == null
         ? TopicDiff(
-            toCreate: current.containsKey(kGeneralTopicId)
-                ? const <String>{}
-                : const <String>{kGeneralTopicId},
-            toDelete: const <String>{},
+            toCreate: desired.difference(current.keys.toSet()),
+            toDelete: current.keys
+                .where((id) => !desired.contains(id) && noChoiceKeeps(id))
+                .toSet(),
           )
-        : computeTopicDiff(
-            desired: appwriteTopicIdsFor(intent: intent, campusId: campusId),
-            current: current,
-          );
+        : computeTopicDiff(desired: desired, current: current);
     if (diff.isEmpty) {
       return intent == null
           ? ReconcileOutcome.unavailable
@@ -1114,39 +1188,12 @@ class NotificationService {
     //
     // And never as a snapshot of the whole map, which would erase whatever
     // another run recorded while this one was going.
-    for (final topicId in diff.toCreate) {
-      if (!run.ownsState) return ReconcileOutcome.unavailable;
-      final String subscriberId;
-      try {
-        final subscriber = await _messaging.createSubscriber(
-          topicId: topicId,
-          subscriberId: ID.unique(),
-          targetId: targetId,
-        );
-        subscriberId = subscriber.$id;
-      } on AppwriteException catch (e) {
-        // Best-effort per topic: one failure must not abort the rest. The next
-        // reconcile retries, because the diff recomputes from observed state.
-        debugPrint('reconcile: subscribe to $topicId failed (${e.code}) ${e.message}');
-        hadFailure = true;
-        continue;
-      }
-      final recorded = await _store.setSubscriberIdIfAbsent(
-        topicId,
-        subscriberId,
-        targetId: targetId,
-      );
-      if (!run.ownsState) return ReconcileOutcome.unavailable;
-      if (!recorded) {
-        // Refused only if the target changed or the topic was taken since the
-        // store was read, which a run that still owns the store should never
-        // see. The subscriber would then exist with no id on this device, and
-        // that is no success.
-        debugPrint('reconcile: subscribed to $topicId, but could not record it');
-        hadFailure = true;
-      }
-    }
-
+    //
+    // Deletes run before creates. A run that stops part-way - a failed
+    // request, or one abandoned at [kNotificationRunTimeout] - then leaves
+    // this phone missing a channel until the next run, rather than holding it
+    // in both languages and getting every message on it twice.
+    final failedDeletes = <String>{};
     for (final topicId in diff.toDelete) {
       final subscriberId = current[topicId];
       if (subscriberId == null) continue;
@@ -1163,12 +1210,63 @@ class NotificationService {
             '(${e.code}) ${e.message}',
           );
           hadFailure = true;
+          failedDeletes.add(topicId);
           continue;
         }
         // Already gone server-side; stop tracking it.
       }
       await _store.removeSubscriberIdIfMatches(topicId, subscriberId);
       if (!run.ownsState) return ReconcileOutcome.unavailable;
+    }
+
+    for (final topicId in diff.toCreate) {
+      if (!run.ownsState) return ReconcileOutcome.unavailable;
+      // Every desired id ends in `_$locale`. If the same channel in another
+      // language could not be deleted above, subscribing now would put this
+      // phone on both; the next run tries the delete, then this, again.
+      final channel = topicId.substring(0, topicId.length - locale.length);
+      if (kPushLocales.any(
+        (l) => l != locale && failedDeletes.contains('$channel$l'),
+      )) {
+        debugPrint(
+          'reconcile: not subscribing to $topicId while the other language '
+          'is still held',
+        );
+        continue;
+      }
+      final String subscriberId;
+      try {
+        final subscriber = await _messaging.createSubscriber(
+          topicId: topicId,
+          subscriberId: ID.unique(),
+          targetId: targetId,
+        );
+        subscriberId = subscriber.$id;
+      } on AppwriteException catch (e) {
+        // Best-effort per topic: one failure must not abort the rest. The next
+        // reconcile retries, because the diff recomputes from observed state.
+        debugPrint(
+          'reconcile: subscribe to $topicId failed (${e.code}) ${e.message}',
+        );
+        hadFailure = true;
+        continue;
+      }
+      final recorded = await _store.setSubscriberIdIfAbsent(
+        topicId,
+        subscriberId,
+        targetId: targetId,
+      );
+      if (!run.ownsState) return ReconcileOutcome.unavailable;
+      if (!recorded) {
+        // Refused only if the target changed or the topic was taken since the
+        // store was read, which a run that still owns the store should never
+        // see. The subscriber would then exist with no id on this device, and
+        // that is no success.
+        debugPrint(
+          'reconcile: subscribed to $topicId, but could not record it',
+        );
+        hadFailure = true;
+      }
     }
 
     // Only general was attempted: the student's own topics are still to do.
@@ -1339,7 +1437,8 @@ class NotificationService {
       final updatedPrefs = Map<String, dynamic>.from(prefs.data);
       updatedPrefs['topic_subscriptions'] = _topicSubscriptions;
       updatedPrefs['topic_subscriber_ids'] = _topicSubscriberIds;
-      updatedPrefs['topic_subscriptions_updated_at'] = DateTime.now().toIso8601String();
+      updatedPrefs['topic_subscriptions_updated_at'] = DateTime.now()
+          .toIso8601String();
 
       await _account.updatePrefs(prefs: updatedPrefs);
       debugPrint('Topic subscriptions saved');
@@ -1363,13 +1462,24 @@ class NotificationService {
   }
 
   /// Handle foreground messages
-  void _handleForegroundMessage(RemoteMessage message) {
+  @visibleForTesting
+  void handleForegroundMessage(RemoteMessage message) {
     debugPrint('Received foreground message: ${message.messageId}');
     debugPrint('Message data: ${message.data}');
 
     if (message.notification != null) {
       debugPrint('Message notification: ${message.notification!.title}');
       debugPrint('Message body: ${message.notification!.body}');
+    }
+
+    // iOS presents the push itself (see the presentation options above);
+    // Android does not, so show it.
+    if (_isAndroid()) {
+      unawaited(
+        _presenter.show(message).catchError((Object e) {
+          debugPrint('Failed to show foreground notification: $e');
+        }),
+      );
     }
 
     // Broadcast to listeners (e.g. the inbox provider) so they can refresh
@@ -1380,14 +1490,15 @@ class NotificationService {
   }
 
   /// Handle notification tap
-  void _handleNotificationTap(RemoteMessage message) {
+  @visibleForTesting
+  void handleNotificationTap(RemoteMessage message) {
     debugPrint('Notification tapped: ${message.messageId}');
     debugPrint('Message data: ${message.data}');
 
     // Handle navigation based on message data
     final data = message.data;
     final type = data['type'] as String?;
-    
+
     switch (type) {
       case 'chat':
         _handleChatNotification(data);
@@ -1414,43 +1525,15 @@ class NotificationService {
 
   /// Handle announcement notification tap.
   ///
-  /// Prefers the server-provided `deep_link` (e.g. `biso://event?id=<id>` or
-  /// `biso://announcement?id=<id>`). Falls back to event handling when an
-  /// `event_id` is present, otherwise opens the notifications inbox.
+  /// Opens what the same announcement's inbox row opens
+  /// ([announcementRouteForData]): its `deep_link`, then `content_type` +
+  /// `content_id`, then `event_id`, then `announcement_id`, and with none of
+  /// them the notifications inbox. Goes through [DeepLinkService], which
+  /// queues until the navigator exists (cold start).
   void _handleAnnouncementNotification(Map<String, dynamic> data) {
-    final deepLinkService = DeepLinkService();
-
-    final deepLink = data['deep_link'] as String?;
-    if (deepLink != null && deepLink.isNotEmpty) {
-      final uri = Uri.tryParse(deepLink);
-      if (uri != null) {
-        debugPrint('Navigating via announcement deep link: $deepLink');
-        deepLinkService.handleDeepLink(uri);
-        return;
-      }
-    }
-
-    final eventId = data['event_id'] as String?;
-    if (eventId != null && eventId.isNotEmpty) {
-      debugPrint('Navigating to announcement event: $eventId');
-      deepLinkService.handleDeepLink(Uri.parse('biso://event?id=$eventId'));
-      return;
-    }
-
-    final announcementId = data['announcement_id'] as String?;
-    if (announcementId != null && announcementId.isNotEmpty) {
-      debugPrint('Navigating to announcement detail: $announcementId');
-      deepLinkService.handleDeepLink(
-        Uri.parse('biso://announcement?id=$announcementId'),
-      );
-      return;
-    }
-
-    debugPrint('Opening notifications inbox for announcement');
-    final context = navigatorKey.currentContext;
-    if (context != null) {
-      context.go('/notifications');
-    }
+    final route = announcementRouteForData(data) ?? '/notifications';
+    debugPrint('Opening announcement tap: $route');
+    DeepLinkService().queueRoute(route);
   }
 
   /// Handle chat notification tap
@@ -1715,11 +1798,8 @@ enum _Settlement {
 /// One run of [NotificationService]'s queue: a reconcile, a sign-out cleanup,
 /// or a launch retry of a pending token invalidation.
 class _QueueRun {
-  _QueueRun(
-    this._service,
-    this.label, {
-    required this.interruptibleBySignOut,
-  }) : _signOutsWhenQueued = _service._signOutRequests;
+  _QueueRun(this._service, this.label, {required this.interruptibleBySignOut})
+    : _signOutsWhenQueued = _service._signOutRequests;
 
   final NotificationService _service;
 
@@ -1767,6 +1847,5 @@ class _QueueRun {
 
   /// Whether [NotificationService.clearToken] has been called since this run
   /// was queued.
-  bool get signOutRequested =>
-      _service._signOutRequests != _signOutsWhenQueued;
+  bool get signOutRequested => _service._signOutRequests != _signOutsWhenQueued;
 }

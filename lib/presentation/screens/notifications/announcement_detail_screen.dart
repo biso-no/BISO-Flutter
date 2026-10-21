@@ -1,13 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/app_notification_model.dart';
+import '../../../data/models/inbox_item.dart';
 import '../../../data/services/deep_link_service.dart';
+import '../../../providers/notification/inbox_opened_items_provider.dart';
 import '../../../providers/notification/notification_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/premium/premium_html_renderer.dart';
+import '../../../generated/l10n/app_localizations.dart';
+import 'inbox_widgets.dart';
 
 /// Rich detail view for a single announcement.
 ///
@@ -40,14 +47,17 @@ class _AnnouncementDetailScreenState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final detail = ref.watch(announcementDetailProvider(widget.announcementId));
 
     return BisoPage(
-      title: 'Announcement',
+      title: l10n.announcementTitle,
       largeTitle: false,
       leading: BisoBackButton(
-        onPressed: () =>
-            NavigationUtils.safeGoBack(context, fallbackRoute: '/notifications'),
+        onPressed: () => NavigationUtils.safeGoBack(
+          context,
+          fallbackRoute: '/notifications',
+        ),
       ),
       slivers: detail.when(
         loading: () => const [SliverToBoxAdapter(child: BisoSkeleton.rows())],
@@ -64,29 +74,48 @@ class _AnnouncementDetailScreenState
         ],
         data: (notification) {
           if (notification == null) {
-            return const [
+            return [
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: BisoEmptyState(
                   icon: CupertinoIcons.tray,
-                  title: 'Announcement not found',
-                  message: 'It may have been removed.',
+                  title: l10n.announcementNotFoundTitle,
+                  message: l10n.announcementNotFoundMessage,
                 ),
               ),
             ];
           }
           _maybeMarkRead(notification);
-          return _announcementSlivers(context, notification);
+          return _announcementSlivers(
+            context,
+            notification,
+            opened: ref
+                .watch(inboxOpenedItemsProvider)
+                .openedFor(notification.id),
+            onOpenItem: (item) {
+              unawaited(
+                ref
+                    .read(inboxOpenedItemsProvider.notifier)
+                    .markOpened(notification.id, item.id),
+              );
+              // Pushed, so Back returns to this list.
+              context.push(item.route);
+            },
+          );
         },
       ),
     );
   }
 }
 
+/// [opened] are the ids of the items the student has opened; every item is
+/// listed (this is "See all"), the opened ones greyed.
 List<Widget> _announcementSlivers(
   BuildContext context,
-  AppNotification notification,
-) {
+  AppNotification notification, {
+  required Set<String> opened,
+  required ValueChanged<InboxItem> onOpenItem,
+}) {
   final theme = Theme.of(context);
   final palette = BisoPalette.of(context);
   final hasHtml = notification.bodyHtml.trim().isNotEmpty;
@@ -101,7 +130,16 @@ List<Widget> _announcementSlivers(
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: [Chip(label: Text(_categoryLabel(notification.category)))],
+              children: [
+                Chip(
+                  label: Text(
+                    _categoryLabel(
+                      AppLocalizations.of(context)!,
+                      notification.category,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Text(
@@ -112,7 +150,7 @@ List<Widget> _announcementSlivers(
             ),
             const SizedBox(height: 8),
             Text(
-              _formatTimestamp(notification.createdAt),
+              _formatTimestamp(context, notification.createdAt),
               style: theme.textTheme.labelMedium?.copyWith(
                 color: palette.muted,
               ),
@@ -135,7 +173,7 @@ List<Widget> _announcementSlivers(
                 : Text(
                     notification.body.isNotEmpty
                         ? notification.body
-                        : 'No content.',
+                        : AppLocalizations.of(context)!.announcementNoContent,
                     style: theme.textTheme.bodyLarge?.copyWith(
                       height: 1.5,
                       color: palette.ink,
@@ -145,6 +183,24 @@ List<Widget> _announcementSlivers(
         ),
       ),
     ),
+    if (notification.items.isNotEmpty)
+      SliverToBoxAdapter(
+        child: BisoSection(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: BisoListGroup(
+            dividerIndent: kInboxThumbDividerIndent,
+            children: [
+              for (final item in notification.items)
+                InboxItemRow(
+                  key: ValueKey('${item.type}-${item.id}'),
+                  item: item,
+                  opened: opened.contains(item.id),
+                  onTap: () => onOpenItem(item),
+                ),
+            ],
+          ),
+        ),
+      ),
     if (notification.eventId != null && notification.eventId!.isNotEmpty)
       SliverToBoxAdapter(
         child: Padding(
@@ -152,13 +208,11 @@ List<Widget> _announcementSlivers(
           child: SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () {
-                DeepLinkService().handleDeepLink(
-                  Uri.parse('biso://event?id=${notification.eventId}'),
-                );
-              },
+              // Pushed, so Back returns to the announcement.
+              onPressed: () =>
+                  context.push(eventRouteFor(notification.eventId)),
               icon: const Icon(CupertinoIcons.calendar),
-              label: const Text('View event'),
+              label: Text(AppLocalizations.of(context)!.announcementViewEvent),
             ),
           ),
         ),
@@ -166,37 +220,29 @@ List<Widget> _announcementSlivers(
   ];
 }
 
-String _categoryLabel(String category) {
+String _categoryLabel(AppLocalizations l10n, String category) {
   switch (category) {
     case 'urgent':
-      return 'Urgent';
+      return l10n.inboxCategoryUrgent;
     case 'trip':
-      return 'Trip';
+      return l10n.inboxCategoryTrip;
     case 'event':
-      return 'Event';
+      return l10n.inboxCategoryEvent;
+    case 'news':
+      return l10n.inboxCategoryNews;
+    case 'job':
+      return l10n.inboxCategoryJob;
     default:
-      return 'General';
+      return l10n.inboxCategoryGeneral;
   }
 }
 
-String _formatTimestamp(DateTime date) {
+String _formatTimestamp(BuildContext context, DateTime date) {
   final local = date.toLocal();
-  final months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  final month = months[local.month - 1];
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$month ${local.day}, ${local.year} · $hour:$minute';
+  final material = MaterialLocalizations.of(context);
+  final time = material.formatTimeOfDay(
+    TimeOfDay.fromDateTime(local),
+    alwaysUse24HourFormat: true,
+  );
+  return '${material.formatMediumDate(local)} · $time';
 }
