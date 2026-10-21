@@ -32,13 +32,22 @@ String formatOsloClock(DateTime instant) {
 /// conversion can move it.
 ///
 /// A value with an offset (anything the server sends with `Z` or `+01:00`)
-/// is an instant and is converted. A value without one is how a date-only
-/// string like `2027-01-01` parses: its fields already are the day meant, so
-/// the device's time zone is never applied to it.
+/// is an instant and is converted. So is a local value with a time of day:
+/// that is an instant someone called `toLocal()` on. A local value at exactly
+/// midnight is how a date-only string like `2027-01-01` parses: its fields
+/// already are the day meant, so the device's time zone is never applied.
 DateTime osloCalendarDay(DateTime value) {
-  final day = value.isUtc ? osloWallClock(value) : value;
+  final isDateOnly = !value.isUtc && _isMidnight(value);
+  final day = isDateOnly ? value : osloWallClock(value);
   return DateTime.utc(day.year, day.month, day.day);
 }
+
+bool _isMidnight(DateTime value) =>
+    value.hour == 0 &&
+    value.minute == 0 &&
+    value.second == 0 &&
+    value.millisecond == 0 &&
+    value.microsecond == 0;
 
 /// Today in Oslo, whatever time zone the device is set to.
 DateTime osloToday([DateTime? now]) =>
