@@ -5414,6 +5414,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Urgent from BISO'**
   String get notificationChannelUrgent;
+
+  /// No description provided for @benefitsYourBenefits.
+  ///
+  /// In en, this message translates to:
+  /// **'Your benefits'**
+  String get benefitsYourBenefits;
+
+  /// No description provided for @benefitsShowCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Show code'**
+  String get benefitsShowCode;
+
+  /// No description provided for @benefitsOpenLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the link'**
+  String get benefitsOpenLink;
+
+  /// No description provided for @benefitsShowCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Show your membership card at the checkout'**
+  String get benefitsShowCard;
+
+  /// No description provided for @benefitsCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get benefitsCopy;
+
+  /// No description provided for @benefitsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get benefitsCopied;
+
+  /// No description provided for @benefitsMembersOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'The code is only shown to members.'**
+  String get benefitsMembersOnly;
+
+  /// No description provided for @benefitsBecomeMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Become a member'**
+  String get benefitsBecomeMember;
+
+  /// No description provided for @benefitsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'We can\'t check your membership right now. Try again in a moment.'**
+  String get benefitsUnavailable;
+
+  /// No description provided for @benefitsNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'This benefit is no longer available.'**
+  String get benefitsNotFound;
+
+  /// No description provided for @benefitsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No benefits here yet.'**
+  String get benefitsEmpty;
+
+  /// No description provided for @benefitsTerms.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms'**
+  String get benefitsTerms;
+
+  /// No description provided for @benefitsValidUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until {date}'**
+  String benefitsValidUntil(String date);
 }
 
 class _AppLocalizationsDelegate

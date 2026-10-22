@@ -2971,4 +2971,46 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationChannelUrgent => 'Urgent from BISO';
+
+  @override
+  String get benefitsYourBenefits => 'Your benefits';
+
+  @override
+  String get benefitsShowCode => 'Show code';
+
+  @override
+  String get benefitsOpenLink => 'Open the link';
+
+  @override
+  String get benefitsShowCard => 'Show your membership card at the checkout';
+
+  @override
+  String get benefitsCopy => 'Copy';
+
+  @override
+  String get benefitsCopied => 'Copied';
+
+  @override
+  String get benefitsMembersOnly => 'The code is only shown to members.';
+
+  @override
+  String get benefitsBecomeMember => 'Become a member';
+
+  @override
+  String get benefitsUnavailable =>
+      'We can\'t check your membership right now. Try again in a moment.';
+
+  @override
+  String get benefitsNotFound => 'This benefit is no longer available.';
+
+  @override
+  String get benefitsEmpty => 'No benefits here yet.';
+
+  @override
+  String get benefitsTerms => 'Terms';
+
+  @override
+  String benefitsValidUntil(String date) {
+    return 'Valid until $date';
+  }
 }

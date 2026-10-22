@@ -3797,5 +3797,18 @@
   "announcementNoContent": "Ingen innhold.",
   "announcementViewEvent": "Se arrangementet",
   "notificationChannelDefault": "BISO",
-  "notificationChannelUrgent": "Viktig fra BISO"
+  "notificationChannelUrgent": "Viktig fra BISO",
+  "benefitsYourBenefits": "Dine fordeler",
+  "benefitsShowCode": "Vis kode",
+  "benefitsOpenLink": "Åpne lenken",
+  "benefitsShowCard": "Vis medlemskortet i kassa",
+  "benefitsCopy": "Kopier",
+  "benefitsCopied": "Kopiert",
+  "benefitsMembersOnly": "Koden vises bare for medlemmer.",
+  "benefitsBecomeMember": "Bli medlem",
+  "benefitsUnavailable": "Vi får ikke sjekket medlemskapet ditt akkurat nå. Prøv igjen om litt.",
+  "benefitsNotFound": "Denne fordelen er ikke lenger tilgjengelig.",
+  "benefitsEmpty": "Ingen fordeler her ennå.",
+  "benefitsTerms": "Vilkår",
+  "benefitsValidUntil": "Gjelder til {date}"
 }

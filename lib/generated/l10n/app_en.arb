@@ -3945,5 +3945,19 @@
   "notificationChannelUrgent": "Urgent from BISO",
   "@notificationChannelUrgent": {
     "description": "Android notification channel name for urgent pushes"
-  }
+  },
+  "benefitsYourBenefits": "Your benefits",
+  "benefitsShowCode": "Show code",
+  "benefitsOpenLink": "Open the link",
+  "benefitsShowCard": "Show your membership card at the checkout",
+  "benefitsCopy": "Copy",
+  "benefitsCopied": "Copied",
+  "benefitsMembersOnly": "The code is only shown to members.",
+  "benefitsBecomeMember": "Become a member",
+  "benefitsUnavailable": "We can't check your membership right now. Try again in a moment.",
+  "benefitsNotFound": "This benefit is no longer available.",
+  "benefitsEmpty": "No benefits here yet.",
+  "benefitsTerms": "Terms",
+  "benefitsValidUntil": "Valid until {date}",
+  "@benefitsValidUntil": {"placeholders": {"date": {"type": "String"}}}
 }

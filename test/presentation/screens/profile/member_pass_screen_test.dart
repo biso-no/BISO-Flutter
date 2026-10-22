@@ -2,7 +2,10 @@ import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/data/services/bi_sign_in_service.dart';
+import 'package:biso/data/models/campus_benefit.dart';
+import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/data/services/bi_sync_api_client.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
@@ -23,6 +26,14 @@ import 'package:go_router/go_router.dart';
 import '../../../helpers/biso_screen_harness.dart';
 import '../../../helpers/fake_member_pass_api.dart';
 import '../../../helpers/membership_fixtures.dart';
+
+class _NoBenefitsApi implements BenefitsApi {
+  @override
+  Future<List<CampusBenefit>> fetchBenefits({String? campusId}) async => [];
+
+  @override
+  Future<String> reveal(String benefitId) async => throw UnimplementedError();
+}
 
 class _Overview extends MembershipOverviewNotifier {
   _Overview([this.value]);
@@ -90,6 +101,7 @@ void main() {
       // instance per container — Riverpod binds each Notifier to its owning
       // element exactly once — so `pass`/`overview` are (re)captured from
       // the factory itself rather than a value created ahead of time.
+      benefitsApiProvider.overrideWithValue(_NoBenefitsApi()),
       memberPassProvider.overrideWith(() => pass = FixedMemberPass(view)),
       membershipOverviewProvider.overrideWith(
         () => overview = _Overview(membership),
