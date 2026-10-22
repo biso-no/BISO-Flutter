@@ -157,9 +157,11 @@ class BisoApp extends ConsumerWidget {
       ref.watch(membershipCheckoutControllerProvider.notifier);
     }
 
-    // Ask for the config again when the app comes back after an hour or more,
-    // so a student who never closes the app still hears of a new minimum
-    // version. Watched from launch, which is when its clock starts.
+    // Ask for the config again when the app comes back after an hour or more
+    // (on every return while blocked), so a student who never closes the app
+    // still hears of a new minimum version, and when the network comes back
+    // after an offline launch. Watched from launch, which is when its clock
+    // starts.
     ref.watch(appConfigResumeRefreshProvider);
     // Whether to block the app or nudge an update. The block is drawn by
     // `UpdateRequiredOverlay` below; watching it here too rebuilds the app

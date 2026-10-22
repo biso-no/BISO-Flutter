@@ -7,6 +7,7 @@ import 'package:biso/data/services/app_config_service.dart';
 import 'package:biso/data/services/update_snooze_store.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/config/update_prompt_provider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,9 +65,14 @@ void main() {
 
   late DateTime now;
 
+  /// The device's network, as the tests report it.
+  late StreamController<List<ConnectivityResult>> connectivity;
+
   setUp(() {
     now = DateTime(2026, 10, 22, 12);
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    connectivity = StreamController<List<ConnectivityResult>>.broadcast();
+    addTearDown(connectivity.close);
   });
 
   ProviderContainer start(
@@ -84,6 +90,7 @@ void main() {
         ),
         updatePlatformProvider.overrideWithValue(platform),
         updateClockProvider.overrideWithValue(() => now),
+        connectivityResultsProvider.overrideWithValue(connectivity.stream),
         if (snoozeStore != null)
           updateSnoozeStoreProvider.overrideWithValue(snoozeStore),
       ],
@@ -504,6 +511,115 @@ void main() {
       expect(service.calls, 3);
     });
 
+    test('re-fetches on every resume while blocked, so a block lifted in the '
+        'admin lifts on the next return to the app', () async {
+      final service = _FakeConfigService([
+        _network(android: _blocking),
+        _network(),
+      ]);
+      final container = startRefreshing(service);
+      expect(await settle(container), UpdatePrompt.required);
+
+      now = now.add(const Duration(minutes: 5));
+      await backgroundAndResume(container);
+      expect(service.calls, 2);
+      expect(container.read(updatePromptProvider), UpdatePrompt.none);
+    });
+
+    test('does not re-fetch on a resume five minutes after a fresh answer '
+        'when nothing is blocked', () async {
+      final service = _FakeConfigService([_network(android: _nudging)]);
+      final container = startRefreshing(service);
+      await settle(container);
+
+      now = now.add(const Duration(minutes: 5));
+      await backgroundAndResume(container);
+      expect(service.calls, 1);
+    });
+
+    test('does not ask again while a fetch is still on its way', () async {
+      final pending = Completer<AppConfig>();
+      final service = _FakeConfigService([
+        _network(android: _blocking),
+        pending,
+      ]);
+      final container = startRefreshing(service);
+      expect(await settle(container), UpdatePrompt.required);
+
+      backgroundAndBack();
+      await pumpEventQueue();
+      expect(service.calls, 2);
+      expect(container.read(appConfigProvider).isLoading, isTrue);
+
+      backgroundAndBack();
+      await pumpEventQueue();
+      expect(service.calls, 2, reason: 'the first re-fetch is still running');
+
+      pending.complete(_network());
+      expect(await settle(container), UpdatePrompt.none);
+      expect(service.calls, 2);
+    });
+
+    test('re-fetches once when the connection comes back after an offline '
+        'launch', () async {
+      final service = _FakeConfigService([
+        const AppConfigUnavailableException(),
+        _network(android: _blocking),
+      ]);
+      final container = startRefreshing(service);
+      connectivity.add([ConnectivityResult.none]);
+      await settle(container);
+      expect(service.calls, 1);
+
+      connectivity.add([ConnectivityResult.wifi]);
+      expect(await settle(container), UpdatePrompt.required);
+      expect(service.calls, 2);
+
+      // More reports while still online are the same connection.
+      connectivity.add([ConnectivityResult.wifi, ConnectivityResult.vpn]);
+      connectivity.add([ConnectivityResult.wifi]);
+      await settle(container);
+      expect(service.calls, 2);
+    });
+
+    test('re-fetches when the connection comes back after a cached launch, '
+        'once per regained connection', () async {
+      final service = _FakeConfigService([
+        _cached(),
+        _cached(),
+        _network(android: _blocking),
+      ]);
+      final container = startRefreshing(service);
+      connectivity.add([ConnectivityResult.none]);
+      await settle(container);
+
+      connectivity.add([ConnectivityResult.mobile]);
+      await settle(container);
+      expect(service.calls, 2);
+
+      connectivity.add([ConnectivityResult.none]);
+      await settle(container);
+      expect(service.calls, 2);
+
+      connectivity.add([ConnectivityResult.wifi]);
+      expect(await settle(container), UpdatePrompt.required);
+      expect(service.calls, 3);
+    });
+
+    test('does not re-fetch when the connection comes back after a fresh '
+        'answer', () async {
+      final service = _FakeConfigService([_network()]);
+      final container = startRefreshing(service);
+      connectivity.add([ConnectivityResult.wifi]);
+      await settle(container);
+      expect(service.calls, 1);
+
+      connectivity.add([ConnectivityResult.none]);
+      connectivity.add([ConnectivityResult.wifi]);
+      await settle(container);
+      expect(service.calls, 1);
+    });
+
     test('stops listening for resumes once disposed', () async {
       // A listener still registered reads the clock on every resume, so the
       // clock tells whether anything is still listening.
@@ -517,6 +633,7 @@ void main() {
             clockReads++;
             return now;
           }),
+          connectivityResultsProvider.overrideWithValue(connectivity.stream),
         ],
       );
       container.listen(appConfigResumeRefreshProvider, (_, _) {});

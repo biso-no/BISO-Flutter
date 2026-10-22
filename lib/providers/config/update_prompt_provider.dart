@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -191,14 +192,32 @@ class UpdatePromptNotifier extends Notifier<UpdatePrompt> {
   };
 }
 
-/// Asks for the config again when the app comes back to the foreground, at
-/// most once per [appConfigResumeRecheckInterval].
+/// The device's network interfaces each time they change, starting with how
+/// they are now. Separate so tests can drive it. Only a hint: an interface
+/// coming up does not mean the internet works.
+final connectivityResultsProvider = Provider<Stream<List<ConnectivityResult>>>(
+  (_) => Connectivity().onConnectivityChanged,
+);
+
+/// Asks for the config again when the app comes back to the foreground, and
+/// when the network comes back before the app has had a fresh answer.
 ///
 /// A student who keeps the app open in the background for days would
-/// otherwise never hear of a new minimum version. The hour is counted from
-/// the last fresh answer this provider saw: a cached answer or a failed fetch
-/// does not count, so after one of those the next resume asks again. The
-/// re-read never lifts a block by itself — see [UpdatePromptNotifier].
+/// otherwise never hear of a new minimum version. A resume asks at most once
+/// per [appConfigResumeRecheckInterval], counted from the last fresh answer
+/// this provider saw: a cached answer or a failed fetch does not count, so
+/// after one of those the next resume asks again.
+///
+/// While the app is blocked ([UpdatePrompt.required]) every resume asks: a
+/// block set by mistake and then cleared in the admin must lift when the
+/// student next returns to the app, not an hour later.
+///
+/// A launch without the network leaves the app with no fresh answer, and so
+/// with no prompt. When the network comes back it asks once, and again only
+/// after the network has gone and come back once more.
+///
+/// Nothing asks while a fetch is already on its way. The re-read never lifts
+/// a block by itself — see [UpdatePromptNotifier].
 final appConfigResumeRefreshProvider = Provider<void>((ref) {
   final now = ref.watch(updateClockProvider);
   DateTime? lastFreshAnswer;
@@ -210,15 +229,41 @@ final appConfigResumeRefreshProvider = Provider<void>((ref) {
     }
   }, fireImmediately: true);
 
+  void refetch() {
+    if (ref.read(appConfigProvider).isLoading) return;
+    ref.invalidate(appConfigProvider);
+  }
+
   void onResume() {
+    final blocked = ref.read(updatePromptProvider) == UpdatePrompt.required;
     final last = lastFreshAnswer;
-    if (last != null &&
+    if (!blocked &&
+        last != null &&
         now().difference(last) < appConfigResumeRecheckInterval) {
       return;
     }
-    ref.invalidate(appConfigProvider);
+    refetch();
+  }
+
+  /// Whether the last report had a network, or `null` before the first one.
+  bool? online;
+  void onConnectivityChanged(List<ConnectivityResult> results) {
+    final wasOnline = online;
+    final isOnline = results.any((r) => r != ConnectivityResult.none);
+    online = isOnline;
+    final regained = wasOnline == false && isOnline;
+    if (regained && lastFreshAnswer == null) refetch();
   }
 
   final lifecycle = AppLifecycleListener(onResume: onResume);
   ref.onDispose(lifecycle.dispose);
+  final connectivity = ref
+      .watch(connectivityResultsProvider)
+      .listen(
+        onConnectivityChanged,
+        // Without connectivity reports the resume re-check still works.
+        onError: (Object e) =>
+            debugPrint('appConfigResumeRefresh: no connectivity reports: $e'),
+      );
+  ref.onDispose(connectivity.cancel);
 });
