@@ -194,7 +194,13 @@ class _UpdateRequiredScreen extends StatelessWidget {
 }
 
 /// Starts the store update, and stays disabled until the store is done with
-/// it: two updates started at once would open the store twice.
+/// it, or until the app comes back to the foreground: two updates started at
+/// once would open the store twice.
+///
+/// The return to the foreground matters because a store call may never
+/// answer — UIKit can decline to present the App Store sheet without calling
+/// back — and a button disabled for good would leave the block screen with no
+/// way forward.
 class _UpdateButton extends ConsumerStatefulWidget {
   const _UpdateButton();
 
@@ -205,12 +211,37 @@ class _UpdateButton extends ConsumerStatefulWidget {
 class _UpdateButtonState extends ConsumerState<_UpdateButton> {
   bool _updating = false;
 
+  /// Bumped by every update and every resume that ends one, so an update
+  /// already given up on cannot re-enable the button under a later one.
+  int _attempt = 0;
+
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _onResume);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  void _onResume() {
+    if (!_updating) return;
+    _attempt++;
+    setState(() => _updating = false);
+  }
+
   Future<void> _update() async {
+    final attempt = ++_attempt;
     setState(() => _updating = true);
     try {
       await ref.read(storeUpdaterProvider).startUpdate();
     } finally {
-      if (mounted) setState(() => _updating = false);
+      if (mounted && attempt == _attempt) setState(() => _updating = false);
     }
   }
 

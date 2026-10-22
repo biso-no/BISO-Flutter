@@ -389,6 +389,48 @@ void main() {
       },
     );
 
+    testWidgets(
+      'Update comes back when the app returns to the foreground, even if '
+      'the store never says it is done: iOS can decline the sheet without '
+      'ever answering',
+      (tester) async {
+        // Never completes.
+        updater.store = Completer<void>();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpWidget(
+          app(prompt: UpdatePrompt.required, child: const Text('home')),
+        );
+        await tester.pumpAndSettle();
+
+        FilledButton button() =>
+            tester.widget<FilledButton>(find.byType(FilledButton));
+
+        await tester.tap(find.text('Update'));
+        await tester.pump();
+        expect(button().onPressed, isNull);
+
+        for (final state in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.hidden,
+          AppLifecycleState.paused,
+          AppLifecycleState.hidden,
+          AppLifecycleState.inactive,
+          AppLifecycleState.resumed,
+        ]) {
+          tester.binding.handleAppLifecycleStateChanged(state);
+        }
+        await tester.pump();
+        expect(button().onPressed, isNotNull);
+
+        await tester.tap(find.text('Update'));
+        await tester.pump();
+        expect(updater.started, 2);
+        expect(button().onPressed, isNull);
+      },
+    );
+
     testWidgets('no overlay when no update is required', (tester) async {
       await tester.pumpWidget(
         app(prompt: UpdatePrompt.none, child: const Text('home')),
