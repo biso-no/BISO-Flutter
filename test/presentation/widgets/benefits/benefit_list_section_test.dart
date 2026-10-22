@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/data/models/campus_benefit.dart';
@@ -90,13 +91,15 @@ CampusBenefit _benefit({
   BenefitRedemptionType type = BenefitRedemptionType.code,
   BenefitSection section = BenefitSection.member,
   String title = 'Gratis kaffe',
+  String description = 'Én kaffe per uke.',
+  String terms = 'Gjelder hverdager.',
 }) => CampusBenefit(
   id: id,
   campusId: '1',
   section: section,
   title: BenefitText(nb: title, en: 'Free coffee'),
-  description: const BenefitText(nb: 'Én kaffe per uke.'),
-  terms: const BenefitText(nb: 'Gjelder hverdager.'),
+  description: BenefitText(nb: description),
+  terms: BenefitText(nb: terms),
   redemptionType: type,
   partner: const BenefitPartner(id: 'p1', name: 'Kaffebrenneriet'),
   publishEnd: DateTime.utc(2026, 12, 31, 12),
@@ -537,6 +540,47 @@ void main() {
     await tester.tap(find.text('Vilkår'));
     await tester.pumpAndSettle();
     expect(find.text('Gjelder hverdager.'), findsOneWidget);
+  });
+
+  testWidgets('the sheet renders stored HTML and Plate copy, not its markup', (
+    tester,
+  ) async {
+    final terms = jsonEncode([
+      {
+        'type': 'p',
+        'children': [
+          {'text': 'Gjelder '},
+          {'text': 'hverdager', 'bold': true},
+          {'text': '.'},
+        ],
+      },
+    ]);
+    await _pump(
+      tester,
+      api: _FakeApi(
+        benefits: [
+          _benefit(
+            description: '<p>Én kaffe&nbsp;<strong>per uke</strong>.</p>',
+            terms: terms,
+          ),
+        ],
+      ),
+    );
+    await tester.tap(find.text('Gratis kaffe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Vilkår'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Én kaffe\u00a0per uke.', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Gjelder hverdager.', findRichText: true),
+      findsOneWidget,
+    );
+    expect(find.textContaining('<', findRichText: true), findsNothing);
+    expect(find.textContaining('"type"', findRichText: true), findsNothing);
   });
 
   testWidgets('shows the skeleton while loading', (tester) async {

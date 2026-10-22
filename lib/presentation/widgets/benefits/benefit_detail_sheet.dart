@@ -17,6 +17,7 @@ import '../../../providers/member_pass/member_pass_provider.dart';
 import '../../../providers/member_pass/member_pass_session.dart';
 import '../../screens/profile/member_pass_presentation.dart';
 import '../biso/biso.dart';
+import '../premium/premium_html_renderer.dart';
 
 /// Opens a link outside the app. A provider so tests can see what opens.
 final benefitLinkOpenerProvider = Provider<Future<bool> Function(Uri)>(
@@ -184,7 +185,11 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
             Text(benefit.title.resolve(language) ?? '', style: text.titleLarge),
             if (description != null) ...[
               const SizedBox(height: 12),
-              Text(description, style: text.bodyLarge),
+              // Stored as HTML, Plate JSON or plain text.
+              description.toFullHtml(
+                style: text.bodyLarge,
+                fontSize: text.bodyLarge?.fontSize,
+              ),
             ],
             if (end != null) ...[
               const SizedBox(height: 12),
@@ -388,7 +393,10 @@ class _TermsDisclosureState extends State<_TermsDisclosure> {
           child: _open
               ? Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(widget.terms, style: text.bodyMedium),
+                  child: widget.terms.toFullHtml(
+                    style: text.bodyMedium,
+                    fontSize: text.bodyMedium?.fontSize,
+                  ),
                 )
               : const SizedBox(width: double.infinity),
         ),

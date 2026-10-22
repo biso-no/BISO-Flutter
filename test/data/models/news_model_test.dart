@@ -70,8 +70,8 @@ void main() {
       expect(n.publishedAt, DateTime.parse('2026-10-01T08:30:00.000+00:00'));
     });
 
-    test('hasRenderableBody is false for Plate JSON and empty bodies', () {
-      for (final body in ['[{"type":"p"}]', '{"a":1}', '', '  [1]']) {
+    test('hasRenderableBody is false for empty bodies and JSON objects', () {
+      for (final body in ['[{"type":"p"}]', '{"a":1}', '', '  ']) {
         final n = NewsModel.fromAppwriteRow(
           newsRow(enDescription: body),
           locale: 'en',
@@ -80,12 +80,18 @@ void main() {
       }
     });
 
-    test('hasRenderableBody is true for HTML', () {
-      final n = NewsModel.fromAppwriteRow(
-        newsRow(enDescription: '<p>Hi</p>'),
-        locale: 'en',
-      );
-      expect(n.hasRenderableBody, isTrue);
+    test('hasRenderableBody is true for HTML, Plate JSON and text', () {
+      for (final body in [
+        '<p>Hi</p>',
+        '[{"type":"p","children":[{"text":"Hi"}]}]',
+        'Hi',
+      ]) {
+        final n = NewsModel.fromAppwriteRow(
+          newsRow(enDescription: body),
+          locale: 'en',
+        );
+        expect(n.hasRenderableBody, isTrue, reason: body);
+      }
     });
   });
 }

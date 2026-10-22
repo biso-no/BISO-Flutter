@@ -251,6 +251,10 @@ class _WebshopProductDetailScreenState
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         )
+        // The animation can finish mid-frame, before the layout that builds
+        // the field; reading its key then finds nothing and validate()
+        // skips it. Wait for that frame to finish.
+        .then((_) => WidgetsBinding.instance.endOfFrame)
         .then((_) {
           if (!mounted) return;
           final revealedContext = _customFieldKeys[field.fieldKey]?.currentContext;

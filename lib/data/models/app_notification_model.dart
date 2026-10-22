@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 import '../../core/utils/appwrite_image.dart';
+import '../../core/utils/rich_content.dart';
 import 'inbox_item.dart';
 
 /// The inbox's filter chips.
@@ -15,7 +16,7 @@ enum InboxFilter { all, events, news, jobs, fromBiso }
 class AppNotification extends Equatable {
   final String id; // announcement id ($id)
   final String title; // localized title
-  final String body; // localized body as plain text (HTML stripped)
+  final String body; // localized body as plain text (markup flattened)
   final String bodyHtml; // localized body as raw HTML (for rich rendering)
   final String category; // general | trip | urgent | event | news | job
   final String? eventId;
@@ -92,10 +93,10 @@ class AppNotification extends Equatable {
         (isNorwegian ? (titleNo ?? titleEn) : (titleEn ?? titleNo)) ?? '';
     final bodyHtml =
         (isNorwegian ? (bodyNo ?? bodyEn) : (bodyEn ?? bodyNo)) ?? '';
-    // The admin authors the body in a rich (HTML) block editor; the inbox list
-    // shows plain text, so strip tags here and keep the raw HTML for a future
-    // rich detail view.
-    final body = _stripHtml(bodyHtml);
+    // The admin authors the body in a block editor (HTML now, Plate JSON in
+    // older rows). The inbox list shows plain text; the detail view renders
+    // the stored copy.
+    final body = richContentToPlainText(bodyHtml);
 
     final rawEventId = doc['event_id'] as String?;
     final eventId = (rawEventId != null && rawEventId.isNotEmpty)
@@ -140,23 +141,6 @@ class AppNotification extends Equatable {
 
   static String? _nonEmpty(dynamic value) =>
       value is String && value.isNotEmpty ? value : null;
-
-  /// Strip HTML tags and collapse whitespace for plain-text display.
-  static String _stripHtml(String html) {
-    if (html.isEmpty) return '';
-    final withoutTags = html
-        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'<[^>]+>'), '');
-    final decoded = withoutTags
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'");
-    return decoded.replaceAll(RegExp(r'[ \t]+'), ' ').trim();
-  }
 
   static DateTime? _parseDate(dynamic value) {
     if (value is String && value.isNotEmpty) {

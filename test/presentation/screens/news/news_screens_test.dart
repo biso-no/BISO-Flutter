@@ -168,21 +168,36 @@ void main() {
     expect(find.text('Read on biso.no'), findsNothing);
   });
 
-  testWidgets('a Plate JSON body shows Read on biso.no, not the JSON', (
+  testWidgets('a Plate JSON body renders as the article, not as JSON', (
     tester,
   ) async {
     await pumpBisoScreen(
       tester,
       const NewsDetailScreen(idOrSlug: 'autumn-news'),
       overrides: _detailOverrides(
-        _news(body: '[{"type":"p","children":[{"text":"plate-secret"}]}]'),
+        _news(body: '[{"type":"p","children":[{"text":"Plate body"}]}]'),
       ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Plate body', findRichText: true), findsOne);
+    expect(find.textContaining('"type"', findRichText: true), findsNothing);
+    expect(find.text('Read on biso.no'), findsNothing);
+  });
+
+  testWidgets('a JSON object body shows Read on biso.no, not the JSON', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      const NewsDetailScreen(idOrSlug: 'autumn-news'),
+      overrides: _detailOverrides(_news(body: '{"blocks":"json-secret"}')),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Read on biso.no'), findsOneWidget);
     expect(find.text('Short intro'), findsOneWidget);
-    expect(find.textContaining('plate-secret'), findsNothing);
+    expect(find.textContaining('json-secret'), findsNothing);
   });
 
   // News is readable by everyone, members-only articles included, so a

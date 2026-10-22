@@ -19,6 +19,39 @@ String _itemsJson(int n) => jsonEncode([
 
 void main() {
   group('AppNotification.fromAnnouncement', () {
+    test('the inbox body is the stored HTML as plain text', () {
+      final n = AppNotification.fromAnnouncement(
+        _doc(
+          extra: {
+            'body_en':
+                '<h3>Kari&#039;s news</h3><p>Doors open &hellip;</p>'
+                '<ul><li>Coffee</li><li>Cake</li></ul>',
+          },
+        ),
+      );
+      expect(n.body, "Kari's news\nDoors open …\nCoffee\nCake");
+      expect(n.bodyHtml, startsWith('<h3>'));
+    });
+
+    test('an older Plate JSON body is read, not shown as JSON', () {
+      final n = AppNotification.fromAnnouncement(
+        _doc(
+          extra: {
+            'body_en': jsonEncode([
+              {
+                'type': 'p',
+                'children': [
+                  {'text': 'Velkommen '},
+                  {'text': 'tilbake', 'bold': true},
+                ],
+              },
+            ]),
+          },
+        ),
+      );
+      expect(n.body, 'Velkommen tilbake');
+    });
+
     test('a 3-element items JSON gives a burst', () {
       final n = AppNotification.fromAnnouncement(_doc(items: _itemsJson(3)));
       expect(n.items, hasLength(3));

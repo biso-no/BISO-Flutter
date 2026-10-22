@@ -3,8 +3,12 @@ import 'package:flutter_html/flutter_html.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/rich_content.dart';
 
-/// Premium HTML renderer with BI brand styling
+/// Premium HTML renderer with BI brand styling.
+///
+/// Takes authored copy in any stored shape (HTML, Plate JSON or plain text);
+/// see [richContentToHtml].
 class PremiumHtmlRenderer extends StatelessWidget {
   final String htmlContent;
   final TextStyle? baseStyle;
@@ -53,30 +57,19 @@ class PremiumHtmlRenderer extends StatelessWidget {
     final defaultStyle = baseStyle ?? theme.textTheme.bodyMedium;
     final effectiveFontSize = fontSize ?? defaultStyle?.fontSize ?? 14;
 
-    if (htmlContent.trim().isEmpty) {
+    final html = richContentToHtml(htmlContent);
+    if (html.isEmpty) {
       return const SizedBox.shrink();
     }
 
     return Container(
       padding: padding,
       child: Html(
-        data: _enhanceHtmlContent(htmlContent),
+        data: html,
         style: _buildHtmlStyles(theme, effectiveFontSize),
         onLinkTap: _handleLinkTap,
       ),
     );
-  }
-
-  /// Enhance HTML content with premium styling
-  String _enhanceHtmlContent(String content) {
-    if (content.trim().isEmpty) return '';
-
-    String enhanced = content;
-
-    // First, ensure all HTML entities are decoded
-    enhanced = _decodeHtmlEntities(enhanced);
-
-    return enhanced;
   }
 
   /// Build comprehensive HTML styles with theme-aware colors
@@ -267,31 +260,6 @@ class PremiumHtmlRenderer extends StatelessWidget {
       // Handle error - maybe show a snackbar
       debugPrint('Failed to launch URL: $url');
     }
-  }
-
-  /// Decode HTML entities as backup
-  String _decodeHtmlEntities(String text) {
-    if (text.isEmpty) return text;
-
-    return text
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#39;', "'")
-        .replaceAll('&#x27;', "'")
-        .replaceAll('&apos;', "'")
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&mdash;', '—')
-        .replaceAll('&ndash;', '–')
-        .replaceAll('&ldquo;', '"')
-        .replaceAll('&rdquo;', '"')
-        .replaceAll('&lsquo;', ''')
-        .replaceAll('&rsquo;', ''')
-        .replaceAll('&hellip;', '…')
-        .replaceAll('&copy;', '©')
-        .replaceAll('&reg;', '®')
-        .replaceAll('&trade;', '™');
   }
 }
 

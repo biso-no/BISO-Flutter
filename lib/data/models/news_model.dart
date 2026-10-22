@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../core/utils/appwrite_image.dart';
 import '../../core/utils/localized_content.dart';
+import '../../core/utils/rich_content.dart';
 import 'content_translation.dart';
 
 class NewsModel extends Equatable {
@@ -9,7 +10,8 @@ class NewsModel extends Equatable {
   final String? slug;
   final String title;
 
-  /// HTML from the admin editor, or '' when there is none.
+  /// The body as stored (HTML, or Plate JSON in older rows), or '' when there
+  /// is none. Render it with the HTML renderer, which reads both.
   final String body;
   final String? shortDescription;
   final String? image;
@@ -56,12 +58,11 @@ class NewsModel extends Equatable {
     );
   }
 
-  /// False for an empty body and for older rows stored as Plate JSON, which
-  /// the app cannot render as HTML.
+  /// False for a body with nothing to read, and for a JSON object, which is
+  /// no stored shape the app knows. HTML, Plate JSON and text all render.
   bool get hasRenderableBody {
-    final trimmed = body.trim();
-    if (trimmed.isEmpty) return false;
-    return !trimmed.startsWith('[') && !trimmed.startsWith('{');
+    if (body.trim().startsWith('{')) return false;
+    return richContentToPlainText(body).isNotEmpty;
   }
 
   @override
