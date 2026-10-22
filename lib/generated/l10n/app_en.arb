@@ -3961,5 +3961,13 @@
   "benefitsValidUntil": "Valid until {date}",
   "@benefitsValidUntil": {"placeholders": {"date": {"type": "String"}}},
   "benefitsSignIn": "Sign in to see the code",
-  "benefitsLinkFailed": "Couldn't open the link. Try again."
+  "benefitsLinkFailed": "Couldn't open the link. Try again.",
+  "benefitsShowMore": "Show {count} more",
+  "@benefitsShowMore": {"placeholders": {"count": {"type": "int"}}},
+  "benefitsShowLess": "Show fewer",
+  "benefitSectionMember": "Member benefits",
+  "benefitSectionCareer": "Career benefits",
+  "benefitSectionSocial": "Social network",
+  "benefitSectionSafety": "Safety and support",
+  "benefitSectionBusiness": "For businesses"
 }

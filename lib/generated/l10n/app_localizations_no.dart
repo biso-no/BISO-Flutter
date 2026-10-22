@@ -3027,4 +3027,27 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get benefitsLinkFailed => 'Klarte ikke å åpne lenken. Prøv igjen.';
+
+  @override
+  String benefitsShowMore(int count) {
+    return 'Vis $count til';
+  }
+
+  @override
+  String get benefitsShowLess => 'Vis færre';
+
+  @override
+  String get benefitSectionMember => 'Medlemsfordeler';
+
+  @override
+  String get benefitSectionCareer => 'Karrierefordeler';
+
+  @override
+  String get benefitSectionSocial => 'Sosialt nettverk';
+
+  @override
+  String get benefitSectionSafety => 'Trygghet og støtte';
+
+  @override
+  String get benefitSectionBusiness => 'For bedrifter';
 }

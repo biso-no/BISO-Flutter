@@ -5504,6 +5504,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t open the link. Try again.'**
   String get benefitsLinkFailed;
+
+  /// No description provided for @benefitsShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show {count} more'**
+  String benefitsShowMore(int count);
+
+  /// No description provided for @benefitsShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show fewer'**
+  String get benefitsShowLess;
+
+  /// No description provided for @benefitSectionMember.
+  ///
+  /// In en, this message translates to:
+  /// **'Member benefits'**
+  String get benefitSectionMember;
+
+  /// No description provided for @benefitSectionCareer.
+  ///
+  /// In en, this message translates to:
+  /// **'Career benefits'**
+  String get benefitSectionCareer;
+
+  /// No description provided for @benefitSectionSocial.
+  ///
+  /// In en, this message translates to:
+  /// **'Social network'**
+  String get benefitSectionSocial;
+
+  /// No description provided for @benefitSectionSafety.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety and support'**
+  String get benefitSectionSafety;
+
+  /// No description provided for @benefitSectionBusiness.
+  ///
+  /// In en, this message translates to:
+  /// **'For businesses'**
+  String get benefitSectionBusiness;
 }
 
 class _AppLocalizationsDelegate

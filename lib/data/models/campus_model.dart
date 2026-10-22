@@ -9,9 +9,6 @@ class CampusModel extends Equatable {
   final String imageUrl;
   final String heroImageUrl;
   final List<String> benefits;
-  final List<String> studentBenefits;
-  final List<String> businessBenefits;
-  final List<String> careerAdvantages;
   final String? contactEmail;
   final String? contactAddress;
   final WeatherData? weather;
@@ -28,9 +25,6 @@ class CampusModel extends Equatable {
     required this.imageUrl,
     required this.heroImageUrl,
     this.benefits = const [],
-    this.studentBenefits = const [],
-    this.businessBenefits = const [],
-    this.careerAdvantages = const [],
     this.contactEmail,
     this.contactAddress,
     this.weather,
@@ -43,7 +37,7 @@ class CampusModel extends Equatable {
   /// Helper method to extract location string from various formats
   static String _extractLocationString(dynamic locationData) {
     if (locationData == null) return '';
-    
+
     if (locationData is String) {
       final trimmed = locationData.trim();
       if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -56,12 +50,12 @@ class CampusModel extends Equatable {
       }
       return locationData;
     }
-    
+
     if (locationData is Map<String, dynamic>) {
       // Extract address from the location object
       return locationData['address']?.toString() ?? '';
     }
-    
+
     // Fallback for any other type
     return locationData.toString();
   }
@@ -75,9 +69,6 @@ class CampusModel extends Equatable {
       imageUrl: map['image_url'] ?? '',
       heroImageUrl: map['hero_image_url'] ?? '',
       benefits: List<String>.from(map['benefits'] ?? []),
-      studentBenefits: List<String>.from(map['student_benefits'] ?? []),
-      businessBenefits: List<String>.from(map['business_benefits'] ?? []),
-      careerAdvantages: List<String>.from(map['career_advantages'] ?? []),
       contactEmail: map['contact_email'],
       contactAddress: map['contact_address'],
       weather: map['weather'] != null
@@ -102,9 +93,6 @@ class CampusModel extends Equatable {
       'image_url': imageUrl,
       'hero_image_url': heroImageUrl,
       'benefits': benefits,
-      'student_benefits': studentBenefits,
-      'business_benefits': businessBenefits,
-      'career_advantages': careerAdvantages,
       'contact_email': contactEmail,
       'contact_address': contactAddress,
       'weather': weather?.toMap(),
@@ -121,9 +109,6 @@ class CampusModel extends Equatable {
     String? imageUrl,
     String? heroImageUrl,
     List<String>? benefits,
-    List<String>? studentBenefits,
-    List<String>? businessBenefits,
-    List<String>? careerAdvantages,
     String? contactEmail,
     String? contactAddress,
     WeatherData? weather,
@@ -138,9 +123,6 @@ class CampusModel extends Equatable {
       imageUrl: imageUrl ?? this.imageUrl,
       heroImageUrl: heroImageUrl ?? this.heroImageUrl,
       benefits: benefits ?? this.benefits,
-      studentBenefits: studentBenefits ?? this.studentBenefits,
-      businessBenefits: businessBenefits ?? this.businessBenefits,
-      careerAdvantages: careerAdvantages ?? this.careerAdvantages,
       contactEmail: contactEmail ?? this.contactEmail,
       contactAddress: contactAddress ?? this.contactAddress,
       weather: weather ?? this.weather,
@@ -160,9 +142,6 @@ class CampusModel extends Equatable {
     imageUrl,
     heroImageUrl,
     benefits,
-    studentBenefits,
-    businessBenefits,
-    careerAdvantages,
     contactEmail,
     contactAddress,
     weather,

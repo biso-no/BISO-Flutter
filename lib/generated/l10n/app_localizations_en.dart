@@ -3019,4 +3019,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitsLinkFailed => 'Couldn\'t open the link. Try again.';
+
+  @override
+  String benefitsShowMore(int count) {
+    return 'Show $count more';
+  }
+
+  @override
+  String get benefitsShowLess => 'Show fewer';
+
+  @override
+  String get benefitSectionMember => 'Member benefits';
+
+  @override
+  String get benefitSectionCareer => 'Career benefits';
+
+  @override
+  String get benefitSectionSocial => 'Social network';
+
+  @override
+  String get benefitSectionSafety => 'Safety and support';
+
+  @override
+  String get benefitSectionBusiness => 'For businesses';
 }

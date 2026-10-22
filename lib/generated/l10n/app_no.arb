@@ -3812,5 +3812,12 @@
   "benefitsTerms": "Vilkår",
   "benefitsValidUntil": "Gjelder til {date}",
   "benefitsSignIn": "Logg inn for å se koden",
-  "benefitsLinkFailed": "Klarte ikke å åpne lenken. Prøv igjen."
+  "benefitsLinkFailed": "Klarte ikke å åpne lenken. Prøv igjen.",
+  "benefitsShowMore": "Vis {count} til",
+  "benefitsShowLess": "Vis færre",
+  "benefitSectionMember": "Medlemsfordeler",
+  "benefitSectionCareer": "Karrierefordeler",
+  "benefitSectionSocial": "Sosialt nettverk",
+  "benefitSectionSafety": "Trygghet og støtte",
+  "benefitSectionBusiness": "For bedrifter"
 }
