@@ -44,7 +44,7 @@ void main() {
   );
 
   group('fetchBenefits', () {
-    test('sends campus and token, keeps API order', () async {
+    test('sends campus without a token, keeps API order', () async {
       final client = clientReturning(
         json({
           'benefits': [raw('b'), raw('a')],
@@ -56,7 +56,7 @@ void main() {
         sent.url.toString(),
         'https://api.biso.no/api/benefits?campus=oslo',
       );
-      expect(sent.headers['Authorization'], 'Bearer jwt-1');
+      expect(sent.headers.containsKey('Authorization'), isFalse);
       expect(result.map((b) => b.id), ['b', 'a']);
     });
 
@@ -66,9 +66,20 @@ void main() {
       expect(sent.url.toString(), 'https://api.biso.no/api/benefits');
     });
 
-    test('works without a token', () async {
-      final client = clientReturning(json({'benefits': []}, 200), jwt: null);
+    test('never asks for a token: the list is public', () async {
+      var asked = 0;
+      final client = BenefitsApiClient(
+        httpClient: MockClient((request) async {
+          sent = request;
+          return json({'benefits': []}, 200);
+        }),
+        jwtProvider: () async {
+          asked++;
+          return 'jwt-1';
+        },
+      );
       expect(await client.fetchBenefits(), isEmpty);
+      expect(asked, 0);
       expect(sent.headers.containsKey('Authorization'), isFalse);
     });
 
@@ -91,6 +102,14 @@ void main() {
       await expectLater(
         client.fetchBenefits(),
         failsWith(BenefitsApiErrorKind.notDeployed),
+      );
+    });
+
+    test('a 404 with an error token is notFound, not notDeployed', () async {
+      final client = clientReturning(json({'error': 'not_found'}, 404));
+      await expectLater(
+        client.fetchBenefits(),
+        failsWith(BenefitsApiErrorKind.notFound),
       );
     });
 

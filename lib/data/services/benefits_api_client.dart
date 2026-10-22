@@ -72,10 +72,13 @@ class BenefitsApiClient implements BenefitsApi {
 
   @override
   Future<List<CampusBenefit>> fetchBenefits({String? campusId}) async {
+    // The list is public: no token, so a signed-out visit doesn't pay for
+    // a JWT request that can only fail.
     final response = await _send(
       'GET',
       '/api/benefits',
       query: campusId == null ? null : {'campus': campusId},
+      authenticated: false,
     );
     if (_isOk(response)) {
       final list = _json(response)['benefits'];
@@ -117,15 +120,17 @@ class BenefitsApiClient implements BenefitsApi {
 
   /// Sends the request, and once more with a new token when a token that
   /// was sent is refused: a reused token can expire or outlive its session.
+  /// An unauthenticated request carries no token and is never retried.
   Future<http.Response> _send(
     String method,
     String path, {
     Map<String, String>? query,
+    bool authenticated = true,
   }) async {
     final client = _httpClient ?? http.Client();
     final shouldClose = _httpClient == null;
     try {
-      final jwt = await _jwtProvider();
+      final jwt = authenticated ? await _jwtProvider() : null;
       final response = await _sendOnce(client, method, path, query, jwt);
       if (response.statusCode != 401 || jwt == null) return response;
       _invalidateJwt();
