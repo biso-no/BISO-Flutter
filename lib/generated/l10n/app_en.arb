@@ -3824,13 +3824,38 @@
   "@inboxItemOpened": {
     "description": "Announcement detail: screen-reader label for a burst item the student has already opened"
   },
-  "inboxEmptyTitle": "No notifications yet",
+  "inboxEmptyTitle": "You're all caught up",
   "@inboxEmptyTitle": {
     "description": "Inbox empty state title"
   },
   "inboxEmptyMessage": "Updates from BISO will appear here.",
   "@inboxEmptyMessage": {
     "description": "Inbox empty state message"
+  },
+  "inboxClearAll": "Clear all",
+  "@inboxClearAll": {
+    "description": "Inbox link that clears every notification shown under the current filter"
+  },
+  "inboxClear": "Clear",
+  "@inboxClear": {
+    "description": "Clears one inbox notification: the swipe background, the screen reader action and the confirm button"
+  },
+  "inboxClearConfirmTitle": "{count, plural, =1{Clear 1 notification?} other{Clear {count} notifications?}}",
+  "@inboxClearConfirmTitle": {
+    "description": "Title of the sheet that confirms Clear all",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "inboxClearConfirmMessage": "They're removed from your inbox on all your devices.",
+  "@inboxClearConfirmMessage": {
+    "description": "Explains in the Clear all sheet that clearing is permanent and synced"
+  },
+  "inboxClearFailed": "Couldn't clear. Try again.",
+  "@inboxClearFailed": {
+    "description": "Shown when notifications could not be cleared and came back"
   },
   "inboxJustNow": "Just now",
   "@inboxJustNow": {

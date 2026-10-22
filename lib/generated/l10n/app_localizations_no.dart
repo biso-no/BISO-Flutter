@@ -2900,10 +2900,34 @@ class AppLocalizationsNo extends AppLocalizations {
   String get inboxItemOpened => 'Åpnet';
 
   @override
-  String get inboxEmptyTitle => 'Ingen varsler ennå';
+  String get inboxEmptyTitle => 'Du er à jour';
 
   @override
   String get inboxEmptyMessage => 'Oppdateringer fra BISO vises her.';
+
+  @override
+  String get inboxClearAll => 'Fjern alle';
+
+  @override
+  String get inboxClear => 'Fjern';
+
+  @override
+  String inboxClearConfirmTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Fjerne $count varsler?',
+      one: 'Fjerne 1 varsel?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get inboxClearConfirmMessage =>
+      'De fjernes fra innboksen på alle enhetene dine.';
+
+  @override
+  String get inboxClearFailed => 'Kunne ikke fjerne. Prøv igjen.';
 
   @override
   String get inboxJustNow => 'Akkurat nå';

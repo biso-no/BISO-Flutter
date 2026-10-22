@@ -131,6 +131,37 @@ class _UrgentTile extends StatelessWidget {
   }
 }
 
+/// What shows behind an inbox row as it is swiped away to be cleared.
+class InboxClearBackground extends StatelessWidget {
+  const InboxClearBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return ColoredBox(
+      color: palette.error,
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(end: 20),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(CupertinoIcons.trash, color: palette.onPrimary, size: 20),
+              const SizedBox(width: 6),
+              Text(
+                AppLocalizations.of(context)!.inboxClear,
+                style: text.labelLarge?.copyWith(color: palette.onPrimary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// One inbox row. A burst also shows a strip of its first items not yet
 /// opened, and a link to all of them.
 class InboxRow extends StatelessWidget {
