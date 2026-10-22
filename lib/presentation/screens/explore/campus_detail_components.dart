@@ -4,8 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../data/models/campus_benefit.dart';
 import '../../../data/models/campus_model.dart';
+import '../../../data/services/benefits_api_client.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/benefits/benefits_providers.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/campus/campus_leadership_section.dart';
 
@@ -204,6 +207,73 @@ class CampusQuickActions extends StatelessWidget {
   }
 }
 
+/// The benefit sections for a campus (member, career, social, safety,
+/// business) from the benefits API. A box widget.
+class CampusBenefitSections extends ConsumerWidget {
+  const CampusBenefitSections({super.key, required this.campusId});
+
+  final String campusId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final benefits = ref.watch(campusBenefitsProvider(campusId));
+    return benefits.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: BisoSkeleton.rows(count: 3),
+      ),
+      error: (error, _) {
+        // An older API without the route: the sections simply aren't there.
+        if (error is BenefitsApiException &&
+            error.kind == BenefitsApiErrorKind.notDeployed) {
+          return const SizedBox.shrink();
+        }
+        return BisoErrorState(
+          onRetry: () => ref.invalidate(campusBenefitsProvider(campusId)),
+        );
+      },
+      data: (all) {
+        final language = Localizations.localeOf(context).languageCode;
+        final l10n = AppLocalizations.of(context)!;
+        final cards = <Widget>[];
+        for (final section in BenefitSection.values) {
+          final titles = [
+            for (final b in all)
+              if (b.section == section) b.title.resolve(language),
+          ].whereType<String>().toList();
+          if (titles.isEmpty) continue;
+          cards.add(
+            CampusBenefitCard(
+              key: ValueKey('campus-benefits-${section.name}'),
+              title: _sectionLabel(l10n, section),
+              benefits: titles,
+              icon: _sectionIcon(section),
+            ),
+          );
+        }
+        return Column(children: cards);
+      },
+    );
+  }
+
+  static String _sectionLabel(AppLocalizations l10n, BenefitSection section) =>
+      switch (section) {
+        BenefitSection.member => l10n.benefitSectionMember,
+        BenefitSection.career => l10n.benefitSectionCareer,
+        BenefitSection.social => l10n.benefitSectionSocial,
+        BenefitSection.safety => l10n.benefitSectionSafety,
+        BenefitSection.business => l10n.benefitSectionBusiness,
+      };
+
+  static IconData _sectionIcon(BenefitSection section) => switch (section) {
+    BenefitSection.member => CupertinoIcons.gift,
+    BenefitSection.career => CupertinoIcons.chart_bar_alt_fill,
+    BenefitSection.social => CupertinoIcons.person_2_fill,
+    BenefitSection.safety => CupertinoIcons.shield,
+    BenefitSection.business => CupertinoIcons.building_2_fill,
+  };
+}
+
 class CampusBenefitCard extends StatefulWidget {
   final String title;
   final List<String> benefits;
@@ -229,6 +299,7 @@ class _CampusBenefitCardState extends State<CampusBenefitCard> {
   Widget build(BuildContext context) {
     if (widget.benefits.isEmpty) return const SizedBox.shrink();
 
+    final l10n = AppLocalizations.of(context)!;
     final palette = BisoPalette.of(context);
     final theme = Theme.of(context);
     final displayBenefits = _isExpanded
@@ -293,12 +364,11 @@ class _CampusBenefitCardState extends State<CampusBenefitCard> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
-                    onPressed: () =>
-                        setState(() => _isExpanded = !_isExpanded),
+                    onPressed: () => setState(() => _isExpanded = !_isExpanded),
                     child: Text(
                       _isExpanded
-                          ? 'Show Less'
-                          : 'Show ${widget.benefits.length - 3} More',
+                          ? l10n.benefitsShowLess
+                          : l10n.benefitsShowMore(widget.benefits.length - 3),
                     ),
                   ),
                 ),

@@ -110,25 +110,7 @@ class CampusDetailScreen extends ConsumerWidget {
               ),
             ),
             SliverToBoxAdapter(
-              child: CampusBenefitCard(
-                title: l10n.forStudentsMessage,
-                benefits: campus.studentBenefits,
-                icon: CupertinoIcons.book,
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: CampusBenefitCard(
-                title: l10n.forBusinessMessage,
-                benefits: campus.businessBenefits,
-                icon: CupertinoIcons.building_2_fill,
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: CampusBenefitCard(
-                title: l10n.careerAdvantagesMessage,
-                benefits: campus.careerAdvantages,
-                icon: CupertinoIcons.chart_bar_alt_fill,
-              ),
+              child: CampusBenefitSections(campusId: campusId),
             ),
             SliverToBoxAdapter(
               child: CampusDepartmentShowcase(campusId: campus.id),
