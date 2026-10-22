@@ -462,6 +462,19 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   RealtimeSubscription? _subscription;
   StreamSubscription<void>? _foregroundSubscription;
 
+  /// The inbox as the server last returned it. [state] is this list with
+  /// [_clearedIds] left out and [_readIds] shown read (see [_publish]).
+  List<AppNotification> _fetched = const [];
+
+  /// Notifications this student has opened or cleared here, whose save is
+  /// in flight or has succeeded. An id is added when its request starts and
+  /// removed only if that request fails: read and cleared are permanent, so
+  /// a saved one stays right whatever a later fetch says. That covers a
+  /// fetch that went out before the save landed and arrives after it, which
+  /// would otherwise bring a cleared row back until the next refresh.
+  final Set<String> _readIds = {};
+  final Set<String> _clearedIds = {};
+
   NotificationInboxNotifier(
     this._service, {
     required NotificationService notificationService,
@@ -525,8 +538,11 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
         topicIntent: topicIntent,
         joinedAt: _joinedAt,
       );
-      state = state.copyWith(items: items, isLoading: false);
+      if (!mounted) return;
+      _fetched = items;
+      state = state.copyWith(items: _visible(), isLoading: false);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -545,31 +561,72 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
         topicIntent: topicIntent,
         joinedAt: _joinedAt,
       );
-      state = state.copyWith(items: items, clearError: true);
+      if (!mounted) return;
+      _fetched = items;
+      state = state.copyWith(items: _visible(), clearError: true);
     } catch (e) {
+      if (!mounted) return;
       state = state.copyWith(error: e.toString());
     }
   }
 
+  /// Shows [notification] read at once and saves it. If the save fails the
+  /// row goes back to unread, quietly: the badge shows what the server holds,
+  /// and opening it again tries again.
   Future<void> markRead(AppNotification notification) async {
     final userId = _userId;
     if (userId == null || userId.isEmpty || notification.read) return;
-
-    // Optimistically update local state for instant UI feedback.
-    state = state.copyWith(
-      items: [
-        for (final item in state.items)
-          item.id == notification.id ? item.copyWith(read: true) : item,
-      ],
-    );
+    if (!_readIds.add(notification.id)) return;
+    _publish();
 
     try {
       await _service.markAsRead(notification.id);
-      // Refresh so we pick up the persisted user_notifications row id.
-      await refresh();
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      debugPrint('NotificationInboxNotifier.markRead failed: $e');
+      _readIds.remove(notification.id);
+      _publish();
     }
+  }
+
+  /// Takes [announcementIds] out of the inbox at once and clears them on the
+  /// server. Resolves true when every one was cleared, and false when any
+  /// came back because its request failed; only those come back.
+  ///
+  /// The rows leave [state] before the first await: a swiped `Dismissible`
+  /// must be gone from the tree by the next frame.
+  Future<bool> clear(Iterable<String> announcementIds) async {
+    final ids = [
+      for (final id in announcementIds)
+        if (_clearedIds.add(id)) id,
+    ];
+    if (ids.isEmpty) return true;
+    _publish();
+
+    Set<String> failed;
+    try {
+      failed = await _service.clear(ids);
+    } catch (e) {
+      debugPrint('NotificationInboxNotifier.clear failed: $e');
+      failed = ids.toSet();
+    }
+    if (failed.isEmpty) return true;
+    _clearedIds.removeAll(failed);
+    _publish();
+    return false;
+  }
+
+  /// [_fetched] as the student should see it.
+  List<AppNotification> _visible() => [
+    for (final item in _fetched)
+      if (!_clearedIds.contains(item.id))
+        _readIds.contains(item.id) && !item.read
+            ? item.copyWith(read: true)
+            : item,
+  ];
+
+  void _publish() {
+    if (!mounted) return;
+    state = state.copyWith(items: _visible());
   }
 
   @override
