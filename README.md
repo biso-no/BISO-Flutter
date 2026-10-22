@@ -223,7 +223,7 @@ On pushes to `main` and version tags, CI:
 3. Generates launcher icons and localization files.
 4. Runs `build_runner`.
 5. Runs tests.
-6. Builds Android AAB and APK with version `2.0.1+82`.
+6. Builds Android AAB and APK with the version in `pubspec.yaml`.
 7. Uploads the AAB to the Google Play internal track.
 8. Attaches the APK to a GitHub release.
 
@@ -234,6 +234,11 @@ Required Android repository secrets:
 - `ANDROID_KEY_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+
+### Releasing a new version
+
+- `pubspec.yaml`'s `version:` (for example `2.2.9+93`) is the single source of the Android release version. The workflow reads it and fails unless it looks like `1.2.3+45`; nothing else sets the version. Bump it for every release: the part before `+` is the version students see and the one BISO's app version rules compare, and the build number after `+` must go up for Google Play to accept the upload.
+- BISO's admin (**Settings → App versions**) can block or nudge app versions below a minimum or recommended one. Set the minimum version only after the release is live for everyone in both stores: on Google Play after a 100% rollout, and in the App Store after Apple has released it. Anyone who is blocked before they can download the new version is stuck with nothing to update to.
 
 ### iOS Fastlane
 

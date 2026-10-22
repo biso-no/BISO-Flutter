@@ -23,6 +23,13 @@ class AppConstants {
   static const String webshopProductsCollectionId = 'webshop_products';
   static const String ordersCollectionId = 'orders';
 
+  // Store listings
+  /// The app's numeric App Store item id (its `id…` in apps.apple.com links).
+  static const String appStoreItemId = '6468173379';
+
+  /// The app's Google Play package name (its `?id=` in Play Store links).
+  static const String androidPackageName = 'com.biso.no';
+
   // API Service
   static const String apiBaseUrl = 'https://api.biso.no';
   static const String publicAssistantEndpoint = '/api/public-assistant';

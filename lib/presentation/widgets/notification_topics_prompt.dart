@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +10,7 @@ import '../../generated/l10n/app_localizations.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/notification/notification_provider.dart';
 import '../../providers/ui/locale_provider.dart';
+import 'update_recommended_dialog.dart';
 
 /// Asked once, the first time a student reaches the app signed in.
 ///
@@ -295,16 +298,37 @@ class _NotificationTopicsPromptState
   }
 }
 
-/// True while a prompt is being decided on or displayed.
+/// Set while a prompt is being decided on or displayed, and completes once it
+/// is done.
 ///
 /// `BisoApp` rebuilds whenever the launch reconciler transitions, which happens
 /// on the same auth change that makes the prompt eligible and again when the
 /// network work finishes — routinely while the sheet is still open. The stored
 /// marker is not written until the student taps Continue, so it cannot prevent
-/// a second, stacked, non-dismissible sheet on its own. This flag is claimed
+/// a second, stacked, non-dismissible sheet on its own. This is claimed
 /// synchronously, before the first await, so two rebuilds in one turn cannot
 /// both get past it.
-bool _promptInFlight = false;
+Future<void>? _promptInFlight;
+
+/// Whether the sheet has opened in this session, for anyone.
+bool _shownThisSession = false;
+
+/// Whether the topics sheet has actually opened in this session — not merely
+/// been considered: a student who answered long ago is checked and never
+/// shown it.
+///
+/// The update popup reads this, so a student who has just been asked about
+/// topics is not also asked to update in the same session.
+bool get topicsPromptShownThisSession => _shownThisSession;
+
+/// Completes once no topics prompt is in flight: at once when none is, and
+/// otherwise once the one in flight has decided not to show the sheet, or
+/// the sheet it showed has closed. It never completes with an error.
+///
+/// The update popup waits on this instead of skipping a prompt that is only
+/// still checking whether to show, then reads
+/// [topicsPromptShownThisSession].
+Future<void> topicsPromptSettled() => _promptInFlight ?? Future<void>.value();
 
 /// The students, by user id, who have skipped the prompt in this session.
 ///
@@ -319,25 +343,35 @@ bool _promptInFlight = false;
 /// signed in on this device after a skip, until the next launch.
 final Set<String?> _studentsWhoSkipped = <String?>{};
 
-/// Forgets every skip, as a fresh launch would. For tests, which share one
-/// isolate - and so this set - across every test in a file.
+/// Forgets every skip, and that the sheet was shown, as a fresh launch would.
+/// For tests, which share one isolate - and so this state - across every test
+/// in a file.
 @visibleForTesting
-void resetTopicsPromptSession() => _studentsWhoSkipped.clear();
+void resetTopicsPromptSession() {
+  _studentsWhoSkipped.clear();
+  _shownThisSession = false;
+}
 
 /// Show the prompt if this student has not answered it yet, and has not
 /// skipped it this session.
 ///
 /// Safe to call on every build — it checks the skip, the in-flight flag and
 /// the stored marker, and does nothing for anyone who has already chosen.
+///
+/// Never opens on top of the update popup ([updateRecommendedShowing]); it is
+/// asked again on a later build instead.
 Future<void> maybeShowTopicsPrompt(BuildContext context, WidgetRef ref) async {
+  if (updateRecommendedShowing) return;
   final studentId = ref.read(currentUserProvider)?.id;
   if (_studentsWhoSkipped.contains(studentId)) return;
-  if (_promptInFlight) return;
-  _promptInFlight = true;
+  if (_promptInFlight != null) return;
+  final done = Completer<void>();
+  _promptInFlight = done.future;
   try {
     await _showTopicsPrompt(context, ref, studentId);
   } finally {
-    _promptInFlight = false;
+    _promptInFlight = null;
+    done.complete();
   }
 }
 
@@ -352,6 +386,7 @@ Future<void> _showTopicsPrompt(
   if (await service.hasAnsweredTopicPrompt()) return;
   if (!context.mounted) return;
 
+  _shownThisSession = true;
   final skipped = await showBisoSheet<bool>(
     context: context,
     isScrollControlled: true,

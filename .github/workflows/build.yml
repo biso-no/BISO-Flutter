@@ -9,16 +9,30 @@ on:
 
 env:
   FLUTTER_VERSION: '3.47.2'  # Match the local toolchain; dependencies need Dart >= 3.10
-  APP_VERSION: '2.0.1'
-  BUILD_NUMBER: '82'
 
 jobs:
   build-and-deploy-android:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+      build_number: ${{ steps.version.outputs.build_number }}
     
     steps:
     - uses: actions/checkout@v4
+
+    # pubspec.yaml's `version:` is the single source of truth for the release version
+    - name: Read version from pubspec.yaml
+      id: version
+      run: |
+        version_line=$(grep '^version:' pubspec.yaml | head -n 1 | sed 's/^version:[[:space:]]*//' | tr -d '[:space:]')
+        if ! echo "$version_line" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$'; then
+          echo "pubspec.yaml version '$version_line' must look like 1.2.3+45" >&2
+          exit 1
+        fi
+        echo "app_version=${version_line%%+*}" >> "$GITHUB_OUTPUT"
+        echo "build_number=${version_line##*+}" >> "$GITHUB_OUTPUT"
+
     
     - name: Setup Java
       uses: actions/setup-java@v4
@@ -57,15 +71,15 @@ jobs:
         echo "storeFile=keystore.jks" >> android/key.properties
     
     - name: Build Android App Bundle (AAB)
-      run: flutter build appbundle --release --build-name=${{ env.APP_VERSION }} --build-number=${{ env.BUILD_NUMBER }}
+      run: flutter build appbundle --release
     
     - name: Build Android APK
-      run: flutter build apk --release --build-name=${{ env.APP_VERSION }} --build-number=${{ env.BUILD_NUMBER }}
+      run: flutter build apk --release
     
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: biso-android-apk-v${{ env.APP_VERSION }}
+        name: biso-android-apk-v${{ steps.version.outputs.app_version }}
         path: build/app/outputs/flutter-apk/app-release.apk
     
     # Deploy to Google Play Console
@@ -127,7 +141,7 @@ jobs:
     - name: Download Android APK
       uses: actions/download-artifact@v4
       with:
-        name: biso-android-apk-v${{ env.APP_VERSION }}
+        name: biso-android-apk-v${{ needs.build-and-deploy-android.outputs.app_version }}
     
     - name: Get current date
       id: date
@@ -136,18 +150,18 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: biso-v${{ env.APP_VERSION }}-build-${{ steps.date.outputs.date }}
-        name: Biso v${{ env.APP_VERSION }} - Deployed to Stores
+        tag_name: biso-v${{ needs.build-and-deploy-android.outputs.app_version }}-build-${{ steps.date.outputs.date }}
+        name: Biso v${{ needs.build-and-deploy-android.outputs.app_version }} - Deployed to Stores
         files: |
           app-release.apk
         body: |
-          🚀 **Biso v${{ env.APP_VERSION }} deployed to both app stores!**
+          🚀 **Biso v${{ needs.build-and-deploy-android.outputs.app_version }} deployed to both app stores!**
           
           ## 📱 Store Status
           - ✅ **Google Play Console**: Deployed to internal testing track
           
           ## 📋 Build Info
-          - Version: ${{ env.APP_VERSION }} (Build ${{ env.BUILD_NUMBER }})
+          - Version: ${{ needs.build-and-deploy-android.outputs.app_version }} (Build ${{ needs.build-and-deploy-android.outputs.build_number }})
           - Flutter: ${{ env.FLUTTER_VERSION }}
           - Commit: ${{ github.sha }}
           - Built: ${{ steps.date.outputs.date }}

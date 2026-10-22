@@ -2981,6 +2981,26 @@ class AppLocalizationsNo extends AppLocalizations {
   String get notificationChannelUrgent => 'Viktig fra BISO';
 
   @override
+  String get updateRequiredTitle => 'På tide å oppdatere';
+
+  @override
+  String get updateRequiredBody =>
+      'Denne versjonen av BISO-appen støttes ikke lenger. Oppdater for å fortsette å bruke appen.';
+
+  @override
+  String get updateRecommendedTitle => 'En ny versjon er tilgjengelig';
+
+  @override
+  String get updateRecommendedBody =>
+      'Oppdater BISO-appen for å få de siste forbedringene.';
+
+  @override
+  String get updateButton => 'Oppdater';
+
+  @override
+  String get updateNotNow => 'Ikke nå';
+
+  @override
   String get benefitsYourBenefits => 'Dine fordeler';
 
   @override
