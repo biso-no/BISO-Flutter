@@ -4,11 +4,12 @@ import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/models/user_model.dart';
-import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/data/services/auth_service.dart';
+import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_detail_sheet.dart';
-import 'package:biso/presentation/widgets/biso/biso.dart' show BisoSkeleton;
+import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_list_section.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart' show BisoSkeleton;
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
@@ -19,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
+import '../../../helpers/fake_member_pass_api.dart'
+    show FakeScreenPresentation, activeView;
 
 class _FakeApi implements BenefitsApi {
   _FakeApi({
@@ -53,9 +56,18 @@ class _FakeApi implements BenefitsApi {
 class _FakePass extends MemberPassNotifier {
   _FakePass(this.view);
   final MemberPassView view;
+  int retries = 0;
+
   @override
   MemberPassView build() => view;
+
+  @override
+  Future<void> retry() async => retries++;
+
+  void show(MemberPassView next) => state = next;
 }
+
+_FakePass? _pass;
 
 class _FakeAuthService extends AuthService {
   @override
@@ -68,7 +80,7 @@ class _FakeAuth extends AuthNotifier {
   }
 }
 
-const _active = MemberPassView(status: PassStatus.active);
+final _active = activeView();
 
 MemberPassView _noPass(NoPassState s) =>
     MemberPassView(status: PassStatus.noPass, noPassState: s);
@@ -100,9 +112,10 @@ const _user = UserModel(
 Future<_FakeApi> _pump(
   WidgetTester tester, {
   required _FakeApi api,
-  MemberPassView pass = _active,
+  MemberPassView? pass,
   UserModel? user = _user,
   List<Uri>? opened,
+  bool openerThrows = false,
 }) async {
   await pumpBisoScreen(
     tester,
@@ -120,9 +133,14 @@ Future<_FakeApi> _pump(
     ],
     overrides: [
       benefitsApiProvider.overrideWithValue(api),
-      memberPassProvider.overrideWith(() => _FakePass(pass)),
+      memberPassProvider.overrideWith(() => _pass = _FakePass(pass ?? _active)),
+      screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
       authStateProvider.overrideWith((_) => _FakeAuth(user)),
-      if (opened != null)
+      if (openerThrows)
+        benefitLinkOpenerProvider.overrideWithValue(
+          (_) async => throw Exception('no handler'),
+        )
+      else if (opened != null)
         benefitLinkOpenerProvider.overrideWithValue((uri) async {
           opened.add(uri);
           return true;
@@ -387,6 +405,138 @@ void main() {
     expect(find.text('Vis medlemskortet i kassa'), findsOneWidget);
     expect(find.text('Vis kode'), findsNothing);
     expect(api.revealed, isEmpty);
+    await tester.tap(find.text('Vis medlemskortet i kassa'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byType(MemberPassPresentation), findsOneWidget);
+  });
+
+  group('sheet standing', () {
+    // (pass view, shows Bli medlem, outage line, sign-in hint, reveal button)
+    final cases = <String, (MemberPassView, bool, bool, bool, bool)>{
+      'reconnect': (
+        const MemberPassView(status: PassStatus.reconnect),
+        false,
+        true,
+        false,
+        false,
+      ),
+      'loading': (
+        const MemberPassView(status: PassStatus.loading),
+        false,
+        false,
+        false,
+        false,
+      ),
+      'noPass(null)': (
+        const MemberPassView(status: PassStatus.noPass),
+        false,
+        true,
+        false,
+        false,
+      ),
+      'noPass(unavailable)': (
+        _noPass(NoPassState.unavailable),
+        false,
+        true,
+        false,
+        false,
+      ),
+      'signedOut': (
+        const MemberPassView(status: PassStatus.signedOut),
+        false,
+        false,
+        true,
+        false,
+      ),
+      'expired': (_noPass(NoPassState.expired), true, false, false, false),
+      'noBiIdentity': (
+        _noPass(NoPassState.noBiIdentity),
+        true,
+        false,
+        false,
+        false,
+      ),
+      'notMember': (_noPass(NoPassState.notMember), true, false, false, false),
+      'active': (_active, false, false, false, true),
+    };
+    for (final entry in cases.entries) {
+      testWidgets(entry.key, (tester) async {
+        final (view, member, outage, signIn, reveal) = entry.value;
+        final api = _FakeApi(benefits: [_benefit()]);
+        await _pump(tester, api: api, pass: view);
+        await tester.tap(find.text('Gratis kaffe'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.text('Bli medlem'), member ? findsOneWidget : findsNothing);
+        expect(
+          find.textContaining('Vi får ikke sjekket'),
+          outage ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.text('Logg inn for å se koden'),
+          signIn ? findsOneWidget : findsNothing,
+        );
+        expect(find.text('Vis kode'), reveal ? findsOneWidget : findsNothing);
+        expect(api.revealed, isEmpty);
+      });
+    }
+  });
+
+  testWidgets('a revealed code stays when the pass drops to reconnect', (
+    tester,
+  ) async {
+    await _pump(tester, api: _FakeApi(benefits: [_benefit()]));
+    await tester.tap(find.text('Gratis kaffe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Vis kode'));
+    await tester.pumpAndSettle();
+    _pass!.show(const MemberPassView(status: PassStatus.reconnect));
+    await tester.pumpAndSettle();
+    expect(find.text('CODE-1234'), findsOneWidget);
+    expect(find.textContaining('Vi får ikke sjekket'), findsNothing);
+  });
+
+  testWidgets('the outage retry asks the pass to retry', (tester) async {
+    await _pump(
+      tester,
+      api: _FakeApi(benefits: [_benefit()]),
+      pass: _noPass(NoPassState.unavailable),
+    );
+    await tester.tap(find.text('Gratis kaffe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Prøv igjen'));
+    await tester.pump();
+    expect(_pass!.retries, 1);
+  });
+
+  testWidgets('a link that will not open says so, not "unavailable"', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      api: _FakeApi(
+        benefits: [_benefit(type: BenefitRedemptionType.link)],
+        revealResult: 'https://partner.example/deal',
+      ),
+      openerThrows: true,
+    );
+    await tester.tap(find.text('Gratis kaffe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Åpne lenken'));
+    await tester.pumpAndSettle();
+    expect(find.text('Klarte ikke å åpne lenken. Prøv igjen.'), findsOneWidget);
+    expect(find.textContaining('Vi får ikke sjekket'), findsNothing);
+  });
+
+  testWidgets('the terms fold open', (tester) async {
+    await _pump(tester, api: _FakeApi(benefits: [_benefit()]));
+    await tester.tap(find.text('Gratis kaffe'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gjelder hverdager.'), findsNothing);
+    await tester.tap(find.text('Vilkår'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gjelder hverdager.'), findsOneWidget);
   });
 
   testWidgets('shows the skeleton while loading', (tester) async {

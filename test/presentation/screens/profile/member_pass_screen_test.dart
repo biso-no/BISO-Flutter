@@ -1,20 +1,21 @@
 import 'package:biso/core/theme/premium_theme.dart';
+import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/data/services/bi_sign_in_service.dart';
-import 'package:biso/data/models/campus_benefit.dart';
-import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/data/services/bi_sync_api_client.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
 import 'package:biso/presentation/screens/profile/member_pass_screen.dart';
+import 'package:biso/presentation/widgets/benefits/benefit_list_section.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/presentation/widgets/member_pass/member_pass_row.dart';
 import 'package:biso/presentation/widgets/member_pass/pass_card.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/auth/bi_sign_in_provider.dart';
+import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
@@ -181,6 +182,18 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(MemberPassPresentation), findsOneWidget);
+  });
+
+  testWidgets('shows the benefits section', (tester) async {
+    await pumpBisoScreen(
+      tester,
+      const MemberPassScreen(),
+      overrides: overrides(activeView()),
+    );
+    expect(
+      find.byType(BenefitListSection, skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('loading shows a skeleton', (tester) async {

@@ -3021,4 +3021,10 @@ class AppLocalizationsNo extends AppLocalizations {
   String benefitsValidUntil(String date) {
     return 'Gjelder til $date';
   }
+
+  @override
+  String get benefitsSignIn => 'Logg inn for å se koden';
+
+  @override
+  String get benefitsLinkFailed => 'Klarte ikke å åpne lenken. Prøv igjen.';
 }

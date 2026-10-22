@@ -5492,6 +5492,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Valid until {date}'**
   String benefitsValidUntil(String date);
+
+  /// No description provided for @benefitsSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to see the code'**
+  String get benefitsSignIn;
+
+  /// No description provided for @benefitsLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the link. Try again.'**
+  String get benefitsLinkFailed;
 }
 
 class _AppLocalizationsDelegate

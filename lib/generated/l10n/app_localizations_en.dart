@@ -3013,4 +3013,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String benefitsValidUntil(String date) {
     return 'Valid until $date';
   }
+
+  @override
+  String get benefitsSignIn => 'Sign in to see the code';
+
+  @override
+  String get benefitsLinkFailed => 'Couldn\'t open the link. Try again.';
 }

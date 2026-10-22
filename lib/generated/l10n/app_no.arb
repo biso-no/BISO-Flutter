@@ -3810,5 +3810,7 @@
   "benefitsNotFound": "Denne fordelen er ikke lenger tilgjengelig.",
   "benefitsEmpty": "Ingen fordeler her ennå.",
   "benefitsTerms": "Vilkår",
-  "benefitsValidUntil": "Gjelder til {date}"
+  "benefitsValidUntil": "Gjelder til {date}",
+  "benefitsSignIn": "Logg inn for å se koden",
+  "benefitsLinkFailed": "Klarte ikke å åpne lenken. Prøv igjen."
 }

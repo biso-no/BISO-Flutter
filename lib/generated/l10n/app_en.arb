@@ -3959,5 +3959,7 @@
   "benefitsEmpty": "No benefits here yet.",
   "benefitsTerms": "Terms",
   "benefitsValidUntil": "Valid until {date}",
-  "@benefitsValidUntil": {"placeholders": {"date": {"type": "String"}}}
+  "@benefitsValidUntil": {"placeholders": {"date": {"type": "String"}}},
+  "benefitsSignIn": "Sign in to see the code",
+  "benefitsLinkFailed": "Couldn't open the link. Try again."
 }

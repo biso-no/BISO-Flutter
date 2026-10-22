@@ -36,11 +36,11 @@ Future<void> showBenefitDetailSheet(
 );
 
 /// What the sheet can say about the member's standing, from the pass view.
-enum _Standing { active, notMember, outage }
+enum _Standing { active, notMember, signedOut, checking, outage }
 
 _Standing _standingOf(MemberPassView view) => switch (view.status) {
   PassStatus.active => _Standing.active,
-  PassStatus.signedOut => _Standing.notMember,
+  PassStatus.signedOut => _Standing.signedOut,
   PassStatus.noPass => switch (view.noPassState) {
     NoPassState.noBiIdentity ||
     NoPassState.notMember ||
@@ -48,11 +48,21 @@ _Standing _standingOf(MemberPassView view) => switch (view.status) {
     // The pass could not be checked: an outage, never "not a member".
     NoPassState.unavailable || null => _Standing.outage,
   },
-  // Still loading, or offline: we do not know, so we do not say "not a member".
-  PassStatus.loading || PassStatus.reconnect => _Standing.outage,
+  // Still checking: no copy yet. Offline: we do not know, so we never say
+  // "not a member".
+  PassStatus.loading => _Standing.checking,
+  PassStatus.reconnect => _Standing.outage,
 };
 
-enum _Reveal { idle, loading, revealed, membersOnly, unavailable, notFound }
+enum _Reveal {
+  idle,
+  loading,
+  revealed,
+  membersOnly,
+  unavailable,
+  notFound,
+  linkFailed,
+}
 
 class BenefitDetailSheet extends ConsumerStatefulWidget {
   const BenefitDetailSheet({super.key, required this.benefit});
@@ -114,9 +124,14 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
       setState(() => _reveal = _Reveal.notFound);
       return;
     }
-    final opened = await ref.read(benefitLinkOpenerProvider)(uri);
+    var opened = false;
+    try {
+      opened = await ref.read(benefitLinkOpenerProvider)(uri);
+    } on Object {
+      opened = false;
+    }
     if (!mounted) return;
-    setState(() => _reveal = opened ? _Reveal.idle : _Reveal.unavailable);
+    setState(() => _reveal = opened ? _Reveal.idle : _Reveal.linkFailed);
   }
 
   Future<void> _copy(AppLocalizations l10n) async {
@@ -149,7 +164,7 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
     final palette = BisoPalette.of(context);
     final language = Localizations.localeOf(context).languageCode;
     final benefit = widget.benefit;
-    final standing = _standingOf(ref.watch(memberPassProvider));
+    final standing = ref.watch(memberPassProvider.select(_standingOf));
     final description = benefit.description.resolve(language);
     final terms = benefit.terms.resolve(language);
     final end = benefit.publishEnd;
@@ -179,19 +194,7 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
               ),
             ],
             if (terms != null)
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                shape: const Border(),
-                collapsedShape: const Border(),
-                title: Text(l10n.benefitsTerms, style: text.titleSmall),
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(terms, style: text.bodyMedium),
-                  ),
-                ],
-              ),
+              _TermsDisclosure(title: l10n.benefitsTerms, terms: terms),
             const SizedBox(height: 16),
             ..._action(context, l10n, standing),
           ],
@@ -208,8 +211,30 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
     final type = widget.benefit.redemptionType;
     if (type == BenefitRedemptionType.none) return const [];
 
+    // Already delivered: keep it visible through a passing outage.
+    final canKeepCode =
+        standing == _Standing.active ||
+        standing == _Standing.outage ||
+        standing == _Standing.checking;
+    if (_reveal == _Reveal.revealed && _code != null && canKeepCode) {
+      return _codeView(context, l10n, _code!);
+    }
+    if (standing == _Standing.signedOut) {
+      return [_line(context, l10n.benefitsSignIn)];
+    }
     if (standing == _Standing.notMember || _reveal == _Reveal.membersOnly) {
       return _membersOnly(l10n);
+    }
+    if (standing == _Standing.checking) {
+      return [
+        const FilledButton(
+          onPressed: null,
+          child: SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ];
     }
     if (standing == _Standing.outage || _reveal == _Reveal.unavailable) {
       return _message(
@@ -220,6 +245,13 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
     }
     if (_reveal == _Reveal.notFound) {
       return [_line(context, l10n.benefitsNotFound)];
+    }
+    if (_reveal == _Reveal.linkFailed) {
+      return _message(
+        l10n.benefitsLinkFailed,
+        retry: () => unawaited(_doReveal()),
+        l10n: l10n,
+      );
     }
 
     if (type == BenefitRedemptionType.onsite) {
@@ -234,9 +266,6 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
       ];
     }
 
-    if (_reveal == _Reveal.revealed && _code != null) {
-      return _codeView(context, l10n, _code!);
-    }
     final loading = _reveal == _Reveal.loading;
     return [
       FilledButton(
@@ -311,5 +340,59 @@ class _BenefitDetailSheetState extends ConsumerState<BenefitDetailSheet> {
         label: Text(l10n.benefitsCopy),
       ),
     ];
+  }
+}
+
+/// "Vilkår": a tappable row that folds the terms open and closed.
+class _TermsDisclosure extends StatefulWidget {
+  const _TermsDisclosure({required this.title, required this.terms});
+
+  final String title;
+  final String terms;
+
+  @override
+  State<_TermsDisclosure> createState() => _TermsDisclosureState();
+}
+
+class _TermsDisclosureState extends State<_TermsDisclosure> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final palette = BisoPalette.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                Expanded(child: Text(widget.title, style: text.titleSmall)),
+                Icon(
+                  _open
+                      ? CupertinoIcons.chevron_up
+                      : CupertinoIcons.chevron_down,
+                  size: 16,
+                  color: palette.muted,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          alignment: Alignment.topLeft,
+          child: _open
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(widget.terms, style: text.bodyMedium),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
+    );
   }
 }

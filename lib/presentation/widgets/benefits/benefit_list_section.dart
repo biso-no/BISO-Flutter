@@ -100,7 +100,7 @@ class _PartnerTile extends StatelessWidget {
     final name = benefit.partner?.name ?? '';
     final initials = name.trim().isEmpty
         ? '?'
-        : name.trim().substring(0, 1).toUpperCase();
+        : name.trim().characters.first.toUpperCase();
     final fallback = Center(
       child: Text(
         initials,
