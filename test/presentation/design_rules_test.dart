@@ -61,6 +61,8 @@ const migratedFiles = <String>[
   'lib/presentation/screens/auth/magic_link_verify_screen.dart',
   'lib/presentation/screens/onboarding/onboarding_screen.dart',
   'lib/presentation/widgets/member_pass/pass_card.dart',
+  'lib/presentation/widgets/benefits/benefit_list_section.dart',
+  'lib/presentation/widgets/benefits/benefit_detail_sheet.dart',
   'lib/presentation/screens/profile/member_pass_presentation.dart',
   'lib/presentation/screens/profile/member_pass_screen.dart',
   'lib/presentation/widgets/member_pass/member_pass_row.dart',

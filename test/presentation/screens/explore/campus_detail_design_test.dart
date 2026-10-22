@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/board_member_model.dart';
+import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/data/models/campus_model.dart';
+import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/campus_detail_screen.dart';
+import 'package:biso/presentation/widgets/biso/biso.dart'
+    show BisoErrorState, BisoSkeleton;
+import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/leadership/leadership_provider.dart';
 import 'package:flutter/material.dart';
@@ -22,14 +29,6 @@ final _campus = CampusModel.fromMap({
       'The largest BI campus, home to thousands of students across '
       'multiple degree programmes and a very long amount of NOK 1234.50 '
       'worth of student activity.',
-  'student_benefits': [
-    'Free entry to all BISO events',
-    'Access to the student career centre',
-    'Discounted gym membership',
-    'Mentor programme with alumni',
-  ],
-  'business_benefits': ['Recruitment access to top students'],
-  'career_advantages': ['Internship placements', 'Networking events'],
   'contact_email': 'oslo@biso.no',
   'contact_address': 'Nydalsveien 15, 0484 Oslo',
   'weather': {
@@ -69,8 +68,44 @@ final _boardMembers = BoardMembersResponse.fromMap({
   ],
 });
 
-List<Override> _overrides({BoardMembersResponse? boardMembers}) => [
+CampusBenefit _benefit(
+  String id,
+  BenefitSection section,
+  String nb, {
+  String? en,
+}) => CampusBenefit(
+  id: id,
+  campusId: _campusId,
+  section: section,
+  title: BenefitText(nb: nb, en: en),
+  redemptionType: BenefitRedemptionType.none,
+);
+
+final _benefits = <CampusBenefit>[
+  _benefit('m1', BenefitSection.member, 'Gratis inngang', en: 'Free entry'),
+  _benefit('m2', BenefitSection.member, 'Treningsrabatt', en: 'Gym discount'),
+  _benefit('m3', BenefitSection.member, 'Kaffe-rabatt', en: 'Coffee discount'),
+  _benefit(
+    'm4',
+    BenefitSection.member,
+    'Mentorprogram',
+    en: 'Mentor programme',
+  ),
+  _benefit('m5', BenefitSection.member, 'Bokrabatt', en: 'Book discount'),
+  _benefit('c1', BenefitSection.career, 'Praksisplasser', en: 'Internships'),
+  _benefit('s1', BenefitSection.social, 'Fadderuke', en: 'Welcome week'),
+  _benefit('f1', BenefitSection.safety, 'Studentpresten', en: 'Student priest'),
+  _benefit('b1', BenefitSection.business, 'Rekruttering', en: 'Recruiting'),
+];
+
+List<Override> _overrides({
+  BoardMembersResponse? boardMembers,
+  Future<List<CampusBenefit>> Function()? benefits,
+}) => [
   campusProvider(_campusId).overrideWith((ref) async => _campus),
+  campusBenefitsProvider(_campusId).overrideWith(
+    (ref) => benefits != null ? benefits() : Future.value(_benefits),
+  ),
   boardMembersProvider(
     _campusId,
   ).overrideWith((ref) async => boardMembers ?? _boardMembers),
@@ -84,7 +119,8 @@ class _Marker extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Text(label)));
+  Widget build(BuildContext context) =>
+      Scaffold(body: Center(child: Text(label)));
 }
 
 /// Every route `_navigateToExplore` can push, each rendering a distinct
@@ -135,6 +171,15 @@ Future<void> _pumpRouted(WidgetTester tester, GoRouter router) async {
   await tester.pumpAndSettle();
 }
 
+/// Scrolls [target] into the middle of the screen, clear of the translucent
+/// header, so a tap lands on it.
+Future<void> _centre(WidgetTester tester, Finder target) async {
+  await tester.ensureVisible(target);
+  await tester.pumpAndSettle();
+  await tester.drag(find.byType(CustomScrollView), const Offset(0, 300));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('Campus detail builds on BisoPage in every appearance', (
     tester,
@@ -169,9 +214,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final cover = tester.getTopLeft(
-      find.byKey(const ValueKey('campus-cover')),
-    );
+    final cover = tester.getTopLeft(find.byKey(const ValueKey('campus-cover')));
     expect(cover.dy, 0);
 
     final opacityBefore = tester.widget<Opacity>(
@@ -218,28 +261,25 @@ void main() {
     expect(find.text('23 Jobs'), findsOneWidget);
   });
 
-  testWidgets(
-    'the department count is never truncated at a large text scale',
-    (tester) async {
-      await pumpBisoScreen(
-        tester,
-        const CampusDetailScreen(campusId: _campusId),
-        overrides: _overrides(),
-        textScale: 1.6,
-        routed: true,
-      );
-      await tester.pumpAndSettle();
-
-      final paragraph = tester.renderObject<RenderParagraph>(
-        find.text('1234 Units'),
-      );
-      expect(paragraph.didExceedMaxLines, isFalse);
-    },
-  );
-
-  testWidgets('the Event quick action pushes the events route', (
+  testWidgets('the department count is never truncated at a large text scale', (
     tester,
   ) async {
+    await pumpBisoScreen(
+      tester,
+      const CampusDetailScreen(campusId: _campusId),
+      overrides: _overrides(),
+      textScale: 1.6,
+      routed: true,
+    );
+    await tester.pumpAndSettle();
+
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.text('1234 Units'),
+    );
+    expect(paragraph.didExceedMaxLines, isFalse);
+  });
+
+  testWidgets('the Event quick action pushes the events route', (tester) async {
     await _pumpRouted(tester, _routerFromCampusDetail());
     await tester.tap(find.text('Event'));
     await tester.pumpAndSettle();
@@ -276,9 +316,7 @@ void main() {
     expect(find.text('UNITS_ROUTE'), findsNothing);
   });
 
-  testWidgets('the Units quick action pushes the units route', (
-    tester,
-  ) async {
+  testWidgets('the Units quick action pushes the units route', (tester) async {
     await _pumpRouted(tester, _routerFromCampusDetail());
     await tester.tap(find.text('Units'));
     await tester.pumpAndSettle();
@@ -289,56 +327,152 @@ void main() {
     expect(find.text('VOLUNTEER_ROUTE'), findsNothing);
   });
 
-  testWidgets('benefit cards show benefits and expand for more', (
-    tester,
-  ) async {
+  Future<void> pumpEn(
+    WidgetTester tester, {
+    Future<List<CampusBenefit>> Function()? benefits,
+    Locale locale = const Locale('en'),
+  }) async {
     await pumpBisoScreen(
       tester,
       const CampusDetailScreen(campusId: _campusId),
-      overrides: _overrides(),
+      overrides: _overrides(benefits: benefits),
+      locale: locale,
       routed: true,
     );
     await tester.pumpAndSettle();
+  }
 
-    expect(find.text('Free entry to all BISO events'), findsOneWidget);
-    expect(find.text('Access to the student career centre'), findsOneWidget);
-    expect(find.text('Discounted gym membership'), findsOneWidget);
-    expect(find.text('Mentor programme with alumni'), findsNothing);
-
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Show 1 More'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Mentor programme with alumni'), findsOneWidget);
-    expect(find.text('Show Less'), findsOneWidget);
+  testWidgets('five benefit sections show with their labels, in order', (
+    tester,
+  ) async {
+    await pumpEn(tester);
+    await tester.dragUntilVisible(
+      find.text('For businesses'),
+      find.byType(CustomScrollView),
+      const Offset(0, -300),
+    );
+    final labels = [
+      'Member benefits',
+      'Career benefits',
+      'Social network',
+      'Safety and support',
+      'For businesses',
+    ];
+    for (final label in labels) {
+      expect(find.text(label), findsOneWidget);
+    }
+    final ys = [for (final l in labels) tester.getTopLeft(find.text(l)).dy];
+    expect(ys, [...ys]..sort());
   });
 
-  testWidgets(
-    'an empty benefits list hides its card; a populated one still shows',
-    (tester) async {
-      final campusWithNoStudentBenefits = _campus.copyWith(
-        studentBenefits: const [],
-      );
-      await pumpBisoScreen(
-        tester,
-        const CampusDetailScreen(campusId: _campusId),
-        overrides: [
-          campusProvider(
-            _campusId,
-          ).overrideWith((ref) async => campusWithNoStudentBenefits),
-          boardMembersProvider(
-            _campusId,
-          ).overrideWith((ref) async => _boardMembers),
-        ],
-        routed: true,
-      );
-      await tester.pumpAndSettle();
+  testWidgets('a section shows three titles and toggles "Show 2 more"', (
+    tester,
+  ) async {
+    await pumpEn(tester);
+    await tester.dragUntilVisible(
+      find.text('Show 2 more'),
+      find.byType(CustomScrollView),
+      const Offset(0, -300),
+    );
+    expect(find.text('Free entry'), findsOneWidget);
+    expect(find.text('Coffee discount'), findsOneWidget);
+    expect(find.text('Mentor programme'), findsNothing);
 
-      expect(find.text('For Students'), findsNothing);
-      expect(find.text('For Business'), findsOneWidget);
-    },
-  );
+    await _centre(tester, find.text('Show 2 more'));
+    await tester.tap(find.text('Show 2 more'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mentor programme'), findsOneWidget);
+    expect(find.text('Book discount'), findsOneWidget);
+
+    await tester.tap(find.text('Show fewer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mentor programme'), findsNothing);
+  });
+
+  testWidgets('titles and labels come out in Norwegian for locale no', (
+    tester,
+  ) async {
+    await pumpEn(tester, locale: const Locale('no'));
+    await tester.dragUntilVisible(
+      find.text('Vis 2 til'),
+      find.byType(CustomScrollView),
+      const Offset(0, -300),
+    );
+    expect(find.text('Medlemsfordeler'), findsOneWidget);
+    expect(find.text('Gratis inngang'), findsOneWidget);
+    expect(find.text('Free entry'), findsNothing);
+    await _centre(tester, find.text('Vis 2 til'));
+    await tester.tap(find.text('Vis 2 til'));
+    await tester.pumpAndSettle();
+    expect(find.text('Vis færre'), findsOneWidget);
+  });
+
+  testWidgets('a section with no items is hidden', (tester) async {
+    await pumpEn(
+      tester,
+      benefits: () async => [
+        for (final b in _benefits)
+          if (b.section != BenefitSection.social) b,
+      ],
+    );
+    await tester.dragUntilVisible(
+      find.text('For businesses'),
+      find.byType(CustomScrollView),
+      const Offset(0, -300),
+    );
+    expect(find.text('Social network'), findsNothing);
+    expect(find.text('Career benefits'), findsOneWidget);
+  });
+
+  testWidgets('a benefits error shows BisoErrorState, not a crash', (
+    tester,
+  ) async {
+    await pumpEn(
+      tester,
+      benefits: () => Future.error(
+        const BenefitsApiException(BenefitsApiErrorKind.network),
+      ),
+    );
+    await tester.dragUntilVisible(
+      find.byType(BisoErrorState),
+      find.byType(CustomScrollView),
+      const Offset(0, -300),
+    );
+    expect(find.byType(BisoErrorState), findsOneWidget);
+    expect(find.text('Member benefits'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an API without the route hides the sections silently', (
+    tester,
+  ) async {
+    await pumpEn(
+      tester,
+      benefits: () => Future.error(
+        const BenefitsApiException(BenefitsApiErrorKind.notDeployed),
+      ),
+    );
+    expect(find.byType(BisoErrorState), findsNothing);
+    expect(find.text('Member benefits'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a skeleton shows while the benefits load', (tester) async {
+    final completer = Completer<List<CampusBenefit>>();
+    await pumpBisoScreen(
+      tester,
+      const CampusDetailScreen(campusId: _campusId),
+      overrides: _overrides(benefits: () => completer.future),
+      locale: const Locale('en'),
+      routed: true,
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(BisoSkeleton), findsOneWidget);
+    completer.complete(const []);
+    await tester.pumpAndSettle();
+    expect(find.byType(BisoSkeleton), findsNothing);
+  });
 
   testWidgets('leadership rows show name and role, and open a detail sheet', (
     tester,
@@ -361,6 +495,8 @@ void main() {
     expect(find.text('Ola Hansen'), findsOneWidget);
     expect(find.text('Vice President'), findsOneWidget);
 
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -120));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Kari Nordmann'));
     await tester.pumpAndSettle();
 

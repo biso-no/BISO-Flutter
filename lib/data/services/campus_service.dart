@@ -493,10 +493,6 @@ class CampusService {
             'assets/images/${campusDoc['name']?.toLowerCase()}_campus.jpg',
         heroImageUrl:
             'assets/images/${campusDoc['name']?.toLowerCase()}_hero.jpg',
-        benefits: campusData?.socialNetwork ?? [],
-        studentBenefits: campusData?.studentBenefits ?? [],
-        businessBenefits: campusData?.businessBenefits ?? [],
-        careerAdvantages: campusData?.careerAdvantages ?? [],
         contactEmail: campusData?.location?.email ?? 'contact@bi.no',
         contactAddress: campusData?.location?.address,
         weather: weather,
@@ -505,7 +501,6 @@ class CampusService {
           'departmentBoard': departmentBoard
               .map((board) => board.toMap())
               .toList(),
-          'safety': campusData?.safety ?? [],
         },
       );
       stopwatch.stop();

@@ -2979,4 +2979,75 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get notificationChannelUrgent => 'Viktig fra BISO';
+
+  @override
+  String get benefitsYourBenefits => 'Dine fordeler';
+
+  @override
+  String get benefitsShowCode => 'Vis kode';
+
+  @override
+  String get benefitsOpenLink => 'Åpne lenken';
+
+  @override
+  String get benefitsShowCard => 'Vis medlemskortet i kassa';
+
+  @override
+  String get benefitsCopy => 'Kopier';
+
+  @override
+  String get benefitsCopied => 'Kopiert';
+
+  @override
+  String get benefitsMembersOnly => 'Koden vises bare for medlemmer.';
+
+  @override
+  String get benefitsBecomeMember => 'Bli medlem';
+
+  @override
+  String get benefitsUnavailable =>
+      'Vi får ikke sjekket medlemskapet ditt akkurat nå. Prøv igjen om litt.';
+
+  @override
+  String get benefitsNotFound => 'Denne fordelen er ikke lenger tilgjengelig.';
+
+  @override
+  String get benefitsEmpty => 'Ingen fordeler her ennå.';
+
+  @override
+  String get benefitsTerms => 'Vilkår';
+
+  @override
+  String benefitsValidUntil(String date) {
+    return 'Gjelder til $date';
+  }
+
+  @override
+  String get benefitsSignIn => 'Logg inn for å se koden';
+
+  @override
+  String get benefitsLinkFailed => 'Klarte ikke å åpne lenken. Prøv igjen.';
+
+  @override
+  String benefitsShowMore(int count) {
+    return 'Vis $count til';
+  }
+
+  @override
+  String get benefitsShowLess => 'Vis færre';
+
+  @override
+  String get benefitSectionMember => 'Medlemsfordeler';
+
+  @override
+  String get benefitSectionCareer => 'Karrierefordeler';
+
+  @override
+  String get benefitSectionSocial => 'Sosialt nettverk';
+
+  @override
+  String get benefitSectionSafety => 'Trygghet og støtte';
+
+  @override
+  String get benefitSectionBusiness => 'For bedrifter';
 }

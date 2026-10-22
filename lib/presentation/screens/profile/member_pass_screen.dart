@@ -13,6 +13,7 @@ import '../../../providers/auth/bi_sign_in_provider.dart';
 import '../../../providers/member_pass/member_pass_provider.dart';
 import '../../../providers/member_pass/member_pass_session.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
+import '../../widgets/benefits/benefit_list_section.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/pass_card.dart';
 import '../../widgets/member_pass/wallet_buttons.dart';
@@ -171,6 +172,7 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           sliver: SliverToBoxAdapter(child: body),
         ),
+        const SliverToBoxAdapter(child: BenefitListSection()),
       ],
     );
   }
