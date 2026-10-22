@@ -564,7 +564,7 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     );
 
     try {
-      await _service.markAsRead(notification, userId: userId);
+      await _service.markAsRead(notification.id);
       // Refresh so we pick up the persisted user_notifications row id.
       await refresh();
     } catch (e) {

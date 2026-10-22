@@ -8,6 +8,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/constants/notification_topics.dart';
 import '../models/app_notification_model.dart';
 import 'appwrite_service.dart';
+import 'notifications_api_client.dart';
 
 /// Whether a `topic` announcement addressed to Appwrite topic id
 /// [audienceValue] should appear in a student's inbox, given their logical
@@ -86,6 +87,10 @@ bool isBroadcastVisible({
 /// Reads/writes the in-app notification inbox backed by the Appwrite
 /// `announcements` and `user_notifications` collections in database `app`.
 ///
+/// `announcements` decides what is in the inbox; `user_notifications` only
+/// holds each student's read and cleared state. Clients cannot write that
+/// table, so state is saved through `apps/api` ([NotificationsApi]).
+///
 /// Uses the shared [db] (`TablesDB`) and [realtime] singletons from
 /// [appwrite_service.dart], mirroring [ChatService].
 class NotificationInboxService {
@@ -129,11 +134,16 @@ class NotificationInboxService {
     'image',
   ]);
 
-  /// [tablesDb] stands in for the shared [db] in tests.
-  NotificationInboxService({TablesDB? tablesDb}) : _tablesDbOverride = tablesDb;
+  /// [tablesDb] stands in for the shared [db] in tests, and [api] for the
+  /// `apps/api` client.
+  NotificationInboxService({TablesDB? tablesDb, NotificationsApi? api})
+    : _tablesDbOverride = tablesDb,
+      _api = api ?? NotificationsApiClient();
 
   final TablesDB? _tablesDbOverride;
   TablesDB get _db => _tablesDbOverride ?? db;
+
+  final NotificationsApi _api;
 
   Realtime get _realtime => realtime;
 
@@ -157,6 +167,12 @@ class NotificationInboxService {
   /// the topic is absent from the map — see [isTopicAudienceVisible]).
   /// Broadcasts are filtered by [isBroadcastVisible], and anything sent before
   /// [joinedAt] (when the student's profile was created) is dropped.
+  ///
+  /// Announcements sent to people (`users` and `segment`) are listed from
+  /// `announcements` too: their rows are readable only by their recipients.
+  /// Then the student's `user_notifications` rows are read for exactly the
+  /// announcements found, which gives each its read state, and drops the
+  /// ones the student has cleared.
   Future<List<AppNotification>> fetchInbox({
     required String userId,
     required String locale,
@@ -165,29 +181,10 @@ class NotificationInboxService {
     DateTime? joinedAt,
   }) async {
     try {
-      // 1. Targeted notifications for this user (read state + row id).
-      final userRows = await _db.listRows(
-        databaseId: AppConstants.databaseId,
-        tableId: _userNotificationsTable,
-        queries: [
-          Query.equal('user_id', userId),
-          Query.orderDesc('\$createdAt'),
-          Query.limit(_fetchLimit),
-        ],
-      );
-
-      final readByAnnouncement = <String, bool>{};
-      final userNotificationIdByAnnouncement = <String, String>{};
-      for (final row in userRows.rows) {
-        final announcementId = row.data['announcement_id'] as String?;
-        if (announcementId == null || announcementId.isEmpty) continue;
-        readByAnnouncement[announcementId] = row.data['read'] == true;
-        userNotificationIdByAnnouncement[announcementId] = row.$id;
-      }
-
-      // 2. Broadcast feed: sent announcements addressed to everyone. Query
-      // broadcasts and topics separately, each with its own limit, so a busy
-      // topic backlog can't push broadcasts out of the limited result set.
+      // 1. Broadcast feed: sent announcements addressed to everyone. Query
+      // broadcasts, topics and targeted sends separately, each with its own
+      // limit, so a busy backlog of one can't push the others out of the
+      // limited result set.
       final broadcastRows = await _db.listRows(
         databaseId: AppConstants.databaseId,
         tableId: _announcementsTable,
@@ -200,6 +197,7 @@ class NotificationInboxService {
         ],
       );
       final topicRows = await _fetchTopicRows(campusId);
+      final targetedRows = await _fetchTargetedRows();
 
       final announcementById = <String, Map<String, dynamic>>{};
       for (final row in broadcastRows.rows) {
@@ -219,42 +217,31 @@ class NotificationInboxService {
         }
         announcementById[row.$id] = _rowToMap(row);
       }
-
-      // 3. Fetch any targeted announcements not already in the broadcast feed.
-      final missingIds = userNotificationIdByAnnouncement.keys
-          .where((id) => !announcementById.containsKey(id))
-          .toList();
-      for (final chunk in _chunk(missingIds, _idChunkSize)) {
-        if (chunk.isEmpty) continue;
-        final rows = await _db.listRows(
-          databaseId: AppConstants.databaseId,
-          tableId: _announcementsTable,
-          queries: [
-            _selectAnnouncementColumns,
-            Query.equal('\$id', chunk),
-            Query.limit(chunk.length),
-          ],
-        );
-        for (final row in rows.rows) {
-          // A user_notifications row (e.g. from marking a broadcast read) must
-          // not let an announcement back in that the audience rules hid.
-          if (!_isAudienceVisible(row.data, topicIntent, campusId: campusId)) {
-            continue;
-          }
-          announcementById[row.$id] = _rowToMap(row);
-        }
+      // Row security has already narrowed targeted sends to this student.
+      for (final row in targetedRows.rows) {
+        announcementById[row.$id] = _rowToMap(row);
       }
 
-      // 4. Merge unique by announcement id and build the localized list.
+      // 2. The student's state for exactly those announcements.
+      final stateByAnnouncement = await _fetchStates(
+        userId,
+        announcementById.keys.toList(),
+      );
+
+      // 3. Drop what the student cleared and build the localized list.
       final items =
           announcementById.entries
+              .where(
+                (entry) =>
+                    stateByAnnouncement[entry.key]?.data['cleared'] != true,
+              )
               .map((entry) {
+                final state = stateByAnnouncement[entry.key];
                 return AppNotification.fromAnnouncement(
                   entry.value,
                   locale: locale,
-                  read: readByAnnouncement[entry.key] ?? false,
-                  userNotificationId:
-                      userNotificationIdByAnnouncement[entry.key],
+                  read: state?.data['read'] == true,
+                  userNotificationId: state?.$id,
                 );
               })
               .where((n) => joinedAt == null || !n.createdAt.isBefore(joinedAt))
@@ -323,6 +310,55 @@ class NotificationInboxService {
     final newestFirst = rowsById.values.toList()
       ..sort((a, b) => _sentAt(b).compareTo(_sentAt(a)));
     return newestFirst.take(_fetchLimit).toList();
+  }
+
+  /// The newest [_fetchLimit] sent announcements addressed to people rather
+  /// than to a topic: `users` and `segment` sends.
+  ///
+  /// The admin creates announcements without read permissions, and the send
+  /// gives a targeted one `read` for its recipients only, so row security
+  /// returns just the ones meant for this student. They used to be found
+  /// through the student's newest `user_notifications` rows instead, which
+  /// lost them once enough other announcements had been opened since.
+  Future<models.RowList> _fetchTargetedRows() => _db.listRows(
+    databaseId: AppConstants.databaseId,
+    tableId: _announcementsTable,
+    queries: [
+      _selectAnnouncementColumns,
+      Query.equal('status', 'sent'),
+      Query.equal('audience_type', ['users', 'segment']),
+      Query.orderDesc('sent_at'),
+      Query.limit(_fetchLimit),
+    ],
+  );
+
+  /// [userId]'s `user_notifications` rows for [announcementIds], by
+  /// announcement id. Read by id, in chunks, rather than as the student's
+  /// newest rows: a row is written whenever an announcement is opened, so the
+  /// newest ones need not be the ones on screen.
+  Future<Map<String, models.Row>> _fetchStates(
+    String userId,
+    List<String> announcementIds,
+  ) async {
+    final reads = await Future.wait([
+      for (final chunk in _chunk(announcementIds, _idChunkSize))
+        _db.listRows(
+          databaseId: AppConstants.databaseId,
+          tableId: _userNotificationsTable,
+          queries: [
+            Query.equal('user_id', userId),
+            Query.equal('announcement_id', chunk),
+            Query.limit(chunk.length),
+          ],
+        ),
+    ]);
+    return {
+      for (final read in reads)
+        for (final row in read.rows)
+          if (row.data['announcement_id'] case final String id
+              when id.isNotEmpty)
+            id: row,
+    };
   }
 
   /// When [row] was sent, for ordering. A row without a readable `sent_at`
@@ -396,46 +432,38 @@ class NotificationInboxService {
     }
   }
 
-  /// Mark [notification] as read for [userId].
+  /// Saves [announcementId] as read for the signed-in student.
   ///
-  /// Updates the existing `user_notifications` row when present, otherwise
-  /// creates one scoped to the user with row-level read/update/delete
-  /// permissions.
-  Future<void> markAsRead(
-    AppNotification notification, {
-    required String userId,
-  }) async {
+  /// The app cannot create `user_notifications` rows itself (the table grants
+  /// clients no create permission), so this goes through `apps/api`, which
+  /// takes the student from the session.
+  Future<void> markAsRead(String announcementId) async {
     try {
-      if (notification.userNotificationId != null) {
-        await _db.updateRow(
-          databaseId: AppConstants.databaseId,
-          tableId: _userNotificationsTable,
-          rowId: notification.userNotificationId!,
-          data: {'read': true},
-        );
-        return;
-      }
-
-      await _db.createRow(
-        databaseId: AppConstants.databaseId,
-        tableId: _userNotificationsTable,
-        rowId: ID.unique(),
-        data: {
-          'user_id': userId,
-          'announcement_id': notification.id,
-          'read': true,
-        },
-        permissions: [
-          Permission.read(Role.user(userId)),
-          Permission.update(Role.user(userId)),
-          Permission.delete(Role.user(userId)),
-        ],
-      );
-    } on AppwriteException catch (e) {
-      throw NotificationInboxException('Failed to mark as read: ${e.message}');
+      await _api.markRead([announcementId]);
     } catch (e) {
       throw NotificationInboxException('Failed to mark as read: $e');
     }
+  }
+
+  /// Clears [announcementIds] from the signed-in student's inbox on every
+  /// device, which also counts them read. Sent [kNotificationsApiBatchSize]
+  /// at a time, one batch after another.
+  ///
+  /// Returns the ids that were not cleared, those of every batch that failed;
+  /// empty when all were. A failure is reported this way, never thrown, so
+  /// the caller can put back exactly the rows that did not clear.
+  Future<Set<String>> clear(List<String> announcementIds) async {
+    final failed = <String>{};
+    final unique = announcementIds.toSet().toList();
+    for (final batch in _chunk(unique, kNotificationsApiBatchSize)) {
+      try {
+        await _api.clear(batch);
+      } catch (e) {
+        debugPrint('NotificationInboxService.clear: a batch failed: $e');
+        failed.addAll(batch);
+      }
+    }
+    return failed;
   }
 
   /// Subscribe to realtime changes on the announcements + user notifications
@@ -481,27 +509,6 @@ class NotificationInboxService {
       topicIntent,
       campusId: campusId,
     );
-  }
-
-  /// Audience check for a fetched row: broadcasts by [isBroadcastVisible],
-  /// topics by [_isTopicVisible]; targeted audiences are always kept.
-  bool _isAudienceVisible(
-    Map<String, dynamic> data,
-    Map<String, bool> topicIntent, {
-    required String? campusId,
-  }) {
-    switch (data['audience_type']) {
-      case 'broadcast':
-        return isBroadcastVisible(
-          audienceValue: data['audience_value'] as String?,
-          rowCampusId: data['campus_id'] as String?,
-          campusId: campusId,
-        );
-      case 'topic':
-        return _isTopicVisible(data, topicIntent, campusId: campusId);
-      default:
-        return true;
-    }
   }
 
   Iterable<List<T>> _chunk<T>(List<T> source, int size) sync* {

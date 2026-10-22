@@ -4,14 +4,17 @@ import 'dart:io';
 import 'package:appwrite/appwrite.dart';
 import 'package:appwrite/models.dart' as models;
 import 'package:biso/core/constants/notification_topics.dart';
+import 'package:biso/data/models/app_notification_model.dart';
 import 'package:biso/data/services/notification_inbox_service.dart';
+import 'package:biso/data/services/notifications_api_client.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The `announcements` table, answering the reads `fetchInbox` makes the way
 /// Appwrite would: `equal` (any of the listed values), `isNull`, `orderDesc`,
 /// `limit` and `select`. Any other query method throws, so a query this fake
-/// does not understand cannot pass silently. `user_notifications` is empty.
+/// does not understand cannot pass silently. `user_notifications` answers the
+/// same queries, from [userNotifications].
 ///
 /// Rows go through the SDK's own `RowList.fromMap`, exactly as the real
 /// `listRows` parses a response, so a column the SDK cannot parse fails here
@@ -25,6 +28,9 @@ class _FakeTablesDB extends TablesDB {
 
   /// The decoded queries of every `announcements` read, in call order.
   final List<List<Map<String, dynamic>>> announcementReads = [];
+
+  /// The decoded queries of every `user_notifications` read, in call order.
+  final List<List<Map<String, dynamic>>> userNotificationReads = [];
 
   @override
   Future<models.RowList> listRows({
@@ -46,6 +52,7 @@ class _FakeTablesDB extends TablesDB {
         announcementReads.add(decoded);
       case 'user_notifications':
         table = userNotifications;
+        userNotificationReads.add(decoded);
       default:
         throw StateError('unexpected table $tableId');
     }
@@ -724,4 +731,294 @@ void main() {
       expect(items.single.title, 'Hello');
     });
   });
+
+  group('fetchInbox read state', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    setUpAll(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (call) async => Directory.systemTemp.path,
+          );
+    });
+
+    tearDownAll(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            null,
+          );
+    });
+
+    final base = DateTime.utc(2026, 9, 1);
+    String at(int hours) => base.add(Duration(hours: hours)).toIso8601String();
+
+    Map<String, dynamic> targeted(
+      String id, {
+      String audienceType = 'users',
+      int hours = 0,
+    }) => <String, dynamic>{
+      '\$id': id,
+      'status': 'sent',
+      'audience_type': audienceType,
+      'title_en': id,
+      'sent_at': at(hours),
+    };
+
+    /// The student's `user_notifications` row for [announcementId].
+    Map<String, dynamic> stateRow(
+      String announcementId, {
+      bool read = false,
+      bool cleared = false,
+      int hours = 0,
+    }) => <String, dynamic>{
+      '\$id': 'row-$announcementId',
+      '\$createdAt': at(hours),
+      'user_id': 'u',
+      'announcement_id': announcementId,
+      'read': read,
+      'cleared': cleared,
+    };
+
+    /// Rows for 60 announcements other than the ones under test, all newer.
+    List<Map<String, dynamic>> newerRows() => [
+      for (var i = 0; i < 60; i++)
+        stateRow('other-$i', read: true, hours: 100 + i),
+    ];
+
+    Future<List<AppNotification>> inbox(_FakeTablesDB db) =>
+        NotificationInboxService(
+          tablesDb: db,
+        ).fetchInbox(userId: 'u', locale: 'en', campusId: '2');
+
+    bool has(
+      List<Map<String, dynamic>> read,
+      String method, [
+      String? attribute,
+      List<Object?>? values,
+    ]) => read.any(
+      (q) =>
+          q['method'] == method &&
+          (attribute == null || q['attribute'] == attribute) &&
+          (values == null || _sameList(q['values'] as List?, values)),
+    );
+
+    test('lists targeted announcements from announcements: sent, '
+        'audience_type users or segment, newest sent_at first, limit 50, '
+        'selected columns', () async {
+      final db = _FakeTablesDB([targeted('t1')]);
+
+      await inbox(db);
+
+      final reads = [
+        for (final read in db.announcementReads)
+          if (has(read, 'equal', 'audience_type', ['users', 'segment'])) read,
+      ];
+      expect(reads, hasLength(1));
+      final read = reads.single;
+      expect(has(read, 'equal', 'status', ['sent']), isTrue);
+      expect(has(read, 'orderDesc', 'sent_at'), isTrue);
+      expect(has(read, 'limit', null, [50]), isTrue);
+      expect(has(read, 'select'), isTrue);
+    });
+
+    test(
+      'shows a targeted announcement that has no user_notifications row',
+      () async {
+        final db = _FakeTablesDB([
+          targeted('t1'),
+          targeted('t2', audienceType: 'segment', hours: 1),
+        ]);
+
+        expect([for (final n in await inbox(db)) n.id], ['t2', 't1']);
+      },
+    );
+
+    test(
+      'shows a targeted announcement however many newer rows the student has',
+      () async {
+        final db = _FakeTablesDB(
+          [targeted('t1')],
+          userNotifications: [stateRow('t1'), ...newerRows()],
+        );
+
+        expect([for (final n in await inbox(db)) n.id], ['t1']);
+      },
+    );
+
+    test(
+      'reads state for exactly the announcements shown, at most 25 ids a read',
+      () async {
+        final db = _FakeTablesDB([
+          for (var i = 0; i < 30; i++)
+            _broadcastRow('b$i', sentAt: base.add(Duration(hours: i))),
+        ]);
+
+        final shown = {for (final n in await inbox(db)) n.id};
+
+        expect(shown, hasLength(30));
+        final asked = <String>{};
+        for (final read in db.userNotificationReads) {
+          expect(has(read, 'equal', 'user_id', ['u']), isTrue);
+          final ids = [
+            for (final q in read)
+              if (q['attribute'] == 'announcement_id')
+                ...(q['values'] as List).cast<String>(),
+          ];
+          expect(ids.length, lessThanOrEqualTo(25));
+          asked.addAll(ids);
+        }
+        expect(asked, shown);
+      },
+    );
+
+    test('marks an announcement read from its row', () async {
+      final db = _FakeTablesDB(
+        [_broadcastRow('b1', sentAt: base)],
+        userNotifications: [stateRow('b1', read: true)],
+      );
+
+      final item = (await inbox(db)).single;
+
+      expect(item.read, isTrue);
+      expect(item.userNotificationId, 'row-b1');
+    });
+
+    test(
+      'drops cleared announcements: broadcast, topic and targeted',
+      () async {
+        final db = _FakeTablesDB(
+          [
+            _broadcastRow('b1', sentAt: base),
+            _broadcastRow('b2', sentAt: base),
+            _topicRow(
+              'tp',
+              campusId: '2',
+              audienceValue: 'events_bergen',
+              sentAt: base,
+            ),
+            targeted('t1'),
+          ],
+          userNotifications: [
+            stateRow('b1', cleared: true, read: true),
+            stateRow('tp', cleared: true, read: true),
+            stateRow('t1', cleared: true, read: true),
+          ],
+        );
+
+        expect([for (final n in await inbox(db)) n.id], ['b2']);
+      },
+    );
+
+    test(
+      'finds the state of an announcement whose row is older than 50 newer ones',
+      () async {
+        final db = _FakeTablesDB(
+          [_broadcastRow('b1', sentAt: base)],
+          userNotifications: [
+            stateRow('b1', cleared: true, read: true),
+            ...newerRows(),
+          ],
+        );
+
+        expect(await inbox(db), isEmpty);
+      },
+    );
+  });
+
+  group('markAsRead and clear', () {
+    late _FakeNotificationsApi api;
+    late NotificationInboxService service;
+
+    setUp(() {
+      api = _FakeNotificationsApi();
+      service = NotificationInboxService(api: api);
+    });
+
+    test('markAsRead sends the one id', () async {
+      await service.markAsRead('a');
+
+      expect(api.readCalls, [
+        ['a'],
+      ]);
+    });
+
+    test('markAsRead throws NotificationInboxException when the API fails', () {
+      api.failReads = true;
+
+      expect(
+        service.markAsRead('a'),
+        throwsA(isA<NotificationInboxException>()),
+      );
+    });
+
+    test(
+      'clear sends the ids once each, in batches of 100, in order',
+      () async {
+        final ids = [for (var i = 0; i < 250; i++) 'a$i'];
+
+        final failed = await service.clear([...ids, 'a0']);
+
+        expect(failed, isEmpty);
+        expect(
+          [for (final call in api.clearCalls) call.length],
+          [100, 100, 50],
+        );
+        expect(api.clearCalls.expand((call) => call), ids);
+      },
+    );
+
+    test('clear returns only the ids of a batch that failed', () async {
+      final ids = [for (var i = 0; i < 250; i++) 'a$i'];
+      api.failingClearCalls = {2};
+
+      final failed = await service.clear(ids);
+
+      expect(failed, ids.sublist(100, 200).toSet());
+    });
+
+    test('clear with no ids sends nothing', () async {
+      expect(await service.clear(const []), isEmpty);
+      expect(api.clearCalls, isEmpty);
+    });
+  });
+}
+
+bool _sameList(List<Object?>? a, List<Object?> b) =>
+    a != null &&
+    a.length == b.length &&
+    [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((same) => same);
+
+/// Records each call's ids; fails the reads, or chosen clear calls, on demand.
+class _FakeNotificationsApi implements NotificationsApi {
+  final List<List<String>> readCalls = [];
+  final List<List<String>> clearCalls = [];
+
+  bool failReads = false;
+
+  /// 1-indexed clear calls that fail.
+  Set<int> failingClearCalls = {};
+
+  @override
+  Future<void> markRead(List<String> announcementIds) async {
+    readCalls.add(List.of(announcementIds));
+    if (failReads) {
+      throw const NotificationsApiException(
+        NotificationsApiErrorKind.unavailable,
+        statusCode: 503,
+      );
+    }
+  }
+
+  @override
+  Future<void> clear(List<String> announcementIds) async {
+    clearCalls.add(List.of(announcementIds));
+    if (failingClearCalls.contains(clearCalls.length)) {
+      throw const NotificationsApiException(
+        NotificationsApiErrorKind.unavailable,
+        statusCode: 503,
+      );
+    }
+  }
 }
