@@ -517,14 +517,54 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     }
   }
 
-  Future<void> load() async {
+  /// The refresh running now, and whether another was asked for while it
+  /// ran (see [refresh]).
+  Future<void>? _refreshing;
+  bool _refreshAgain = false;
+
+  /// Loads the inbox behind the full-screen loading state.
+  Future<void> load() {
     final userId = _userId;
     if (userId == null || userId.isEmpty) {
       state = const NotificationInboxState();
-      return;
+      return Future<void>.value();
     }
 
     state = state.copyWith(isLoading: true, clearError: true);
+    return refresh();
+  }
+
+  /// Reload without showing the full-screen loading state.
+  ///
+  /// One fetch at a time. Refreshes asked for while one runs fold into a
+  /// single fetch that starts once it has landed, and their futures complete
+  /// with that one. A "Clear all" writes a row per notification, and every
+  /// signed-in device gets a realtime event for each: fetched side by side,
+  /// whichever finished last would win, even one that read the state before
+  /// the last write landed and so showed cleared rows again.
+  Future<void> refresh() async {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) return;
+    final running = _refreshing;
+    if (running != null) {
+      _refreshAgain = true;
+      return running;
+    }
+
+    final done = Completer<void>();
+    _refreshing = done.future;
+    try {
+      do {
+        _refreshAgain = false;
+        await _fetch(userId);
+      } while (_refreshAgain && mounted);
+    } finally {
+      _refreshing = null;
+      done.complete();
+    }
+  }
+
+  Future<void> _fetch(String userId) async {
     try {
       // The inbox filters by logical topic intent (news/events/jobs/shop),
       // not the legacy per-device `topic_subscriptions` map that
@@ -540,33 +580,14 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
       );
       if (!mounted) return;
       _fetched = items;
-      state = state.copyWith(items: _visible(), isLoading: false);
+      state = state.copyWith(
+        items: _visible(),
+        isLoading: false,
+        clearError: true,
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
-  /// Reload without showing the full-screen loading state.
-  Future<void> refresh() async {
-    final userId = _userId;
-    if (userId == null || userId.isEmpty) return;
-
-    try {
-      final topicIntent = await _loadTopicIntentOrShowAll();
-      final items = await _service.fetchInbox(
-        userId: userId,
-        locale: _locale,
-        campusId: _campusId,
-        topicIntent: topicIntent,
-        joinedAt: _joinedAt,
-      );
-      if (!mounted) return;
-      _fetched = items;
-      state = state.copyWith(items: _visible(), clearError: true);
-    } catch (e) {
-      if (!mounted) return;
-      state = state.copyWith(error: e.toString());
     }
   }
 

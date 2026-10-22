@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -149,22 +148,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               direction: DismissDirection.endToStart,
               background: const InboxClearBackground(),
               onDismissed: (_) => _clear([n.id]),
-              // Swiping is out of reach for VoiceOver and TalkBack.
-              child: Semantics(
-                customSemanticsActions: {
-                  CustomSemanticsAction(
-                    label: AppLocalizations.of(context)!.inboxClear,
-                  ): () =>
-                      _clear([n.id]),
-                },
-                child: InboxRow(
-                  notification: n,
-                  now: now,
-                  openedItemIds: opened.openedFor(n.id),
-                  onTap: () => _handleTap(context, n),
-                  onOpenItem: (item) => _openItem(context, n, item),
-                  onSeeAll: () => _openAnnouncement(context, n),
-                ),
+              child: InboxRow(
+                notification: n,
+                now: now,
+                openedItemIds: opened.openedFor(n.id),
+                onTap: () => _handleTap(context, n),
+                onOpenItem: (item) => _openItem(context, n, item),
+                onSeeAll: () => _openAnnouncement(context, n),
+                onClear: () => _clear([n.id]),
               ),
             ),
         ],

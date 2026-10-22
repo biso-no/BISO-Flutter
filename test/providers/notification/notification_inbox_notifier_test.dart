@@ -42,6 +42,7 @@ class _FakeInboxService extends NotificationInboxService {
 
   final List<String> readCalls = [];
   final List<List<String>> clearCalls = [];
+  int fetchCount = 0;
 
   @override
   Future<List<AppNotification>> fetchInbox({
@@ -51,6 +52,7 @@ class _FakeInboxService extends NotificationInboxService {
     Map<String, bool> topicIntent = const {},
     DateTime? joinedAt,
   }) async {
+    fetchCount++;
     final snapshot = List.of(server);
     final hold = holdNextFetch;
     holdNextFetch = null;
@@ -296,6 +298,26 @@ void main() {
       await expectLater(clearing, completes);
     },
   );
+
+  test('refreshes that overlap end with what the server holds last, and run '
+      'at most one more fetch', () async {
+    final notifier = await loaded();
+    final before = service.fetchCount;
+    final first = service.holdNextFetch = Completer<void>();
+
+    final r1 = notifier.refresh();
+    await pumpEventQueue(); // r1's fetch is out, and held
+    // Another device clears 'a', and the realtime events arrive.
+    service.server = [_n('b', hoursOld: 1), _n('c', hoursOld: 2)];
+    final r2 = notifier.refresh();
+    final r3 = notifier.refresh();
+    await pumpEventQueue();
+    first.complete();
+    await Future.wait([r1, r2, r3]);
+
+    expect(ids(notifier), ['b', 'c']);
+    expect(service.fetchCount - before, 2);
+  });
 
   test('unreadCount never counts a cleared notification', () async {
     final notifier = await loaded();

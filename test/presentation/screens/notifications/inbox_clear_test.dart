@@ -4,6 +4,7 @@ import 'package:biso/presentation/screens/notifications/notifications_screen.dar
 import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -126,31 +127,28 @@ void main() {
     expect(find.text('Fresh note'), findsOneWidget);
   });
 
-  testWidgets('each row offers a Clear action to screen readers', (
-    tester,
-  ) async {
+  testWidgets('each row offers a Clear action to screen readers, on the '
+      'row itself', (tester) async {
+    final handle = tester.ensureSemantics();
     final inbox = await _pump(tester, [_n('a', 'Fresh note')]);
+    const clear = CustomSemanticsAction(label: 'Clear');
 
-    bool offersClear(Widget w) =>
-        w is Semantics &&
-        (w.properties.customSemanticsActions?.keys.any(
-              (action) => action.label == 'Clear',
-            ) ??
-            false);
-    final semantics = tester.widget<Semantics>(
-      find.ancestor(
-        of: find.text('Fresh note'),
-        matching: find.byWidgetPredicate(offersClear),
-      ),
+    // The node VoiceOver and TalkBack read out as the row carries the action:
+    // no separate, unlabeled stop holds it.
+    expect(
+      tester.getSemantics(find.text('Fresh note')),
+      isSemantics(customActions: [clear]),
     );
-    semantics.properties.customSemanticsActions!.entries
-        .singleWhere((entry) => entry.key.label == 'Clear')
-        .value();
+    tester.semantics.customAction(
+      find.semantics.byAction(SemanticsAction.customAction),
+      clear,
+    );
     await tester.pumpAndSettle();
 
     expect(inbox.clears, [
       ['a'],
     ]);
+    handle.dispose();
   });
 
   testWidgets('Clear all under a filter clears only the rows on screen, '
@@ -244,6 +242,31 @@ void main() {
 
     expect(inbox.clears, isEmpty);
     expect(find.text('New in Bergen'), findsOneWidget);
+  });
+
+  testWidgets('dragging a burst strip that fits on screen does not clear the '
+      'row', (tester) async {
+    final burst = _n(
+      'burst',
+      'Two in Bergen',
+      contentType: 'event',
+      items: [
+        for (final i in [1, 2])
+          InboxItem(
+            type: 'event',
+            id: 'e$i',
+            titleEn: 'Bergen event $i',
+            date: DateTime(2026, 11, i),
+          ),
+      ],
+    );
+    final inbox = await _pump(tester, [burst]);
+
+    await tester.drag(find.text('Bergen event 1'), const Offset(-250, 0));
+    await tester.pumpAndSettle();
+
+    expect(inbox.clears, isEmpty);
+    expect(find.text('Two in Bergen'), findsOneWidget);
   });
 
   testWidgets("an empty inbox says You're all caught up", (tester) async {
