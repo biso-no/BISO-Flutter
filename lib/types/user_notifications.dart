@@ -5,18 +5,21 @@ class UserNotifications {
   String user_id;
   String announcement_id;
   bool? read;
+  bool? cleared;
 
   UserNotifications({
     required this.user_id,
     required this.announcement_id,
-    this.read
+    this.read,
+    this.cleared
   });
 
   factory UserNotifications.fromMap(Map<String, dynamic> map) {
     return UserNotifications(
       user_id: map['user_id'].toString(),
       announcement_id: map['announcement_id'].toString(),
-      read: map['read']
+      read: map['read'],
+      cleared: map['cleared']
     );
   }
 
@@ -24,7 +27,8 @@ class UserNotifications {
     return {
       'user_id': user_id,
       'announcement_id': announcement_id,
-      'read': read
+      'read': read,
+      'cleared': cleared
     };
   }
 }

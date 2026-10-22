@@ -2939,6 +2939,13 @@
                     "required": false,
                     "array": false,
                     "default": false
+                },
+                {
+                    "key": "cleared",
+                    "type": "boolean",
+                    "required": false,
+                    "array": false,
+                    "default": false
                 }
             ],
             "indexes": [
