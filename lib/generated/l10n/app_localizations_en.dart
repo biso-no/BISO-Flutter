@@ -2892,10 +2892,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get inboxItemOpened => 'Opened';
 
   @override
-  String get inboxEmptyTitle => 'No notifications yet';
+  String get inboxEmptyTitle => 'You\'re all caught up';
 
   @override
   String get inboxEmptyMessage => 'Updates from BISO will appear here.';
+
+  @override
+  String get inboxClearAll => 'Clear all';
+
+  @override
+  String get inboxClear => 'Clear';
+
+  @override
+  String inboxClearConfirmTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Clear $count notifications?',
+      one: 'Clear 1 notification?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get inboxClearConfirmMessage =>
+      'They\'re removed from your inbox on all your devices.';
+
+  @override
+  String get inboxClearFailed => 'Couldn\'t clear. Try again.';
 
   @override
   String get inboxJustNow => 'Just now';

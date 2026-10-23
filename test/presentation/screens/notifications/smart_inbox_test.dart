@@ -122,6 +122,15 @@ final _burstItems = [
     ),
 ];
 
+/// Taps the filter chip labelled [label], scrolling it out from under the
+/// "Clear all" link first.
+Future<void> _tapChip(WidgetTester tester, String label) async {
+  final chip = find.widgetWithText(ChoiceChip, label);
+  await tester.ensureVisible(chip);
+  await tester.pumpAndSettle();
+  await tester.tap(chip);
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
@@ -151,7 +160,7 @@ void main() {
   testWidgets('the News chip shows only news rows', (tester) async {
     await _pump(tester, mixed);
     expect(find.text('Fresh note'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'News'));
+    await _tapChip(tester, 'News');
     await tester.pump();
     expect(find.text('Campus news'), findsOneWidget);
     expect(find.text('Fresh note'), findsNothing);
@@ -343,7 +352,7 @@ void main() {
   ) async {
     await _pump(tester, const []);
     expect(find.byType(BisoPage), findsOneWidget);
-    expect(find.text('No notifications yet'), findsOneWidget);
+    expect(find.text("You're all caught up"), findsOneWidget);
     expect(find.text('Updates from BISO will appear here.'), findsOneWidget);
   });
 
@@ -354,7 +363,7 @@ void main() {
       _n('a', 'Campus news', contentType: 'news'),
       _n('u', 'Fire drill', category: 'urgent', age: const Duration(hours: 5)),
     ]);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'News'));
+    await _tapChip(tester, 'News');
     await tester.pump();
     expect(find.text('Fire drill'), findsOneWidget);
     expect(

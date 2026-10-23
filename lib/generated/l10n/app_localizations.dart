@@ -5280,7 +5280,7 @@ abstract class AppLocalizations {
   /// Inbox empty state title
   ///
   /// In en, this message translates to:
-  /// **'No notifications yet'**
+  /// **'You\'re all caught up'**
   String get inboxEmptyTitle;
 
   /// Inbox empty state message
@@ -5288,6 +5288,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Updates from BISO will appear here.'**
   String get inboxEmptyMessage;
+
+  /// Inbox link that clears every notification shown under the current filter
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get inboxClearAll;
+
+  /// Clears one inbox notification: the swipe background, the screen reader action and the confirm button
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get inboxClear;
+
+  /// Title of the sheet that confirms Clear all
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Clear 1 notification?} other{Clear {count} notifications?}}'**
+  String inboxClearConfirmTitle(int count);
+
+  /// Explains in the Clear all sheet that clearing is permanent and synced
+  ///
+  /// In en, this message translates to:
+  /// **'They\'re removed from your inbox on all your devices.'**
+  String get inboxClearConfirmMessage;
+
+  /// Shown when notifications could not be cleared and came back
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t clear. Try again.'**
+  String get inboxClearFailed;
 
   /// Relative time
   ///

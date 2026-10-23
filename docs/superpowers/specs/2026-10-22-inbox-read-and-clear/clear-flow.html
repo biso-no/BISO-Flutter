@@ -1,0 +1,97 @@
+<style>
+  .phones { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .phone { width: 270px; height: 470px; border-radius: 34px; background: #f2f2f7; border: 1px solid #d1d1d6; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; color: #111; position: relative; }
+  .hdr { height: 54px; display: flex; align-items: center; padding: 0 12px; }
+  .cap { width: 38px; height: 38px; border-radius: 19px; background: rgba(255,255,255,.75); box-shadow: 0 1px 4px rgba(0,0,0,.12); display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .big { font-weight: 300; font-size: 28px; padding: 0 16px 8px; letter-spacing: -.5px; }
+  .chips { display: flex; gap: 6px; padding: 4px 16px 8px; align-items: center; }
+  .chip { font-size: 12px; padding: 5px 10px; border-radius: 14px; background: #fff; border: 1px solid #e0e0e5; }
+  .chip.on { background: #111; color: #fff; border-color: #111; }
+  .link { color: #1b6ef3; font-size: 13px; font-weight: 500; }
+  .sect { padding: 12px 20px 6px; font-size: 13px; font-weight: 600; color: #6b6b70; }
+  .group { margin: 0 12px; background: #fff; border-radius: 14px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #eee; background: #fff; }
+  .row:last-child { border-bottom: 0; }
+  .tile { width: 32px; height: 32px; border-radius: 9px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; background: #ff7a45; }
+  .txt { flex: 1; min-width: 0; }
+  .ttl { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { font-size: 11.5px; color: #6b6b70; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .time { font-size: 11px; color: #8e8e93; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; background: #1b6ef3; flex: none; }
+  .nodot { width: 8px; flex: none; }
+  .swipewrap { position: relative; overflow: hidden; border-bottom: 1px solid #eee; }
+  .swipewrap .row { transform: translateX(-74px); border-bottom: 0; }
+  .clearbtn { position: absolute; right: 0; top: 0; bottom: 0; width: 74px; background: #ff3b30; color: #fff; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.32); }
+  .sheet { position: absolute; left: 8px; right: 8px; bottom: 10px; }
+  .sheetbox { background: rgba(255,255,255,.96); border-radius: 14px; overflow: hidden; text-align: center; }
+  .sheetmsg { font-size: 12px; color: #6b6b70; padding: 12px 14px; border-bottom: 1px solid #e5e5ea; }
+  .sheetact { font-size: 16px; padding: 12px; color: #ff3b30; }
+  .cancel { margin-top: 8px; background: #fff; border-radius: 14px; font-size: 16px; font-weight: 600; color: #1b6ef3; padding: 12px; text-align: center; }
+  .empty { position: absolute; top: 210px; left: 0; right: 0; text-align: center; color: #6b6b70; }
+  .empty .bell { font-size: 34px; margin-bottom: 8px; }
+  .empty .et { font-size: 15px; font-weight: 600; color: #111; }
+  .empty .em { font-size: 12px; margin-top: 4px; padding: 0 30px; }
+  .step { font-size: 13px; color: #444; max-width: 270px; text-align: center; }
+</style>
+
+<h2>Option B: how clearing plays out</h2>
+<p class="subtitle">My guesses, for you to correct. The student is on the <b>Events</b> filter.</p>
+
+<div class="phones">
+
+  <div class="col">
+    <div class="phone">
+      <div class="hdr"><div class="cap">‹</div></div>
+      <div class="big">Notifications</div>
+      <div class="chips"><span class="chip">All</span><span class="chip on">Events</span><span class="chip">News</span><span style="flex:1"></span><span class="link">Clear all</span></div>
+      <div class="sect">Today</div>
+      <div class="group">
+        <div class="swipewrap"><div class="row"><div class="tile">★</div><div class="txt"><div class="ttl">Halloween party Friday</div><div class="sub">Tickets are out now</div></div><div class="time">2h</div><div class="dot"></div></div><div class="clearbtn">Clear</div></div>
+        <div class="row"><div class="tile">★</div><div class="txt"><div class="ttl">Career day at Nydalen</div><div class="sub">Sign up for a slot</div></div><div class="time">6h</div><div class="dot"></div></div>
+      </div>
+      <div class="sect">Yesterday</div>
+      <div class="group">
+        <div class="row"><div class="tile">★</div><div class="txt"><div class="ttl">Quiz night moved</div><div class="sub">Now Thursday 19:00</div></div><div class="time">1d</div><div class="nodot"></div></div>
+      </div>
+    </div>
+    <div class="step"><b>1 · Swipe</b> clears one row straight away, no question asked. An unread row counts as read, so the badge drops too.</div>
+  </div>
+
+  <div class="col">
+    <div class="phone">
+      <div class="hdr"><div class="cap">‹</div></div>
+      <div class="big">Notifications</div>
+      <div class="chips"><span class="chip">All</span><span class="chip on">Events</span><span class="chip">News</span><span style="flex:1"></span><span class="link">Clear all</span></div>
+      <div class="sect">Today</div>
+      <div class="group">
+        <div class="row"><div class="tile">★</div><div class="txt"><div class="ttl">Career day at Nydalen</div><div class="sub">Sign up for a slot</div></div><div class="time">6h</div><div class="dot"></div></div>
+      </div>
+      <div class="sect">Yesterday</div>
+      <div class="group">
+        <div class="row"><div class="tile">★</div><div class="txt"><div class="ttl">Quiz night moved</div><div class="sub">Now Thursday 19:00</div></div><div class="time">1d</div><div class="nodot"></div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="sheetbox">
+          <div class="sheetmsg">Clear the 2 event notifications? They're cleared on all your devices.</div>
+          <div class="sheetact">Clear</div>
+        </div>
+        <div class="cancel">Cancel</div>
+      </div>
+    </div>
+    <div class="step"><b>2 · Clear all</b> clears only what the current filter shows, and asks first because it can't be undone.</div>
+  </div>
+
+  <div class="col">
+    <div class="phone">
+      <div class="hdr"><div class="cap">‹</div></div>
+      <div class="big">Notifications</div>
+      <div class="chips"><span class="chip">All</span><span class="chip on">Events</span><span class="chip">News</span></div>
+      <div class="empty"><div class="bell">🔔</div><div class="et">You're all caught up</div><div class="em">New notifications show up here.</div></div>
+    </div>
+    <div class="step"><b>3 · Empty</b>. "Clear all" disappears when there's nothing to clear. News and Jobs are untouched.</div>
+  </div>
+
+</div>

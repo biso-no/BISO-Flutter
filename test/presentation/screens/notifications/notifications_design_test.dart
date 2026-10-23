@@ -95,7 +95,7 @@ void main() {
       overrides: _overrides(const NotificationInboxState()),
     );
 
-    expect(find.text('No notifications yet'), findsOneWidget);
+    expect(find.text("You're all caught up"), findsOneWidget);
   });
 
   testWidgets(

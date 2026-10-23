@@ -94,12 +94,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       for (final n in pinUrgent(state.items, now))
         if (!grouped.contains(n.id)) n,
     ];
+    // "Clear all" clears exactly what the student can see under this filter.
+    final onScreen = [
+      ...pinned,
+      for (final section in sections) ...section.items,
+    ];
 
     return [
       SliverToBoxAdapter(
         child: _FilterChips(
           selected: _filter,
           onSelected: (f) => setState(() => _filter = f),
+          onClearAll: onScreen.isEmpty || state.isLoading
+              ? null
+              : () => _confirmClearAll(context, onScreen),
         ),
       ),
       if (filtered.isEmpty && pinned.isEmpty) empty,
@@ -135,14 +143,20 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         dividerIndent: hasImage ? kInboxThumbDividerIndent : 60,
         children: [
           for (final n in items)
-            InboxRow(
-              key: ValueKey(n.id),
-              notification: n,
-              now: now,
-              openedItemIds: opened.openedFor(n.id),
-              onTap: () => _handleTap(context, n),
-              onOpenItem: (item) => _openItem(context, n, item),
-              onSeeAll: () => _openAnnouncement(context, n),
+            Dismissible(
+              key: ValueKey('clear-${n.id}'),
+              direction: DismissDirection.endToStart,
+              background: const InboxClearBackground(),
+              onDismissed: (_) => _clear([n.id]),
+              child: InboxRow(
+                notification: n,
+                now: now,
+                openedItemIds: opened.openedFor(n.id),
+                onTap: () => _handleTap(context, n),
+                onOpenItem: (item) => _openItem(context, n, item),
+                onSeeAll: () => _openAnnouncement(context, n),
+                onClear: () => _clear([n.id]),
+              ),
             ),
         ],
       ),
@@ -182,13 +196,74 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final route = announcementRouteFor(n);
     if (route != null) context.push(route);
   }
+
+  /// Asks before clearing [rows], since clearing cannot be undone.
+  void _confirmClearAll(BuildContext context, List<AppNotification> rows) {
+    final l10n = AppLocalizations.of(context)!;
+    final ids = [for (final n in rows) n.id];
+    showBisoSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: BisoListGroup(
+            children: [
+              BisoListRow(
+                title: l10n.inboxClearConfirmTitle(rows.length),
+                subtitle: l10n.inboxClearConfirmMessage,
+                showChevron: false,
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(
+                  icon: CupertinoIcons.trash,
+                  accent: BisoAccent.coral,
+                ),
+                title: l10n.inboxClear,
+                destructive: true,
+                showChevron: false,
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _clear(ids);
+                },
+              ),
+              BisoListRow(
+                leading: const BisoIconTile(icon: CupertinoIcons.xmark),
+                title: l10n.cancel,
+                showChevron: false,
+                onTap: () => Navigator.of(sheetContext).pop(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Clears [ids], and tells the student when some of them came back.
+  Future<void> _clear(List<String> ids) async {
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    final cleared = await ref
+        .read(notificationInboxProvider.notifier)
+        .clear(ids);
+    if (!cleared && mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.inboxClearFailed)));
+    }
+  }
 }
 
 class _FilterChips extends StatelessWidget {
-  const _FilterChips({required this.selected, required this.onSelected});
+  const _FilterChips({
+    required this.selected,
+    required this.onSelected,
+    this.onClearAll,
+  });
 
   final InboxFilter selected;
   final ValueChanged<InboxFilter> onSelected;
+
+  /// Shows the "Clear all" link after the chips when set.
+  final VoidCallback? onClearAll;
 
   @override
   Widget build(BuildContext context) {
@@ -202,9 +277,10 @@ class _FilterChips extends StatelessWidget {
       InboxFilter.jobs => l10n.inboxFilterJobs,
       InboxFilter.fromBiso => l10n.inboxFilterFromBiso,
     };
-    return SingleChildScrollView(
+    final clearAll = onClearAll;
+    final chips = SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: EdgeInsets.fromLTRB(16, 4, clearAll == null ? 16 : 0, 4),
       child: Row(
         children: [
           for (final f in InboxFilter.values) ...[
@@ -224,6 +300,27 @@ class _FilterChips extends StatelessWidget {
           ],
         ],
       ),
+    );
+    if (clearAll == null) return chips;
+
+    // Outside the scroll view, so it stays in reach however far the chips
+    // have scrolled.
+    return Row(
+      children: [
+        Expanded(child: chips),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: TextButton(
+            onPressed: clearAll,
+            style: TextButton.styleFrom(
+              foregroundColor: palette.link,
+              minimumSize: const Size(44, 44),
+              textStyle: text.labelLarge,
+            ),
+            child: Text(l10n.inboxClearAll),
+          ),
+        ),
+      ],
     );
   }
 }

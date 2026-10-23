@@ -678,6 +678,25 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   `lib/presentation/screens/scanner/`. **Routes**: `/profile/member-pass`, `/explore/scan`.
 - **Spec**: `docs/superpowers/specs/2026-09-17-member-pass-and-scanner-design.md`.
 
+#### 🔔 Notification inbox (read and cleared state)
+- **`announcements` decides what is in the inbox; `user_notifications` only holds state.** The app
+  lists broadcasts, topics and targeted sends (`users`, `segment`) from `announcements` (a targeted
+  row is readable only by its recipients), then reads the student's `user_notifications` rows for
+  exactly those ids. Never the student's newest rows: a row is written whenever one is opened.
+- **Every write goes through `apps/api`.** `POST /api/notifications/read` and `/clear` take
+  `{announcementIds}` (at most 100) and write with the admin key; the table gives clients no
+  create permission. A read sets only `read`, a clear sets `read` and `cleared`, and nothing sets
+  them back, so cleared is permanent and follows the account.
+- **The inbox shows a read or clear at once and undoes it only if it fails.** A failed read goes
+  back to unread quietly; a failed clear puts the rows back and says so. Ids being saved, or saved,
+  are laid over every fetch, so a refresh never brings a cleared row back.
+- **Clearing:** swipe a row right to left, or "Clear all", which clears exactly the rows on screen
+  under the current filter (pinned urgent rows included) after a confirmation.
+- **Location**: `lib/data/services/notifications_api_client.dart`,
+  `lib/data/services/notification_inbox_service.dart`, `lib/providers/notification/notification_provider.dart`,
+  `lib/presentation/screens/notifications/`.
+- **Spec**: `docs/superpowers/specs/2026-10-22-inbox-read-and-clear-design.md`.
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions by campus
   (`lib/presentation/screens/explore/jobs_screen.dart`).

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../data/models/app_notification_model.dart';
 import '../../../data/models/inbox_item.dart';
@@ -131,6 +132,37 @@ class _UrgentTile extends StatelessWidget {
   }
 }
 
+/// What shows behind an inbox row as it is swiped away to be cleared.
+class InboxClearBackground extends StatelessWidget {
+  const InboxClearBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final text = Theme.of(context).textTheme;
+    return ColoredBox(
+      color: palette.error,
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(end: 20),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(CupertinoIcons.trash, color: palette.onPrimary, size: 20),
+              const SizedBox(width: 6),
+              Text(
+                AppLocalizations.of(context)!.inboxClear,
+                style: text.labelLarge?.copyWith(color: palette.onPrimary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// One inbox row. A burst also shows a strip of its first items not yet
 /// opened, and a link to all of them.
 class InboxRow extends StatelessWidget {
@@ -141,6 +173,7 @@ class InboxRow extends StatelessWidget {
     required this.onTap,
     required this.onOpenItem,
     required this.onSeeAll,
+    this.onClear,
     this.openedItemIds = const {},
   });
 
@@ -149,6 +182,10 @@ class InboxRow extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<InboxItem> onOpenItem;
   final VoidCallback onSeeAll;
+
+  /// Offered to screen readers as a "Clear" action, since swiping the row
+  /// away is out of their reach.
+  final VoidCallback? onClear;
 
   /// Ids of this burst's items the student has opened: they leave the strip
   /// and the "new" count.
@@ -180,10 +217,19 @@ class InboxRow extends StatelessWidget {
     ];
     final body = n.body.isNotEmpty ? n.body : null;
 
+    final clear = onClear;
     final row = BisoListRow(
       // The tile's icon is decorative; the category word is kept for
-      // screen readers.
-      leading: Semantics(label: _categoryLabel(l10n, n), child: tile),
+      // screen readers. The Clear action rides on it too: anything inside
+      // the row merges into the one node a screen reader reads out, while a
+      // burst's cards below stay nodes of their own.
+      leading: Semantics(
+        label: _categoryLabel(l10n, n),
+        customSemanticsActions: clear == null
+            ? null
+            : {CustomSemanticsAction(label: l10n.inboxClear): clear},
+        child: tile,
+      ),
       title: n.title,
       subtitle: n.isBurst && unopened.isNotEmpty
           ? l10n.inboxNewCount(unopened.length)
@@ -245,6 +291,9 @@ class _BurstStrip extends StatelessWidget {
           if (items.isNotEmpty)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              // Takes a sideways drag even when the cards fit, so it never
+              // reaches the row's swipe-to-clear.
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: IntrinsicHeight(
                 child: Row(
