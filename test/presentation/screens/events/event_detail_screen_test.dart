@@ -1,7 +1,15 @@
+import 'dart:async';
+
 import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/data/models/event_model.dart';
+import 'package:biso/data/models/event_rsvp.dart';
+import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/auth_service.dart';
+import 'package:biso/data/services/event_rsvp_api_client.dart';
 import 'package:biso/presentation/screens/events/event_detail_screen.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/event/event_segment_provider.dart';
+import 'package:biso/providers/events/event_rsvp_provider.dart';
 import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +17,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
+
+/// A signed-out session that never asks Appwrite who is signed in.
+class _SignedOutAuth extends AuthNotifier {
+  _SignedOutAuth() : super(_NeverAuthService());
+}
+
+class _NeverAuthService extends AuthService {
+  @override
+  Future<UserModel?> getCurrentUser() => Completer<UserModel?>().future;
+}
+
+/// Never reaches the network: nobody has answered, and answers are closed.
+class _NoRsvpApi implements EventRsvpApi {
+  @override
+  Future<EventRsvpSummary> fetch(String eventId, {required bool signedIn}) =>
+      throw const EventRsvpApiException(EventRsvpApiErrorKind.notDeployed);
+
+  @override
+  Future<EventRsvpSummary> respond(String eventId, EventRsvpStatus? status) =>
+      throw const EventRsvpApiException(EventRsvpApiErrorKind.notDeployed);
+}
 
 EventModel _event() => EventModel(
   id: 'ev-1',
@@ -23,6 +52,8 @@ EventModel _event() => EventModel(
 List<Override> _overrides(EventModel? event, {bool member = false}) => [
   eventDetailProvider.overrideWith((ref, idOrSlug) async => event),
   hasValidMembershipProvider.overrideWithValue(member),
+  eventRsvpApiProvider.overrideWithValue(_NoRsvpApi()),
+  authStateProvider.overrideWith((_) => _SignedOutAuth()),
   // Signed out: the trip card reads nothing from Appwrite.
   myTripProvider.overrideWith((ref, eventId) async => const []),
 ];

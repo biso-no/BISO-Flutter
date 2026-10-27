@@ -10,6 +10,7 @@ import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../biso/biso.dart';
 import '../premium/premium_html_renderer.dart';
+import 'event_rsvp_card.dart';
 import 'your_trip_card.dart';
 
 /// What the status badge actually communicates to a reader.
@@ -227,6 +228,7 @@ class EventDetailBody extends ConsumerWidget {
                 event.memberOnly && !ref.watch(hasValidMembershipProvider),
           ),
         ],
+        EventRsvpCard(event: event),
         const SizedBox(height: 24),
         // Personalized "Your trip" logistics for the signed-in user.
         // Renders nothing when signed out or with no assigned segments.

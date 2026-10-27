@@ -697,6 +697,23 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   `lib/presentation/screens/notifications/`.
 - **Spec**: `docs/superpowers/specs/2026-10-22-inbox-read-and-clear-design.md`.
 
+#### 🙋 Event RSVP (Going / Maybe / Not going)
+- **Answers go through `apps/api`**: `GET/POST /api/events/{id}/rsvp`
+  (`EventRsvpApiClient`). The `event_rsvps` table gives clients no access; the server writes with
+  the admin key and decides whether answers are still open.
+- **Counts are public, names are not.** Anyone sees "N going · M maybe"; the app never learns who
+  answered. A signed-in student also gets their own answer back.
+- **Members-only events need membership to answer** (`hasValidMembershipProvider`); a non-member
+  sees the counts only. Signed-out visitors get a sign-in button. The card renders nothing for a
+  finished or cancelled event, when answers are closed, or when the route is not deployed yet.
+- **The card shows an answer at once and undoes it only if saving fails** (a snackbar says so).
+  "Going" does not get a ticket; the card says so when the event has a ticket link.
+- **Location**: `lib/data/models/event_rsvp.dart`, `lib/data/services/event_rsvp_api_client.dart`,
+  `lib/providers/events/event_rsvp_provider.dart`,
+  `lib/presentation/widgets/event/event_rsvp_card.dart` (placed in `EventDetailBody`).
+- **Routes**: none of its own; it sits on the event detail screen.
+- **Spec**: BISO-Sites `docs/superpowers/specs/2026-10-27-event-rsvp-design.md`.
+
 #### 💼 Jobs/Volunteer Board
 - **Opportunity Listings**: Browse available positions by campus
   (`lib/presentation/screens/explore/jobs_screen.dart`).
