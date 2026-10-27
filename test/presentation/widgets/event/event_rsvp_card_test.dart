@@ -21,14 +21,21 @@ class _NeverAuthService extends AuthService {
 }
 
 class _FakeAuth extends AuthNotifier {
-  _FakeAuth({required bool signedIn}) : super(_NeverAuthService()) {
-    if (signedIn) {
-      state = AuthState(
-        user: UserModel(id: 'student-a', name: 'A', email: 'a@bi.no'),
-        isAuthenticated: true,
-      );
-    }
+  _FakeAuth({required bool signedIn, bool loading = false})
+    : super(_NeverAuthService()) {
+    // The base constructor starts a check that never ends; settle it.
+    state = loading ? const AuthState(isLoading: true) : const AuthState();
+    if (signedIn) signIn();
   }
+
+  void signIn() {
+    state = AuthState(
+      user: UserModel(id: 'student-a', name: 'A', email: 'a@bi.no'),
+      isAuthenticated: true,
+    );
+  }
+
+  void finishLoading() => state = const AuthState();
 }
 
 class _FakeApi implements EventRsvpApi {
@@ -49,12 +56,15 @@ class _FakeApi implements EventRsvpApi {
   final EventRsvpSummary? respondResult;
   final EventRsvpApiException? respondError;
   final List<EventRsvpStatus?> responses = [];
+  final List<bool> fetches = [];
+  Completer<void>? holdRespond;
 
   @override
   Future<EventRsvpSummary> fetch(
     String eventId, {
     required bool signedIn,
   }) async {
+    fetches.add(signedIn);
     if (fetchError != null) throw fetchError!;
     return summary;
   }
@@ -65,6 +75,7 @@ class _FakeApi implements EventRsvpApi {
     EventRsvpStatus? status,
   ) async {
     responses.add(status);
+    await holdRespond?.future;
     if (respondError != null) throw respondError!;
     return respondResult ?? summary;
   }
@@ -87,6 +98,7 @@ Future<void> _pump(
   _FakeApi api, {
   bool signedIn = true,
   bool member = true,
+  _FakeAuth? auth,
 }) async {
   await pumpBisoScreen(
     tester,
@@ -103,7 +115,9 @@ Future<void> _pump(
     ],
     overrides: [
       eventRsvpApiProvider.overrideWithValue(api),
-      authStateProvider.overrideWith((_) => _FakeAuth(signedIn: signedIn)),
+      authStateProvider.overrideWith(
+        (_) => auth ?? _FakeAuth(signedIn: signedIn),
+      ),
       hasValidMembershipProvider.overrideWithValue(member),
     ],
   );
@@ -244,5 +258,72 @@ void main() {
     expect(find.text('Are you going?'), findsOneWidget);
     expect(find.text('0 going'), findsNothing);
     expect(find.textContaining('·'), findsNothing);
+  });
+
+  testWidgets('the chosen answer stays lit while it is saving', (tester) async {
+    final api = _FakeApi()..holdRespond = Completer<void>();
+    await _pump(tester, _event(), api);
+
+    await tester.tap(find.text('Going'));
+    await tester.pump();
+
+    final button = tester.widget<SegmentedButton<EventRsvpStatus>>(
+      find.byType(SegmentedButton<EventRsvpStatus>),
+    );
+    expect(button.selected, {EventRsvpStatus.going});
+    expect(button.onSelectionChanged, isNotNull);
+
+    api.holdRespond!.complete();
+    await tester.pumpAndSettle();
+    expect(api.responses, [EventRsvpStatus.going]);
+  });
+
+  testWidgets('tapping the selected answer clears it', (tester) async {
+    final api = _FakeApi(
+      summary: const EventRsvpSummary(
+        going: 4,
+        maybe: 0,
+        mine: EventRsvpStatus.going,
+        open: true,
+      ),
+    );
+    await _pump(tester, _event(), api);
+
+    await tester.tap(find.text('Going'));
+    await tester.pumpAndSettle();
+
+    expect(api.responses, [null]);
+  });
+
+  testWidgets('a signed-in student who signs in later gets the buttons', (
+    tester,
+  ) async {
+    final auth = _FakeAuth(signedIn: false);
+    final api = _FakeApi();
+    await _pump(tester, _event(), api, auth: auth);
+    expect(api.fetches, [false]);
+    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsNothing);
+
+    auth.signIn();
+    await tester.pumpAndSettle();
+
+    expect(api.fetches, [false, true]);
+    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsOneWidget);
+  });
+
+  testWidgets('renders nothing and fetches nothing while auth loads', (
+    tester,
+  ) async {
+    final auth = _FakeAuth(signedIn: false, loading: true);
+    final api = _FakeApi();
+    await _pump(tester, _event(), api, auth: auth);
+    expect(find.text('Sign in to respond'), findsNothing);
+    expect(find.text('Are you going?'), findsNothing);
+    expect(api.fetches, isEmpty);
+
+    auth.signIn();
+    await tester.pumpAndSettle();
+    expect(api.fetches, [true]);
+    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsOneWidget);
   });
 }

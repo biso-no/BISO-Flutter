@@ -22,6 +22,10 @@ class EventRsvpCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (event.isCompleted || event.isCancelled) return const SizedBox.shrink();
+    // Until auth is known the card would fetch anonymously and show "Sign in".
+    if (ref.watch(authStateProvider.select((s) => s.isLoading))) {
+      return const SizedBox.shrink();
+    }
     final state = ref.watch(eventRsvpProvider(event.id));
     final summary = state.summary;
     if (summary == null || !summary.open) return const SizedBox.shrink();
@@ -41,10 +45,10 @@ class EventRsvpCard extends ConsumerWidget {
 
     Future<void> onChanged(Set<EventRsvpStatus> picked) async {
       final messenger = ScaffoldMessenger.of(context);
-      final saved = await ref
+      final result = await ref
           .read(eventRsvpProvider(event.id).notifier)
           .respond(picked.isEmpty ? null : picked.first);
-      if (saved || !context.mounted) return;
+      if (result != EventRsvpSaveResult.failed || !context.mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.eventRsvpSaveFailed)));
     }
 
@@ -61,25 +65,30 @@ class EventRsvpCard extends ConsumerWidget {
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: SegmentedButton<EventRsvpStatus>(
-                emptySelectionAllowed: true,
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: EventRsvpStatus.going,
-                    label: Text(l10n.eventRsvpGoing),
-                  ),
-                  ButtonSegment(
-                    value: EventRsvpStatus.maybe,
-                    label: Text(l10n.eventRsvpMaybe),
-                  ),
-                  ButtonSegment(
-                    value: EventRsvpStatus.notGoing,
-                    label: Text(l10n.eventRsvpNotGoing),
-                  ),
-                ],
-                selected: {?summary.mine},
-                onSelectionChanged: state.saving ? null : onChanged,
+              // Not disabled while saving: a disabled segment loses its fill,
+              // and the chosen answer must stay lit.
+              child: IgnorePointer(
+                ignoring: state.saving,
+                child: SegmentedButton<EventRsvpStatus>(
+                  emptySelectionAllowed: true,
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: EventRsvpStatus.going,
+                      label: Text(l10n.eventRsvpGoing),
+                    ),
+                    ButtonSegment(
+                      value: EventRsvpStatus.maybe,
+                      label: Text(l10n.eventRsvpMaybe),
+                    ),
+                    ButtonSegment(
+                      value: EventRsvpStatus.notGoing,
+                      label: Text(l10n.eventRsvpNotGoing),
+                    ),
+                  ],
+                  selected: {?summary.mine},
+                  onSelectionChanged: onChanged,
+                ),
               ),
             ),
           ] else if (!signedIn) ...[

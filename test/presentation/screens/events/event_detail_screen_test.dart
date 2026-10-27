@@ -20,7 +20,10 @@ import '../../../helpers/biso_screen_harness.dart';
 
 /// A signed-out session that never asks Appwrite who is signed in.
 class _SignedOutAuth extends AuthNotifier {
-  _SignedOutAuth() : super(_NeverAuthService());
+  _SignedOutAuth() : super(_NeverAuthService()) {
+    // The base constructor starts a check that never ends; settle it.
+    state = const AuthState();
+  }
 }
 
 class _NeverAuthService extends AuthService {
@@ -28,7 +31,8 @@ class _NeverAuthService extends AuthService {
   Future<UserModel?> getCurrentUser() => Completer<UserModel?>().future;
 }
 
-/// Never reaches the network: nobody has answered, and answers are closed.
+/// Never reaches the network: the RSVP route reads as not deployed, so the
+/// card stays hidden.
 class _NoRsvpApi implements EventRsvpApi {
   @override
   Future<EventRsvpSummary> fetch(String eventId, {required bool signedIn}) =>

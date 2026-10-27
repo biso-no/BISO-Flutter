@@ -699,8 +699,8 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 
 #### 🙋 Event RSVP (Going / Maybe / Not going)
 - **Answers go through `apps/api`**: `GET/POST /api/events/{id}/rsvp`
-  (`EventRsvpApiClient`). The `event_rsvps` table gives clients no access; the server writes with
-  the admin key and decides whether answers are still open.
+  (`EventRsvpApiClient`). The `event_rsvps` table has no client write access (each
+  student can read only their own row); the server writes with the admin key and decides whether answers are still open.
 - **Counts are public, names are not.** Anyone sees "N going · M maybe"; the app never learns who
   answered. A signed-in student also gets their own answer back.
 - **Members-only events need membership to answer** (`hasValidMembershipProvider`); a non-member

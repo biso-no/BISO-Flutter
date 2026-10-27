@@ -67,7 +67,7 @@ void main() {
     expect(notifier.state.summary!.going, 5);
     expect(notifier.state.saving, isTrue);
     api.holdRespond!.complete();
-    expect(await future, isTrue);
+    expect(await future, EventRsvpSaveResult.saved);
     expect(notifier.state.saving, isFalse);
   });
 
@@ -80,7 +80,10 @@ void main() {
         open: true,
       );
     final notifier = await _loaded(api);
-    expect(await notifier.respond(EventRsvpStatus.going), isTrue);
+    expect(
+      await notifier.respond(EventRsvpStatus.going),
+      EventRsvpSaveResult.saved,
+    );
     expect(notifier.state.summary!.going, 9);
   });
 
@@ -88,7 +91,10 @@ void main() {
     final api = _FakeRsvpApi()..failRespond = true;
     final notifier = await _loaded(api);
     final before = notifier.state.summary!;
-    expect(await notifier.respond(EventRsvpStatus.maybe), isFalse);
+    expect(
+      await notifier.respond(EventRsvpStatus.maybe),
+      EventRsvpSaveResult.failed,
+    );
     final after = notifier.state.summary!;
     expect(after.going, before.going);
     expect(after.maybe, before.maybe);
@@ -100,9 +106,86 @@ void main() {
     final api = _FakeRsvpApi()..holdRespond = Completer<void>();
     final notifier = await _loaded(api);
     final first = notifier.respond(EventRsvpStatus.going);
-    expect(await notifier.respond(EventRsvpStatus.maybe), isFalse);
+    expect(
+      await notifier.respond(EventRsvpStatus.maybe),
+      EventRsvpSaveResult.ignored,
+    );
     expect(api.respondCalls, 1);
     api.holdRespond!.complete();
     await first;
   });
+
+  test('respond with nothing loaded is ignored', () async {
+    final notifier = await _loaded(_FakeRsvpApi()..failFetch = true);
+    expect(
+      await notifier.respond(EventRsvpStatus.going),
+      EventRsvpSaveResult.ignored,
+    );
+  });
+
+  test('refresh replaces the summary', () async {
+    final api = _FakeRsvpApi();
+    final notifier = await _loaded(api);
+    api.summary = const EventRsvpSummary(
+      going: 7,
+      maybe: 1,
+      mine: null,
+      open: true,
+    );
+    await notifier.refresh();
+    expect(notifier.state.summary!.going, 7);
+  });
+
+  test('refresh during a save does nothing', () async {
+    final api = _FakeRsvpApi()..holdRespond = Completer<void>();
+    final notifier = await _loaded(api);
+    final saving = notifier.respond(EventRsvpStatus.going);
+    api.summary = const EventRsvpSummary(
+      going: 99,
+      maybe: 0,
+      mine: null,
+      open: true,
+    );
+    await notifier.refresh();
+    expect(notifier.state.summary!.going, 5);
+    api.holdRespond!.complete();
+    await saving;
+  });
+
+  test('refresh after a failed load fills the summary', () async {
+    final api = _FakeRsvpApi()..failFetch = true;
+    final notifier = await _loaded(api);
+    expect(notifier.state.summary, isNull);
+    api.failFetch = false;
+    await notifier.refresh();
+    expect(notifier.state.summary!.going, 4);
+  });
+
+  test('refresh keeps the summary when the fetch fails', () async {
+    final api = _FakeRsvpApi();
+    final notifier = await _loaded(api);
+    api.failFetch = true;
+    await notifier.refresh();
+    expect(notifier.state.summary!.going, 4);
+  });
+
+  test(
+    'a failed save fetches the real state, so a closed event hides',
+    () async {
+      final api = _FakeRsvpApi()..failRespond = true;
+      final notifier = await _loaded(api);
+      api.summary = const EventRsvpSummary(
+        going: 4,
+        maybe: 2,
+        mine: null,
+        open: false,
+      );
+      expect(
+        await notifier.respond(EventRsvpStatus.going),
+        EventRsvpSaveResult.failed,
+      );
+      await pumpEventQueue();
+      expect(notifier.state.summary!.open, isFalse);
+    },
+  );
 }

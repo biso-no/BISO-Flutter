@@ -133,4 +133,29 @@ void main() {
       ),
     );
   });
+
+  test('a second 401 is surfaced without a third request', () async {
+    final client = clientReturning(
+      [
+        json({'error': 'not_authenticated'}, 401),
+      ],
+      jwts: ['old', 'fresh'],
+    );
+    await expectLater(
+      client.respond('e1', EventRsvpStatus.going),
+      failsWith(EventRsvpApiErrorKind.notAuthenticated),
+    );
+    expect(sent, hasLength(2));
+  });
+
+  test('does not retry a request that carried no token', () async {
+    final client = clientReturning([
+      json({'error': 'not_authenticated'}, 401),
+    ]);
+    await expectLater(
+      client.fetch('e1', signedIn: false),
+      failsWith(EventRsvpApiErrorKind.notAuthenticated),
+    );
+    expect(sent, hasLength(1));
+  });
 }
