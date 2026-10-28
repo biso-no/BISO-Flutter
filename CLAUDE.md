@@ -708,6 +708,10 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   finished or cancelled event, when answers are closed, or when the route is not deployed yet.
 - **The card shows an answer at once and undoes it only if saving fails** (a snackbar says so).
   "Going" does not get a ticket; the card says so when the event has a ticket link.
+- **Answers are pill buttons outlined in `palette.primary`, the chosen one filled**, not a
+  `SegmentedButton` (its chosen tint read as disabled) or the theme's `OutlinedButton` (borderless,
+  with a fill close to the page colour). "Going" spans the row and the other two share the next;
+  when the reader's text is too large for half a row, all three stack.
 - **Location**: `lib/data/models/event_rsvp.dart`, `lib/data/services/event_rsvp_api_client.dart`,
   `lib/providers/events/event_rsvp_provider.dart`,
   `lib/presentation/widgets/event/event_rsvp_card.dart` (placed in `EventDetailBody`).

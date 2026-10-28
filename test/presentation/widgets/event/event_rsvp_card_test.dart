@@ -4,6 +4,7 @@ import 'package:biso/data/models/event_model.dart';
 import 'package:biso/data/models/event_rsvp.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/auth_service.dart';
+import 'package:biso/core/theme/biso_colors.dart';
 import 'package:biso/data/services/event_rsvp_api_client.dart';
 import 'package:biso/presentation/widgets/event/event_rsvp_card.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
@@ -92,6 +93,15 @@ EventModel _event({bool memberOnly = false, DateTime? start, String? ticket}) =>
       ticketUrl: ticket,
     );
 
+Finder _answer(EventRsvpStatus status) =>
+    find.byKey(ValueKey('event-rsvp-${status.name}'));
+
+// `FilledButton.icon` is a subclass, so match by `is`, not by exact type.
+Finder _filled(EventRsvpStatus status) => find.descendant(
+  of: _answer(status),
+  matching: find.byWidgetPredicate((widget) => widget is FilledButton),
+);
+
 Future<void> _pump(
   WidgetTester tester,
   EventModel event,
@@ -99,6 +109,8 @@ Future<void> _pump(
   bool signedIn = true,
   bool member = true,
   _FakeAuth? auth,
+  double textScale = 1,
+  Size size = const Size(390, 844),
 }) async {
   await pumpBisoScreen(
     tester,
@@ -107,6 +119,8 @@ Future<void> _pump(
     ),
     inShell: false,
     routed: true,
+    textScale: textScale,
+    size: size,
     extraRoutes: [
       GoRoute(
         path: '/auth/login',
@@ -142,10 +156,9 @@ void main() {
     expect(find.text('Going'), findsOneWidget);
     expect(find.text('Maybe'), findsOneWidget);
     expect(find.text('Not going'), findsOneWidget);
-    final button = tester.widget<SegmentedButton<EventRsvpStatus>>(
-      find.byType(SegmentedButton<EventRsvpStatus>),
-    );
-    expect(button.selected, {EventRsvpStatus.maybe});
+    expect(_filled(EventRsvpStatus.maybe), findsOneWidget);
+    expect(_filled(EventRsvpStatus.going), findsNothing);
+    expect(_filled(EventRsvpStatus.notGoing), findsNothing);
     expect(find.text('4 going · 2 maybe'), findsOneWidget);
   });
 
@@ -172,7 +185,7 @@ void main() {
     await _pump(tester, _event(), _FakeApi(), signedIn: false);
 
     expect(find.text('Sign in to respond'), findsOneWidget);
-    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsNothing);
+    expect(_answer(EventRsvpStatus.going), findsNothing);
     expect(find.text('4 going'), findsOneWidget);
 
     await tester.tap(find.text('Sign in to respond'));
@@ -184,7 +197,7 @@ void main() {
     await _pump(tester, _event(memberOnly: true), _FakeApi(), member: false);
 
     expect(find.text('4 going'), findsOneWidget);
-    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsNothing);
+    expect(_answer(EventRsvpStatus.going), findsNothing);
     expect(find.text('Sign in to respond'), findsNothing);
   });
 
@@ -196,7 +209,7 @@ void main() {
     );
 
     expect(find.text('Are you going?'), findsNothing);
-    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsNothing);
+    expect(_answer(EventRsvpStatus.going), findsNothing);
   });
 
   testWidgets('renders nothing when the API is not deployed', (tester) async {
@@ -267,11 +280,10 @@ void main() {
     await tester.tap(find.text('Going'));
     await tester.pump();
 
-    final button = tester.widget<SegmentedButton<EventRsvpStatus>>(
-      find.byType(SegmentedButton<EventRsvpStatus>),
+    final lit = tester.widget<ButtonStyleButton>(
+      _filled(EventRsvpStatus.going),
     );
-    expect(button.selected, {EventRsvpStatus.going});
-    expect(button.onSelectionChanged, isNotNull);
+    expect(lit.onPressed, isNotNull);
 
     api.holdRespond!.complete();
     await tester.pumpAndSettle();
@@ -302,13 +314,13 @@ void main() {
     final api = _FakeApi();
     await _pump(tester, _event(), api, auth: auth);
     expect(api.fetches, [false]);
-    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsNothing);
+    expect(_answer(EventRsvpStatus.going), findsNothing);
 
     auth.signIn();
     await tester.pumpAndSettle();
 
     expect(api.fetches, [false, true]);
-    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsOneWidget);
+    expect(_answer(EventRsvpStatus.going), findsOneWidget);
   });
 
   testWidgets('renders nothing and fetches nothing while auth loads', (
@@ -324,6 +336,91 @@ void main() {
     auth.signIn();
     await tester.pumpAndSettle();
     expect(api.fetches, [true]);
-    expect(find.byType(SegmentedButton<EventRsvpStatus>), findsOneWidget);
+    expect(_answer(EventRsvpStatus.going), findsOneWidget);
+  });
+
+  testWidgets('answers are outlined in the primary colour, not left faint', (
+    tester,
+  ) async {
+    // The first version's segmented control marked the chosen answer with a
+    // tint pale enough to read as disabled, and the theme's OutlinedButton
+    // has no border at all.
+    await _pump(tester, _event(), _FakeApi());
+
+    for (final status in EventRsvpStatus.values) {
+      expect(_filled(status), findsNothing);
+      final button = tester.widget<ButtonStyleButton>(
+        find.descendant(
+          of: _answer(status),
+          matching: find.byWidgetPredicate((w) => w is OutlinedButton),
+        ),
+      );
+      final side = button.style!.side!.resolve(<WidgetState>{})!;
+      expect(side.color, BisoPalette.light.primary);
+      expect(side.width, greaterThanOrEqualTo(1.5));
+    }
+  });
+
+  testWidgets('Going spans the row and the other two share the next', (
+    tester,
+  ) async {
+    // Test text is Ahem, a full square per character and far wider than the
+    // real font: at 390pt "Not going" measures 153 against 138 of room, so
+    // the answers would stack. A wider screen gives the labels room; the next
+    // test covers the stacked side.
+    await _pump(tester, _event(), _FakeApi(), size: const Size(600, 844));
+
+    final going = tester.getRect(_answer(EventRsvpStatus.going));
+    final maybe = tester.getRect(_answer(EventRsvpStatus.maybe));
+    final notGoing = tester.getRect(_answer(EventRsvpStatus.notGoing));
+    expect(maybe.top, greaterThan(going.bottom));
+    expect(maybe.top, notGoing.top);
+    expect(maybe.width, notGoing.width);
+    expect(maybe.width * 2, lessThan(going.width));
+  });
+
+  testWidgets('answers stack when the text is too large for half a row', (
+    tester,
+  ) async {
+    await _pump(tester, _event(), _FakeApi(), textScale: 2);
+
+    final going = tester.getRect(_answer(EventRsvpStatus.going));
+    final maybe = tester.getRect(_answer(EventRsvpStatus.maybe));
+    final notGoing = tester.getRect(_answer(EventRsvpStatus.notGoing));
+    expect(maybe.width, going.width);
+    expect(notGoing.width, going.width);
+    expect(notGoing.top, greaterThan(maybe.bottom));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('screen readers hear which answer is chosen', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(
+      tester,
+      _event(),
+      _FakeApi(
+        summary: const EventRsvpSummary(
+          going: 4,
+          maybe: 0,
+          mine: EventRsvpStatus.going,
+          open: true,
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSemantics(_answer(EventRsvpStatus.going)),
+      isSemantics(
+        isButton: true,
+        isSelected: true,
+        isInMutuallyExclusiveGroup: true,
+        label: 'Going',
+      ),
+    );
+    expect(
+      tester.getSemantics(_answer(EventRsvpStatus.maybe)),
+      isSemantics(isSelected: false, label: 'Maybe'),
+    );
+    semantics.dispose();
   });
 }
