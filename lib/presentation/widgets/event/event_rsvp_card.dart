@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -43,11 +44,12 @@ class EventRsvpCard extends ConsumerWidget {
       if (summary.maybe > 0) l10n.eventRsvpMaybeCount(summary.maybe),
     ].join(' · ');
 
-    Future<void> onChanged(Set<EventRsvpStatus> picked) async {
+    // Tapping the chosen answer again takes it back.
+    Future<void> onTap(EventRsvpStatus tapped) async {
       final messenger = ScaffoldMessenger.of(context);
       final result = await ref
           .read(eventRsvpProvider(event.id).notifier)
-          .respond(picked.isEmpty ? null : picked.first);
+          .respond(summary.mine == tapped ? null : tapped);
       if (result != EventRsvpSaveResult.failed || !context.mounted) return;
       messenger.showSnackBar(SnackBar(content: Text(l10n.eventRsvpSaveFailed)));
     }
@@ -63,41 +65,20 @@ class EventRsvpCard extends ConsumerWidget {
           ),
           if (signedIn && !blockedAsNonMember) ...[
             const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              // Not disabled while saving: a disabled segment loses its fill,
-              // and the chosen answer must stay lit.
-              child: IgnorePointer(
-                ignoring: state.saving,
-                child: SegmentedButton<EventRsvpStatus>(
-                  emptySelectionAllowed: true,
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(
-                      value: EventRsvpStatus.going,
-                      label: Text(l10n.eventRsvpGoing),
-                    ),
-                    ButtonSegment(
-                      value: EventRsvpStatus.maybe,
-                      label: Text(l10n.eventRsvpMaybe),
-                    ),
-                    ButtonSegment(
-                      value: EventRsvpStatus.notGoing,
-                      label: Text(l10n.eventRsvpNotGoing),
-                    ),
-                  ],
-                  selected: {?summary.mine},
-                  onSelectionChanged: onChanged,
-                ),
-              ),
+            // Not disabled while saving: a disabled button loses its fill,
+            // and the chosen answer must stay lit.
+            IgnorePointer(
+              ignoring: state.saving,
+              child: _RsvpAnswers(mine: summary.mine, onTap: onTap),
             ),
           ] else if (!signedIn) ...[
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
+            SizedBox(
+              width: double.infinity,
+              child: _RsvpButton(
+                icon: CupertinoIcons.person_crop_circle,
+                label: l10n.eventRsvpSignIn,
                 onPressed: () => context.go('/auth/login'),
-                child: Text(l10n.eventRsvpSignIn),
               ),
             ),
           ],
@@ -116,6 +97,163 @@ class EventRsvpCard extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// The three answers. "Going" spans the row and the other two share the next
+/// one, so "Kommer ikke" fits on one line instead of wrapping in a third of
+/// it. With text too large for half a row, all three stack.
+class _RsvpAnswers extends StatelessWidget {
+  const _RsvpAnswers({required this.mine, required this.onTap});
+
+  final EventRsvpStatus? mine;
+  final ValueChanged<EventRsvpStatus> onTap;
+
+  static const _gap = 8.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    Widget answer(EventRsvpStatus status, IconData icon, String label) =>
+        _RsvpButton(
+          key: ValueKey('event-rsvp-${status.name}'),
+          icon: icon,
+          label: label,
+          selected: mine == status,
+          onPressed: () => onTap(status),
+        );
+
+    final going = answer(
+      EventRsvpStatus.going,
+      CupertinoIcons.checkmark_alt,
+      l10n.eventRsvpGoing,
+    );
+    final maybe = answer(
+      EventRsvpStatus.maybe,
+      CupertinoIcons.question,
+      l10n.eventRsvpMaybe,
+    );
+    final notGoing = answer(
+      EventRsvpStatus.notGoing,
+      CupertinoIcons.xmark,
+      l10n.eventRsvpNotGoing,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final paired = _fitHalfRow(context, constraints.maxWidth, [
+          l10n.eventRsvpMaybe,
+          l10n.eventRsvpNotGoing,
+        ]);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            going,
+            const SizedBox(height: _gap),
+            if (paired)
+              Row(
+                children: [
+                  Expanded(child: maybe),
+                  const SizedBox(width: _gap),
+                  Expanded(child: notGoing),
+                ],
+              )
+            else ...[
+              maybe,
+              const SizedBox(height: _gap),
+              notGoing,
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// Whether every label fits on one line in half of [width] at the reader's
+  /// text size. At large accessibility sizes it doesn't, and a half-width
+  /// button breaks "Kanskje" mid-word.
+  static bool _fitHalfRow(
+    BuildContext context,
+    double width,
+    List<String> labels,
+  ) {
+    final style = Theme.of(context).textTheme.labelLarge;
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final room = (width - _gap) / 2 - _RsvpButton.chrome;
+    return labels.every((label) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: direction,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final fits = painter.width <= room;
+      painter.dispose();
+      return fits;
+    });
+  }
+}
+
+/// One RSVP button: outlined in the primary colour, filled when [selected].
+/// [selected] is null for the sign-in button, which is not an answer.
+///
+/// Not the theme's [OutlinedButton]: that one is borderless with a
+/// `surfaceRaised` fill, all but the colour of the page behind the card, and
+/// the first version's [SegmentedButton] marked the chosen answer with a tint
+/// pale enough to read as disabled.
+class _RsvpButton extends StatelessWidget {
+  const _RsvpButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.selected,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final bool? selected;
+
+  // Narrower than the theme's padding, so "Kommer ikke" fits half a row.
+  static const _padding = EdgeInsets.symmetric(horizontal: 12);
+  static const _iconSize = 18.0;
+
+  /// Width around the label: padding, icon, the icon's 8px gap, and border.
+  static const chrome = 12 * 2 + _iconSize + 8 + 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BisoPalette.of(context);
+    final iconWidget = Icon(icon, size: _iconSize);
+    final text = Text(label, textAlign: TextAlign.center);
+    final button = selected ?? false
+        ? FilledButton.icon(
+            onPressed: onPressed,
+            icon: iconWidget,
+            label: text,
+            style: FilledButton.styleFrom(padding: _padding),
+          )
+        : OutlinedButton.icon(
+            onPressed: onPressed,
+            icon: iconWidget,
+            label: text,
+            style: OutlinedButton.styleFrom(
+              backgroundColor: palette.surface,
+              foregroundColor: palette.primary,
+              side: BorderSide(color: palette.primary, width: 1.5),
+              padding: _padding,
+            ),
+          );
+    if (selected == null) return button;
+    return MergeSemantics(
+      child: Semantics(
+        selected: selected,
+        inMutuallyExclusiveGroup: true,
+        child: button,
       ),
     );
   }
