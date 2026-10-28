@@ -4018,5 +4018,16 @@
   "benefitSectionCareer": "Career benefits",
   "benefitSectionSocial": "Social network",
   "benefitSectionSafety": "Safety and support",
-  "benefitSectionBusiness": "For businesses"
+  "benefitSectionBusiness": "For businesses",
+  "eventRsvpTitle": "Are you going?",
+  "eventRsvpGoing": "Going",
+  "eventRsvpMaybe": "Maybe",
+  "eventRsvpNotGoing": "Not going",
+  "eventRsvpGoingCount": "{count} going",
+  "@eventRsvpGoingCount": {"placeholders": {"count": {"type": "int"}}},
+  "eventRsvpMaybeCount": "{count} maybe",
+  "@eventRsvpMaybeCount": {"placeholders": {"count": {"type": "int"}}},
+  "eventRsvpSignIn": "Sign in to respond",
+  "eventRsvpTicketHint": "Saying you're going doesn't get you a ticket.",
+  "eventRsvpSaveFailed": "Couldn't save your answer. Try again."
 }

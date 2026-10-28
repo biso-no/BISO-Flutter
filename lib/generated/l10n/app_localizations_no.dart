@@ -3094,4 +3094,35 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get benefitSectionBusiness => 'For bedrifter';
+
+  @override
+  String get eventRsvpTitle => 'Blir du med?';
+
+  @override
+  String get eventRsvpGoing => 'Kommer';
+
+  @override
+  String get eventRsvpMaybe => 'Kanskje';
+
+  @override
+  String get eventRsvpNotGoing => 'Kommer ikke';
+
+  @override
+  String eventRsvpGoingCount(int count) {
+    return '$count kommer';
+  }
+
+  @override
+  String eventRsvpMaybeCount(int count) {
+    return '$count kanskje';
+  }
+
+  @override
+  String get eventRsvpSignIn => 'Logg inn for å svare';
+
+  @override
+  String get eventRsvpTicketHint => 'Du får ikke billett ved å svare her.';
+
+  @override
+  String get eventRsvpSaveFailed => 'Kunne ikke lagre svaret. Prøv igjen.';
 }

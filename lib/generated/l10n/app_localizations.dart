@@ -5612,6 +5612,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'For businesses'**
   String get benefitSectionBusiness;
+
+  /// No description provided for @eventRsvpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you going?'**
+  String get eventRsvpTitle;
+
+  /// No description provided for @eventRsvpGoing.
+  ///
+  /// In en, this message translates to:
+  /// **'Going'**
+  String get eventRsvpGoing;
+
+  /// No description provided for @eventRsvpMaybe.
+  ///
+  /// In en, this message translates to:
+  /// **'Maybe'**
+  String get eventRsvpMaybe;
+
+  /// No description provided for @eventRsvpNotGoing.
+  ///
+  /// In en, this message translates to:
+  /// **'Not going'**
+  String get eventRsvpNotGoing;
+
+  /// No description provided for @eventRsvpGoingCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} going'**
+  String eventRsvpGoingCount(int count);
+
+  /// No description provided for @eventRsvpMaybeCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} maybe'**
+  String eventRsvpMaybeCount(int count);
+
+  /// No description provided for @eventRsvpSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to respond'**
+  String get eventRsvpSignIn;
+
+  /// No description provided for @eventRsvpTicketHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Saying you\'re going doesn\'t get you a ticket.'**
+  String get eventRsvpTicketHint;
+
+  /// No description provided for @eventRsvpSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your answer. Try again.'**
+  String get eventRsvpSaveFailed;
 }
 
 class _AppLocalizationsDelegate

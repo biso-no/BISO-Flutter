@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../data/models/event_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/events/event_rsvp_provider.dart';
 import '../../../providers/events/events_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/event/event_detail_body.dart';
@@ -30,7 +31,11 @@ class EventDetailScreen extends ConsumerWidget {
           fallbackRoute: '/explore/events',
         ),
       ),
-      onRefresh: () => ref.refresh(eventDetailProvider(idOrSlug).future),
+      onRefresh: () async {
+        final event = await ref.refresh(eventDetailProvider(idOrSlug).future);
+        if (event == null || event.isCompleted || event.isCancelled) return;
+        await ref.read(eventRsvpProvider(event.id).notifier).refresh();
+      },
       slivers: detail.when(
         loading: () => const [SliverToBoxAdapter(child: BisoSkeleton.card())],
         error: (_, _) => [

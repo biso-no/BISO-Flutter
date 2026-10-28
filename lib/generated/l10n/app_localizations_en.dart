@@ -3086,4 +3086,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitSectionBusiness => 'For businesses';
+
+  @override
+  String get eventRsvpTitle => 'Are you going?';
+
+  @override
+  String get eventRsvpGoing => 'Going';
+
+  @override
+  String get eventRsvpMaybe => 'Maybe';
+
+  @override
+  String get eventRsvpNotGoing => 'Not going';
+
+  @override
+  String eventRsvpGoingCount(int count) {
+    return '$count going';
+  }
+
+  @override
+  String eventRsvpMaybeCount(int count) {
+    return '$count maybe';
+  }
+
+  @override
+  String get eventRsvpSignIn => 'Sign in to respond';
+
+  @override
+  String get eventRsvpTicketHint =>
+      'Saying you\'re going doesn\'t get you a ticket.';
+
+  @override
+  String get eventRsvpSaveFailed => 'Couldn\'t save your answer. Try again.';
 }

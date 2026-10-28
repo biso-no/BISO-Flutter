@@ -3830,5 +3830,14 @@
   "benefitSectionCareer": "Karrierefordeler",
   "benefitSectionSocial": "Sosialt nettverk",
   "benefitSectionSafety": "Trygghet og støtte",
-  "benefitSectionBusiness": "For bedrifter"
+  "benefitSectionBusiness": "For bedrifter",
+  "eventRsvpTitle": "Blir du med?",
+  "eventRsvpGoing": "Kommer",
+  "eventRsvpMaybe": "Kanskje",
+  "eventRsvpNotGoing": "Kommer ikke",
+  "eventRsvpGoingCount": "{count} kommer",
+  "eventRsvpMaybeCount": "{count} kanskje",
+  "eventRsvpSignIn": "Logg inn for å svare",
+  "eventRsvpTicketHint": "Du får ikke billett ved å svare her.",
+  "eventRsvpSaveFailed": "Kunne ikke lagre svaret. Prøv igjen."
 }

@@ -1,8 +1,11 @@
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/event_model.dart';
+import 'package:biso/data/models/event_rsvp.dart';
+import 'package:biso/data/services/event_rsvp_api_client.dart';
 import 'package:biso/data/services/event_service.dart';
 import 'package:biso/presentation/screens/events/event_detail_screen.dart';
 import 'package:biso/presentation/screens/explore/events_screen.dart';
+import 'package:biso/providers/events/event_rsvp_provider.dart';
 import 'package:biso/providers/events/events_provider.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
@@ -104,6 +107,17 @@ class _SignedOut extends StateNotifier<AuthState> implements AuthNotifier {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Never reaches the network: the RSVP route reads as not deployed.
+class _NoRsvpApi implements EventRsvpApi {
+  @override
+  Future<EventRsvpSummary> fetch(String eventId, {required bool signedIn}) =>
+      throw const EventRsvpApiException(EventRsvpApiErrorKind.notDeployed);
+
+  @override
+  Future<EventRsvpSummary> respond(String eventId, EventRsvpStatus? status) =>
+      throw const EventRsvpApiException(EventRsvpApiErrorKind.notDeployed);
+}
+
 EventModel _ticketed({required bool memberOnly}) => EventModel(
   id: 'gala',
   title: 'Winter Gala',
@@ -140,6 +154,7 @@ Future<void> _openGala(
       ),
       filterCampusProvider.overrideWithValue(_campus),
       campusInitializedProvider.overrideWithValue(true),
+      eventRsvpApiProvider.overrideWithValue(_NoRsvpApi()),
       authStateProvider.overrideWith((_) => _SignedOut()),
       hasValidMembershipProvider.overrideWithValue(isMember),
     ],
