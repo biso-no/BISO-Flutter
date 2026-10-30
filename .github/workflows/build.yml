@@ -136,6 +136,8 @@ jobs:
     needs: [build-and-deploy-android]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write  # Required for creating releases
     
     steps:
     - name: Download Android APK
@@ -148,7 +150,7 @@ jobs:
       run: echo "date=$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_OUTPUT
     
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: biso-v${{ needs.build-and-deploy-android.outputs.app_version }}-build-${{ steps.date.outputs.date }}
         name: Biso v${{ needs.build-and-deploy-android.outputs.app_version }} - Deployed to Stores
