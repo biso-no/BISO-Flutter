@@ -78,6 +78,7 @@ class CampusBenefit extends Equatable {
     this.isFeatured = false,
     this.partner,
     this.publishEnd,
+    this.createdAt,
   });
 
   /// Parses one API item; null when it lacks an id, a campus or any title,
@@ -90,6 +91,7 @@ class CampusBenefit extends Equatable {
     if (id == null || campusId == null) return null;
     if (title.nb == null && title.en == null) return null;
     final end = json['publishEnd'];
+    final created = json['createdAt'];
     return CampusBenefit(
       id: id,
       campusId: campusId,
@@ -105,6 +107,7 @@ class CampusBenefit extends Equatable {
       isFeatured: json['isFeatured'] == true,
       partner: BenefitPartner.tryParse(json['partner']),
       publishEnd: end is String ? DateTime.tryParse(end) : null,
+      createdAt: created is String ? DateTime.tryParse(created) : null,
       redemptionType: BenefitRedemptionType.values.firstWhere(
         (t) => t.name == json['redemptionType'],
         orElse: () => BenefitRedemptionType.none,
@@ -123,6 +126,7 @@ class CampusBenefit extends Equatable {
   final bool isFeatured;
   final BenefitPartner? partner;
   final DateTime? publishEnd;
+  final DateTime? createdAt;
   final BenefitRedemptionType redemptionType;
 
   @override
@@ -138,6 +142,7 @@ class CampusBenefit extends Equatable {
     isFeatured,
     partner,
     publishEnd,
+    createdAt,
     redemptionType,
   ];
 }

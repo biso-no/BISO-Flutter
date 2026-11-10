@@ -111,4 +111,24 @@ void main() {
     expect(b.toString(), isNot(contains('SECRET')));
     expect(b.props.map((e) => '$e').join(), isNot(contains('SECRET')));
   });
+
+  test('createdAt parses an ISO string', () {
+    expect(
+      CampusBenefit.tryParse(
+        item({'createdAt': '2026-11-09T10:00:00.000+00:00'}),
+      )!.createdAt,
+      DateTime.utc(2026, 11, 9, 10),
+    );
+  });
+
+  test('createdAt is null when missing or garbage', () {
+    expect(
+      CampusBenefit.tryParse(item({'createdAt': null}))!.createdAt,
+      isNull,
+    );
+    expect(
+      CampusBenefit.tryParse(item({'createdAt': 'yesterday'}))!.createdAt,
+      isNull,
+    );
+  });
 }
