@@ -4,6 +4,7 @@ import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_spotlight.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_visuals.dart';
 import 'package:biso/providers/benefits/benefit_showcase.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,11 +18,13 @@ CampusBenefit _deal(
   String id, {
   String title = 'GoBowl',
   String? description = '15 % på bowling hele uka.',
+  String? category,
   DateTime? end,
 }) => CampusBenefit(
   id: id,
   campusId: '3',
   section: BenefitSection.member,
+  category: category,
   title: BenefitText(nb: title),
   description: BenefitText(nb: description),
   publishEnd: end,
@@ -130,15 +133,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester);
-    // A deal with no picture also shows its number, in sky, on the navy
-    // fallback. The value is the one outside the picture.
-    final values = find
-        .text('15$_nbsp%')
-        .evaluate()
-        .where((e) => e.findAncestorWidgetOfExactType<BenefitImage>() == null)
-        .toList();
-    expect(values, hasLength(1));
-    final value = values.single.widget as Text;
+    final value = tester.widget<Text>(find.text('15$_nbsp%'));
     expect(value.style?.color, Colors.white);
     expect(value.style?.fontWeight, FontWeight.w300);
     final bar = find.descendant(
@@ -152,6 +147,30 @@ void main() {
     );
     expect(bar, findsWidgets);
   });
+
+  for (final size in BenefitSpotlightSize.values) {
+    testWidgets('$size: a deal with no picture shows its number once, and '
+        'the category icon on the navy fallback', (tester) async {
+      await _pump(
+        tester,
+        size: size,
+        items: [
+          FeaturedBenefit(
+            _deal('b1', category: 'events'),
+            FeaturedReason.pickedByBiso,
+          ),
+        ],
+      );
+      expect(find.text('15$_nbsp%'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BenefitImage),
+          matching: find.byIcon(CupertinoIcons.calendar),
+        ),
+        findsOneWidget,
+      );
+    });
+  }
 
   testWidgets('a tap pushes the deal page for the campus', (tester) async {
     await _pump(tester);

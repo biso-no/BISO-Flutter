@@ -150,6 +150,23 @@ void main() {
     expect(find.byIcon(CupertinoIcons.sparkles), findsOneWidget);
   });
 
+  testWidgets('without the highlight the fallback shows the category icon', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      BenefitImage(
+        benefit: _benefit(category: 'events', description: '25 % rabatt'),
+        memCacheWidth: 400,
+        showHighlight: false,
+      ),
+      inShell: false,
+      locale: const Locale('no'),
+    );
+    expect(find.byIcon(CupertinoIcons.calendar), findsOneWidget);
+    expect(find.textContaining('25'), findsNothing);
+  });
+
   testWidgets('ending soon chip names the Oslo day', (tester) async {
     await pumpBisoScreen(
       tester,

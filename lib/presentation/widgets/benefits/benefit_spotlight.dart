@@ -346,6 +346,8 @@ class _SpotlightCard extends StatelessWidget {
               benefit: benefit,
               memCacheWidth: _imageCacheWidth,
               fallbackNumberSize: 56,
+              // The value is drawn bottom-right; once is enough.
+              showHighlight: false,
             ),
             DecoratedBox(
               decoration: BoxDecoration(

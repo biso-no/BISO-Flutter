@@ -63,7 +63,6 @@ class BenefitsTopCard extends ConsumerWidget {
       BenefitStanding.unavailable => l10n.benefitsTopNeutral(count, campus),
     };
     final images = showcase.imageUrls;
-    final action = _action(context, l10n, info);
     final radius = BorderRadius.circular(24);
 
     return DecoratedBox(
@@ -146,10 +145,9 @@ class BenefitsTopCard extends ConsumerWidget {
                       const SizedBox(height: 16),
                       _Logos(urls: images),
                     ],
-                    if (action != null) ...[
-                      SizedBox(height: images.isEmpty ? 16 : 18),
-                      action,
-                    ],
+                    // Mounted for every standing, so a BI sign-in that
+                    // reloads the pass still finishes.
+                    _ActionArea(info: info, gap: images.isEmpty ? 16 : 18),
                   ],
                 ),
               ),
@@ -159,14 +157,52 @@ class BenefitsTopCard extends ConsumerWidget {
       ),
     );
   }
+}
 
-  /// What the student can do next, or null while checking or after a
-  /// failed check.
-  Widget? _action(
-    BuildContext context,
-    AppLocalizations l10n,
-    BenefitStandingInfo info,
-  ) {
+/// What the student can do next, under [gap]. Empty while checking or after
+/// a failed check.
+///
+/// It stays mounted whatever the standing, like `BenefitActionPanel`: a BI
+/// sign-in into another account reloads the pass (the standing goes through
+/// checking), and the flow, with its onboarding step and message, has to
+/// finish all the same.
+class _ActionArea extends ConsumerStatefulWidget {
+  const _ActionArea({required this.info, required this.gap});
+
+  final BenefitStandingInfo info;
+  final double gap;
+
+  @override
+  ConsumerState<_ActionArea> createState() => _ActionAreaState();
+}
+
+class _ActionAreaState extends ConsumerState<_ActionArea> {
+  /// A BI sync or sign-in is running.
+  bool _biBusy = false;
+
+  Future<void> _continueWithBi() async {
+    // One flow at a time, however fast the taps come.
+    if (_biBusy) return;
+    setState(() => _biBusy = true);
+    try {
+      await runContinueWithBi(context, ref);
+    } finally {
+      if (mounted) setState(() => _biBusy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final action = _action(l10n, widget.info);
+    if (action == null) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.only(top: widget.gap),
+      child: action,
+    );
+  }
+
+  Widget? _action(AppLocalizations l10n, BenefitStandingInfo info) {
     switch (info.standing) {
       case BenefitStanding.notMember:
         return _SkyPill(
@@ -203,47 +239,19 @@ class BenefitsTopCard extends ConsumerWidget {
           ),
         );
       case BenefitStanding.needsBi:
-        return const _NeedsBiRow();
+        return _StandingRow(
+          tile: const _GlyphTile(icon: CupertinoIcons.person_crop_rectangle),
+          title: l10n.membershipNeedsBiLinkTitle,
+          stackAction: true,
+          action: _SkyPill(
+            label: l10n.membershipNeedsBiLinkCta,
+            compact: true,
+            onPressed: _biBusy ? null : () => unawaited(_continueWithBi()),
+          ),
+        );
       case BenefitStanding.checking || BenefitStanding.unavailable:
         return null;
     }
-  }
-}
-
-/// "Logg inn med BI-studentkontoen din", with the BI flow behind the pill.
-class _NeedsBiRow extends ConsumerStatefulWidget {
-  const _NeedsBiRow();
-
-  @override
-  ConsumerState<_NeedsBiRow> createState() => _NeedsBiRowState();
-}
-
-class _NeedsBiRowState extends ConsumerState<_NeedsBiRow> {
-  /// A BI sync or sign-in is running.
-  bool _busy = false;
-
-  Future<void> _continueWithBi() async {
-    setState(() => _busy = true);
-    try {
-      await runContinueWithBi(context, ref);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return _StandingRow(
-      tile: const _GlyphTile(icon: CupertinoIcons.person_crop_rectangle),
-      title: l10n.membershipNeedsBiLinkTitle,
-      stackAction: true,
-      action: _SkyPill(
-        label: l10n.membershipNeedsBiLinkCta,
-        compact: true,
-        onPressed: _busy ? null : () => unawaited(_continueWithBi()),
-      ),
-    );
   }
 }
 

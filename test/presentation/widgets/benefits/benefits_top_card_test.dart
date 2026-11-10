@@ -1,9 +1,10 @@
+import 'dart:async';
+
 import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/user_model.dart';
-import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/bi_sign_in_service.dart';
 import 'package:biso/data/services/bi_sync_api_client.dart';
 import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
@@ -16,6 +17,7 @@ import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,8 +31,11 @@ class _FakePass extends MemberPassNotifier {
   final MemberPassView view;
   int retries = 0;
 
+  /// [view] for [_user]. Another account restarts the pass in loading, as
+  /// the real one does.
   @override
-  MemberPassView build() => view;
+  MemberPassView build() =>
+      ref.watch(membershipUserIdProvider) == _user.id ? view : _loading;
 
   @override
   Future<void> retry() async => retries++;
@@ -48,25 +53,48 @@ class _Overview extends MembershipOverviewNotifier {
   Future<void> refresh({bool force = true}) async {}
 }
 
+/// Answers the BI sync with [answer], or waits for [pending] when set.
 class _FakeBiSignIn extends BiSignInService {
+  BiSyncResult answer = const BiSyncResult(success: true, studentId: 's1');
+  Completer<BiSyncResult>? pending;
   int syncs = 0;
 
   @override
   Future<BiSyncResult> syncOnly() async {
     syncs++;
-    return const BiSyncResult(success: true, studentId: 's1');
+    final wait = pending;
+    if (wait != null) return wait.future;
+    return answer;
   }
 }
 
-class _FakeAuthService extends AuthService {
+/// Signed in as [_user]. A BI sign-in switches to [signedInState] when set,
+/// then waits for [gate] before it answers, as the real one waits on BI.
+class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+  _Auth()
+    : super(
+        const AuthState(
+          isAuthenticated: true,
+          user: _user,
+          hasProfile: true,
+          isProfileComplete: true,
+        ),
+      );
+
+  BiSignInOutcome biOutcome = const BiSignInFailed(BiSignInFailure.failed);
+  AuthState? signedInState;
+  Completer<void>? gate;
+
   @override
-  Future<UserModel?> getCurrentUser() async => null;
-}
-
-class _FakeAuth extends AuthNotifier {
-  _FakeAuth(UserModel? user) : super(_FakeAuthService()) {
-    state = AuthState(user: user, isAuthenticated: user != null);
+  Future<BiSignInOutcome> signInWithBi() async {
+    final next = signedInState;
+    if (next != null) state = next;
+    await gate?.future;
+    return biOutcome;
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 const _user = UserModel(
@@ -77,6 +105,7 @@ const _user = UserModel(
 );
 
 _FakeBiSignIn? _bi;
+_Auth? _auth;
 
 MemberPassView _noPass(NoPassState s) =>
     MemberPassView(status: PassStatus.noPass, noPassState: s);
@@ -147,11 +176,15 @@ Future<void> _pump(
         path: '/auth/login',
         builder: (_, _) => const Scaffold(body: Text('login page')),
       ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (_, _) => const Scaffold(body: Text('onboarding page')),
+      ),
     ],
     overrides: [
       memberPassProvider.overrideWith(() => _FakePass(pass ?? activeView())),
       membershipOverviewProvider.overrideWith(() => _Overview(overview)),
-      authStateProvider.overrideWith((_) => _FakeAuth(_user)),
+      authStateProvider.overrideWith((_) => _auth = _Auth()),
       biSignInServiceProvider.overrideWithValue(_bi = _FakeBiSignIn()),
       screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
     ],
@@ -289,6 +322,61 @@ void main() {
       await tester.tap(find.text(_needsBiCta));
       await tester.pump();
       await tester.pump();
+      expect(_bi!.syncs, 1);
+    });
+
+    testWidgets('needsBi: a BI sign-in into a new account still finishes the '
+        'flow while the pass reloads', (tester) async {
+      await _pump(tester, pass: _noPass(NoPassState.noBiIdentity));
+      final release = Completer<void>();
+      _bi!.answer = const BiSyncResult.failed(BiSyncError.noBiIdentity);
+      // Builds the lazy auth notifier, so [_auth] can be set up.
+      ProviderScope.containerOf(
+        tester.element(find.byType(BenefitsTopCard)),
+      ).read(authStateProvider);
+      _auth!
+        ..biOutcome = const BiSignedIn(
+          BiSyncResult(success: true, studentId: 's1'),
+        )
+        ..signedInState = const AuthState(
+          isAuthenticated: true,
+          user: UserModel(id: 'u2', name: 'Kari BI', email: 's1@bi.no'),
+        )
+        ..gate = release;
+
+      await tester.tap(find.text(_needsBiCta));
+      await tester.pump();
+      await tester.pump();
+      // The new account's pass is loading: the card is neutral meanwhile.
+      expect(find.text(_needsBiTitle), findsNothing);
+      expect(
+        find.text('fordeler for BISO-medlemmer i Trondheim'),
+        findsOneWidget,
+      );
+
+      release.complete();
+      await tester.pumpAndSettle();
+      // The account has no profile yet, so the flow ends in onboarding.
+      expect(find.text('onboarding page'), findsOneWidget);
+    });
+
+    testWidgets('needsBi: a double tap starts one sync', (tester) async {
+      await _pump(tester, pass: _noPass(NoPassState.noBiIdentity));
+      final pending = _bi!.pending = Completer<BiSyncResult>();
+      await tester.tap(find.text(_needsBiCta));
+      await tester.tap(find.text(_needsBiCta));
+      await tester.pump();
+      expect(_bi!.syncs, 1);
+      final pill = tester.widget<FilledButton>(
+        find.ancestor(
+          of: find.text(_needsBiCta),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(pill.onPressed, isNull);
+
+      pending.complete(const BiSyncResult(success: true, studentId: 's1'));
+      await tester.pumpAndSettle();
       expect(_bi!.syncs, 1);
     });
 

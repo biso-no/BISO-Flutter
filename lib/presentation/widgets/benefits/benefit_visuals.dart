@@ -84,12 +84,17 @@ class BenefitImage extends StatelessWidget {
     required this.benefit,
     required this.memCacheWidth,
     this.fallbackNumberSize = 44,
+    this.showHighlight = true,
     super.key,
   });
 
   final CampusBenefit benefit;
   final int memCacheWidth;
   final double fallbackNumberSize;
+
+  /// False where the discount is drawn over the image already: the panel
+  /// then shows the category icon only.
+  final bool showHighlight;
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +114,9 @@ class BenefitImage extends StatelessWidget {
   Widget _fallback(BuildContext context) {
     final palette = BisoPalette.of(context);
     final l10n = AppLocalizations.of(context)!;
-    final highlight = benefitHighlightOf(benefit, l10n.localeName);
+    final highlight = showHighlight
+        ? benefitHighlightOf(benefit, l10n.localeName)
+        : null;
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
