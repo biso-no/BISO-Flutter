@@ -75,6 +75,16 @@ void main() {
     expect(no.benefitsSectionSafety, 'Trygghet og støtte');
     expect(en.benefitsMoreLogos(3), '+ 3 more');
     expect(no.benefitsMoreInCategory('Reise'), 'Mer innen Reise');
+    expect(no.benefitsMoreDeals, 'Flere tilbud');
+    expect(en.benefitsMoreDeals, 'More deals');
+    expect(
+      no.benefitsLockedSignedOutBody,
+      'Logg inn for å bruke tilbudet som medlem.',
+    );
+    expect(
+      en.benefitsLockedSignedOutBody,
+      'Sign in to use this deal as a member.',
+    );
     expect(en.benefitsUntilFurther, 'Until further notice');
   });
 }

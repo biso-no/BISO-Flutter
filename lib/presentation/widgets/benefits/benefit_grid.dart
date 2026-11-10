@@ -139,6 +139,10 @@ class BenefitGridCard extends StatelessWidget {
     final badge = highlight == null
         ? null
         : benefitHighlightBadge(highlight, l10n);
+    // Read as "25 %", not the badge's "minus 25 %".
+    final value = highlight == null
+        ? null
+        : benefitHighlightValue(highlight, l10n);
     final hasImage = benefit.imageUrl?.isNotEmpty ?? false;
     final claim = _claimOf(benefit, standing, l10n);
     final radius = BorderRadius.circular(_cardRadius);
@@ -152,7 +156,7 @@ class BenefitGridCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: [title, ?badge, ?claim?.label].join(', '),
+      label: [title, ?value, ?claim?.label].join(', '),
       onTap: open,
       excludeSemantics: true,
       child: Material(

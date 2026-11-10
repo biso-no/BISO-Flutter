@@ -16,6 +16,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,9 @@ class _FakeApi implements BenefitsApi {
 
   List<CampusBenefit> benefits;
 
+  /// A campus's own list, where it differs from [benefits].
+  Map<String?, List<CampusBenefit>> byCampus = {};
+
   /// Thrown by the next fetches while set.
   BenefitsApiException? error;
 
@@ -46,7 +50,7 @@ class _FakeApi implements BenefitsApi {
     if (wait != null) return wait.future;
     final fail = error;
     if (fail != null) throw fail;
-    return benefits;
+    return byCampus[campusId] ?? benefits;
   }
 
   @override
@@ -483,6 +487,79 @@ void main() {
 
     expect(find.text('Club Tempo'), findsOneWidget);
     expect(find.text('GoBowl'), findsOneWidget);
+  });
+
+  testWidgets('the campus sheet\'s close button is labelled and closes it', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester);
+    await tester.tap(_campusLine('Trondheim'));
+    await tester.pumpAndSettle();
+
+    final close = find.widgetWithIcon(IconButton, CupertinoIcons.xmark);
+    final label = MaterialLocalizations.of(
+      tester.element(close),
+    ).closeButtonTooltip;
+    expect(tester.widget<IconButton>(close).tooltip, label);
+    // A screen reader hears it as "Lukk", not as an unnamed button.
+    expect(
+      tester.getSemantics(close),
+      isSemantics(tooltip: label, isButton: true, hasTapAction: true),
+    );
+
+    await tester.tap(close);
+    await tester.pumpAndSettle();
+    expect(find.text('Velg campus'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('switching campus opens "Utvalgt" on the new campus\'s first '
+      'card', (tester) async {
+    final api = _FakeApi()
+      ..byCampus = {
+        '3': [
+          _deal('t1', 'Graffi Grill', featured: true),
+          _deal('t2', 'Egon Solsiden', featured: true),
+          _deal('t3', 'GoBowl', featured: true),
+        ],
+        '1': [
+          _deal('o1', 'Illegal Burger', featured: true),
+          _deal('o2', 'Vega Scene', featured: true),
+          _deal('o3', 'Oslo Bowling', featured: true),
+        ],
+      };
+    await _pump(tester, api: api, size: _tall);
+    // Oslo's list is already loaded elsewhere (as Home keeps its campus's
+    // list), so the switch draws it in the same frame, with no skeleton
+    // between.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BenefitsScreen)),
+    );
+    final oslo = container.listen(campusBenefitsProvider('1'), (_, _) {});
+    addTearDown(oslo.close);
+    await container.read(campusBenefitsProvider('1').future);
+
+    double page() =>
+        tester.widget<PageView>(find.byType(PageView)).controller!.page!;
+    await tester.drag(find.byType(PageView), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(page(), 1);
+
+    await tester.tap(_campusLine('Trondheim'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Oslo'));
+    await tester.pumpAndSettle();
+
+    expect(_campusLine('Oslo'), findsOneWidget);
+    expect(page(), 0);
+    final first = tester.getRect(
+      find.descendant(
+        of: find.byType(PageView),
+        matching: find.text('Illegal Burger'),
+      ),
+    );
+    expect(first.left, inInclusiveRange(0, 390));
   });
 
   testWidgets('loading, error and retry', (tester) async {

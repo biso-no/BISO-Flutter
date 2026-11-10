@@ -3261,7 +3261,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitsLockedSignedOutBody =>
-      'Sign in and join to use this deal.';
+      'Sign in to use this deal as a member.';
 
   @override
   String get benefitsUseAtTillTitle => 'Show your membership card at the till';
@@ -3323,6 +3323,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String benefitsMoreInCategory(String category) {
     return 'More in $category';
   }
+
+  @override
+  String get benefitsMoreDeals => 'More deals';
 
   @override
   String get benefitsForYou => 'Benefits for you';

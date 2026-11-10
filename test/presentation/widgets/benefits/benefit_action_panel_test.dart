@@ -78,12 +78,16 @@ class _Overview extends MembershipOverviewNotifier {
   Future<void> refresh({bool force = true}) async => refreshes++;
 }
 
+/// Waits for [pending] when set.
 class _FakeBiSignIn extends BiSignInService {
   int syncs = 0;
+  Completer<BiSyncResult>? pending;
 
   @override
   Future<BiSyncResult> syncOnly() async {
     syncs++;
+    final wait = pending;
+    if (wait != null) return wait.future;
     return const BiSyncResult(success: true, studentId: 's1');
   }
 }
@@ -662,7 +666,7 @@ void main() {
         );
         expect(find.text(_locked), findsOneWidget);
         expect(
-          find.text('Logg inn og bli medlem for å bruke dette tilbudet.'),
+          find.text('Logg inn for å bruke tilbudet som medlem.'),
           findsOneWidget,
         );
         expect(find.text('Logg inn'), findsOneWidget);
@@ -728,6 +732,23 @@ void main() {
       expect(_bi!.syncs, 1);
       expect(_overview!.refreshes, 1);
       expect(_pass!.retries, 1);
+    });
+
+    testWidgets('a double tap on "Logg inn med BI" starts one sync', (
+      tester,
+    ) async {
+      await _pump(tester, pass: _noPass(NoPassState.noBiIdentity));
+      final pending = _bi!.pending = Completer<BiSyncResult>();
+      final button = find.widgetWithText(FilledButton, 'Logg inn med BI');
+      await tester.tap(button);
+      await tester.tap(button);
+      await tester.pump();
+      expect(_bi!.syncs, 1);
+      expect(tester.widget<FilledButton>(button).onPressed, isNull);
+
+      pending.complete(const BiSyncResult(success: true, studentId: 's1'));
+      await tester.pumpAndSettle();
+      expect(_bi!.syncs, 1);
     });
   });
 

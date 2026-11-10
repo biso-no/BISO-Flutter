@@ -86,6 +86,7 @@ CampusBenefit _deal({
   bool featured = false,
   DateTime? end,
   BenefitSection section = BenefitSection.member,
+  String? image,
 }) => CampusBenefit(
   id: id,
   campusId: campusId,
@@ -94,6 +95,7 @@ CampusBenefit _deal({
   title: BenefitText(nb: title),
   description: BenefitText(nb: description),
   terms: BenefitText(nb: terms),
+  imageUrl: image,
   redemptionType: type,
   isFeatured: featured,
   partner: partner,
@@ -155,6 +157,7 @@ Future<_FakeApi> _pump(
   List<Uri>? opened,
   double textScale = 1,
   Brightness brightness = Brightness.light,
+  Locale locale = const Locale('no'),
 }) async {
   final fake = api ?? _FakeApi();
   await pumpBisoScreen(
@@ -165,7 +168,7 @@ Future<_FakeApi> _pump(
       initial: initial,
     ),
     routed: true,
-    locale: const Locale('no'),
+    locale: locale,
     textScale: textScale,
     brightness: brightness,
     extraRoutes: [_dealStub, _membershipStub],
@@ -536,6 +539,122 @@ void main() {
     );
     expect(find.text('Bertoni'), findsNothing);
     expect(find.text('Karrieredag'), findsNothing);
+  });
+
+  testWidgets('"Annet" deals get their own heading, "Flere tilbud"', (
+    tester,
+  ) async {
+    // A missing category is "other" too.
+    final deal = _deal(category: 'other');
+    await _pump(
+      tester,
+      api: _FakeApi(
+        benefits: [
+          deal,
+          _deal(id: 'b2', title: 'Egon Solsiden', category: null),
+        ],
+      ),
+      initial: deal,
+    );
+    await _scrollTo(tester, _moreRow);
+    expect(find.text('Flere tilbud'), findsOneWidget);
+    expect(find.textContaining('Mer innen'), findsNothing);
+  });
+
+  for (final (category, heading) in [
+    ('other', 'More deals'),
+    ('food_drink', 'More in Food & drink'),
+  ]) {
+    testWidgets('in English, $category reads "$heading"', (tester) async {
+      final deal = _deal(category: category);
+      await _pump(
+        tester,
+        api: _FakeApi(
+          benefits: [
+            deal,
+            _deal(id: 'b2', title: 'Egon Solsiden', category: category),
+          ],
+        ),
+        initial: deal,
+        locale: const Locale('en'),
+      );
+      await _scrollTo(tester, _moreRow);
+      expect(find.text(heading), findsOneWidget);
+      expect(find.text('More in Other'), findsNothing);
+    });
+  }
+
+  testWidgets('a "Mer innen" deal with no picture shows its number once', (
+    tester,
+  ) async {
+    final deal = _deal();
+    await _pump(
+      tester,
+      api: _FakeApi(
+        benefits: [
+          deal,
+          _deal(id: 'b2', title: 'Egon Solsiden'),
+        ],
+      ),
+      initial: deal,
+    );
+    await _scrollTo(tester, _moreRow);
+    final card = find.ancestor(
+      of: find.text('Egon Solsiden'),
+      matching: find.byType(InkWell),
+    );
+    // On the navy tile, and not again in a badge.
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.descendant(
+          of: find.byType(BenefitImage),
+          matching: find.text(_quarterOff),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: card, matching: find.byType(BenefitBadge)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: _moreRow, matching: find.text('\u221225\u00a0%')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('a "Mer innen" deal with a picture keeps its badge', (
+    tester,
+  ) async {
+    final deal = _deal();
+    await _pump(
+      tester,
+      api: _FakeApi(
+        benefits: [
+          deal,
+          _deal(
+            id: 'b2',
+            title: 'Egon Solsiden',
+            image: 'https://img.test/b2.png',
+          ),
+        ],
+      ),
+      initial: deal,
+    );
+    await _scrollTo(tester, _moreRow);
+    expect(
+      find.descendant(of: _moreRow, matching: find.byType(BenefitBadge)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: _moreRow, matching: find.text('\u221225\u00a0%')),
+      findsOneWidget,
+    );
+    final image = tester.widget<BenefitImage>(
+      find.descendant(of: _moreRow, matching: find.byType(BenefitImage)),
+    );
+    expect(image.showHighlight, isFalse);
   });
 
   testWidgets('"Mer innen" shows at most eight deals', (tester) async {

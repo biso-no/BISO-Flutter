@@ -29,7 +29,8 @@ const benefitCategoryKeys = [
   'other',
 ];
 
-const _otherCategory = 'other';
+/// The key for a deal with no category, or one this app doesn't know.
+const otherBenefitCategory = 'other';
 const _maxFeatured = 5;
 const _endingSoonWindow = Duration(days: 30);
 const _newWindow = Duration(days: 14);
@@ -39,7 +40,7 @@ String benefitCategoryKeyOf(CampusBenefit b) {
   final key = b.category;
   return key != null && benefitCategoryKeys.contains(key)
       ? key
-      : _otherCategory;
+      : otherBenefitCategory;
 }
 
 /// The benefits list split into what the screen shows.

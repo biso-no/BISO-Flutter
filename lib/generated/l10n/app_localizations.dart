@@ -5856,7 +5856,7 @@ abstract class AppLocalizations {
   /// No description provided for @benefitsLockedSignedOutBody.
   ///
   /// In en, this message translates to:
-  /// **'Sign in and join to use this deal.'**
+  /// **'Sign in to use this deal as a member.'**
   String get benefitsLockedSignedOutBody;
 
   /// No description provided for @benefitsUseAtTillTitle.
@@ -5966,6 +5966,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More in {category}'**
   String benefitsMoreInCategory(String category);
+
+  /// No description provided for @benefitsMoreDeals.
+  ///
+  /// In en, this message translates to:
+  /// **'More deals'**
+  String get benefitsMoreDeals;
 
   /// No description provided for @benefitsForYou.
   ///

@@ -270,7 +270,12 @@ class _BenefitsScreenState extends ConsumerState<BenefitsScreen> {
       if (showcase.featured.isNotEmpty) ...[
         SliverToBoxAdapter(child: _SectionTitle(l10n.benefitsFeatured)),
         SliverToBoxAdapter(
-          child: BenefitSpotlight(items: showcase.featured, campusId: campusId),
+          // A new campus opens on its own first card, not partway in.
+          child: BenefitSpotlight(
+            key: ValueKey(campusId),
+            items: showcase.featured,
+            campusId: campusId,
+          ),
         ),
       ],
       if (showcase.deals.isNotEmpty) ...[

@@ -3269,7 +3269,7 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get benefitsLockedSignedOutBody =>
-      'Logg inn og bli medlem for å bruke dette tilbudet.';
+      'Logg inn for å bruke tilbudet som medlem.';
 
   @override
   String get benefitsUseAtTillTitle => 'Vis medlemskortet i kassen';
@@ -3331,6 +3331,9 @@ class AppLocalizationsNo extends AppLocalizations {
   String benefitsMoreInCategory(String category) {
     return 'Mer innen $category';
   }
+
+  @override
+  String get benefitsMoreDeals => 'Flere tilbud';
 
   @override
   String get benefitsForYou => 'Fordeler for deg';

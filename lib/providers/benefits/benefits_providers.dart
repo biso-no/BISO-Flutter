@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../data/models/campus_benefit.dart';
 import '../../data/services/benefits_api_client.dart';
 import '../campus/campus_provider.dart';
@@ -60,7 +61,9 @@ final benefitShowcaseProvider = Provider.autoDispose
 const nationalBenefitCampusId = '5';
 
 /// The name to show for a benefits campus. Empty for all of BISO (null or
-/// the national campus): widgets show `benefitsAllOfBiso` for it.
+/// the national campus): widgets show `benefitsAllOfBiso` for it. While the
+/// switcher list loads, or if it fails, a known campus keeps the app's own
+/// name for it; only a campus no one knows reads "BISO".
 final benefitCampusNameProvider = Provider.autoDispose.family<String, String?>((
   ref,
   campusId,
@@ -74,5 +77,5 @@ final benefitCampusNameProvider = Provider.autoDispose.family<String, String?>((
   for (final campus in campuses ?? const []) {
     if (campus.id == campusId) return campus.name;
   }
-  return 'BISO';
+  return AppConstants.campusNames[campusId] ?? 'BISO';
 });

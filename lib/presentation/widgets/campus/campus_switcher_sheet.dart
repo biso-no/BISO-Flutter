@@ -93,6 +93,9 @@ class _CampusSwitcherModal extends StatelessWidget {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).closeButtonTooltip,
                     icon: Icon(CupertinoIcons.xmark, color: palette.muted),
                   ),
                 ],

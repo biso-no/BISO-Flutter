@@ -160,6 +160,8 @@ class _BenefitActionPanelState extends ConsumerState<BenefitActionPanel> {
   }
 
   Future<void> _continueWithBi() async {
+    // One flow at a time, however fast the taps come.
+    if (_biBusy) return;
     setState(() => _biBusy = true);
     try {
       await runContinueWithBi(context, ref);

@@ -243,12 +243,21 @@ void main() {
       expect(find.text('deal b1 national b1'), findsOneWidget);
     });
 
-    testWidgets('each card is one button: title, badge and claim line', (
+    testWidgets('each card is one button: title, value and claim line', (
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      await _pumpGrid(tester, deals: [_deal('b1'), _byType[1], _byType[3]]);
-      const label = 'GoBowl, ${_minus}15$_nbsp%, Vis kortet i kassen';
+      await _pumpGrid(
+        tester,
+        deals: [
+          _deal('b1'),
+          _byType[1],
+          _byType[3],
+          _deal('b2', title: 'Bowl', image: 'https://img.test/b2.png'),
+        ],
+      );
+      // The value as it is said, "15 prosent", not the badge's "minus 15".
+      const label = 'GoBowl, 15$_nbsp%, Vis kortet i kassen';
       expect(
         tester.getSemantics(find.bySemanticsLabel(label)),
         isSemantics(label: label, isButton: true, hasTapAction: true),
@@ -265,6 +274,12 @@ void main() {
         tester.getSemantics(find.bySemanticsLabel('Bokhandel')),
         isSemantics(label: 'Bokhandel', isButton: true, hasTapAction: true),
       );
+      // A card with a badge reads the value too.
+      expect(
+        find.bySemanticsLabel('Bowl, 15$_nbsp%, Vis kortet i kassen'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp(_minus)), findsNothing);
       // The parts are not read again on their own.
       expect(find.bySemanticsLabel('GoBowl'), findsNothing);
       expect(find.bySemanticsLabel('Vis kortet i kassen'), findsNothing);
@@ -282,7 +297,7 @@ void main() {
         standing: BenefitStanding.notMember,
       );
       expect(
-        find.bySemanticsLabel('GoBowl, ${_minus}15$_nbsp%, Bare for medlemmer'),
+        find.bySemanticsLabel('GoBowl, 15$_nbsp%, Bare for medlemmer'),
         findsOneWidget,
       );
       semantics.dispose();

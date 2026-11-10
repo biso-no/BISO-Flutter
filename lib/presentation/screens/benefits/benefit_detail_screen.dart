@@ -611,6 +611,7 @@ class _TermsRowState extends State<_TermsRow> {
 }
 
 /// "Mer innen {kategori}": other deals of the same category, side by side.
+/// "Annet" reads oddly mid-sentence, so it is "Flere tilbud".
 class _MoreInCategory extends StatelessWidget {
   const _MoreInCategory({
     required this.categoryKey,
@@ -625,16 +626,12 @@ class _MoreInCategory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final label = benefitCategoryLabel(categoryKey, l10n);
-    // Mid-sentence in Norwegian: "Mer innen mat og drikke".
-    final english = Localizations.localeOf(context).languageCode == 'en';
-    final category = english ? label : label.toLowerCase();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: _gutter),
-          child: _Heading(l10n.benefitsMoreInCategory(category)),
+          child: _Heading(_heading(context, l10n)),
         ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -652,9 +649,18 @@ class _MoreInCategory extends StatelessWidget {
       ],
     );
   }
+
+  String _heading(BuildContext context, AppLocalizations l10n) {
+    if (categoryKey == otherBenefitCategory) return l10n.benefitsMoreDeals;
+    final label = benefitCategoryLabel(categoryKey, l10n);
+    // Mid-sentence in Norwegian: "Mer innen mat og drikke".
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    return l10n.benefitsMoreInCategory(english ? label : label.toLowerCase());
+  }
 }
 
-/// A square picture with the discount badge, the title and one line.
+/// A square picture, the title and one line. The deal's number shows once:
+/// on the navy tile without a picture, in the badge with one.
 class _MoreCard extends StatelessWidget {
   const _MoreCard({required this.benefit, required this.campusId});
 
@@ -668,6 +674,7 @@ class _MoreCard extends StatelessWidget {
     final palette = BisoPalette.of(context);
     final language = Localizations.localeOf(context).languageCode;
     final highlight = benefitHighlightOf(benefit, language);
+    final hasImage = benefit.imageUrl?.isNotEmpty ?? false;
     final description = benefit.description.resolve(language);
     final line = description == null
         ? null
@@ -708,8 +715,14 @@ class _MoreCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        BenefitImage(benefit: benefit, memCacheWidth: 420),
-                        if (highlight != null)
+                        // A picture that fails to load falls back to the
+                        // icon, as the badge has the number.
+                        BenefitImage(
+                          benefit: benefit,
+                          memCacheWidth: 420,
+                          showHighlight: !hasImage,
+                        ),
+                        if (highlight != null && hasImage)
                           Positioned(
                             left: 8,
                             top: 8,

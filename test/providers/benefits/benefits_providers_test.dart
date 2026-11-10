@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/services/benefits_api_client.dart';
@@ -29,15 +31,25 @@ CampusModel _campus(String id, String name) => CampusModel(
   stats: const CampusStats(),
 );
 
+/// Names with Trondheim as the Home campus, unless [filter] says otherwise.
+/// [switcherLoads] keeps the switcher list loading.
 ProviderContainer _names({
+  CampusModel? filter,
   List<CampusModel> switcher = const [],
   bool switcherFails = false,
+  bool switcherLoads = false,
 }) {
   final container = ProviderContainer(
     overrides: [
-      filterCampusProvider.overrideWithValue(_campus('3', 'Trondheim')),
+      filterCampusProvider.overrideWithValue(
+        filter ?? _campus('3', 'Trondheim'),
+      ),
       switcherCampusesProvider.overrideWith(
-        (_) async => switcherFails ? throw Exception('offline') : switcher,
+        (_) => switcherLoads
+            ? Completer<List<CampusModel>>().future
+            : switcherFails
+            ? Future.error(Exception('offline'))
+            : Future.value(switcher),
       ),
     ],
   );
@@ -141,15 +153,41 @@ void main() {
     });
 
     test('another campus takes its name from the switcher list', () async {
-      final container = _names(switcher: [_campus('1', 'Oslo')]);
+      final container = _names(switcher: [_campus('1', 'Oslo Nydalen')]);
       final sub = container.listen(benefitCampusNameProvider('1'), (_, _) {});
       addTearDown(sub.close);
-      expect(sub.read(), 'BISO');
-      await container.read(switcherCampusesProvider.future);
+      // The app's own name while the list loads.
       expect(sub.read(), 'Oslo');
+      await container.read(switcherCampusesProvider.future);
+      expect(sub.read(), 'Oslo Nydalen');
     });
 
-    test('an unknown campus, or a failed list, reads "BISO"', () async {
+    test('while the switcher list loads, a known campus has its own name, '
+        'never "BISO"', () {
+      final container = _names(
+        filter: _campus('1', 'Oslo'),
+        switcherLoads: true,
+      );
+      final sub = container.listen(benefitCampusNameProvider('3'), (_, _) {});
+      addTearDown(sub.close);
+      expect(sub.read(), 'Trondheim');
+    });
+
+    test('a failed switcher list still names a known campus', () async {
+      final container = _names(
+        filter: _campus('1', 'Oslo'),
+        switcherFails: true,
+      );
+      final sub = container.listen(benefitCampusNameProvider('3'), (_, _) {});
+      addTearDown(sub.close);
+      await expectLater(
+        container.read(switcherCampusesProvider.future),
+        throwsException,
+      );
+      expect(sub.read(), 'Trondheim');
+    });
+
+    test('a campus no one knows reads "BISO"', () async {
       final container = _names(switcher: [_campus('1', 'Oslo')]);
       final sub = container.listen(benefitCampusNameProvider('9'), (_, _) {});
       addTearDown(sub.close);
@@ -157,7 +195,7 @@ void main() {
       expect(sub.read(), 'BISO');
 
       final failing = _names(switcherFails: true);
-      final failed = failing.listen(benefitCampusNameProvider('1'), (_, _) {});
+      final failed = failing.listen(benefitCampusNameProvider('9'), (_, _) {});
       addTearDown(failed.close);
       await expectLater(
         failing.read(switcherCampusesProvider.future),
