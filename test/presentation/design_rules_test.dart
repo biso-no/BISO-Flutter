@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Files already moved onto the BISO design system. Each migration task adds
 /// its files here, and from then on the rules below hold for them.
 const migratedFiles = <String>[
+  'lib/presentation/screens/auth/continue_with_bi_action.dart',
   'lib/core/theme/biso_page.dart',
   'lib/core/theme/biso_page_header.dart',
   'lib/presentation/widgets/biso/biso_bottom_bar.dart',
