@@ -9,7 +9,7 @@ import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/presentation/screens/benefits/benefits_screen.dart';
 import 'package:biso/presentation/widgets/benefits/benefits_top_card.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart'
-    show BisoEmptyState, BisoErrorState, BisoSkeleton;
+    show BisoEmptyState, BisoErrorState, BisoPageInsets, BisoSkeleton;
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
@@ -17,6 +17,7 @@ import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +25,7 @@ import 'package:go_router/go_router.dart';
 import '../../../helpers/biso_screen_harness.dart';
 import '../../../helpers/fake_member_pass_api.dart'
     show FakeScreenPresentation, activeView;
+import '../../../helpers/membership_fixtures.dart';
 
 class _FakeApi implements BenefitsApi {
   _FakeApi({List<CampusBenefit>? benefits}) : benefits = benefits ?? _all;
@@ -63,8 +65,12 @@ class _FakePass extends MemberPassNotifier {
 }
 
 class _Overview extends MembershipOverviewNotifier {
+  _Overview(this.value);
+
+  final MembershipOverview? value;
+
   @override
-  Future<MembershipOverview?> build() async => null;
+  Future<MembershipOverview?> build() async => value;
 
   @override
   Future<void> refresh({bool force = true}) async {}
@@ -178,6 +184,7 @@ Future<_FakeApi> _pump(
   _FakeApi? api,
   String? campusParam,
   MemberPassView? pass,
+  MembershipOverview? overview,
   AuthState auth = _signedInState,
   Brightness brightness = Brightness.light,
   double textScale = 1,
@@ -212,7 +219,7 @@ Future<_FakeApi> _pump(
       memberPassProvider.overrideWith(
         () => _pass = _FakePass(pass ?? activeView()),
       ),
-      membershipOverviewProvider.overrideWith(_Overview.new),
+      membershipOverviewProvider.overrideWith(() => _Overview(overview)),
       authStateProvider.overrideWith((_) => _Auth(auth)),
       filterCampusStateProvider.overrideWith(
         (_) => _filter = _FilterCampus(_campus('3', 'Trondheim')),
@@ -242,6 +249,35 @@ Future<void> _scrollPastTopCard(WidgetTester tester, {double by = 900}) async {
 Finder _inBar(Finder finder) =>
     find.descendant(of: find.byKey(benefitsStickyBarKey), matching: finder);
 
+/// The campus line naming [campus]. The sheet's rows are plain texts.
+Finder _campusLine(String campus) =>
+    find.textContaining('For BISO-medlemmer i $campus');
+
+/// The campus line's paragraph, "For BISO-medlemmer i …".
+RenderParagraph _campusLineParagraph(WidgetTester tester) =>
+    tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (w) =>
+            w is RichText &&
+            w.text.toPlainText().startsWith('For BISO-medlemmer i '),
+      ),
+    );
+
+double _bottomInset(WidgetTester tester) =>
+    tester.widget<BisoPageInsets>(find.byType(BisoPageInsets)).bottom;
+
+double _scrollExtent(WidgetTester tester) => tester
+    .state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    )
+    .position
+    .maxScrollExtent;
+
 void main() {
   testWidgets('lays out the campus line, top card and the three sections', (
     tester,
@@ -251,7 +287,7 @@ void main() {
 
     expect(api.campuses, ['3']);
     expect(find.text('Fordeler'), findsWidgets);
-    expect(find.text('Trondheim'), findsOneWidget);
+    expect(_campusLine('Trondheim'), findsOneWidget);
     expect(find.byType(BenefitsTopCard), findsOneWidget);
     expect(find.text('Utvalgt'), findsOneWidget);
     expect(find.text('Alle tilbud'), findsOneWidget);
@@ -397,7 +433,7 @@ void main() {
     (tester) async {
       final api = await _pump(tester, campusParam: 'national');
       expect(api.campuses, [null]);
-      expect(find.text('Hele BISO'), findsOneWidget);
+      expect(_campusLine('Hele BISO'), findsOneWidget);
     },
   );
 
@@ -407,7 +443,7 @@ void main() {
     final api = await _pump(tester, campusParam: '1');
     await tester.pump();
     expect(api.campuses, ['1']);
-    expect(find.text('Oslo'), findsOneWidget);
+    expect(_campusLine('Oslo'), findsOneWidget);
   });
 
   testWidgets('switching campus refetches for the new campus and leaves '
@@ -415,14 +451,16 @@ void main() {
     final api = await _pump(tester);
     expect(api.campuses, ['3']);
 
-    await tester.tap(find.text('Trondheim'));
+    await tester.tap(_campusLine('Trondheim'));
     await tester.pumpAndSettle();
+    expect(find.text('Velg campus'), findsOneWidget);
+    expect(find.text('Select Campus'), findsNothing);
     await tester.tap(find.text('Oslo'));
     await tester.pumpAndSettle();
 
     expect(api.campuses, ['3', '1']);
-    expect(find.text('Oslo'), findsOneWidget);
-    expect(find.text('Trondheim'), findsNothing);
+    expect(_campusLine('Oslo'), findsOneWidget);
+    expect(_campusLine('Trondheim'), findsNothing);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(BenefitsScreen)),
     );
@@ -438,7 +476,7 @@ void main() {
     await tester.pump();
     expect(find.text('Club Tempo'), findsNothing);
 
-    await tester.tap(find.text('Trondheim'));
+    await tester.tap(_campusLine('Trondheim'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Oslo'));
     await tester.pumpAndSettle();
@@ -451,7 +489,7 @@ void main() {
     final api = _FakeApi()..pending = Completer();
     await _pump(tester, api: api);
     expect(find.byType(BisoSkeleton), findsWidgets);
-    expect(find.text('Trondheim'), findsOneWidget);
+    expect(_campusLine('Trondheim'), findsOneWidget);
     expect(find.byType(BenefitsTopCard), findsNothing);
 
     api.pending!.completeError(
@@ -485,7 +523,7 @@ void main() {
     expect(find.byType(BenefitsTopCard), findsNothing);
 
     // The student can still switch to a campus with benefits.
-    await tester.tap(find.text('Trondheim'));
+    await tester.tap(_campusLine('Trondheim'));
     await tester.pumpAndSettle();
     expect(find.text('Oslo'), findsOneWidget);
   });
@@ -496,7 +534,7 @@ void main() {
     await _pump(tester, api: api, pass: _notMember);
     expect(find.text(_empty), findsOneWidget);
     expect(find.byType(BisoErrorState), findsNothing);
-    expect(find.text('Trondheim'), findsOneWidget);
+    expect(_campusLine('Trondheim'), findsOneWidget);
     expect(find.text(_join), findsNothing);
   });
 
@@ -565,5 +603,71 @@ void main() {
         await tester.pumpWidget(const SizedBox());
       }
     }
+  });
+
+  testWidgets('at text scale 2.0 the campus name is as large as the line', (
+    tester,
+  ) async {
+    await _pump(tester, textScale: 2);
+    final paragraph = _campusLineParagraph(tester);
+    final plain = paragraph.text.toPlainText();
+    double heightOf(int start, int end) => paragraph
+        .getBoxesForSelection(
+          TextSelection(baseOffset: start, extentOffset: end),
+        )
+        .map((box) => box.toRect().height)
+        .reduce((a, b) => a > b ? a : b);
+
+    final lineHeight = heightOf(0, 1);
+    // Nothing in the line, the name and chevron included, stands taller
+    // than its first letter.
+    expect(heightOf(0, plain.length), lessThanOrEqualTo(lineHeight + 1));
+    final name = plain.indexOf('Trondheim');
+    expect(name, isNonNegative, reason: 'the name is part of the line');
+    expect(
+      heightOf(name, name + 'Trondheim'.length),
+      moreOrLessEquals(lineHeight, epsilon: 1),
+    );
+  });
+
+  testWidgets('the bar leaves no space behind when the student joins', (
+    tester,
+  ) async {
+    // A member who scrolled as far: the grid's lazy rows estimate the
+    // extent from the rows laid out so far.
+    await _pump(tester);
+    await _scrollPastTopCard(tester);
+    final memberInset = _bottomInset(tester);
+    final memberExtent = _scrollExtent(tester);
+    await tester.pumpWidget(const SizedBox());
+
+    await _pump(tester, pass: _notMember);
+    await _scrollPastTopCard(tester);
+    expect(find.byKey(benefitsStickyBarKey), findsOneWidget);
+    expect(_bottomInset(tester), greaterThan(memberInset));
+
+    _pass!.show(activeView());
+    await tester.pumpAndSettle();
+    expect(find.byKey(benefitsStickyBarKey), findsNothing);
+    expect(find.text(_stickyTitle), findsNothing);
+    expect(_bottomInset(tester), memberInset);
+    expect(_scrollExtent(tester), memberExtent);
+  });
+
+  testWidgets('an upcoming member never sees the sticky bar', (tester) async {
+    await _pump(
+      tester,
+      pass: _notMember,
+      overview: membershipOverviewOf(upcoming: [spring2027Semester]),
+    );
+    expect(
+      find.text('Medlemskapet ditt starter 1. januar 2027.'),
+      findsOneWidget,
+    );
+
+    await _scrollPastTopCard(tester);
+    expect(find.text(_stickyTitle), findsNothing);
+    expect(find.byKey(benefitsStickyBarKey), findsNothing);
+    expect(find.text(_join, skipOffstage: false), findsNothing);
   });
 }

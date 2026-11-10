@@ -34,6 +34,9 @@ const _stackPillAbove = 1.3;
 /// Stands in for the campus name while the campus line is split around it.
 const _namePlaceholder = '\u{FFFC}';
 
+/// At normal text size; the text span scales it with the line.
+const _chevronSize = 13.0;
+
 const _loading = [
   SliverToBoxAdapter(child: BisoSkeleton.card()),
   SliverToBoxAdapter(child: BisoSkeleton.grid(count: 4)),
@@ -166,6 +169,7 @@ class _BenefitsScreenState extends ConsumerState<BenefitsScreen> {
     final failed = showcase.hasError && !showcase.isLoading;
     final loaded = failed ? null : showcase.valueOrNull;
     final shown = loaded != null && !loaded.isEmpty ? loaded : null;
+    final eligible = shown != null && info.isNonMember;
 
     final List<Widget> body;
     if (shown != null) {
@@ -210,18 +214,18 @@ class _BenefitsScreenState extends ConsumerState<BenefitsScreen> {
             ),
             ...body,
           ],
-          // Never while checking, after a failed check, or for anyone who
-          // can't join from here.
-          bottomBar: shown != null && info.isNonMember
-              ? _StickyBar(
-                  visible: _pastTopCard,
-                  signedOut: info.standing == BenefitStanding.signedOut,
-                  countLine: l10n.benefitsCountInCampus(
-                    shown.count,
-                    campusName,
-                  ),
-                )
-              : null,
+          // Always mounted: a bar that hides reports no height, while a bar
+          // taken away would leave its space behind. Never shown while
+          // checking, after a failed check, or to anyone who can't join
+          // from here.
+          bottomBar: _StickyBar(
+            eligible: eligible,
+            visible: eligible && _pastTopCard,
+            signedOut: info.standing == BenefitStanding.signedOut,
+            countLine: shown == null
+                ? ''
+                : l10n.benefitsCountInCampus(shown.count, campusName),
+          ),
         ),
       ),
     );
@@ -324,19 +328,6 @@ class _CampusLine extends StatelessWidget {
     final before = parts.first;
     final after = parts.length > 1 ? parts.sublist(1).join() : '';
 
-    final link = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(child: Text(campusName, style: linkStyle)),
-        const SizedBox(width: 2),
-        Icon(
-          CupertinoIcons.chevron_down,
-          size: MediaQuery.textScalerOf(context).scale(13),
-          color: palette.link,
-        ),
-      ],
-    );
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
       child: Align(
@@ -361,10 +352,18 @@ class _CampusLine extends StatelessWidget {
                     style: style,
                     children: [
                       if (before.isNotEmpty) TextSpan(text: before),
+                      TextSpan(text: campusName, style: linkStyle),
+                      // The span scales the chevron with the text, once.
                       WidgetSpan(
-                        alignment: PlaceholderAlignment.baseline,
-                        baseline: TextBaseline.alphabetic,
-                        child: link,
+                        alignment: PlaceholderAlignment.middle,
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.only(start: 2),
+                          child: Icon(
+                            CupertinoIcons.chevron_down,
+                            size: _chevronSize,
+                            color: palette.link,
+                          ),
+                        ),
                       ),
                       if (after.isNotEmpty) TextSpan(text: after),
                     ],
@@ -422,15 +421,22 @@ class _SectionTitle extends StatelessWidget {
 }
 
 /// "Alt dette får du som medlem" on glass above the tab bar, shown once
-/// the top card, with its own button, has scrolled away. It slides in,
-/// unless the reader has asked for less motion.
-class _StickyBar extends StatelessWidget {
+/// the top card, with its own button, has scrolled away. It slides in and
+/// out, unless the reader has asked for less motion. Hidden, it takes no
+/// space and can't be seen, tapped or focused.
+class _StickyBar extends StatefulWidget {
   const _StickyBar({
+    required this.eligible,
     required this.visible,
     required this.signedOut,
     required this.countLine,
   });
 
+  /// This standing and list may see the bar. When it turns false the bar
+  /// goes at once, without sliding out.
+  final bool eligible;
+
+  /// Eligible, and the top card has scrolled away.
   final bool visible;
   final bool signedOut;
 
@@ -438,29 +444,75 @@ class _StickyBar extends StatelessWidget {
   final String countLine;
 
   @override
+  State<_StickyBar> createState() => _StickyBarState();
+}
+
+class _StickyBarState extends State<_StickyBar>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: _stickySlide,
+    value: widget.visible ? 1 : 0,
+  );
+  late final _curve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+    reverseCurve: Curves.easeInCubic,
+  );
+  late final _slide = Tween(
+    begin: const Offset(0, 0.3),
+    end: Offset.zero,
+  ).animate(_curve);
+
+  @override
+  void didUpdateWidget(_StickyBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.eligible) {
+      if (_controller.isAnimating || _controller.value != 0) {
+        _controller.value = 0;
+      }
+    } else if (widget.visible != oldWidget.visible) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _controller.value = widget.visible ? 1 : 0;
+      } else if (widget.visible) {
+        unawaited(_controller.forward());
+      } else {
+        // Reverse, not animateTo(0): only reverse ends dismissed.
+        unawaited(_controller.reverse());
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bar = visible
-        ? _Bar(
-            key: benefitsStickyBarKey,
-            signedOut: signedOut,
-            countLine: countLine,
-          )
-        : const SizedBox.shrink();
-    if (MediaQuery.disableAnimationsOf(context)) return bar;
-    return AnimatedSwitcher(
-      duration: _stickySlide,
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) => FadeTransition(
-        opacity: animation,
-        child: SlideTransition(
-          position: Tween(
-            begin: const Offset(0, 0.3),
-            end: Offset.zero,
-          ).animate(animation),
-          child: child,
+    final hidden = !widget.visible;
+    final bar = FadeTransition(
+      opacity: _curve,
+      child: SlideTransition(
+        position: _slide,
+        child: _Bar(
+          key: benefitsStickyBarKey,
+          signedOut: widget.signedOut,
+          countLine: widget.countLine,
         ),
       ),
+    );
+    return AnimatedBuilder(
+      animation: _controller,
+      // Sliding out, it is already gone for taps and screen readers.
+      builder: (context, child) => _controller.isDismissed
+          ? const SizedBox.shrink()
+          : IgnorePointer(
+              ignoring: hidden,
+              child: ExcludeSemantics(excluding: hidden, child: child),
+            ),
       child: bar,
     );
   }

@@ -85,7 +85,7 @@ class _CampusSwitcherModal extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Select Campus',
+                      AppLocalizations.of(context)!.selectCampusMessage,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         color: palette.ink,
                       ),
