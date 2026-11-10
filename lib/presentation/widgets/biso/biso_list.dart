@@ -161,6 +161,7 @@ class BisoListRow extends StatelessWidget {
     this.subtitle,
     this.leading,
     this.value,
+    this.valueColor,
     this.trailing,
     this.showChevron,
     this.onTap,
@@ -177,6 +178,9 @@ class BisoListRow extends StatelessWidget {
 
   /// Right-aligned secondary text, such as a setting's current value.
   final String? value;
+
+  /// The colour of [value]; muted unless the value is a link.
+  final Color? valueColor;
   final Widget? trailing;
 
   /// Defaults to true when the row is tappable and has no [trailing].
@@ -242,7 +246,9 @@ class BisoListRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.end,
-                      style: text.bodyLarge?.copyWith(color: palette.muted),
+                      style: text.bodyLarge?.copyWith(
+                        color: valueColor ?? palette.muted,
+                      ),
                     ),
                   ),
                 ],

@@ -173,6 +173,65 @@ class BenefitBadge extends StatelessWidget {
   }
 }
 
+/// How strongly BISO blue tints a chip on the page. Kept low enough that
+/// `palette.link` text on the tint, over `palette.paper`, stays at 4.5:1 or
+/// more in both themes.
+const benefitLinkTintAlpha = 0.06;
+
+/// The BISO-blue fill behind a chip on the page.
+Color benefitLinkTint(BisoPalette palette) =>
+    palette.link.withValues(alpha: benefitLinkTintAlpha);
+
+/// A small rounded chip: an icon and a one-line label.
+class BenefitPill extends StatelessWidget {
+  const BenefitPill({
+    required this.icon,
+    required this.label,
+    required this.background,
+    required this.foreground,
+    this.iconColor,
+    super.key,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  /// Defaults to [foreground].
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: iconColor ?? foreground),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 /// Why a deal is among the picks, as a chip with an icon.
 class BenefitReasonChip extends StatelessWidget {
   const BenefitReasonChip({
@@ -185,45 +244,20 @@ class BenefitReasonChip extends StatelessWidget {
   final FeaturedReason reason;
   final CampusBenefit benefit;
 
-  /// True on a photo or navy panel, false on a plain surface.
+  /// True on a photo or navy panel. False on the page, where it is tinted
+  /// BISO blue.
   final bool onImage;
 
   @override
   Widget build(BuildContext context) {
     final palette = BisoPalette.of(context);
     final l10n = AppLocalizations.of(context)!;
-    final foreground = onImage ? palette.deepMuted : palette.muted;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: onImage ? palette.deep : palette.surfaceRaised,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              benefitReasonIcon(reason),
-              size: 13,
-              color: onImage ? palette.sky : palette.link,
-            ),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                benefitReasonLabel(reason, benefit, l10n),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return BenefitPill(
+      icon: benefitReasonIcon(reason),
+      label: benefitReasonLabel(reason, benefit, l10n),
+      background: onImage ? palette.deep : benefitLinkTint(palette),
+      foreground: onImage ? palette.deepMuted : palette.link,
+      iconColor: onImage ? palette.sky : palette.link,
     );
   }
 }

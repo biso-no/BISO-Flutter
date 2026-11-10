@@ -1,3 +1,4 @@
+import 'package:biso/core/theme/biso_colors.dart';
 import 'package:biso/core/utils/benefit_highlight.dart';
 import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
@@ -24,8 +25,78 @@ CampusBenefit _benefit({
   redemptionType: BenefitRedemptionType.none,
 );
 
+/// The WCAG 2 contrast ratio between two opaque colours.
+double _contrast(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  final hi = la > lb ? la : lb;
+  final lo = la > lb ? lb : la;
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 void main() {
   final nb = lookupAppLocalizations(const Locale('no'));
+
+  for (final (name, palette) in [
+    ('light', BisoPalette.light),
+    ('dark', BisoPalette.dark),
+  ]) {
+    test('blue text on the blue chip tint reads at 4.5:1 or more ($name)', () {
+      final fill = Color.alphaBlend(benefitLinkTint(palette), palette.paper);
+      expect(_contrast(palette.link, fill), greaterThanOrEqualTo(4.5));
+    });
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets('on the page the reason chip is tinted BISO blue '
+        '($brightness)', (tester) async {
+      await pumpBisoScreen(
+        tester,
+        BenefitReasonChip(
+          reason: FeaturedReason.pickedByBiso,
+          benefit: _benefit(),
+          onImage: false,
+        ),
+        inShell: false,
+        brightness: brightness,
+        locale: const Locale('no'),
+      );
+      final palette = brightness == Brightness.dark
+          ? BisoPalette.dark
+          : BisoPalette.light;
+      final label = tester.widget<Text>(find.text('Valgt av BISO'));
+      expect(label.style?.color, palette.link);
+      final icon = tester.widget<Icon>(find.byIcon(CupertinoIcons.star_fill));
+      expect(icon.color, palette.link);
+      final box = tester.widget<DecoratedBox>(
+        find.ancestor(
+          of: find.text('Valgt av BISO'),
+          matching: find.byType(DecoratedBox),
+        ),
+      );
+      expect((box.decoration as BoxDecoration).color, benefitLinkTint(palette));
+    });
+  }
+
+  testWidgets('on a photo the reason chip stays navy with a sky icon', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      BenefitReasonChip(reason: FeaturedReason.isNew, benefit: _benefit()),
+      inShell: false,
+      locale: const Locale('no'),
+    );
+    const palette = BisoPalette.light;
+    expect(
+      tester.widget<Text>(find.text('Nytt')).style?.color,
+      palette.deepMuted,
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(CupertinoIcons.sparkles)).color,
+      palette.sky,
+    );
+  });
 
   test('badge and value text use Norwegian number style', () {
     expect(

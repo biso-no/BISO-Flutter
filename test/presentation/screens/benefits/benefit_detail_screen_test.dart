@@ -10,13 +10,15 @@ import 'package:biso/presentation/screens/benefits/benefit_detail_screen.dart';
 import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_action_panel.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_visuals.dart';
-import 'package:biso/presentation/widgets/biso/biso.dart' show BisoSkeleton;
+import 'package:biso/presentation/widgets/biso/biso.dart'
+    show BisoPalette, BisoSkeleton;
 import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -98,6 +100,51 @@ CampusBenefit _deal({
   publishEnd: end,
 );
 
+/// The app's overrides for the deal page. [campus] stands in for the Home
+/// campus (`filterCampusProvider` and `campusInitializedProvider`).
+List<Override> _overrides(
+  _FakeApi api, {
+  MemberPassView? pass,
+  List<Uri>? opened,
+  List<Override>? campus,
+}) => [
+  benefitsApiProvider.overrideWithValue(api),
+  memberPassProvider.overrideWith(() => _FakePass(pass ?? activeView())),
+  membershipOverviewProvider.overrideWith(_Overview.new),
+  screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
+  benefitClockProvider.overrideWithValue(() => DateTime.utc(2026, 11, 10, 12)),
+  ...(campus ??
+      [
+        filterCampusProvider.overrideWithValue(_campus('3', 'Trondheim')),
+        campusInitializedProvider.overrideWithValue(true),
+      ]),
+  switcherCampusesProvider.overrideWith(
+    (_) async => [_campus('1', 'Oslo'), _campus('3', 'Trondheim')],
+  ),
+  if (opened != null)
+    benefitLinkOpenerProvider.overrideWithValue((uri) async {
+      opened.add(uri);
+      return true;
+    }),
+];
+
+/// Stands in for a deal the page pushes.
+final _dealStub = GoRoute(
+  path: '/explore/benefits/:benefitId',
+  builder: (_, state) => Scaffold(
+    body: Text(
+      'deal ${state.pathParameters['benefitId']} '
+      '${state.uri.queryParameters['campus']} '
+      '${(state.extra as CampusBenefit?)?.id}',
+    ),
+  ),
+);
+
+final _membershipStub = GoRoute(
+  path: '/profile/membership',
+  builder: (_, _) => const Scaffold(body: Text('membership page')),
+);
+
 Future<_FakeApi> _pump(
   WidgetTester tester, {
   _FakeApi? api,
@@ -121,42 +168,36 @@ Future<_FakeApi> _pump(
     locale: const Locale('no'),
     textScale: textScale,
     brightness: brightness,
-    extraRoutes: [
-      GoRoute(
-        path: '/explore/benefits/:benefitId',
-        builder: (_, state) => Scaffold(
-          body: Text(
-            'deal ${state.pathParameters['benefitId']} '
-            '${state.uri.queryParameters['campus']} '
-            '${(state.extra as CampusBenefit?)?.id}',
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/profile/membership',
-        builder: (_, _) => const Scaffold(body: Text('membership page')),
-      ),
-    ],
-    overrides: [
-      benefitsApiProvider.overrideWithValue(fake),
-      memberPassProvider.overrideWith(() => _FakePass(pass ?? activeView())),
-      membershipOverviewProvider.overrideWith(_Overview.new),
-      screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
-      benefitClockProvider.overrideWithValue(
-        () => DateTime.utc(2026, 11, 10, 12),
-      ),
-      filterCampusProvider.overrideWithValue(_campus('3', 'Trondheim')),
-      switcherCampusesProvider.overrideWith(
-        (_) async => [_campus('1', 'Oslo'), _campus('3', 'Trondheim')],
-      ),
-      if (opened != null)
-        benefitLinkOpenerProvider.overrideWithValue((uri) async {
-          opened.add(uri);
-          return true;
-        }),
-    ],
+    extraRoutes: [_dealStub, _membershipStub],
+    overrides: _overrides(fake, pass: pass, opened: opened),
   );
   return fake;
+}
+
+/// Opens [location] through the app's own deal route, the way a link does.
+Future<_FakeApi> _open(
+  WidgetTester tester,
+  String location, {
+  required _FakeApi api,
+  List<Override>? campus,
+}) async {
+  await pumpBisoScreen(
+    tester,
+    const Text('start'),
+    routed: true,
+    locale: const Locale('no'),
+    extraRoutes: [
+      GoRoute(
+        path: '/explore/benefits',
+        builder: (_, _) => const SizedBox.shrink(),
+        routes: [benefitDetailRoute()],
+      ),
+    ],
+    overrides: _overrides(api, campus: campus),
+  );
+  GoRouter.of(tester.element(find.text('start'))).go(location);
+  await tester.pumpAndSettle();
+  return api;
 }
 
 /// The page body, without the compact title in the header.
@@ -617,6 +658,136 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.byType(MemberPassPresentation), findsOneWidget);
+  });
+
+  group('the deal route', () {
+    testWidgets('a bare link looks the deal up on the Home campus', (
+      tester,
+    ) async {
+      final api = await _open(
+        tester,
+        '/explore/benefits/b1',
+        api: _FakeApi(benefits: [_deal()]),
+      );
+      expect(api.campuses, ['3']);
+      expect(_body(find.text(_title)), findsOneWidget);
+    });
+
+    testWidgets('"national" is the all-of-BISO list', (tester) async {
+      final api = await _open(
+        tester,
+        '/explore/benefits/b1?campus=national',
+        api: _FakeApi(benefits: [_deal(campusId: '5')]),
+      );
+      expect(api.campuses, [null]);
+      expect(_body(find.text(_title)), findsOneWidget);
+    });
+
+    testWidgets('a named campus is that campus', (tester) async {
+      final api = await _open(
+        tester,
+        '/explore/benefits/b1?campus=1',
+        api: _FakeApi(benefits: [_deal(campusId: '1')]),
+      );
+      expect(api.campuses, ['1']);
+    });
+
+    testWidgets('a bare link waits for the Home campus to load', (
+      tester,
+    ) async {
+      final ready = StateProvider<bool>((_) => false);
+      final api = await _open(
+        tester,
+        '/explore/benefits/b1',
+        api: _FakeApi(benefits: [_deal()]),
+        campus: [
+          campusInitializedProvider.overrideWith((ref) => ref.watch(ready)),
+          filterCampusProvider.overrideWith(
+            (ref) =>
+                ref.watch(ready) ? _campus('3', 'Trondheim') : _campus('', ''),
+          ),
+        ],
+      );
+      expect(find.byType(BisoSkeleton), findsOneWidget);
+      expect(find.text(_gone), findsNothing);
+      expect(api.campuses, isEmpty);
+
+      ProviderScope.containerOf(
+        tester.element(find.byType(BisoSkeleton)),
+      ).read(ready.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(api.campuses, ['3']);
+      expect(_body(find.text(_title)), findsOneWidget);
+    });
+
+    testWidgets('a bare link with no Home campus uses all of BISO', (
+      tester,
+    ) async {
+      final api = await _open(
+        tester,
+        '/explore/benefits/b1',
+        api: _FakeApi(benefits: [_deal(campusId: '5')]),
+        campus: [
+          filterCampusProvider.overrideWithValue(_campus('', '')),
+          campusInitializedProvider.overrideWithValue(true),
+        ],
+      );
+      expect(api.campuses, [null]);
+      expect(_body(find.text(_title)), findsOneWidget);
+    });
+  });
+
+  testWidgets('the website is written in BISO blue', (tester) async {
+    await _pump(
+      tester,
+      initial: _deal(
+        partner: const BenefitPartner(
+          id: 'p1',
+          name: 'Graffi',
+          websiteUrl: 'https://graffi.no',
+        ),
+      ),
+    );
+    final value = tester.widget<Text>(find.text('graffi.no'));
+    expect(value.style?.color, BisoPalette.light.link);
+    final valid = tester.widget<Text>(find.text('Til videre'));
+    expect(valid.style?.color, BisoPalette.light.muted);
+  });
+
+  testWidgets('a "Mer innen" card is one button: title and deal', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final deal = _deal();
+    await _pump(
+      tester,
+      api: _FakeApi(
+        benefits: [
+          deal,
+          _deal(id: 'b2', title: 'Egon Solsiden'),
+          _deal(id: 'b3', title: 'Bowl', description: null),
+        ],
+      ),
+      initial: deal,
+    );
+    await _scrollTo(tester, _moreRow);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Egon Solsiden, $_quarterOff')),
+      isSemantics(
+        label: 'Egon Solsiden, $_quarterOff',
+        isButton: true,
+        hasTapAction: true,
+      ),
+    );
+    // No discount: the title alone.
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Bowl')),
+      isSemantics(isButton: true, hasTapAction: true),
+    );
+    // The badge and the lines are not read again on their own.
+    expect(find.bySemanticsLabel('Egon Solsiden'), findsNothing);
+    expect(find.bySemanticsLabel('−25\u00a0%'), findsNothing);
+    semantics.dispose();
   });
 
   for (final brightness in Brightness.values) {

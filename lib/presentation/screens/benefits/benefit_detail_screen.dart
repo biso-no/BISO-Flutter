@@ -16,6 +16,7 @@ import '../../../data/services/benefits_api_client.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/benefits/benefit_showcase.dart';
 import '../../../providers/benefits/benefits_providers.dart';
+import '../../../providers/campus/campus_provider.dart';
 import '../../widgets/benefits/benefit_action_panel.dart';
 import '../../widgets/benefits/benefit_visuals.dart';
 import '../../widgets/biso/biso.dart';
@@ -26,6 +27,77 @@ const _imageHeight = 300.0;
 const _gutter = 20.0;
 const _moreLimit = 8;
 const _moreSize = 140.0;
+
+const _loading = SliverPadding(
+  padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+  sliver: SliverToBoxAdapter(child: BisoSkeleton.card()),
+);
+
+/// Back to the benefits list for [campusParam], also after a cold link.
+BisoBackButton _backTo(BuildContext context, String? campusParam) =>
+    BisoBackButton(
+      onPressed: () => NavigationUtils.safeGoBack(
+        context,
+        fallbackRoute: benefitsRoute(campusParam: campusParam),
+      ),
+    );
+
+/// `/:benefitId` under `/explore/benefits`.
+///
+/// `?campus=` names the list the deal was opened from, [nationalCampusParam]
+/// for all of BISO. A bare link from outside the app uses the Home campus,
+/// whose list holds the all-of-BISO deals too.
+GoRoute benefitDetailRoute() => GoRoute(
+  path: '/:benefitId',
+  name: 'benefit-detail',
+  builder: (context, state) {
+    final extra = state.extra;
+    return _BenefitDetailRoute(
+      benefitId: state.pathParameters['benefitId']!,
+      campusParam: state.uri.queryParameters['campus'],
+      initial: extra is CampusBenefit ? extra : null,
+    );
+  },
+);
+
+class _BenefitDetailRoute extends ConsumerWidget {
+  const _BenefitDetailRoute({
+    required this.benefitId,
+    required this.campusParam,
+    required this.initial,
+  });
+
+  final String benefitId;
+  final String? campusParam;
+  final CampusBenefit? initial;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final param = campusParam;
+    if (param != null) {
+      return BenefitDetailScreen(
+        benefitId: benefitId,
+        campusId: campusIdFromParam(param),
+        initial: initial,
+      );
+    }
+    final home = ref.watch(filterCampusProvider.select((c) => c.id));
+    // Looking in the all-of-BISO list meanwhile could call a campus deal
+    // gone, so wait for the Home campus.
+    if (home.isEmpty && !ref.watch(campusInitializedProvider)) {
+      return BisoPage(
+        largeTitle: false,
+        leading: _backTo(context, null),
+        slivers: const [_loading],
+      );
+    }
+    return BenefitDetailScreen(
+      benefitId: benefitId,
+      campusId: home.isEmpty ? null : home,
+      initial: initial,
+    );
+  }
+}
 
 /// One deal, opened from the benefits screen, Home, the member pass or a
 /// link.
@@ -53,12 +125,7 @@ class BenefitDetailScreen extends ConsumerWidget {
     final showcase = ref.watch(benefitShowcaseProvider(campusId));
     final loaded = showcase.valueOrNull;
     final benefit = _find(loaded, benefitId) ?? initial;
-    final back = BisoBackButton(
-      onPressed: () => NavigationUtils.safeGoBack(
-        context,
-        fallbackRoute: benefitsRoute(campusParam: pinnedCampusParam(campusId)),
-      ),
-    );
+    final back = _backTo(context, pinnedCampusParam(campusId));
 
     if (benefit == null) {
       return BisoPage(
@@ -133,10 +200,7 @@ class BenefitDetailScreen extends ConsumerWidget {
       ),
     );
     return showcase.when(
-      loading: () => const SliverPadding(
-        padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-        sliver: SliverToBoxAdapter(child: BisoSkeleton.card()),
-      ),
+      loading: () => _loading,
       error: (error, _) {
         // An older API without the route can never find it.
         if (error is BenefitsApiException &&
@@ -286,33 +350,11 @@ class _Chips extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.surfaceRaised,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(benefitCategoryIcon(key), size: 13, color: palette.ink),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    benefitCategoryLabel(key, l10n),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.ink,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        BenefitPill(
+          icon: benefitCategoryIcon(key),
+          label: benefitCategoryLabel(key, l10n),
+          background: palette.surfaceRaised,
+          foreground: palette.ink,
         ),
         if (reason != null)
           BenefitReasonChip(reason: reason, benefit: benefit, onImage: false),
@@ -498,6 +540,7 @@ class _InfoGroup extends ConsumerWidget {
             leading: const BisoIconTile(icon: CupertinoIcons.globe),
             title: l10n.benefitsWebsite,
             value: _displayHost(website),
+            valueColor: BisoPalette.of(context).link,
             onTap: () => unawaited(_open(context, ref, website, l10n)),
           ),
         if (terms != null) _TermsRow(title: l10n.benefitsTerms, terms: terms),
@@ -630,20 +673,30 @@ class _MoreCard extends StatelessWidget {
         ? null
         : richContentToPlainText(description).trim();
     final radius = BorderRadius.circular(18);
+    final title = benefit.title.resolve(language) ?? '';
+    void open() => unawaited(
+      context.push(
+        benefitRoute(benefit.id, campusId: campusId),
+        extra: benefit,
+      ),
+    );
 
     return SizedBox(
       width: _moreSize,
-      child: MergeSemantics(
+      // One button, read as its title and the deal: "GoBowl, 15 %".
+      child: Semantics(
+        button: true,
+        label: [
+          title,
+          if (highlight != null) benefitHighlightValue(highlight, l10n),
+        ].join(', '),
+        onTap: open,
+        excludeSemantics: true,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             borderRadius: radius,
-            onTap: () => unawaited(
-              context.push(
-                benefitRoute(benefit.id, campusId: campusId),
-                extra: benefit,
-              ),
-            ),
+            onTap: open,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -677,7 +730,7 @@ class _MoreCard extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: Text(
-                    benefit.title.resolve(language) ?? '',
+                    title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: text.titleSmall?.copyWith(color: palette.ink),
