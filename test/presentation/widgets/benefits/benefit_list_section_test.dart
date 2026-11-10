@@ -7,7 +7,6 @@ import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/data/models/user_model.dart';
 import 'package:biso/data/services/auth_service.dart';
 import 'package:biso/data/services/benefits_api_client.dart';
-import 'package:biso/presentation/widgets/benefits/benefit_detail_sheet.dart';
 import 'package:biso/presentation/screens/profile/member_pass_presentation.dart';
 import 'package:biso/presentation/widgets/benefits/benefit_list_section.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart' show BisoSkeleton;

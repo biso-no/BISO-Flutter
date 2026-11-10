@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/campus_benefit.dart';
@@ -18,12 +17,6 @@ import '../../../providers/member_pass/member_pass_session.dart';
 import '../../screens/profile/member_pass_presentation.dart';
 import '../biso/biso.dart';
 import '../premium/premium_html_renderer.dart';
-
-/// Opens a link outside the app. A provider so tests can see what opens.
-final benefitLinkOpenerProvider = Provider<Future<bool> Function(Uri)>(
-  (ref) =>
-      (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
-);
 
 /// Opens [benefit] in a sheet. The code or link a member reveals there
 /// lives in the sheet's own state and goes when the sheet closes.

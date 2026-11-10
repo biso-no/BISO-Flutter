@@ -1,10 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/models/campus_benefit.dart';
 import '../../data/services/benefits_api_client.dart';
 import 'benefit_showcase.dart';
 
 final benefitsApiProvider = Provider<BenefitsApi>((ref) => BenefitsApiClient());
+
+/// Opens a link outside the app. A provider so tests can see what opens.
+final benefitLinkOpenerProvider = Provider<Future<bool> Function(Uri)>(
+  (ref) =>
+      (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
+);
 
 /// The benefits for a campus (null: national only), in the API's order.
 ///

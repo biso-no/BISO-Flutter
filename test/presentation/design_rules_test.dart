@@ -65,6 +65,7 @@ const migratedFiles = <String>[
   'lib/presentation/widgets/benefits/benefit_list_section.dart',
   'lib/presentation/widgets/benefits/benefit_detail_sheet.dart',
   'lib/presentation/widgets/benefits/benefit_visuals.dart',
+  'lib/presentation/widgets/benefits/benefit_action_panel.dart',
   'lib/presentation/screens/profile/member_pass_presentation.dart',
   'lib/presentation/screens/profile/member_pass_screen.dart',
   'lib/presentation/widgets/member_pass/member_pass_row.dart',
