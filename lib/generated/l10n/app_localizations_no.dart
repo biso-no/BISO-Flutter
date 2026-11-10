@@ -3028,22 +3028,10 @@ class AppLocalizationsNo extends AppLocalizations {
   String get benefitsYourBenefits => 'Dine fordeler';
 
   @override
-  String get benefitsShowCode => 'Vis kode';
-
-  @override
-  String get benefitsOpenLink => 'Åpne lenken';
-
-  @override
-  String get benefitsShowCard => 'Vis medlemskortet i kassa';
-
-  @override
   String get benefitsCopy => 'Kopier';
 
   @override
   String get benefitsCopied => 'Kopiert';
-
-  @override
-  String get benefitsMembersOnly => 'Koden vises bare for medlemmer.';
 
   @override
   String get benefitsBecomeMember => 'Bli medlem';
@@ -3060,14 +3048,6 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get benefitsTerms => 'Vilkår';
-
-  @override
-  String benefitsValidUntil(String date) {
-    return 'Gjelder til $date';
-  }
-
-  @override
-  String get benefitsSignIn => 'Logg inn for å se koden';
 
   @override
   String get benefitsLinkFailed => 'Klarte ikke å åpne lenken. Prøv igjen.';

@@ -1,6 +1,8 @@
 import 'package:biso/data/models/campus_benefit.dart';
+import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/providers/benefits/benefits_providers.dart';
+import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,6 +17,32 @@ class _CountingApi implements BenefitsApi {
 
   @override
   Future<String> reveal(String benefitId) => throw UnimplementedError();
+}
+
+CampusModel _campus(String id, String name) => CampusModel(
+  id: id,
+  name: name,
+  description: '',
+  location: name,
+  imageUrl: '',
+  heroImageUrl: '',
+  stats: const CampusStats(),
+);
+
+ProviderContainer _names({
+  List<CampusModel> switcher = const [],
+  bool switcherFails = false,
+}) {
+  final container = ProviderContainer(
+    overrides: [
+      filterCampusProvider.overrideWithValue(_campus('3', 'Trondheim')),
+      switcherCampusesProvider.overrideWith(
+        (_) async => switcherFails ? throw Exception('offline') : switcher,
+      ),
+    ],
+  );
+  addTearDown(container.dispose);
+  return container;
 }
 
 void main() {
@@ -52,5 +80,44 @@ void main() {
     sub.close();
 
     expect(api.fetches, 1);
+  });
+
+  group('benefitCampusNameProvider', () {
+    test('all of BISO has no name: the widgets say "Hele BISO"', () {
+      final container = _names();
+      expect(container.read(benefitCampusNameProvider(null)), '');
+      expect(container.read(benefitCampusNameProvider('5')), '');
+    });
+
+    test('the filter campus names itself without a fetch', () {
+      final container = _names(switcherFails: true);
+      expect(container.read(benefitCampusNameProvider('3')), 'Trondheim');
+    });
+
+    test('another campus takes its name from the switcher list', () async {
+      final container = _names(switcher: [_campus('1', 'Oslo')]);
+      final sub = container.listen(benefitCampusNameProvider('1'), (_, _) {});
+      addTearDown(sub.close);
+      expect(sub.read(), 'BISO');
+      await container.read(switcherCampusesProvider.future);
+      expect(sub.read(), 'Oslo');
+    });
+
+    test('an unknown campus, or a failed list, reads "BISO"', () async {
+      final container = _names(switcher: [_campus('1', 'Oslo')]);
+      final sub = container.listen(benefitCampusNameProvider('9'), (_, _) {});
+      addTearDown(sub.close);
+      await container.read(switcherCampusesProvider.future);
+      expect(sub.read(), 'BISO');
+
+      final failing = _names(switcherFails: true);
+      final failed = failing.listen(benefitCampusNameProvider('1'), (_, _) {});
+      addTearDown(failed.close);
+      await expectLater(
+        failing.read(switcherCampusesProvider.future),
+        throwsException,
+      );
+      expect(failed.read(), 'BISO');
+    });
   });
 }

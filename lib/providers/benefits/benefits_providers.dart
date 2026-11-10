@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/models/campus_benefit.dart';
 import '../../data/services/benefits_api_client.dart';
+import '../campus/campus_provider.dart';
 import 'benefit_showcase.dart';
 
 final benefitsApiProvider = Provider<BenefitsApi>((ref) => BenefitsApiClient());
@@ -43,3 +44,24 @@ final benefitShowcaseProvider = Provider.autoDispose
             ),
           ),
     );
+
+/// The campus row the API keeps all-of-BISO benefits under.
+const nationalBenefitCampusId = '5';
+
+/// The name to show for a benefits campus. Empty for all of BISO (null or
+/// the national campus): widgets show `benefitsAllOfBiso` for it.
+final benefitCampusNameProvider = Provider.autoDispose.family<String, String?>((
+  ref,
+  campusId,
+) {
+  if (campusId == null || campusId == nationalBenefitCampusId) return '';
+  final filterName = ref.watch(
+    filterCampusProvider.select((c) => c.id == campusId ? c.name : null),
+  );
+  if (filterName != null) return filterName;
+  final campuses = ref.watch(switcherCampusesProvider).valueOrNull;
+  for (final campus in campuses ?? const []) {
+    if (campus.id == campusId) return campus.name;
+  }
+  return 'BISO';
+});

@@ -5487,24 +5487,6 @@ abstract class AppLocalizations {
   /// **'Your benefits'**
   String get benefitsYourBenefits;
 
-  /// No description provided for @benefitsShowCode.
-  ///
-  /// In en, this message translates to:
-  /// **'Show code'**
-  String get benefitsShowCode;
-
-  /// No description provided for @benefitsOpenLink.
-  ///
-  /// In en, this message translates to:
-  /// **'Open the link'**
-  String get benefitsOpenLink;
-
-  /// No description provided for @benefitsShowCard.
-  ///
-  /// In en, this message translates to:
-  /// **'Show your membership card at the checkout'**
-  String get benefitsShowCard;
-
   /// No description provided for @benefitsCopy.
   ///
   /// In en, this message translates to:
@@ -5516,12 +5498,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copied'**
   String get benefitsCopied;
-
-  /// No description provided for @benefitsMembersOnly.
-  ///
-  /// In en, this message translates to:
-  /// **'The code is only shown to members.'**
-  String get benefitsMembersOnly;
 
   /// No description provided for @benefitsBecomeMember.
   ///
@@ -5552,18 +5528,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Terms'**
   String get benefitsTerms;
-
-  /// No description provided for @benefitsValidUntil.
-  ///
-  /// In en, this message translates to:
-  /// **'Valid until {date}'**
-  String benefitsValidUntil(String date);
-
-  /// No description provided for @benefitsSignIn.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign in to see the code'**
-  String get benefitsSignIn;
 
   /// No description provided for @benefitsLinkFailed.
   ///

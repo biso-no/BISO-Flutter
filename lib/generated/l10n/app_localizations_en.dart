@@ -3020,22 +3020,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get benefitsYourBenefits => 'Your benefits';
 
   @override
-  String get benefitsShowCode => 'Show code';
-
-  @override
-  String get benefitsOpenLink => 'Open the link';
-
-  @override
-  String get benefitsShowCard => 'Show your membership card at the checkout';
-
-  @override
   String get benefitsCopy => 'Copy';
 
   @override
   String get benefitsCopied => 'Copied';
-
-  @override
-  String get benefitsMembersOnly => 'The code is only shown to members.';
 
   @override
   String get benefitsBecomeMember => 'Become a member';
@@ -3052,14 +3040,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitsTerms => 'Terms';
-
-  @override
-  String benefitsValidUntil(String date) {
-    return 'Valid until $date';
-  }
-
-  @override
-  String get benefitsSignIn => 'Sign in to see the code';
 
   @override
   String get benefitsLinkFailed => 'Couldn\'t open the link. Try again.';

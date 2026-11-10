@@ -3,14 +3,15 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../data/models/campus_benefit.dart';
 import '../../../data/services/benefits_api_client.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/benefits/benefits_providers.dart';
+import '../../screens/benefits/benefits_routes.dart';
 import '../biso/biso.dart';
-import 'benefit_detail_sheet.dart';
 
 /// "Dine fordeler": the member benefits for the student's campus, on the
 /// member pass screen. A box widget; put it in a SliverToBoxAdapter.
@@ -69,7 +70,10 @@ class BenefitListSection extends ConsumerWidget {
                   title: benefit.title.resolve(language) ?? '',
                   subtitle: benefit.partner?.name,
                   onTap: () => unawaited(
-                    showBenefitDetailSheet(context, benefit: benefit),
+                    context.push(
+                      benefitRoute(benefit.id, campusId: campusId),
+                      extra: benefit,
+                    ),
                   ),
                 ),
             ],

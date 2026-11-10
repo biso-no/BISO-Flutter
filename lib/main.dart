@@ -42,6 +42,9 @@ import 'presentation/screens/explore/unit_detail_screen.dart';
 import 'presentation/screens/explore/departures_screen.dart';
 import 'presentation/screens/explore/campus_detail_screen.dart';
 import 'presentation/screens/ai_chat/ai_chat_screen.dart';
+import 'presentation/screens/benefits/benefit_detail_screen.dart';
+import 'presentation/screens/benefits/benefits_routes.dart';
+import 'data/models/campus_benefit.dart';
 import 'presentation/screens/profile/membership_screen.dart';
 import 'presentation/screens/profile/member_pass_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
@@ -458,6 +461,29 @@ final _router = GoRouter(
                       },
                     ),
                   ],
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/benefits',
+              name: 'benefits',
+              // A placeholder until the benefits screen takes this route.
+              builder: (context, state) => const SizedBox.shrink(),
+              routes: [
+                GoRoute(
+                  path: '/:benefitId',
+                  name: 'benefit-detail',
+                  builder: (context, state) {
+                    final extra = state.extra;
+                    return BenefitDetailScreen(
+                      benefitId: state.pathParameters['benefitId']!,
+                      campusId: campusIdFromParam(
+                        state.uri.queryParameters['campus'] ??
+                            nationalCampusParam,
+                      ),
+                      initial: extra is CampusBenefit ? extra : null,
+                    );
+                  },
                 ),
               ],
             ),
