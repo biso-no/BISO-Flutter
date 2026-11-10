@@ -5666,6 +5666,366 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t save your answer. Try again.'**
   String get eventRsvpSaveFailed;
+
+  /// No description provided for @benefitsScreenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Benefits'**
+  String get benefitsScreenTitle;
+
+  /// No description provided for @benefitsCampusLine.
+  ///
+  /// In en, this message translates to:
+  /// **'For BISO members in {campus}'**
+  String benefitsCampusLine(String campus);
+
+  /// No description provided for @benefitsAllOfBiso.
+  ///
+  /// In en, this message translates to:
+  /// **'All of BISO'**
+  String get benefitsAllOfBiso;
+
+  /// No description provided for @benefitsTopNonMember.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{benefit is waiting for you as a BISO member in {campus}} other{benefits are waiting for you as a BISO member in {campus}}}'**
+  String benefitsTopNonMember(int count, String campus);
+
+  /// No description provided for @benefitsTopMember.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{benefit is yours in {campus}} other{benefits are yours in {campus}}}'**
+  String benefitsTopMember(int count, String campus);
+
+  /// No description provided for @benefitsTopNeutral.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{benefit for BISO members in {campus}} other{benefits for BISO members in {campus}}}'**
+  String benefitsTopNeutral(int count, String campus);
+
+  /// No description provided for @benefitsMoreLogos.
+  ///
+  /// In en, this message translates to:
+  /// **'+ {count} more'**
+  String benefitsMoreLogos(int count);
+
+  /// No description provided for @benefitsYouAreMember.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re a member'**
+  String get benefitsYouAreMember;
+
+  /// No description provided for @benefitsMemberValidUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid until {date}'**
+  String benefitsMemberValidUntil(String date);
+
+  /// No description provided for @benefitsShowCardShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Show card'**
+  String get benefitsShowCardShort;
+
+  /// No description provided for @benefitsSignInAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get benefitsSignInAction;
+
+  /// No description provided for @benefitsFeatured.
+  ///
+  /// In en, this message translates to:
+  /// **'Featured'**
+  String get benefitsFeatured;
+
+  /// No description provided for @benefitsReasonPicked.
+  ///
+  /// In en, this message translates to:
+  /// **'Picked by BISO'**
+  String get benefitsReasonPicked;
+
+  /// No description provided for @benefitsReasonEnds.
+  ///
+  /// In en, this message translates to:
+  /// **'Ends {date}'**
+  String benefitsReasonEnds(String date);
+
+  /// No description provided for @benefitsReasonNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get benefitsReasonNew;
+
+  /// No description provided for @benefitsAllDeals.
+  ///
+  /// In en, this message translates to:
+  /// **'All deals'**
+  String get benefitsAllDeals;
+
+  /// No description provided for @benefitsCategoryAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get benefitsCategoryAll;
+
+  /// No description provided for @benefitsCategoryFoodDrink.
+  ///
+  /// In en, this message translates to:
+  /// **'Food & drink'**
+  String get benefitsCategoryFoodDrink;
+
+  /// No description provided for @benefitsCategoryHealthFitness.
+  ///
+  /// In en, this message translates to:
+  /// **'Health & fitness'**
+  String get benefitsCategoryHealthFitness;
+
+  /// No description provided for @benefitsCategoryNightlife.
+  ///
+  /// In en, this message translates to:
+  /// **'Nightlife'**
+  String get benefitsCategoryNightlife;
+
+  /// No description provided for @benefitsCategoryShopping.
+  ///
+  /// In en, this message translates to:
+  /// **'Shopping'**
+  String get benefitsCategoryShopping;
+
+  /// No description provided for @benefitsCategoryTravel.
+  ///
+  /// In en, this message translates to:
+  /// **'Travel'**
+  String get benefitsCategoryTravel;
+
+  /// No description provided for @benefitsCategorySoftware.
+  ///
+  /// In en, this message translates to:
+  /// **'Software'**
+  String get benefitsCategorySoftware;
+
+  /// No description provided for @benefitsCategoryEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Events'**
+  String get benefitsCategoryEvents;
+
+  /// No description provided for @benefitsCategoryOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get benefitsCategoryOther;
+
+  /// No description provided for @benefitsClaimCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Show your card'**
+  String get benefitsClaimCard;
+
+  /// No description provided for @benefitsClaimCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Discount code'**
+  String get benefitsClaimCode;
+
+  /// No description provided for @benefitsClaimLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Link'**
+  String get benefitsClaimLink;
+
+  /// No description provided for @benefitsMembersOnlyShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Members only'**
+  String get benefitsMembersOnlyShort;
+
+  /// No description provided for @benefitsMoreThanDiscounts.
+  ///
+  /// In en, this message translates to:
+  /// **'More than discounts'**
+  String get benefitsMoreThanDiscounts;
+
+  /// No description provided for @benefitsSectionCareer.
+  ///
+  /// In en, this message translates to:
+  /// **'Career advantages'**
+  String get benefitsSectionCareer;
+
+  /// No description provided for @benefitsSectionSocial.
+  ///
+  /// In en, this message translates to:
+  /// **'Social network'**
+  String get benefitsSectionSocial;
+
+  /// No description provided for @benefitsSectionSafety.
+  ///
+  /// In en, this message translates to:
+  /// **'Safety & support'**
+  String get benefitsSectionSafety;
+
+  /// No description provided for @benefitsStickyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'All this comes with membership'**
+  String get benefitsStickyTitle;
+
+  /// No description provided for @benefitsCountInCampus.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{{count} benefit in {campus}} other{{count} benefits in {campus}}}'**
+  String benefitsCountInCampus(int count, String campus);
+
+  /// No description provided for @benefitsLockedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'BISO members only'**
+  String get benefitsLockedTitle;
+
+  /// No description provided for @benefitsLockedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{Join to use this deal.} =1{Join to use this deal and 1 other benefit in {campus}.} other{Join to use this deal and {count} other benefits in {campus}.}}'**
+  String benefitsLockedBody(int count, String campus);
+
+  /// No description provided for @benefitsLockedSignedOutBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in and join to use this deal.'**
+  String get benefitsLockedSignedOutBody;
+
+  /// No description provided for @benefitsUseAtTillTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show your membership card at the till'**
+  String get benefitsUseAtTillTitle;
+
+  /// No description provided for @benefitsUseAtTillBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the card before you pay to get the discount.'**
+  String get benefitsUseAtTillBody;
+
+  /// No description provided for @benefitsShowMemberCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Show membership card'**
+  String get benefitsShowMemberCard;
+
+  /// No description provided for @benefitsRevealCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Show discount code'**
+  String get benefitsRevealCode;
+
+  /// No description provided for @benefitsOpenDeal.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the deal'**
+  String get benefitsOpenDeal;
+
+  /// No description provided for @benefitsYourCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Your discount code'**
+  String get benefitsYourCode;
+
+  /// No description provided for @benefitsCodeNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The code is for BISO members only.'**
+  String get benefitsCodeNote;
+
+  /// No description provided for @benefitsToShop.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to shop'**
+  String get benefitsToShop;
+
+  /// No description provided for @benefitsMemberHasIt.
+  ///
+  /// In en, this message translates to:
+  /// **'You have this benefit as a member.'**
+  String get benefitsMemberHasIt;
+
+  /// No description provided for @benefitsUpcomingPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Your membership starts {date}. You can use the deal from then.'**
+  String benefitsUpcomingPanel(String date);
+
+  /// No description provided for @benefitsDiscountForMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'member discount'**
+  String get benefitsDiscountForMembers;
+
+  /// No description provided for @benefitsFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get benefitsFree;
+
+  /// No description provided for @benefitsAboutDeal.
+  ///
+  /// In en, this message translates to:
+  /// **'About the deal'**
+  String get benefitsAboutDeal;
+
+  /// No description provided for @benefitsValid.
+  ///
+  /// In en, this message translates to:
+  /// **'Valid'**
+  String get benefitsValid;
+
+  /// No description provided for @benefitsUntilDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Until {date}'**
+  String benefitsUntilDate(String date);
+
+  /// No description provided for @benefitsUntilFurther.
+  ///
+  /// In en, this message translates to:
+  /// **'Until further notice'**
+  String get benefitsUntilFurther;
+
+  /// No description provided for @benefitsWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Website'**
+  String get benefitsWebsite;
+
+  /// No description provided for @benefitsMoreInCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'More in {category}'**
+  String benefitsMoreInCategory(String category);
+
+  /// No description provided for @benefitsForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Benefits for you'**
+  String get benefitsForYou;
+
+  /// No description provided for @benefitsMemberBenefits.
+  ///
+  /// In en, this message translates to:
+  /// **'Member benefits'**
+  String get benefitsMemberBenefits;
+
+  /// No description provided for @benefitsMemberBenefitsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discounts and deals for members'**
+  String get benefitsMemberBenefitsSubtitle;
+
+  /// No description provided for @benefitsSeeWhatYouGet.
+  ///
+  /// In en, this message translates to:
+  /// **'See what you get'**
+  String get benefitsSeeWhatYouGet;
 }
 
 class _AppLocalizationsDelegate

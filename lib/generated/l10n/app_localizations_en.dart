@@ -3118,4 +3118,242 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventRsvpSaveFailed => 'Couldn\'t save your answer. Try again.';
+
+  @override
+  String get benefitsScreenTitle => 'Benefits';
+
+  @override
+  String benefitsCampusLine(String campus) {
+    return 'For BISO members in $campus';
+  }
+
+  @override
+  String get benefitsAllOfBiso => 'All of BISO';
+
+  @override
+  String benefitsTopNonMember(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'benefits are waiting for you as a BISO member in $campus',
+      one: 'benefit is waiting for you as a BISO member in $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String benefitsTopMember(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'benefits are yours in $campus',
+      one: 'benefit is yours in $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String benefitsTopNeutral(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'benefits for BISO members in $campus',
+      one: 'benefit for BISO members in $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String benefitsMoreLogos(int count) {
+    return '+ $count more';
+  }
+
+  @override
+  String get benefitsYouAreMember => 'You\'re a member';
+
+  @override
+  String benefitsMemberValidUntil(String date) {
+    return 'Valid until $date';
+  }
+
+  @override
+  String get benefitsShowCardShort => 'Show card';
+
+  @override
+  String get benefitsSignInAction => 'Sign in';
+
+  @override
+  String get benefitsFeatured => 'Featured';
+
+  @override
+  String get benefitsReasonPicked => 'Picked by BISO';
+
+  @override
+  String benefitsReasonEnds(String date) {
+    return 'Ends $date';
+  }
+
+  @override
+  String get benefitsReasonNew => 'New';
+
+  @override
+  String get benefitsAllDeals => 'All deals';
+
+  @override
+  String get benefitsCategoryAll => 'All';
+
+  @override
+  String get benefitsCategoryFoodDrink => 'Food & drink';
+
+  @override
+  String get benefitsCategoryHealthFitness => 'Health & fitness';
+
+  @override
+  String get benefitsCategoryNightlife => 'Nightlife';
+
+  @override
+  String get benefitsCategoryShopping => 'Shopping';
+
+  @override
+  String get benefitsCategoryTravel => 'Travel';
+
+  @override
+  String get benefitsCategorySoftware => 'Software';
+
+  @override
+  String get benefitsCategoryEvents => 'Events';
+
+  @override
+  String get benefitsCategoryOther => 'Other';
+
+  @override
+  String get benefitsClaimCard => 'Show your card';
+
+  @override
+  String get benefitsClaimCode => 'Discount code';
+
+  @override
+  String get benefitsClaimLink => 'Link';
+
+  @override
+  String get benefitsMembersOnlyShort => 'Members only';
+
+  @override
+  String get benefitsMoreThanDiscounts => 'More than discounts';
+
+  @override
+  String get benefitsSectionCareer => 'Career advantages';
+
+  @override
+  String get benefitsSectionSocial => 'Social network';
+
+  @override
+  String get benefitsSectionSafety => 'Safety & support';
+
+  @override
+  String get benefitsStickyTitle => 'All this comes with membership';
+
+  @override
+  String benefitsCountInCampus(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count benefits in $campus',
+      one: '$count benefit in $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get benefitsLockedTitle => 'BISO members only';
+
+  @override
+  String benefitsLockedBody(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Join to use this deal and $count other benefits in $campus.',
+      one: 'Join to use this deal and 1 other benefit in $campus.',
+      zero: 'Join to use this deal.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get benefitsLockedSignedOutBody =>
+      'Sign in and join to use this deal.';
+
+  @override
+  String get benefitsUseAtTillTitle => 'Show your membership card at the till';
+
+  @override
+  String get benefitsUseAtTillBody =>
+      'Show the card before you pay to get the discount.';
+
+  @override
+  String get benefitsShowMemberCard => 'Show membership card';
+
+  @override
+  String get benefitsRevealCode => 'Show discount code';
+
+  @override
+  String get benefitsOpenDeal => 'Open the deal';
+
+  @override
+  String get benefitsYourCode => 'Your discount code';
+
+  @override
+  String get benefitsCodeNote => 'The code is for BISO members only.';
+
+  @override
+  String get benefitsToShop => 'Go to shop';
+
+  @override
+  String get benefitsMemberHasIt => 'You have this benefit as a member.';
+
+  @override
+  String benefitsUpcomingPanel(String date) {
+    return 'Your membership starts $date. You can use the deal from then.';
+  }
+
+  @override
+  String get benefitsDiscountForMembers => 'member discount';
+
+  @override
+  String get benefitsFree => 'Free';
+
+  @override
+  String get benefitsAboutDeal => 'About the deal';
+
+  @override
+  String get benefitsValid => 'Valid';
+
+  @override
+  String benefitsUntilDate(String date) {
+    return 'Until $date';
+  }
+
+  @override
+  String get benefitsUntilFurther => 'Until further notice';
+
+  @override
+  String get benefitsWebsite => 'Website';
+
+  @override
+  String benefitsMoreInCategory(String category) {
+    return 'More in $category';
+  }
+
+  @override
+  String get benefitsForYou => 'Benefits for you';
+
+  @override
+  String get benefitsMemberBenefits => 'Member benefits';
+
+  @override
+  String get benefitsMemberBenefitsSubtitle =>
+      'Discounts and deals for members';
+
+  @override
+  String get benefitsSeeWhatYouGet => 'See what you get';
 }
