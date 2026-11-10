@@ -1,6 +1,12 @@
 import 'package:biso/data/models/member_pass.dart';
 import 'package:biso/providers/benefits/benefit_standing.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
+import 'dart:async';
+
+import 'package:biso/providers/member_pass/member_pass_provider.dart';
+import 'package:biso/providers/membership/membership_overview_provider.dart';
+import 'package:biso/data/models/membership_overview.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/fake_member_pass_api.dart';
@@ -15,20 +21,23 @@ void main() {
     expect(info.validUntil, view.pass!.holder.expiryDate);
   });
 
-  final cases = <String, (MemberPassView, DateTime?, BenefitStanding)>{
+  final cases = <String, (MemberPassView, DateTime?, bool, BenefitStanding)>{
     'signedOut': (
       const MemberPassView(status: PassStatus.signedOut),
       null,
+      false,
       BenefitStanding.signedOut,
     ),
     'loading': (
       const MemberPassView(status: PassStatus.loading),
       null,
+      false,
       BenefitStanding.checking,
     ),
     'reconnect': (
       const MemberPassView(status: PassStatus.reconnect),
       null,
+      false,
       BenefitStanding.unavailable,
     ),
     'noBiIdentity': (
@@ -37,6 +46,7 @@ void main() {
         noPassState: NoPassState.noBiIdentity,
       ),
       null,
+      false,
       BenefitStanding.needsBi,
     ),
     'notMember': (
@@ -45,6 +55,7 @@ void main() {
         noPassState: NoPassState.notMember,
       ),
       null,
+      false,
       BenefitStanding.notMember,
     ),
     'expired': (
@@ -53,6 +64,7 @@ void main() {
         noPassState: NoPassState.expired,
       ),
       null,
+      false,
       BenefitStanding.notMember,
     ),
     'notMember with upcoming': (
@@ -61,6 +73,7 @@ void main() {
         noPassState: NoPassState.notMember,
       ),
       upcoming,
+      false,
       BenefitStanding.upcoming,
     ),
     'unavailable': (
@@ -69,19 +82,67 @@ void main() {
         noPassState: NoPassState.unavailable,
       ),
       null,
+      false,
       BenefitStanding.unavailable,
     ),
     'noPass without state': (
       const MemberPassView(status: PassStatus.noPass),
       null,
+      false,
       BenefitStanding.unavailable,
+    ),
+    'expired with upcoming': (
+      const MemberPassView(
+        status: PassStatus.noPass,
+        noPassState: NoPassState.expired,
+      ),
+      upcoming,
+      false,
+      BenefitStanding.upcoming,
+    ),
+    'notMember, overview pending': (
+      const MemberPassView(
+        status: PassStatus.noPass,
+        noPassState: NoPassState.notMember,
+      ),
+      null,
+      true,
+      BenefitStanding.checking,
+    ),
+    'expired, overview pending': (
+      const MemberPassView(
+        status: PassStatus.noPass,
+        noPassState: NoPassState.expired,
+      ),
+      null,
+      true,
+      BenefitStanding.checking,
+    ),
+    'noBiIdentity, overview pending': (
+      const MemberPassView(
+        status: PassStatus.noPass,
+        noPassState: NoPassState.noBiIdentity,
+      ),
+      null,
+      true,
+      BenefitStanding.needsBi,
+    ),
+    'active, overview pending': (
+      activeView(),
+      null,
+      true,
+      BenefitStanding.member,
     ),
   };
 
   for (final entry in cases.entries) {
     test('maps ${entry.key}', () {
-      final (view, start, expected) = entry.value;
-      final info = benefitStandingFrom(view, upcomingStart: start);
+      final (view, start, pending, expected) = entry.value;
+      final info = benefitStandingFrom(
+        view,
+        upcomingStart: start,
+        overviewPending: pending,
+      );
       expect(info.standing, expected);
       if (expected == BenefitStanding.upcoming) {
         expect(info.upcomingStart, start);
@@ -98,4 +159,39 @@ void main() {
       );
     }
   });
+
+  test('a notMember pass waits for the overview before saying so', () async {
+    final completer = Completer<MembershipOverview?>();
+    final container = ProviderContainer(
+      overrides: [
+        memberPassProvider.overrideWith(
+          () => FixedMemberPass(
+            const MemberPassView(
+              status: PassStatus.noPass,
+              noPassState: NoPassState.notMember,
+            ),
+          ),
+        ),
+        membershipOverviewProvider.overrideWith(
+          () => _PendingOverview(completer),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final sub = container.listen(benefitStandingProvider, (_, _) {});
+    addTearDown(sub.close);
+
+    expect(sub.read().standing, BenefitStanding.checking);
+    completer.complete(null);
+    await container.read(membershipOverviewProvider.future);
+    expect(sub.read().standing, BenefitStanding.notMember);
+  });
+}
+
+class _PendingOverview extends MembershipOverviewNotifier {
+  _PendingOverview(this.completer);
+  final Completer<MembershipOverview?> completer;
+
+  @override
+  Future<MembershipOverview?> build() => completer.future;
 }

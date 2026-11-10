@@ -43,6 +43,7 @@ class BenefitStandingInfo extends Equatable {
 BenefitStandingInfo benefitStandingFrom(
   MemberPassView view, {
   DateTime? upcomingStart,
+  bool overviewPending = false,
 }) => switch (view.status) {
   PassStatus.active => BenefitStandingInfo(
     BenefitStanding.member,
@@ -57,6 +58,11 @@ BenefitStandingInfo benefitStandingFrom(
     NoPassState.noBiIdentity => const BenefitStandingInfo(
       BenefitStanding.needsBi,
     ),
+    // The overview may still reveal a paid membership that starts later, so
+    // "not a member" waits for it.
+    NoPassState.notMember || NoPassState.expired
+        when overviewPending && upcomingStart == null =>
+      const BenefitStandingInfo(BenefitStanding.checking),
     NoPassState.notMember || NoPassState.expired =>
       upcomingStart == null
           ? const BenefitStandingInfo(BenefitStanding.notMember)
@@ -79,9 +85,17 @@ final benefitStandingProvider = Provider.autoDispose<BenefitStandingInfo>((
       (o) => o.valueOrNull?.upcomingMembership?.startDate,
     ),
   );
+  // Loading with nothing to show yet. An error falls back to the pass.
+  final pending = ref.watch(
+    membershipOverviewProvider.select((o) => !o.hasValue && o.isLoading),
+  );
   return ref.watch(
     memberPassProvider.select(
-      (v) => benefitStandingFrom(v, upcomingStart: start),
+      (v) => benefitStandingFrom(
+        v,
+        upcomingStart: start,
+        overviewPending: pending,
+      ),
     ),
   );
 });
