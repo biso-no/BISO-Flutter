@@ -77,6 +77,8 @@ class _BenefitActionPanelState extends ConsumerState<BenefitActionPanel> {
   }
 
   Future<void> _doReveal() async {
+    // One reveal at a time, however fast the taps come.
+    if (_reveal == _Reveal.loading) return;
     final type = widget.benefit.redemptionType;
     setState(() => _reveal = _Reveal.loading);
     try {
@@ -255,10 +257,15 @@ class _BenefitActionPanelState extends ConsumerState<BenefitActionPanel> {
       );
     }
 
+    final actionLabel = switch (type) {
+      BenefitRedemptionType.onsite => l10n.benefitsShowMemberCard,
+      BenefitRedemptionType.link => l10n.benefitsOpenDeal,
+      _ => l10n.benefitsRevealCode,
+    };
+
+    // Neutral: no copy that reads as either answer, only a waiting pill.
     if (standing == BenefitStanding.checking) {
-      return type == BenefitRedemptionType.onsite
-          ? const _TillCard(onPressed: null, busy: true)
-          : const _Pill(onPressed: null, busy: true);
+      return _Pill(label: actionLabel, onPressed: null, busy: true);
     }
     if (standing == BenefitStanding.unavailable ||
         _reveal == _Reveal.unavailable) {
@@ -292,9 +299,7 @@ class _BenefitActionPanelState extends ConsumerState<BenefitActionPanel> {
 
     final loading = _reveal == _Reveal.loading;
     return _Pill(
-      label: type == BenefitRedemptionType.link
-          ? l10n.benefitsOpenDeal
-          : l10n.benefitsRevealCode,
+      label: actionLabel,
       busy: loading,
       onPressed: loading ? null : () => unawaited(_doReveal()),
     );
@@ -308,11 +313,15 @@ class _BenefitActionPanelState extends ConsumerState<BenefitActionPanel> {
 }
 
 /// A full-width pill in the theme's primary colour, or a spinner while
-/// [busy].
+/// [busy]. The spinner still reads as [label] to a screen reader.
 class _Pill extends StatelessWidget {
-  const _Pill({this.label, required this.onPressed, this.busy = false});
+  const _Pill({
+    required this.label,
+    required this.onPressed,
+    this.busy = false,
+  });
 
-  final String? label;
+  final String label;
   final VoidCallback? onPressed;
   final bool busy;
 
@@ -321,12 +330,16 @@ class _Pill extends StatelessWidget {
     width: double.infinity,
     child: FilledButton(
       onPressed: onPressed,
-      child: busy || label == null
-          ? const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
+      child: busy
+          ? Semantics(
+              label: label,
+              excludeSemantics: true,
+              child: const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             )
-          : Text(label!, textAlign: TextAlign.center),
+          : Text(label, textAlign: TextAlign.center),
     ),
   );
 }
@@ -474,10 +487,9 @@ class _Header extends StatelessWidget {
 
 /// A member's onsite deal: show the card at the till.
 class _TillCard extends StatelessWidget {
-  const _TillCard({required this.onPressed, this.busy = false});
+  const _TillCard({required this.onPressed});
 
-  final VoidCallback? onPressed;
-  final bool busy;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -490,11 +502,7 @@ class _TillCard extends StatelessWidget {
           body: l10n.benefitsUseAtTillBody,
         ),
         const SizedBox(height: 16),
-        _Pill(
-          label: l10n.benefitsShowMemberCard,
-          onPressed: onPressed,
-          busy: busy,
-        ),
+        _Pill(label: l10n.benefitsShowMemberCard, onPressed: onPressed),
       ],
     );
   }

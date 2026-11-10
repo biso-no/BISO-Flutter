@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:biso/core/theme/biso_page.dart';
 import 'package:biso/data/models/campus_benefit.dart';
 import 'package:biso/data/models/member_pass.dart';
@@ -32,6 +34,9 @@ class _FakeApi implements BenefitsApi {
   final BenefitsApiException? revealError;
   final revealed = <String>[];
 
+  /// When set, reveals wait for it.
+  Completer<String>? pending;
+
   @override
   Future<List<CampusBenefit>> fetchBenefits({String? campusId}) async =>
       const [];
@@ -39,6 +44,8 @@ class _FakeApi implements BenefitsApi {
   @override
   Future<String> reveal(String benefitId) async {
     revealed.add(benefitId);
+    final wait = pending;
+    if (wait != null) return wait.future;
     if (revealError != null) throw revealError!;
     return revealResult;
   }
@@ -359,6 +366,81 @@ void main() {
       expect(find.text('Til butikken'), findsNothing);
     });
 
+    testWidgets('a second quick tap does not start another reveal', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final api = _FakeApi()..pending = Completer<String>();
+      await _pump(tester, api: api);
+      await tester.tap(find.text('Vis rabattkode'));
+      await tester.tap(find.text('Vis rabattkode'));
+      await tester.pump();
+      expect(api.revealed, ['b1']);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Vis rabattkode')),
+        isSemantics(
+          label: 'Vis rabattkode',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+        ),
+      );
+      api.pending!.complete('CODE-1234');
+      await tester.pumpAndSettle();
+      expect(find.text('CODE-1234'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('two quick outage retries start one reveal', (tester) async {
+      final api = await _pump(
+        tester,
+        api: _FakeApi(
+          revealError: const BenefitsApiException(
+            BenefitsApiErrorKind.unavailable,
+          ),
+        ),
+      );
+      await tester.tap(find.text('Vis rabattkode'));
+      await tester.pumpAndSettle();
+      expect(find.text(_outage), findsOneWidget);
+
+      api.pending = Completer<String>();
+      await tester.tap(find.text('Prøv igjen'));
+      await tester.tap(find.text('Prøv igjen'));
+      await tester.pump();
+      expect(api.revealed.length, 2);
+
+      api.pending!.complete('CODE-1234');
+      await tester.pumpAndSettle();
+      expect(api.revealed.length, 2);
+      expect(find.text('CODE-1234'), findsOneWidget);
+    });
+
+    testWidgets('two quick link retries start one reveal', (tester) async {
+      final api = await _pump(
+        tester,
+        api: _FakeApi(revealResult: 'https://partner.example/deal'),
+        benefit: _benefit(type: BenefitRedemptionType.link),
+        openerThrows: true,
+      );
+      await tester.tap(find.text('Åpne tilbudet'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Klarte ikke å åpne lenken. Prøv igjen.'),
+        findsOneWidget,
+      );
+
+      api.pending = Completer<String>();
+      await tester.tap(find.text('Prøv igjen'));
+      await tester.tap(find.text('Prøv igjen'));
+      await tester.pump();
+      expect(api.revealed.length, 2);
+
+      api.pending!.complete('https://partner.example/deal');
+      await tester.pumpAndSettle();
+      expect(api.revealed.length, 2);
+    });
+
     testWidgets('closing and reopening the panel forgets the code', (
       tester,
     ) async {
@@ -650,12 +732,14 @@ void main() {
   });
 
   group('checking', () {
-    for (final type in [
-      BenefitRedemptionType.code,
-      BenefitRedemptionType.link,
-      BenefitRedemptionType.onsite,
-    ]) {
-      testWidgets('$type: a disabled pill with a spinner', (tester) async {
+    final labels = {
+      BenefitRedemptionType.code: 'Vis rabattkode',
+      BenefitRedemptionType.link: 'Åpne tilbudet',
+      BenefitRedemptionType.onsite: 'Vis medlemskortet',
+    };
+    for (final MapEntry(key: type, value: label) in labels.entries) {
+      testWidgets('$type: only a disabled pill with a spinner', (tester) async {
+        final semantics = tester.ensureSemantics();
         final api = await _pump(
           tester,
           benefit: _benefit(type: type),
@@ -670,10 +754,27 @@ void main() {
           ),
           findsOneWidget,
         );
+        // Neutral: no copy that reads as either answer.
+        expect(_panelText, findsNothing);
+        expect(find.text('Vis medlemskortet i kassen'), findsNothing);
+        expect(
+          find.text('Vis kortet før du betaler, så får du rabatten.'),
+          findsNothing,
+        );
         expect(find.text('Bli medlem'), findsNothing);
         expect(find.text(_locked), findsNothing);
         expect(find.text(_outage), findsNothing);
+        expect(
+          tester.getSemantics(find.bySemanticsLabel(label)),
+          isSemantics(
+            label: label,
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+          ),
+        );
         expect(api.revealed, isEmpty);
+        semantics.dispose();
       });
     }
 
