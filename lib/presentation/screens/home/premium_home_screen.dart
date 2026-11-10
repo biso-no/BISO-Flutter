@@ -17,12 +17,12 @@ import '../../../providers/large_event/large_event_provider.dart';
 import '../../../data/services/event_service.dart';
 import '../../../data/services/job_service.dart';
 import '../../../data/services/webshop_service.dart';
-import '../../../data/models/campus_model.dart';
 import '../../../data/models/event_model.dart';
 import '../../../data/models/job_model.dart';
 import '../../../data/models/webshop_product_model.dart';
 import '../../../data/models/news_model.dart';
 import '../../../providers/news/news_provider.dart';
+import '../../widgets/campus/campus_switcher_sheet.dart';
 import '../../widgets/home/news_carousel.dart';
 import '../auth/login_screen.dart';
 
@@ -361,143 +361,18 @@ class PremiumHomePage extends ConsumerWidget {
   }
 
   void _showCampusSwitcher(BuildContext context, WidgetRef ref) {
-    showBisoSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Consumer(
-        builder: (context, ref, child) {
-          final selectedCampus = ref.watch(filterCampusProvider);
-          final allCampusesAsync = ref.watch(switcherCampusesProvider);
-          return allCampusesAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Text(
-                AppLocalizations.of(context)!.failedToLoadCampusesMessage,
-              ),
-            ),
-            data: (allCampuses) => _CampusSwitcherModal(
-              selectedCampus: selectedCampus,
-              allCampuses: allCampuses,
-              onCampusSelected: (campus) {
-                ref
-                    .read(filterCampusStateProvider.notifier)
-                    .selectFilterCampus(campus);
-                Navigator.pop(context);
-              },
-            ),
-          );
-        },
-      ),
+    showCampusSwitcher(
+      context,
+      selectedCampusId: ref.read(filterCampusProvider).id,
+      onSelected: (campus) {
+        ref.read(filterCampusStateProvider.notifier).selectFilterCampus(campus);
+      },
     );
   }
 }
 
 // Old _PremiumHeroSection and _CampusButton classes removed
 // They have been replaced by the DynamicHeroCarousel widget
-
-// === CAMPUS SWITCHER MODAL ===
-
-class _CampusSwitcherModal extends StatelessWidget {
-  final CampusModel selectedCampus;
-  final List<CampusModel> allCampuses;
-  final ValueChanged<CampusModel> onCampusSelected;
-
-  const _CampusSwitcherModal({
-    required this.selectedCampus,
-    required this.allCampuses,
-    required this.onCampusSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = BisoPalette.of(context);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 12, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: palette.hairline,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Select Campus',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: palette.ink,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(CupertinoIcons.xmark, color: palette.muted),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              BisoListGroup(
-                children: [
-                  for (final campus in allCampuses)
-                    _CampusModalCard(
-                      campus: campus,
-                      isSelected: campus.id == selectedCampus.id,
-                      onTap: () => onCampusSelected(campus),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// === CAMPUS MODAL CARD ===
-
-class _CampusModalCard extends StatelessWidget {
-  final CampusModel campus;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _CampusModalCard({
-    required this.campus,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = BisoPalette.of(context);
-    return BisoListRow(
-      title: campus.name,
-      trailing: isSelected
-          ? Icon(CupertinoIcons.checkmark, color: palette.link)
-          : null,
-      onTap: onTap,
-    );
-  }
-}
 
 // === AUTH REQUIRED PAGE ===
 
