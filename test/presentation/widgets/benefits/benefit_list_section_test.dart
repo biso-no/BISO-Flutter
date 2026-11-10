@@ -97,6 +97,10 @@ Future<_FakeApi> _pump(
     locale: const Locale('no'),
     extraRoutes: [
       GoRoute(
+        path: '/explore/benefits',
+        builder: (_, state) => Scaffold(body: Text('benefits ${state.uri}')),
+      ),
+      GoRoute(
         path: '/explore/benefits/:benefitId',
         builder: (_, state) => Scaffold(
           body: Text(
@@ -157,6 +161,44 @@ void main() {
     );
     expect(find.text('Dine fordeler'), findsNothing);
     expect(find.text('Prøv igjen'), findsNothing);
+    expect(find.text('Vis alle'), findsNothing);
+  });
+
+  testWidgets(
+    'member pass "Vis alle" pushes /explore/benefits?campus=<profile campus>',
+    (tester) async {
+      await _pump(tester, api: _FakeApi(benefits: [_benefit()]));
+      await tester.tap(find.widgetWithText(TextButton, 'Vis alle'));
+      await tester.pumpAndSettle();
+      expect(find.text('benefits /explore/benefits?campus=2'), findsOneWidget);
+    },
+  );
+
+  testWidgets('with no profile campus "Vis alle" pins all of BISO', (
+    tester,
+  ) async {
+    await _pump(tester, api: _FakeApi(benefits: [_benefit()]), user: null);
+    await tester.tap(find.widgetWithText(TextButton, 'Vis alle'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('benefits /explore/benefits?campus=national'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('"Vis alle" stays with an empty list or another error', (
+    tester,
+  ) async {
+    await _pump(tester, api: _FakeApi());
+    expect(find.text('Vis alle'), findsOneWidget);
+
+    await _pump(
+      tester,
+      api: _FakeApi(
+        listError: const BenefitsApiException(BenefitsApiErrorKind.network),
+      ),
+    );
+    expect(find.text('Vis alle'), findsOneWidget);
   });
 
   testWidgets('another list error shows a retry that reloads', (tester) async {
@@ -196,6 +238,7 @@ void main() {
       ],
     );
     expect(find.text('Dine fordeler'), findsOneWidget);
+    expect(find.text('Vis alle'), findsOneWidget);
     expect(find.byType(BisoSkeleton), findsOneWidget);
     completer.complete(const []);
     await tester.pumpAndSettle();

@@ -82,6 +82,52 @@ void main() {
     expect(api.fetches, 1);
   });
 
+  group('benefitsNotDeployedProvider', () {
+    Future<List<bool>> seen(Future<List<CampusBenefit>> Function() load) async {
+      final container = ProviderContainer(
+        overrides: [campusBenefitsProvider('3').overrideWith((_) => load())],
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(benefitsNotDeployedProvider('3'), (_, _) {});
+      addTearDown(sub.close);
+      final values = <bool>[sub.read()];
+      try {
+        await container.read(campusBenefitsProvider('3').future);
+      } on Object {
+        // The error is what's being read.
+      }
+      values.add(sub.read());
+      return values;
+    }
+
+    test('true once the API turns out to have no benefits route', () async {
+      expect(
+        await seen(
+          () async => throw const BenefitsApiException(
+            BenefitsApiErrorKind.notDeployed,
+            statusCode: 404,
+          ),
+        ),
+        [false, true],
+      );
+    });
+
+    test(
+      'false while loading, with a list, and after any other error',
+      () async {
+        expect(await seen(() async => const []), [false, false]);
+        expect(
+          await seen(
+            () async =>
+                throw const BenefitsApiException(BenefitsApiErrorKind.network),
+          ),
+          [false, false],
+        );
+        expect(await seen(() async => throw Exception('boom')), [false, false]);
+      },
+    );
+  });
+
   group('benefitCampusNameProvider', () {
     test('all of BISO has no name: the widgets say "Hele BISO"', () {
       final container = _names();

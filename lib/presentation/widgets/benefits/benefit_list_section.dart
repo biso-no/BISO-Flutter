@@ -28,17 +28,29 @@ class BenefitListSection extends ConsumerWidget {
       authStateProvider.select((s) => s.user?.campusId),
     );
     final benefits = ref.watch(campusBenefitsProvider(campusId));
+    // The benefits screen on the same campus, all of BISO included.
+    final viewAll = TextButton(
+      onPressed: () => unawaited(
+        context.push(benefitsRoute(campusParam: pinnedCampusParam(campusId))),
+      ),
+      child: Text(l10n.viewAllMessage),
+    );
+    Widget frame(Widget child) => BisoSection(
+      title: l10n.benefitsYourBenefits,
+      action: viewAll,
+      padding: _padding,
+      child: child,
+    );
 
     return benefits.when(
-      loading: () => _frame(l10n, const BisoSkeleton.rows(count: 3)),
+      loading: () => frame(const BisoSkeleton.rows(count: 3)),
       error: (error, _) {
         // An older API without the route: the section simply isn't there.
         if (error is BenefitsApiException &&
             error.kind == BenefitsApiErrorKind.notDeployed) {
           return const SizedBox.shrink();
         }
-        return _frame(
-          l10n,
+        return frame(
           BisoErrorState(
             onRetry: () => ref.invalidate(campusBenefitsProvider(campusId)),
           ),
@@ -50,8 +62,7 @@ class BenefitListSection extends ConsumerWidget {
             if (b.section == BenefitSection.member) b,
         ];
         if (member.isEmpty) {
-          return _frame(
-            l10n,
+          return frame(
             BisoEmptyState(
               icon: CupertinoIcons.gift,
               title: l10n.benefitsEmpty,
@@ -59,8 +70,7 @@ class BenefitListSection extends ConsumerWidget {
           );
         }
         final language = Localizations.localeOf(context).languageCode;
-        return _frame(
-          l10n,
+        return frame(
           BisoListGroup(
             dividerIndent: 68,
             children: [
@@ -82,12 +92,6 @@ class BenefitListSection extends ConsumerWidget {
       },
     );
   }
-
-  Widget _frame(AppLocalizations l10n, Widget child) => BisoSection(
-    title: l10n.benefitsYourBenefits,
-    padding: _padding,
-    child: child,
-  );
 }
 
 /// The partner's logo, or its initials when there is none (or it won't load).

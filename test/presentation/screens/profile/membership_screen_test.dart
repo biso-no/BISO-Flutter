@@ -1,15 +1,23 @@
+import 'dart:async';
+
+import 'package:biso/data/models/campus_benefit.dart';
+import 'package:biso/data/models/campus_model.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:biso/data/models/payment_provider.dart';
 import 'package:biso/data/models/user_model.dart';
+import 'package:biso/data/services/benefits_api_client.dart';
 import 'package:biso/data/services/bi_sign_in_service.dart';
 import 'package:biso/data/services/bi_sync_api_client.dart';
 import 'package:biso/presentation/screens/profile/membership_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/auth/bi_sign_in_provider.dart';
+import 'package:biso/providers/benefits/benefits_providers.dart';
+import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/membership/membership_checkout_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +31,17 @@ const _user = UserModel(
   id: 'u1',
   name: 'Ola Nordmann',
   email: 'ola@example.com',
+);
+
+/// The Home campus.
+const _trondheim = CampusModel(
+  id: '3',
+  name: 'Trondheim',
+  description: '',
+  location: 'Trondheim',
+  imageUrl: '',
+  heroImageUrl: '',
+  stats: CampusStats(),
 );
 
 class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
@@ -146,9 +165,16 @@ void main() {
   late _FakeBiSignIn bi;
   late _Auth auth;
 
-  List<Override> overrides(MembershipOverview? value) {
+  List<Override> overrides(
+    MembershipOverview? value, {
+    Future<List<CampusBenefit>> Function()? benefits,
+  }) {
     overview = _FixedOverview(value);
     return [
+      filterCampusProvider.overrideWithValue(_trondheim),
+      campusBenefitsProvider(
+        _trondheim.id,
+      ).overrideWith((_) => benefits?.call() ?? Future.value(const [])),
       authStateProvider.overrideWith((_) => auth = _Auth()),
       membershipOverviewProvider.overrideWith(() => overview),
       membershipCheckoutControllerProvider.overrideWith(
@@ -174,6 +200,110 @@ void main() {
         _overview(state: MembershipGateState.eligible, plans: [_plan]),
       ),
     );
+  });
+
+  group('"Se hva du får"', () {
+    Future<void> pump(
+      WidgetTester tester,
+      MembershipOverview value, {
+      Future<List<CampusBenefit>> Function()? benefits,
+    }) async {
+      await pumpBisoScreen(
+        tester,
+        const MembershipScreen(),
+        overrides: overrides(value, benefits: benefits),
+        routed: true,
+        locale: const Locale('no'),
+        extraRoutes: [
+          GoRoute(
+            path: '/explore/benefits',
+            builder: (_, state) =>
+                Scaffold(body: Text('benefits ${state.uri}')),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final link = find.text('Se hva du får');
+
+    testWidgets('membership page shows "Se hva du får" to a non-member only', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _overview(state: MembershipGateState.eligible, plans: [_plan]),
+      );
+      expect(link, findsOneWidget);
+      final row = tester.widget<BisoListRow>(
+        find.widgetWithText(BisoListRow, 'Se hva du får'),
+      );
+      final tile = row.leading! as BisoIconTile;
+      expect(tile.icon, CupertinoIcons.gift);
+      expect(tile.accent, BisoAccent.gold);
+      // Under the "not a member" card, above the plans.
+      final linkTop = tester.getTopLeft(link).dy;
+      expect(
+        tester.getTopLeft(find.text('Become a member')).dy,
+        lessThan(linkTop),
+      );
+      expect(
+        tester
+            .getTopLeft(find.text('Choose a membership', skipOffstage: false))
+            .dy,
+        greaterThan(linkTop),
+      );
+    });
+
+    testWidgets('a member does not see it', (tester) async {
+      await pump(
+        tester,
+        _overview(state: MembershipGateState.alreadyMember, isMember: true),
+      );
+      expect(find.text('Active member'), findsOneWidget);
+      expect(link, findsNothing);
+    });
+
+    testWidgets('it pushes /explore/benefits', (tester) async {
+      await pump(tester, _overview(state: MembershipGateState.eligible));
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(find.text('benefits /explore/benefits'), findsOneWidget);
+    });
+
+    testWidgets('it shows while the list loads', (tester) async {
+      await pump(
+        tester,
+        _overview(state: MembershipGateState.eligible),
+        benefits: () => Completer<List<CampusBenefit>>().future,
+      );
+      expect(link, findsOneWidget);
+    });
+
+    testWidgets('it shows after an error other than notDeployed', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        _overview(state: MembershipGateState.eligible),
+        benefits: () async =>
+            throw const BenefitsApiException(BenefitsApiErrorKind.network),
+      );
+      expect(link, findsOneWidget);
+    });
+
+    testWidgets('hidden on notDeployed', (tester) async {
+      await pump(
+        tester,
+        _overview(state: MembershipGateState.eligible, plans: [_plan]),
+        benefits: () async => throw const BenefitsApiException(
+          BenefitsApiErrorKind.notDeployed,
+          statusCode: 404,
+        ),
+      );
+      expect(find.text('Become a member'), findsOneWidget);
+      expect(link, findsNothing);
+    });
   });
 
   testWidgets('an unlinked student continues with BI in the app', (

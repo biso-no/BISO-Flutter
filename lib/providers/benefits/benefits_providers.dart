@@ -26,6 +26,17 @@ final campusBenefitsProvider = FutureProvider.autoDispose
           ref.watch(benefitsApiProvider).fetchBenefits(campusId: campusId),
     );
 
+/// Whether [campusId]'s list failed because the API has no benefits route
+/// yet (an old API). The entry points hide then. While the list loads, or
+/// after any other error, they stay: the benefits screen has its own retry.
+final benefitsNotDeployedProvider = Provider.autoDispose.family<bool, String?>(
+  (ref, campusId) =>
+      switch (ref.watch(campusBenefitsProvider(campusId)).error) {
+        BenefitsApiException(kind: BenefitsApiErrorKind.notDeployed) => true,
+        _ => false,
+      },
+);
+
 /// The clock the showcase reads "ending soon" and "new" against. Tests
 /// override it.
 final benefitClockProvider = Provider<DateTime Function()>(

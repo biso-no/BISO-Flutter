@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,12 +14,15 @@ import '../../../data/models/payment_provider.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/auth/bi_sign_in_provider.dart';
+import '../../../providers/benefits/benefits_providers.dart';
+import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/membership/membership_checkout_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
 import '../../../providers/shop/checkout_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/member_pass_row.dart';
 import '../auth/bi_sign_in_messages.dart';
+import '../benefits/benefits_routes.dart';
 
 String _formatDate(DateTime? date) =>
     date == null ? '' : DateFormat.yMMMd().format(date);
@@ -133,6 +138,14 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
   Future<void> _refresh() =>
       ref.read(membershipOverviewProvider.notifier).refresh();
 
+  /// False once the Home campus's benefits list shows the API is too old to
+  /// have benefits. While it loads, or after any other error, it is true.
+  bool _benefitsAvailable() {
+    final campusId = ref.watch(filterCampusProvider.select((c) => c.id));
+    return campusId.isEmpty ||
+        !ref.watch(benefitsNotDeployedProvider(campusId));
+  }
+
   @override
   Widget build(BuildContext context) {
     final leading = BisoBackButton(
@@ -219,6 +232,8 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
                   onRetry: _refresh,
                 ),
         ),
+        if (!overview.isMember && _benefitsAvailable())
+          const SliverToBoxAdapter(child: _BenefitsLink()),
         if (overview.canPurchase) ..._purchaseSlivers(overview, purchase),
       ],
     );
@@ -557,6 +572,27 @@ class _MembershipCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Se hva du får": the benefits screen, on the Home campus.
+class _BenefitsLink extends StatelessWidget {
+  const _BenefitsLink();
+
+  @override
+  Widget build(BuildContext context) => BisoSection(
+    child: BisoListGroup(
+      children: [
+        BisoListRow(
+          leading: const BisoIconTile(
+            icon: CupertinoIcons.gift,
+            accent: BisoAccent.gold,
+          ),
+          title: AppLocalizations.of(context)!.benefitsSeeWhatYouGet,
+          onTap: () => unawaited(context.push(benefitsRoute())),
+        ),
+      ],
+    ),
+  );
 }
 
 class _NotMemberCard extends StatelessWidget {

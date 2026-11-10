@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../data/models/app_config.dart';
 import '../../../data/models/large_event_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../providers/benefits/benefits_providers.dart';
 import '../../../providers/campus/campus_data_provider.dart';
 import '../../../providers/campus/campus_provider.dart';
 import '../../../providers/config/app_config_provider.dart';
@@ -17,6 +18,7 @@ import '../../../providers/large_event/large_event_provider.dart';
 import '../../../providers/member_pass/scanner_access_provider.dart';
 import '../../../providers/ui/locale_provider.dart';
 import '../../widgets/biso/biso.dart';
+import '../benefits/benefits_routes.dart';
 import '../scanner/scanner_route.dart';
 
 class ExploreScreen extends ConsumerStatefulWidget {
@@ -129,8 +131,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final event = ref.watch(featuredLargeEventProvider);
     final canScan =
         ref.watch(scannerAccessProvider).valueOrNull is ScannerGranted;
+    // Explore can't know the API is too old to have benefits until the Home
+    // campus's list fails that way; until then the row shows.
+    final homeCampusId = ref.watch(filterCampusProvider.select((c) => c.id));
+    final showBenefits =
+        homeCampusId.isEmpty ||
+        !ref.watch(benefitsNotDeployedProvider(homeCampusId));
 
     final categories = <_CategoryData>[
+      if (showBenefits)
+        _CategoryData(
+          icon: CupertinoIcons.gift,
+          accent: BisoAccent.gold,
+          title: l10n.benefitsMemberBenefits,
+          subtitle: l10n.benefitsMemberBenefitsSubtitle,
+          onTap: () => context.go(benefitsRoute()),
+        ),
       if (canScan)
         _CategoryData(
           icon: CupertinoIcons.qrcode_viewfinder,

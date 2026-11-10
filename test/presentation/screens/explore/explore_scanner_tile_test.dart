@@ -5,6 +5,7 @@ import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/explore/explore_screen.dart';
 import 'package:biso/presentation/screens/scanner/scanner_route.dart';
 import 'package:biso/presentation/widgets/biso/biso.dart';
+import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/campus/campus_data_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
@@ -57,6 +58,7 @@ void main() {
           featuredLargeEventProvider.overrideWithValue(null),
           localeProvider.overrideWith((ref) => _Locale()),
           scannerAccessProvider.overrideWith(() => access),
+          campusBenefitsProvider('oslo').overrideWith((_) async => const []),
         ],
         child: MaterialApp.router(
           theme: PremiumTheme.build(Brightness.light),
@@ -70,13 +72,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   }
 
-  testWidgets('scanners see the tile first', (tester) async {
+  testWidgets('scanners see the tile right after Member benefits', (
+    tester,
+  ) async {
     await pump(tester, grantedAccess);
     final titles = tester
         .widgetList<BisoListRow>(find.byType(BisoListRow))
         .map((row) => row.title)
         .toList();
-    expect(titles.first, 'Scan memberships');
+    expect(titles.take(2), ['Member benefits', 'Scan memberships']);
     expect(find.text('Check member passes at the door'), findsOneWidget);
   });
 
