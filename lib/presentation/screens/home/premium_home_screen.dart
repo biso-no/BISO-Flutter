@@ -23,6 +23,7 @@ import '../../../data/models/webshop_product_model.dart';
 import '../../../data/models/news_model.dart';
 import '../../../providers/news/news_provider.dart';
 import '../../widgets/campus/campus_switcher_sheet.dart';
+import '../../widgets/home/home_benefits_section.dart';
 import '../../widgets/home/news_carousel.dart';
 import '../auth/login_screen.dart';
 
@@ -264,6 +265,9 @@ class PremiumHomePage extends ConsumerWidget {
           providerFamily: _latestEventsProvider,
           context: context,
         ),
+
+        // Member benefits ("Fordeler for deg")
+        if (isCampusReady) HomeBenefitsSection(campusId: campusId),
 
         // Latest News Section
         _buildPremiumContentSection<NewsModel>(
