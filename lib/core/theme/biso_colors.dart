@@ -19,6 +19,12 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
     required this.success,
     required this.warning,
     required this.error,
+    required this.deep,
+    required this.deepRaised,
+    required this.deepEdge,
+    required this.deepMuted,
+    required this.sky,
+    required this.marker,
   });
 
   /// Page background.
@@ -41,6 +47,21 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
   final Color warning;
   final Color error;
 
+  /// Brand navy and its raised and edge tones, for the dark panels the
+  /// benefits screen draws in both themes.
+  final Color deep;
+  final Color deepRaised;
+  final Color deepEdge;
+
+  /// Muted text on [deep].
+  final Color deepMuted;
+
+  /// Sky blue. Only on [deep].
+  final Color sky;
+
+  /// Sun yellow. Fill only, never text.
+  final Color marker;
+
   static const light = BisoPalette(
     paper: Color(0xFFF4F7FA),
     surface: Color(0xFFFFFFFF),
@@ -54,6 +75,12 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
     success: Color(0xFF177A4E),
     warning: Color(0xFF935700),
     error: Color(0xFFD12F3A),
+    deep: Color(0xFF001731),
+    deepRaised: Color(0xFF0B2747),
+    deepEdge: Color(0xFF12314F),
+    deepMuted: Color(0xFF93A7BB),
+    sky: Color(0xFF3DA9E0),
+    marker: Color(0xFFFECD45),
   );
 
   static const dark = BisoPalette(
@@ -69,6 +96,12 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
     success: Color(0xFF4CC38A),
     warning: Color(0xFFF2B42C),
     error: Color(0xFFFF6B6B),
+    deep: Color(0xFF001731),
+    deepRaised: Color(0xFF0B2747),
+    deepEdge: Color(0xFF12314F),
+    deepMuted: Color(0xFF93A7BB),
+    sky: Color(0xFF3DA9E0),
+    marker: Color(0xFFFECD45),
   );
 
   static BisoPalette of(BuildContext context) {
@@ -91,6 +124,12 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
     Color? success,
     Color? warning,
     Color? error,
+    Color? deep,
+    Color? deepRaised,
+    Color? deepEdge,
+    Color? deepMuted,
+    Color? sky,
+    Color? marker,
   }) {
     return BisoPalette(
       paper: paper ?? this.paper,
@@ -105,6 +144,12 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
       success: success ?? this.success,
       warning: warning ?? this.warning,
       error: error ?? this.error,
+      deep: deep ?? this.deep,
+      deepRaised: deepRaised ?? this.deepRaised,
+      deepEdge: deepEdge ?? this.deepEdge,
+      deepMuted: deepMuted ?? this.deepMuted,
+      sky: sky ?? this.sky,
+      marker: marker ?? this.marker,
     );
   }
 
@@ -125,6 +170,12 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
       success: mix(success, other.success),
       warning: mix(warning, other.warning),
       error: mix(error, other.error),
+      deep: mix(deep, other.deep),
+      deepRaised: mix(deepRaised, other.deepRaised),
+      deepEdge: mix(deepEdge, other.deepEdge),
+      deepMuted: mix(deepMuted, other.deepMuted),
+      sky: mix(sky, other.sky),
+      marker: mix(marker, other.marker),
     );
   }
 }
