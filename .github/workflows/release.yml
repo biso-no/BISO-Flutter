@@ -2,9 +2,9 @@ name: Release
 
 # Every push to main ships to Google Play internal testing and TestFlight.
 # CI works out the next version (tool/release/next_version.py), so pubspec.yaml
-# is never bumped by hand. To skip a release, put [skip release] in the commit
-# or merge message. "Run workflow" releases on demand, and is how to bump the
-# minor or major version.
+# is not bumped by hand: Claude reads the commits and picks a patch or a minor
+# bump. To skip a release, put [skip release] in the commit or merge message.
+# "Run workflow" releases on demand, and is how to force a bump (major included).
 #
 # Store uploads wait until the checks and both builds have passed, so a failure
 # on one platform never ships the other on its own. The version is committed
@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Version part to bump (auto ships a hand-bumped pubspec.yaml as is, otherwise bumps the patch)
+        description: Version part to bump (auto lets Claude choose patch or minor, and ships a hand-bumped pubspec.yaml as is)
         type: choice
         options: [auto, patch, minor, major]
         default: auto
@@ -51,28 +51,45 @@ jobs:
         with:
           fetch-depth: 0 # The version and the notes are worked out from tags and history
 
-      - name: Work out the version
-        id: version
-        run: python3 tool/release/next_version.py --bump "$BUMP"
-        env:
-          BUMP: ${{ inputs.bump || 'auto' }}
-
-      # The notes are written by Claude Code, signed in with a Claude subscription
-      # token, so they use subscription usage rather than API credits.
+      # Claude Code writes the notes and judges the release's size. It is signed
+      # in with a Claude subscription token, so it uses subscription usage, not
+      # API credits.
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: Install Claude Code
         run: npm install --global --no-fund --no-audit @anthropic-ai/claude-code@2.1.322
 
-      - name: Write release notes
-        run: |
-          python3 tool/release/release_notes.py --since "$SINCE" --version "$RELEASE" --out release-notes
-          cat release-notes/github.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Write release notes and judge the release's size
+        id: notes
+        run: python3 tool/release/release_notes.py --out release-notes
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          SINCE: ${{ steps.version.outputs.previous_tag }}
-          RELEASE: ${{ steps.version.outputs.version }}+${{ steps.version.outputs.build_number }}
+
+      - name: Work out the version
+        id: version
+        run: python3 tool/release/next_version.py --bump "$BUMP" --suggested "$SUGGESTED"
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+          SUGGESTED: ${{ steps.notes.outputs.bump }}
+
+      # Says who chose the version and why, in the run summary and the GitHub release.
+      - name: Record the version decision
+        run: |
+          case "$DECIDED_BY" in
+            pubspec) why="pubspec.yaml was bumped by hand, so that version ships as written." ;;
+            manual) why="The $BUMP bump was chosen when the run was started." ;;
+            *) why="Claude judged this a $SUGGESTED release: $REASON" ;;
+          esac
+          printf '\n**Version %s (%s).** %s\n' "$VERSION" "$BUILD_NUMBER" "$why" >> release-notes/github.md
+          cat release-notes/github.md >> "$GITHUB_STEP_SUMMARY"
+        env:
+          DECIDED_BY: ${{ steps.version.outputs.decided_by }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          BUMP: ${{ inputs.bump }}
+          SUGGESTED: ${{ steps.notes.outputs.bump }}
+          REASON: ${{ steps.notes.outputs.bump_reason }}
 
       - uses: actions/upload-artifact@v7
         with:

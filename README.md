@@ -219,16 +219,16 @@ Promoting a build to production (Google Play) or submitting it for review (App S
 
 ### Versions
 
-CI picks the version, so `pubspec.yaml` is not bumped by hand. Each release raises the patch and build numbers (`2.2.16+100` becomes `2.2.17+101`), uploads both apps, tags the built commit `v2.2.17+101` with a GitHub release, and commits `chore(release): 2.2.17+101` to `main`.
+CI picks the version, so `pubspec.yaml` is not bumped by hand. Claude reads the commits since the last release and judges its size: a **minor** release when it gives students something new (a new screen, feature or capability), otherwise a **patch** (fixes, polish, internal work). So `2.2.16+100` becomes `2.3.0+101` or `2.2.17+101`; the build number always goes up by one. The run summary and the GitHub release say which it chose and why. Then the release uploads both apps, tags the built commit (`v2.3.0+101`) with a GitHub release, and commits `chore(release): 2.3.0+101` to `main`.
 
-- For a minor or major version, use **Actions → Release → Run workflow** and pick the part to bump (or `gh workflow run release.yml -f bump=minor`).
+- To choose the bump yourself, a major one included, use **Actions → Release → Run workflow** and pick the part (or `gh workflow run release.yml -f bump=major`).
 - A `pubspec.yaml` edited by hand to a higher build number ships as written.
 - To merge without releasing, put `[skip release]` in the commit or merge message. Changes to only `*.md` files or `docs/` never release.
 - BISO's admin (**Settings → App versions**) can block or nudge app versions below a minimum or recommended one. Set the minimum version only after the release is live for everyone in both stores: on Google Play after a 100% rollout, and in the App Store after Apple has released it. Anyone who is blocked before they can download the new version is stuck with nothing to update to.
 
 ### Release notes
 
-`tool/release/release_notes.py` has Claude write English and Norwegian notes from the commit messages since the last release. They become Google Play's release notes (`en-US`, `no-NO`), TestFlight's "What to Test" and the GitHub release. Claude runs through the Claude Code CLI, signed in with `CLAUDE_CODE_OAUTH_TOKEN`, so the notes use Claude subscription usage, not API credits. If Claude Code fails or the subscription's usage limit is reached, the notes list the commit subjects instead and the run shows a warning.
+`tool/release/release_notes.py` has Claude write English and Norwegian notes from the commit messages since the last release (and judge the release's size, above). They become Google Play's release notes (`en-US`, `no-NO`), TestFlight's "What to Test" and the GitHub release. Claude runs through the Claude Code CLI, signed in with `CLAUDE_CODE_OAUTH_TOKEN`, so the notes use Claude subscription usage, not API credits. If Claude Code fails or the subscription's usage limit is reached, the notes list the commit subjects instead, the release is a patch, and the run shows a warning.
 
 TestFlight only takes notes when the app's **TestFlight → Test Information** (beta description and feedback email) is filled in; the upload stops before it starts if it is not.
 
