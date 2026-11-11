@@ -88,7 +88,7 @@ Use the service files in `lib/data/services/` as the source of truth for current
 |   |-- firebase_options.dart   # Generated Firebase options
 |   `-- main.dart               # App entry point and router
 |-- scripts/                    # Maintenance scripts
-|-- .github/workflows/          # GitHub Actions build/deploy workflow
+|-- .github/workflows/          # CI checks and store releases
 |-- appwrite.config.json        # Appwrite project/table config export
 |-- firebase.json               # FlutterFire/Firebase project config
 |-- l10n.yaml                   # Flutter localization config
@@ -99,9 +99,9 @@ Use the service files in `lib/data/services/` as the source of truth for current
 
 ### Requirements
 
-- Flutter `3.32.8` stable is used in CI.
-- Dart SDK `^3.8.1` is required by `pubspec.yaml`.
-- Java 17 is used for Android builds in CI.
+- Flutter `3.47.9` stable is used in CI (pinned in `.github/actions/setup-flutter/action.yml`).
+- Dart SDK `^3.13.0` is required by `pubspec.yaml`.
+- Java 21 is used for Android builds in CI.
 - Xcode and CocoaPods are required for iOS development.
 - Android Studio or Android command-line tools are required for Android development.
 
@@ -118,8 +118,6 @@ flutter pub run intl_utils:generate
 flutter pub run flutter_launcher_icons
 flutter pub run build_runner build --delete-conflicting-outputs
 ```
-
-`build_runner` is currently allowed to fail in CI, so treat failures there as feature-specific unless you are working on generated code.
 
 ### Run the app
 
@@ -212,66 +210,48 @@ Relevant routes include:
 
 ## Build, CI, and Release
 
-GitHub Actions are configured in `.github/workflows/build.yml`.
+Workflows live in `.github/workflows/`:
 
-### Android CI
+- `ci.yml` runs on every pull request: `flutter analyze`, `flutter test`, a debug Android build and an unsigned iOS build.
+- `release.yml` runs on every push to `main`. It runs the same checks, builds a signed app bundle and IPA, and uploads them to Google Play's internal testing track and to TestFlight. Nothing is uploaded unless the checks and both builds pass.
 
-On pushes to `main` and version tags, CI:
+Promoting a build to production (Google Play) or submitting it for review (App Store) stays a manual step in the store consoles.
 
-1. Sets up Java 17 and Flutter `3.32.8`.
-2. Runs `flutter pub get`.
-3. Generates launcher icons and localization files.
-4. Runs `build_runner`.
-5. Runs tests.
-6. Builds Android AAB and APK with the version in `pubspec.yaml`.
-7. Uploads the AAB to the Google Play internal track.
-8. Attaches the APK to a GitHub release.
+### Versions
 
-Required Android repository secrets:
+CI picks the version, so `pubspec.yaml` is not bumped by hand. Each release raises the patch and build numbers (`2.2.16+100` becomes `2.2.17+101`), uploads both apps, tags the built commit `v2.2.17+101` with a GitHub release, and commits `chore(release): 2.2.17+101` to `main`.
 
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-
-### Releasing a new version
-
-- `pubspec.yaml`'s `version:` (for example `2.2.9+93`) is the single source of the Android release version. The workflow reads it and fails unless it looks like `1.2.3+45`; nothing else sets the version. Bump it for every release: the part before `+` is the version students see and the one BISO's app version rules compare, and the build number after `+` must go up for Google Play to accept the upload.
+- For a minor or major version, use **Actions → Release → Run workflow** and pick the part to bump (or `gh workflow run release.yml -f bump=minor`).
+- A `pubspec.yaml` edited by hand to a higher build number ships as written.
+- To merge without releasing, put `[skip release]` in the commit or merge message. Changes to only `*.md` files or `docs/` never release.
 - BISO's admin (**Settings → App versions**) can block or nudge app versions below a minimum or recommended one. Set the minimum version only after the release is live for everyone in both stores: on Google Play after a 100% rollout, and in the App Store after Apple has released it. Anyone who is blocked before they can download the new version is stuck with nothing to update to.
 
-### iOS Fastlane
+### Release notes
 
-Fastlane configuration lives in `ios/fastlane/`. The main beta lane builds and uploads to TestFlight:
+`tool/release/release_notes.py` has Claude write English and Norwegian notes from the commit messages since the last release. They become Google Play's release notes (`en-US`, `no-NO`), TestFlight's "What to Test" and the GitHub release. Claude runs through the Claude Code CLI, signed in with `CLAUDE_CODE_OAUTH_TOKEN`, so the notes use Claude subscription usage, not API credits. If Claude Code fails or the subscription's usage limit is reached, the notes list the commit subjects instead and the run shows a warning.
 
-```sh
-cd ios
-bundle exec fastlane beta
-```
+TestFlight only takes notes when the app's **TestFlight → Test Information** (beta description and feedback email) is filled in; the upload stops before it starts if it is not.
 
-The Fastlane setup supports App Store Connect API authentication and either match-based signing or manual signing fallback.
+### iOS signing and export compliance
 
-Useful iOS/TestFlight secrets and environment variables:
+CI signs with an Apple Distribution certificate and the App Store profiles named in `ios/ExportOptions.plist`: `BISO App Store` (`com.biso.no`) and `BISO Share Extension App Store` (`com.biso.no.BISOShareExtension`). `tool/release/ios_manual_signing.rb` points the Release configuration at them on the CI checkout only, so Xcode keeps automatic signing locally.
 
-- `APPLE_API_KEY_ID`: App Store Connect API key ID.
-- `APPLE_API_ISSUER_ID`: App Store Connect API issuer ID.
-- `APPLE_API_PRIVATE_KEY`: App Store Connect API private key content.
-- `APP_STORE_CONNECT_API_KEY_ID`: alternate App Store Connect API key ID name supported by Fastlane.
-- `APP_STORE_CONNECT_API_ISSUER_ID`: alternate App Store Connect API issuer ID name supported by Fastlane.
-- `APP_STORE_CONNECT_API_KEY`: alternate base64 API key content supported by Fastlane.
-- `APPLE_ID`: Apple ID email, used as fallback when API key auth is not available.
-- `APP_STORE_CONNECT_TEAM_ID`: App Store Connect team ID.
-- `DEVELOPER_TEAM_ID`: Apple Developer team ID.
-- `MATCH_PASSWORD`: Fastlane match password.
-- `MATCH_GIT_BASIC_AUTHORIZATION`: GitHub token or base64 authorization for match repo access.
-- `MATCH_SSH_KEY`: SSH key option for match repo access.
-- `PROVISIONING_PROFILE_NAME` or `PROVISIONING_PROFILE_SPECIFIER`: manual signing fallback.
+The certificate expires after a year. Then create a new one, regenerate both profiles under the same names, and update the `IOS_CERTIFICATE_*` secrets.
 
-The previous manual CI setup also referenced these iOS secrets; keep them available if your deployment flow still depends on manually installed certificates and profiles:
+`ITSAppUsesNonExemptEncryption` is `NO` in `ios/Runner/Info.plist`, so App Store Connect no longer asks the export compliance questions. That answer holds while the app uses only standard TLS and is not distributed in France.
 
-- `IOS_CERTIFICATE_P12_BASE64`
-- `IOS_CERTIFICATE_PASSWORD`
-- `IOS_PROVISIONING_PROFILE_BASE64`
+### Secrets and variables
+
+| Name | What it is |
+|------|------------|
+| `ANDROID_KEYSTORE_BASE64` | Upload keystore (`.jks`), base64 |
+| `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS` | Upload keystore credentials |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account key (JSON text) |
+| `IOS_CERTIFICATE_P12_BASE64`, `IOS_CERTIFICATE_PASSWORD` | Apple Distribution certificate with its private key (`.p12`), base64, and its password |
+| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` | App Store Connect API key. It needs the App Manager role with access to Certificates, Identifiers & Profiles, or Admin |
+| `APPLE_API_PRIVATE_KEY` | That key's `.p8` file, as text (not base64) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude subscription token for the release notes, made with `claude setup-token` (also used by the Claude workflows) |
+| `TESTFLIGHT_GROUPS` (variable) | TestFlight groups to add each build to, comma-separated (optional) |
 
 ## Current State / Notes for Maintainers
 
@@ -310,7 +290,6 @@ flutter build apk --debug
 flutter build apk --release
 flutter build appbundle --release
 
-# iOS beta upload
-cd ios
-bundle exec fastlane beta
+# Release now, bumping the minor version
+gh workflow run release.yml -f bump=minor
 ```

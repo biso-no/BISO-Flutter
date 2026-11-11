@@ -1,0 +1,17 @@
+name: Set up Flutter
+description: Installs the pinned Flutter SDK and the app's packages, both cached between runs.
+
+runs:
+  using: composite
+  steps:
+    - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+      with:
+        # Keep in step with the local toolchain (CLAUDE.md, "Development environment").
+        flutter-version: 3.47.9
+        channel: stable
+        cache: true
+        pub-cache: true
+
+    - name: Get packages
+      shell: bash
+      run: flutter pub get

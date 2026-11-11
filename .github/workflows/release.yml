@@ -1,0 +1,286 @@
+name: Release
+
+# Every push to main ships to Google Play internal testing and TestFlight.
+# CI works out the next version (tool/release/next_version.py), so pubspec.yaml
+# is never bumped by hand. To skip a release, put [skip release] in the commit
+# or merge message. "Run workflow" releases on demand, and is how to bump the
+# minor or major version.
+#
+# Store uploads wait until the checks and both builds have passed, so a failure
+# on one platform never ships the other on its own. The version is committed
+# back to pubspec.yaml and tagged only once both stores have the build.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version part to bump (auto ships a hand-bumped pubspec.yaml as is, otherwise bumps the patch)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+permissions:
+  contents: read
+
+concurrency:
+  # Releases run one at a time, in order, and never cancel each other.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/ci.yml
+
+  plan:
+    name: Plan release
+    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      build_number: ${{ steps.version.outputs.build_number }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # The version and the notes are worked out from tags and history
+
+      - name: Work out the version
+        id: version
+        run: python3 tool/release/next_version.py --bump "$BUMP"
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+
+      # The notes are written by Claude Code, signed in with a Claude subscription
+      # token, so they use subscription usage rather than API credits.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Install Claude Code
+        run: npm install --global --no-fund --no-audit @anthropic-ai/claude-code@2.1.322
+
+      - name: Write release notes
+        run: |
+          python3 tool/release/release_notes.py --since "$SINCE" --version "$RELEASE" --out release-notes
+          cat release-notes/github.md >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          SINCE: ${{ steps.version.outputs.previous_tag }}
+          RELEASE: ${{ steps.version.outputs.version }}+${{ steps.version.outputs.build_number }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes/
+          if-no-files-found: error
+
+  android:
+    name: Build Android
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: '21' # The JDK the Android build (AGP 9.2, Gradle 9.4) is verified with
+          cache: gradle
+      - uses: ./.github/actions/setup-flutter
+
+      - name: Install the upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/keystore.jks
+          printf 'storeFile=keystore.jks\nstorePassword=%s\nkeyPassword=%s\nkeyAlias=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+
+      - name: Build the app bundle
+        run: flutter build appbundle --release --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          BUILD_NUMBER: ${{ needs.plan.outputs.build_number }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: |
+            build/app/outputs/bundle/release/app-release.aab
+            build/app/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: Build iOS
+    needs: plan
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-flutter
+
+      - name: Install the distribution certificate
+        uses: apple-actions/import-codesign-certs@288b8ec97b82c66b6f2a6baaf7acc8dfbcbe331c # v7.2.0
+        with:
+          p12-file-base64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+
+      - name: Download the app's profile
+        uses: apple-actions/download-provisioning-profiles@233aa54e59082c0e8a8cf8b0b02c72dea2422ef9 # v7.1.0
+        with:
+          bundle-id: com.biso.no
+          profile-type: IOS_APP_STORE
+          issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+
+      - name: Download the share extension's profile
+        uses: apple-actions/download-provisioning-profiles@233aa54e59082c0e8a8cf8b0b02c72dea2422ef9 # v7.1.0
+        with:
+          bundle-id: com.biso.no.BISOShareExtension
+          profile-type: IOS_APP_STORE
+          issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+
+      - name: Sign with those profiles
+        run: |
+          gem install --user-install --conservative --no-document xcodeproj
+          ruby tool/release/ios_manual_signing.rb
+
+      - name: Build the IPA
+        run: >-
+          flutter build ipa --release
+          --build-name="$VERSION" --build-number="$BUILD_NUMBER"
+          --export-options-plist=ios/ExportOptions.plist
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          BUILD_NUMBER: ${{ needs.plan.outputs.build_number }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios
+          path: build/ios/ipa/*.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-android:
+    name: Publish to Google Play
+    needs: [checks, plan, android, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: android
+          path: android
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: release-notes
+
+      - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.biso.no
+          releaseFiles: android/bundle/release/app-release.aab
+          releaseName: ${{ needs.plan.outputs.version }} (${{ needs.plan.outputs.build_number }})
+          track: internal
+          status: completed
+          whatsNewDirectory: release-notes/play
+          mappingFile: android/mapping/release/mapping.txt
+
+  publish-ios:
+    name: Publish to TestFlight
+    needs: [checks, plan, android, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60 # Includes waiting for App Store Connect to process the build
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ios
+          path: ipa
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: release-notes
+
+      - name: Find the IPA and read the notes
+        id: build
+        run: |
+          echo "ipa=$(ls ipa/*.ipa | head -n 1)" >> "$GITHUB_OUTPUT"
+          delimiter="notes_$(openssl rand -hex 8)"
+          { echo "notes<<$delimiter"; cat release-notes/testflight.txt; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
+
+      - uses: apple-actions/upload-testflight-build@665328adbecbc3ad929d3da710696d928b8a7ba9 # v5.9.0
+        with:
+          app-path: ${{ steps.build.outputs.ipa }}
+          issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
+          api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          release-notes: ${{ steps.build.outputs.notes }}
+          # Also set by ITSAppUsesNonExemptEncryption in Info.plist; see the comment there.
+          uses-non-exempt-encryption: 'false'
+          # Optional repository variable: TestFlight groups to add the build to, comma-separated.
+          groups: ${{ vars.TESTFLIGHT_GROUPS }}
+
+  finalize:
+    name: Tag and record the version
+    needs: [plan, publish-android, publish-ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: release-notes
+
+      - name: Create the GitHub release
+        # Skipped when it exists, so this job can be re-run after a failed push below.
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 ||
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TITLE" --notes-file release-notes/github.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          TITLE: BISO ${{ needs.plan.outputs.version }} (${{ needs.plan.outputs.build_number }})
+
+      # Pushed with GITHUB_TOKEN, so this commit does not start another release.
+      # main may have moved on during the release; the bump goes on top of it,
+      # unless pubspec.yaml there was already bumped further by hand.
+      - name: Commit the version to pubspec.yaml
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3; do
+            git fetch --quiet origin main
+            git reset --quiet --hard origin/main
+            current=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)
+            if [ "${current##*+}" -ge "$BUILD_NUMBER" ]; then
+              echo "pubspec.yaml is already at $current"
+              exit 0
+            fi
+            sed -i "s/^version:.*/version: $RELEASE/" pubspec.yaml
+            git commit --quiet --all --message "chore(release): $RELEASE [skip ci]"
+            git push --quiet origin HEAD:main && exit 0
+          done
+          echo "::error::Could not push the version bump to main"
+          exit 1
+        env:
+          RELEASE: ${{ needs.plan.outputs.version }}+${{ needs.plan.outputs.build_number }}
+          BUILD_NUMBER: ${{ needs.plan.outputs.build_number }}
