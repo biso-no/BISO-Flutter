@@ -162,6 +162,27 @@ class TopicIntentNotifier extends Notifier<AsyncValue<Map<String, bool>>> {
 
   late _TopicIntentSession _session;
 
+  /// Serialises the network side of [setTopic], and every load.
+  ///
+  /// Two quick taps each call `setTopic`, and without this, both calls'
+  /// `saveTopicIntent` requests fire at once — whichever one's response
+  /// arrives *last* wins on the server, even if it is the older, staler one,
+  /// silently resurrecting a setting the student just turned off. Chaining
+  /// each save onto this tail forces them to run one at a time, in the order
+  /// [setTopic] was called. A load waits its turn the same way: its read
+  /// could otherwise answer after a save had landed, and hand the session
+  /// the intent from before it, which its next save would then write back.
+  ///
+  /// Kept here, not in a session, because the notifier outlives every build:
+  /// a rebuild for a new campus loads only after the saves the previous
+  /// build queued have landed.
+  ///
+  /// Every link swallows its own outcome (`.then((_) {}, onError: (_) {})`)
+  /// before being stored back here, so one call's failure can never leave
+  /// this future permanently rejected and wedge every *later* call's save
+  /// from ever running.
+  Future<void> _pendingSave = Future<void>.value();
+
   @override
   AsyncValue<Map<String, bool>> build() {
     final service = ref.watch(notificationServiceProvider);
@@ -188,7 +209,8 @@ class TopicIntentNotifier extends Notifier<AsyncValue<Map<String, bool>>> {
           () => container.read(localeProvider).languageCode,
     );
     ref.onDispose(session.dispose);
-    unawaited(session._load());
+    // Behind any save a previous build queued (see [_pendingSave]).
+    unawaited(session.refresh());
     return const AsyncValue.loading();
   }
 
@@ -282,22 +304,10 @@ class _TopicIntentSession {
   /// latest.
   int _tapCount = 0;
 
-  /// Serialises the network side of [setTopic], and [refresh].
-  ///
-  /// Two quick taps each call `setTopic`, and without this, both calls'
-  /// `saveTopicIntent` requests fire at once — whichever one's response
-  /// arrives *last* wins on the server, even if it is the older, staler one,
-  /// silently resurrecting a setting the student just turned off. Chaining
-  /// each save onto this tail forces them to run one at a time, in the order
-  /// [setTopic] was called. A reload waits its turn the same way: its read
-  /// could otherwise answer after a save had landed, and hand [_confirmed]
-  /// the intent from before it.
-  ///
-  /// Every link swallows its own outcome (`.then((_) {}, onError: (_) {})`)
-  /// before being stored back here, so one call's failure can never leave
-  /// this future permanently rejected and wedge every *later* call's save
-  /// from ever running.
-  Future<void> _pendingSave = Future<void>.value();
+  /// The notifier's queue (see [TopicIntentNotifier._pendingSave]), shared
+  /// with every other session.
+  Future<void> get _pendingSave => _notifier._pendingSave;
+  set _pendingSave(Future<void> tail) => _notifier._pendingSave = tail;
 
   Future<void> _load() async {
     try {
@@ -527,7 +537,11 @@ class NotificationInboxNotifier extends Notifier<NotificationInboxState> {
   @override
   NotificationInboxState build() {
     final service = ref.watch(notificationInboxServiceProvider);
-    final userId = ref.watch(authStateProvider).user?.id;
+    // Only what the inbox is fetched for. Any other auth write (a profile
+    // save, a loading flag) would otherwise start a new session and drop
+    // the reads and clears still being saved, so a fetch could bring a
+    // cleared row back.
+    final userId = ref.watch(authStateProvider.select((state) => state.user?.id));
     final locale = ref.watch(localeProvider).languageCode;
     final notificationService = ref.watch(notificationServiceProvider);
     final campusId = ref.watch(

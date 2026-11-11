@@ -905,6 +905,55 @@ void main() {
         expect(service.account.prefsByStudent[_studentA], seededIntent);
       },
     );
+
+    test(
+      'a campus change while a save is on its way does not undo that save: '
+      "the rebuilt notifier's load waits for it, so the next save carries it "
+      'instead of the intent from before it',
+      () async {
+        final service = _FakeNotificationService(seededIntent)
+          ..saveGates = [Completer<void>()];
+        final auth = _TestAuthNotifier();
+        final container = ProviderContainer(
+          retry: noAutomaticRetry,
+          overrides: [
+            notificationServiceProvider.overrideWithValue(service),
+            authStateProvider.overrideWith(() => auth),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.read(authStateProvider);
+        await pumpEventQueue(); // the auth notifier's own session check
+
+        auth.signIn(_studentA, campusId: '1');
+        final notifier = container.read(topicIntentProvider.notifier);
+        await pumpEventQueue(); // its load
+        final newsOff = notifier.setTopic('news', false);
+        await pumpEventQueue(); // held on its way to the server
+
+        // The student moves campus, so the provider rebuilds and loads.
+        auth.signIn(_studentA, campusId: '2');
+        container.read(topicIntentProvider);
+        await pumpEventQueue();
+
+        service.saveGates!.single.complete();
+        expect(await newsOff, ReconcileOutcome.unavailable);
+        await pumpEventQueue(); // the rebuilt notifier's load
+
+        expect(
+          await container
+              .read(topicIntentProvider.notifier)
+              .setTopic('events', false),
+          ReconcileOutcome.applied,
+        );
+        expect(await service.loadTopicIntent(), {
+          'news': false,
+          'events': false,
+          'jobs': true,
+          'shop': true,
+        });
+      },
+    );
   });
 
   group('notificationPermissionResumeProvider', () {

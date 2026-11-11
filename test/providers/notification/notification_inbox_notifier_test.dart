@@ -37,6 +37,13 @@ class _Student extends Notifier<AuthState> implements AuthNotifier {
     user: UserModel(id: 'u', name: 'U', email: 'u@bi.no', campusId: '2'),
   );
 
+  /// What [AuthNotifier.updateProfile] does to the state around a save: the
+  /// same student, loading and then not.
+  void saveProfile() {
+    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: false);
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -313,6 +320,26 @@ void main() {
 
     expect(ids(notifier), ['a', 'c']);
   });
+
+  test(
+    'a profile save while a clear is on its way does not bring the row back: '
+    'the inbox is still for the same student, so it keeps what it is saving',
+    () async {
+      final notifier = await loaded();
+      final hold = service.holdWrites = Completer<void>();
+      final clearing = notifier.clear(['b']);
+      expect(ids(notifier), ['a', 'c']);
+
+      (container.read(authStateProvider.notifier) as _Student).saveProfile();
+      container.read(notificationInboxProvider);
+      await pumpEventQueue(); // a fetch, if the save set one off
+
+      expect(ids(notifier), ['a', 'c']);
+      hold.complete();
+      expect(await clearing, isTrue);
+      expect(ids(notifier), ['a', 'c']);
+    },
+  );
 
   test(
     'disposing while a read or clear is in flight writes no state and throws '
