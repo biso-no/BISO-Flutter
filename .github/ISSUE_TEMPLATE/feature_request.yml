@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something new in the app, or a change to how something works.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Who runs into it, and when? For example "Students on the Bergen campus can't …".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other ways you've considered
+      description: Workarounds you use today, or other ways to solve it.
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Links, sketches or screenshots. Hide any personal data first.

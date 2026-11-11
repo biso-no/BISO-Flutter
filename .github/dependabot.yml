@@ -1,0 +1,32 @@
+# Dependabot opens pull requests that update dependencies.
+# Minor and patch updates come as one grouped pull request a week.
+# Major updates come one per package, because they can break things.
+# Security updates are switched on separately, in the repository's settings.
+version: 2
+updates:
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Oslo"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    # "/" covers the workflows; the second entry covers the local composite
+    # actions, such as setup-flutter, which pins flutter-action.
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: "monthly"
+      timezone: "Europe/Oslo"
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
