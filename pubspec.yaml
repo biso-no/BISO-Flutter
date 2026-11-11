@@ -36,7 +36,7 @@ dependencies:
       ref: 89a7036174f3a5a8293c94fd6a3cebdf85d8e665
   talker_flutter: ^5.1.16
   flutter_html: ^3.0.0
-  html: ^0.15.6
+  html: ^0.15.7
   permission_handler: ^13.0.2
   geolocator: ^14.0.1
   geocoding: ^5.0.1
