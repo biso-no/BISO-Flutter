@@ -6,6 +6,7 @@ import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/fake_member_pass_api.dart';
 
@@ -21,6 +22,7 @@ void main() {
     pass = FixedMemberPass(activeView());
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [
           memberPassProvider.overrideWith(() => pass),
           screenPresentationProvider.overrideWithValue(screen),

@@ -28,7 +28,7 @@ class BenefitsProfileRow extends ConsumerWidget {
     );
     final count = ref
         .watch(benefitShowcaseProvider(campusId))
-        .valueOrNull
+        .value
         ?.count;
 
     String? subtitle;

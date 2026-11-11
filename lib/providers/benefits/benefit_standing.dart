@@ -86,7 +86,7 @@ final benefitStandingProvider = Provider.autoDispose<BenefitStandingInfo>((
   final start = ref.watch(
     membershipOverviewProvider.select(
       (o) =>
-          o.isReloading ? null : o.valueOrNull?.upcomingMembership?.startDate,
+          o.isReloading ? null : o.value?.upcomingMembership?.startDate,
     ),
   );
   // Loading with nothing to show yet for this account. An error falls back

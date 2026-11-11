@@ -3,7 +3,7 @@ import 'package:biso/data/models/job_model.dart';
 import 'package:biso/data/services/job_service.dart';
 import 'package:biso/presentation/screens/jobs/job_detail_screen.dart';
 import 'package:biso/providers/jobs/jobs_provider.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';

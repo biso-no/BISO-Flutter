@@ -7,6 +7,7 @@ import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 class _FakeAuthService extends AuthService {
   @override
@@ -138,6 +139,7 @@ void main() {
   test('the provider follows the signed-in student', () async {
     final auth = _TestAuthNotifier();
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [authStateProvider.overrideWith((ref) => auth)],
     );
     addTearDown(container.dispose);

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/services/expense_api_client.dart';
 import '../../data/services/expense_service_v2.dart';

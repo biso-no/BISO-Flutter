@@ -9,7 +9,7 @@ cd $CI_PRIMARY_REPOSITORY_PATH # change working directory to the root of your cl
 # Install Flutter using git
 echo "📱 Installing Flutter..."
 # Pin Flutter to your local version by default; override via FLUTTER_VERSION env var in CI
-FLUTTER_VERSION="${FLUTTER_VERSION:-3.32.8}"
+FLUTTER_VERSION="${FLUTTER_VERSION:-3.47.9}"
 echo "🔧 Using Flutter ${FLUTTER_VERSION}"
 git clone https://github.com/flutter/flutter.git --depth 1 -b "$FLUTTER_VERSION" "$HOME/flutter"
 export PATH="$PATH:$HOME/flutter/bin"

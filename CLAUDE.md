@@ -396,14 +396,14 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 ### Platform-Specific
 #### iOS
 - Bundle ID: `com.biso.no`
-- Minimum iOS: 13.0
+- Minimum iOS: 15.6
 - Push notifications setup
 - App Store configuration
 
 #### Android
 - Package: `com.biso.no`
-- Min SDK: 21
-- Target SDK: 34
+- Min SDK: 24 (Flutter's default)
+- Compile SDK: 37 (permission_handler_android 14); Target SDK: Flutter's default (36)
 - Google Services setup
 
 ## Migration Checklist
@@ -758,6 +758,16 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 
 #### State Management
 - **Riverpod**: All providers follow established patterns
+- **Riverpod 3**: `StateNotifier`, `StateNotifierProvider` and `StateProvider` come from
+  `package:flutter_riverpod/legacy.dart`; `Override` and other test types from `misc.dart`.
+- **No automatic retry**: Riverpod 3 retries a failing provider and reports it as loading
+  meanwhile. The app shows failures with its own retry instead, so the root `ProviderScope`
+  passes `retry: noAutomaticRetry` (`lib/providers/provider_retry.dart`). Every
+  `ProviderScope`/`ProviderContainer` a test creates must pass it too, or error-state tests hang.
+- **Refresh vs reload**: an `AsyncNotifier` that sets `state = AsyncLoading()` reads as
+  `isReloading`. When a manual refresh must read as `isRefreshing` (keep the current value on
+  screen), rebuild with `ref.invalidateSelf()` and `await future`, as
+  `MembershipOverviewNotifier.refresh` does.
 - **Pattern**: `lib/providers/{feature}/{feature}_provider.dart`
 - **Models**: Equatable-based with comprehensive copyWith methods
 
@@ -786,7 +796,7 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 
 ### 📱 TESTING STATUS
 - **Build Status**: ✅ Compiles successfully with minimal warnings
-- **Platform Support**: Android (minSdk 23), iOS ready
+- **Platform Support**: Android (minSdk 24), iOS 15.6+
 - **Error Resolution**: All critical compilation errors resolved
 
 ### ✅ MAJOR UPDATES COMPLETED (Latest Session)
@@ -830,10 +840,16 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **🧭 Navigation**: ✅ Crash-free navigation with proper fallback handling
 
 ### 🛠️ DEVELOPMENT ENVIRONMENT
-- **Flutter**: 3.32.8 (stable channel)
-- **Dart**: 3.8.1
-- **Android**: minSdk 23, targetSdk 34
-- **Dependencies**: All up-to-date via `flutter pub add`
+- **Flutter**: 3.47.9 (stable channel), **Dart**: 3.13 (`sdk: ^3.13.0`)
+- **Android**: AGP 9.2, Gradle 9.4.1, Kotlin 2.4 (applied by the Flutter Gradle Plugin,
+  `android.builtInKotlin=false`), Java 17 bytecode, JDK 21; minSdk 24, compileSdk 37
+- **iOS**: Swift Package Manager for every plugin but `flutter_background_service_ios` (pulled in
+  by appwrite 28), which is why the Podfile remains
+- **Appwrite**: SDK 28.x targets server 2.7. Its Android Push (MQTT, boot receivers, a
+  foreground service) is stripped from the merged manifest because push goes through FCM; see
+  the comment in `android/app/src/main/AndroidManifest.xml` before adopting Appwrite Push.
+- **CI pins**: `FLUTTER_VERSION` in `.github/workflows/build.yml` and in
+  `ios/ci_scripts/ci_post_clone.sh` (Xcode Cloud) follow the local toolchain
 
 ---
 

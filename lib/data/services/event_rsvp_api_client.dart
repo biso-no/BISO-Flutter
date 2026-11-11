@@ -47,11 +47,10 @@ class EventRsvpApiException implements Exception {
 
 class EventRsvpApiClient implements EventRsvpApi {
   EventRsvpApiClient({
-    http.Client? httpClient,
+    this._httpClient,
     ApiJwtProvider? jwtProvider,
     ApiJwtInvalidator? invalidateJwt,
-  }) : _httpClient = httpClient,
-       _jwtProvider = jwtProvider ?? appwriteJwt,
+  }) : _jwtProvider = jwtProvider ?? appwriteJwt,
        _invalidateJwt = invalidateJwt ?? clearAppwriteJwtCache;
 
   final http.Client? _httpClient;

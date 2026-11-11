@@ -8,7 +8,7 @@ on:
     branches: [ main ]
 
 env:
-  FLUTTER_VERSION: '3.47.2'  # Match the local toolchain; dependencies need Dart >= 3.10
+  FLUTTER_VERSION: '3.47.9'  # Match the local toolchain; pubspec.yaml needs Dart >= 3.13
 
 jobs:
   build-and-deploy-android:
@@ -38,7 +38,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: '17'
+        java-version: '21'  # The JDK the Android build (AGP 9.2, Gradle 9.4) is verified with
     
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
@@ -105,7 +105,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: '17'
+        java-version: '21'  # The JDK the Android build (AGP 9.2, Gradle 9.4) is verified with
     
     - name: Setup Flutter
       uses: subosito/flutter-action@v2

@@ -134,7 +134,7 @@ class UpdatePromptNotifier extends Notifier<UpdatePrompt> {
     // A re-read in flight still holds the previous value, and a failed one
     // may too: neither is a new answer.
     if (value.isLoading || value.hasError) return false;
-    final config = value.valueOrNull;
+    final config = value.value;
     if (config == null || config.source != AppConfigSource.network) {
       return false;
     }
@@ -143,7 +143,7 @@ class UpdatePromptNotifier extends Notifier<UpdatePrompt> {
   }
 
   bool _takeInstalledVersion(AsyncValue<String> value) {
-    final version = value.valueOrNull;
+    final version = value.value;
     if (value.isLoading || value.hasError || version == null) return false;
     _installedVersion = version;
     return true;
@@ -224,7 +224,7 @@ final appConfigResumeRefreshProvider = Provider<void>((ref) {
 
   ref.listen<AsyncValue<AppConfig>>(appConfigProvider, (_, next) {
     if (next.isLoading || next.hasError) return;
-    if (next.valueOrNull?.source == AppConfigSource.network) {
+    if (next.value?.source == AppConfigSource.network) {
       lastFreshAnswer = now();
     }
   }, fireImmediately: true);

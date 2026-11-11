@@ -15,8 +15,10 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 const _user = UserModel(id: 'u1', name: 'Kari Nordmann', email: 'kari@bi.no');
 
@@ -144,6 +146,7 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [
           authStateProvider.overrideWith((_) => auth = _Auth(user)),
           membershipOverviewProvider.overrideWith(

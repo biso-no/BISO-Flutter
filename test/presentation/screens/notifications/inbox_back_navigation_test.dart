@@ -7,9 +7,11 @@ import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Back from content opened in the inbox returns to the inbox, and from
 /// content opened in an announcement to the announcement - not to the list
@@ -119,6 +121,7 @@ Future<GoRouter> _pumpApp(WidgetTester tester) async {
   addTearDown(router.dispose);
   await tester.pumpWidget(
     ProviderScope(
+      retry: noAutomaticRetry,
       overrides: [
         notificationInboxProvider.overrideWith(
           (ref) => _FakeInbox(NotificationInboxState(items: [_burst, _news])),

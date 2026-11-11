@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -518,7 +519,7 @@ class _NotificationSettingsBody extends ConsumerWidget {
     // A status that cannot be read counts as off, as on the chat settings:
     // offering to turn notifications on is the useful thing to do then.
     final notificationsOff =
-        ref.watch(notificationStatusProvider).valueOrNull == false;
+        ref.watch(notificationStatusProvider).value == false;
 
     final topics = topicIntentAsync.when(
       data: (intent) => BisoListGroup(
@@ -774,7 +775,7 @@ class _PrivacySettingsBody extends ConsumerWidget {
       children: [
         BisoSection(
           title: 'Chat Privacy',
-          footer: privacyStatusAsync.hasError ? null : privacyStatusAsync.valueOrNull,
+          footer: privacyStatusAsync.hasError ? null : privacyStatusAsync.value,
           child: BisoListGroup(
             children: [
               userPrivacyAsync.when(
@@ -928,29 +929,29 @@ class _LanguageSettingsBody extends ConsumerWidget {
         BisoSection(
           title: 'App Language',
           footer: 'Language changes will take effect immediately.',
-          child: BisoListGroup(
-            children: [
-              for (final language in _languages)
-                BisoListRow(
-                  title: language['name']!,
-                  subtitle: language['nativeName']!,
-                  trailing: Radio<String>(
-                    value: language['code']!,
-                    groupValue: currentLocale.languageCode,
-                    onChanged: (value) {
-                      if (value != null && value != currentLocale.languageCode) {
-                        ref.read(localeProvider.notifier).setLocale(value);
+          child: RadioGroup<String>(
+            groupValue: currentLocale.languageCode,
+            onChanged: (value) {
+              if (value != null && value != currentLocale.languageCode) {
+                ref.read(localeProvider.notifier).setLocale(value);
+              }
+            },
+            child: BisoListGroup(
+              children: [
+                for (final language in _languages)
+                  BisoListRow(
+                    title: language['name']!,
+                    subtitle: language['nativeName']!,
+                    trailing: Radio<String>(value: language['code']!),
+                    onTap: () {
+                      final code = language['code']!;
+                      if (code != currentLocale.languageCode) {
+                        ref.read(localeProvider.notifier).setLocale(code);
                       }
                     },
                   ),
-                  onTap: () {
-                    final code = language['code']!;
-                    if (code != currentLocale.languageCode) {
-                      ref.read(localeProvider.notifier).setLocale(code);
-                    }
-                  },
-                ),
-            ],
+              ],
+            ),
           ),
         ),
 

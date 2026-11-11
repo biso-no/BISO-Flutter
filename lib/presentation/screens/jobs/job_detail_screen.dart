@@ -26,7 +26,7 @@ class JobDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final detail = ref.watch(jobDetailProvider(idOrSlug));
-    final job = detail.valueOrNull;
+    final job = detail.value;
 
     return BisoPage(
       title: l10n.jobPosition,

@@ -6,6 +6,7 @@ import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 void main() {
   for (final dark in [false, true]) {
@@ -19,6 +20,7 @@ void main() {
         var campusTaps = 0;
         await tester.pumpWidget(
           ProviderScope(
+            retry: noAutomaticRetry,
             overrides: [unreadCountProvider.overrideWithValue(0)],
             child: MaterialApp(
               theme: dark ? PremiumTheme.darkTheme : PremiumTheme.lightTheme,

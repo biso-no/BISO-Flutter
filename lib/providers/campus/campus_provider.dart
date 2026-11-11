@@ -2,6 +2,7 @@ import 'package:biso/core/logging/migration_helper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/campus_model.dart';
@@ -162,7 +163,7 @@ class FilterCampusNotifier extends StateNotifier<CampusState> {
         ),
       ).timeout(const Duration(seconds: 5));
 
-      final placemarks = await geocoding.placemarkFromCoordinates(
+      final placemarks = await geocoding.Geocoding().placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );

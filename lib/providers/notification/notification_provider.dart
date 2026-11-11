@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:appwrite/appwrite.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../data/models/app_notification_model.dart';
 import '../../data/services/notification_inbox_service.dart';
@@ -142,12 +143,10 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   TopicIntentNotifier(
     this._service,
     this._campusId, {
-    required String? studentId,
-    required String? Function() signedInStudentId,
+    required this._studentId,
+    required this._signedInStudentId,
     String Function()? currentLanguage,
   }) : _currentLanguage = currentLanguage ?? _defaultLanguage,
-       _studentId = studentId,
-       _signedInStudentId = signedInStudentId,
        super(const AsyncValue.loading()) {
     _load();
   }
@@ -477,17 +476,12 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
 
   NotificationInboxNotifier(
     this._service, {
-    required NotificationService notificationService,
-    required String? userId,
-    required String locale,
-    required String? campusId,
-    DateTime? joinedAt,
-  }) : _notificationService = notificationService,
-       _userId = userId,
-       _locale = locale,
-       _campusId = campusId,
-       _joinedAt = joinedAt,
-       super(const NotificationInboxState()) {
+    required this._notificationService,
+    required this._userId,
+    required this._locale,
+    required this._campusId,
+    this._joinedAt,
+  }) : super(const NotificationInboxState()) {
     if (_userId != null && _userId.isNotEmpty) {
       load();
       _subscription = _service.subscribe(onChange: refresh);

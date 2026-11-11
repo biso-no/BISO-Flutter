@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/navigation_utils.dart';
@@ -65,7 +66,7 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
     // has not started yet; the overview is what knows it is coming.
     final upcomingStart = ref
         .watch(membershipOverviewProvider)
-        .valueOrNull
+        .value
         ?.upcomingMembership
         ?.startDate;
     final VoidCallback? retry = view.fetching

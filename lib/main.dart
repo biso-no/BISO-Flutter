@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import 'firebase_options.dart';
 import 'core/theme/biso_navigation.dart';
@@ -116,7 +117,7 @@ void main() async {
     ),
   );
 
-  runApp(const ProviderScope(child: BisoApp()));
+  runApp(const ProviderScope(retry: noAutomaticRetry, child: BisoApp()));
   WidgetsBinding.instance.addPostFrameCallback((_) {
     DeepLinkService().flushPendingLinks();
     ExpenseIntakeService.instance.handlePendingNativeEntrypoints();

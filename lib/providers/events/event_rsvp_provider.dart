@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../data/models/event_rsvp.dart';
 import '../../data/services/event_rsvp_api_client.dart';
@@ -46,9 +47,8 @@ class EventRsvpState {
 }
 
 class EventRsvpNotifier extends StateNotifier<EventRsvpState> {
-  EventRsvpNotifier(this._api, this._eventId, {required bool signedIn})
-    : _signedIn = signedIn,
-      super(const EventRsvpState()) {
+  EventRsvpNotifier(this._api, this._eventId, {required this._signedIn})
+    : super(const EventRsvpState()) {
     load();
   }
 

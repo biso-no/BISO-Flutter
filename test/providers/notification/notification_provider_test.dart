@@ -15,6 +15,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 const String _studentA = 'student-a';
 const String _studentB = 'student-b';
@@ -784,6 +785,7 @@ void main() {
           prefs: SharedPreferences.getInstance,
         );
         final container = ProviderContainer(
+          retry: noAutomaticRetry,
           overrides: [
             notificationServiceProvider.overrideWithValue(service),
             authStateProvider.overrideWith((ref) => auth),
@@ -819,6 +821,7 @@ void main() {
           ..saveGates = [Completer<void>()];
         final auth = _TestAuthNotifier();
         final container = ProviderContainer(
+          retry: noAutomaticRetry,
           overrides: [
             notificationServiceProvider.overrideWithValue(service),
             authStateProvider.overrideWith((ref) => auth),
@@ -881,6 +884,7 @@ void main() {
       final service = _FakeNotificationService(seededIntent);
       final auth = _TestAuthNotifier();
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           notificationServiceProvider.overrideWithValue(service),
           authStateProvider.overrideWith((ref) => auth),

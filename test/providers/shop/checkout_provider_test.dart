@@ -9,6 +9,7 @@ import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Answers with one fixed order and records that it was asked.
 class _FakeShopApi extends ShopApiClient {
@@ -96,6 +97,7 @@ void main() {
 
   ProviderContainer buildContainer(ShopApiClient api) {
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         shopApiClientProvider.overrideWithValue(api),
         // Pin the buyer rather than standing up the authentication stack.

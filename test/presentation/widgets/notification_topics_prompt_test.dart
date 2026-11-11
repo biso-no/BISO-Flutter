@@ -12,7 +12,9 @@ import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// An [Account] whose [getPrefs] does not resolve until [release] is called,
 /// so the test can observe the prompt's loading state deterministically
@@ -114,6 +116,7 @@ void main() {
   }) async {
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [notificationServiceProvider.overrideWithValue(service)],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -158,6 +161,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [notificationServiceProvider.overrideWithValue(service)],
         // A Scaffold, not just MaterialApp, because the switches are
         // Material components; in production they get their Material
@@ -204,6 +208,7 @@ void main() {
       ]) {
         await tester.pumpWidget(
           ProviderScope(
+            retry: noAutomaticRetry,
             overrides: [
               notificationServiceProvider.overrideWithValue(
                 NotificationService.withAccount(_SaveFailingAccount()),
@@ -237,6 +242,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          retry: noAutomaticRetry,
           overrides: [notificationServiceProvider.overrideWithValue(service)],
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -271,6 +277,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          retry: noAutomaticRetry,
           overrides: [notificationServiceProvider.overrideWithValue(service)],
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -327,6 +334,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          retry: noAutomaticRetry,
           overrides: [notificationServiceProvider.overrideWithValue(service)],
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -422,6 +430,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [
           notificationServiceProvider.overrideWithValue(service),
           currentUserProvider.overrideWith(

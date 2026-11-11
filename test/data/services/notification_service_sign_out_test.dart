@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Appwrite, as far as this device's account is concerned: its push targets,
 /// and the topic subscribers attached to them.
@@ -157,6 +158,8 @@ class _FakeAccount extends Account {
   Future<models.Target> updatePushTarget({
     required String targetId,
     required String identifier,
+    String? bundleId,
+    String? environment,
   }) async {
     final call = ++updateTargetCalls;
     final hold = holdUpdateTarget[call];
@@ -185,6 +188,8 @@ class _FakeAccount extends Account {
     required String targetId,
     required String identifier,
     String? providerId,
+    String? bundleId,
+    String? environment,
   }) async {
     final call = ++createTargetCalls;
     final failure = createTargetThrowsOnce;
@@ -1510,6 +1515,7 @@ void main() {
       );
       final auth = _SessionKeepingAuthNotifier(service);
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           notificationServiceProvider.overrideWithValue(service),
           authStateProvider.overrideWith((ref) => auth),

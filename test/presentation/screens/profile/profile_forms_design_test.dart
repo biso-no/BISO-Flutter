@@ -8,7 +8,9 @@ import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -154,6 +156,7 @@ void main() {
     // unchanged from before the migration) to return to.
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [authStateProvider.overrideWith((_) => auth)],
         child: MaterialApp(
           theme: PremiumTheme.build(Brightness.light),
@@ -227,6 +230,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [authStateProvider.overrideWith((_) => auth)],
         child: MaterialApp(
           theme: PremiumTheme.build(Brightness.light),

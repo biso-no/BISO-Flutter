@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 import '../../data/models/member_pass.dart';
 import '../../data/services/member_pass_api_client.dart';
@@ -48,7 +49,7 @@ final memberPassProvider =
 ///
 /// Codes live only here, in memory. The provider disposes when no screen
 /// watches or [hold]s it, and the codes go with it.
-class MemberPassNotifier extends AutoDisposeNotifier<MemberPassView> {
+class MemberPassNotifier extends Notifier<MemberPassView> {
   static const tick = Duration(seconds: 1);
 
   MemberPassSession _session = MemberPassSession();

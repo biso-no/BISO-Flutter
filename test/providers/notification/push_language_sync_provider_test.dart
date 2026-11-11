@@ -9,6 +9,7 @@ import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 const String _student = 'student-a';
 const String _syncedKey = 'push_language_synced_$_student';
@@ -68,6 +69,7 @@ void main() {
     api = _FakeProfileApi();
     final auth = _TestAuthNotifier();
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         profileApiClientProvider.overrideWithValue(api),
         authStateProvider.overrideWith((ref) => auth),

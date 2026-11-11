@@ -9,6 +9,7 @@ import 'package:biso/providers/member_pass/scanner_controller.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../helpers/fake_member_pass_api.dart';
 
@@ -30,6 +31,7 @@ void main() {
 
   ProviderContainer container(FakeAsync async) {
     final c = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         memberPassApiProvider.overrideWithValue(api),
         memberPassClockProvider.overrideWithValue(

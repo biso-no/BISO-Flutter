@@ -42,16 +42,21 @@ final applicationDocumentPickerProvider = Provider<ApplicationDocumentPicker>(
 );
 
 Future<ApplicationDocument?> _pickPdf() async {
-  final result = await FilePicker.pickFiles(
+  final file = await FilePicker.pickFile(
     type: FileType.custom,
     allowedExtensions: ['pdf'],
   );
-  final file = result?.files.firstOrNull;
-  if (file == null || (file.path == null && file.bytes == null)) return null;
+  if (file == null) return null;
+  final path = file.path;
+  // Mobile pickers copy the document to a local file. Anything without one
+  // (the web) is read now, while the picker's handle is still valid.
+  final bytes = path == null ? await file.readAsBytes() : null;
+  final size = file.lengthSync() ?? await file.length() ?? bytes?.length;
+  if (size == null) return null;
   return ApplicationDocument(
     name: file.name,
-    size: file.size,
-    path: file.path,
-    bytes: file.bytes,
+    size: size,
+    path: path,
+    bytes: bytes,
   );
 }

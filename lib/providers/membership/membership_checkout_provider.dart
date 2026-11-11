@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -149,13 +150,10 @@ class MembershipCheckoutController
     extends StateNotifier<MembershipPurchaseState> {
   MembershipCheckoutController(
     this._ref, {
-    Duration activationPollInterval = const Duration(seconds: 10),
-    int activationAttempts = 10,
-    DateTime Function() clock = DateTime.now,
-  }) : _activationPollInterval = activationPollInterval,
-       _activationAttempts = activationAttempts,
-       _clock = clock,
-       super(const MembershipPurchaseState()) {
+    this._activationPollInterval = const Duration(seconds: 10),
+    this._activationAttempts = 10,
+    this._clock = DateTime.now,
+  }) : super(const MembershipPurchaseState()) {
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(resolvePending()),
     );
@@ -396,7 +394,7 @@ class MembershipCheckoutController
   PurchasedPlan? _planOnOffer(String planId) {
     final offered = _ref
         .read(membershipOverviewProvider)
-        .valueOrNull
+        .value
         ?.offeredPlans
         .where((plan) => plan.id == planId)
         .firstOrNull;
@@ -425,7 +423,7 @@ class MembershipCheckoutController
       }
       if (!mounted) return;
       await overview.refresh();
-      final current = _ref.read(membershipOverviewProvider).valueOrNull;
+      final current = _ref.read(membershipOverviewProvider).value;
       final landed = current == null
           ? null
           : landedPurchase(

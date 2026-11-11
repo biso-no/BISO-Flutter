@@ -50,11 +50,10 @@ class MemberPassApiException implements Exception {
 
 class MemberPassApiClient implements MemberPassApi {
   MemberPassApiClient({
-    http.Client? httpClient,
+    this._httpClient,
     ApiJwtProvider? jwtProvider,
     ApiJwtInvalidator? invalidateJwt,
-  }) : _httpClient = httpClient,
-       _jwtProvider = jwtProvider ?? appwriteJwt,
+  }) : _jwtProvider = jwtProvider ?? appwriteJwt,
        _invalidateJwt = invalidateJwt ?? clearAppwriteJwtCache;
 
   final http.Client? _httpClient;

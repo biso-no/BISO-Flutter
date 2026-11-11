@@ -6,7 +6,9 @@ import 'package:biso/providers/auth/bi_sign_in_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Answers [syncOnly] with [answer] and records it in [log].
 class _FakeBiSignIn extends BiSignInService {
@@ -75,6 +77,7 @@ void main() {
     late WidgetRef captured;
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         // A fresh scope per run, so each run's overrides apply.
         key: UniqueKey(),
         overrides: [

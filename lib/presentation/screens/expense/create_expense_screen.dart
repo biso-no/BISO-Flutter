@@ -1037,27 +1037,24 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   }
 
   Future<void> _pickDocumentReceipt() async {
-    final result = await FilePicker.pickFiles(
+    final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-      allowMultiple: true,
     );
-    if (result == null) return;
-    for (final picked in result.files) {
+    for (final picked in files) {
       final path = picked.path;
       if (path != null) await _addFile(File(path));
     }
   }
 
   Future<void> _pickBankStatement(String parentReceiptId) async {
-    final result = await FilePicker.pickFiles(
+    final path = (await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-      allowMultiple: false,
-    );
-    if (result == null || result.files.first.path == null) return;
+    ))?.path;
+    if (path == null) return;
     await _addFile(
-      File(result.files.first.path!),
+      File(path),
       purpose: 'bank-statement',
       parentReceiptId: parentReceiptId,
     );

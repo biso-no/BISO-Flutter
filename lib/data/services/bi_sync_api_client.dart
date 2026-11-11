@@ -62,9 +62,8 @@ class BiSyncResult {
 /// reads them from the account's own BI (Appwrite OIDC) identity, so the app
 /// sends nothing but its session.
 class BiSyncApiClient {
-  BiSyncApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  BiSyncApiClient({this._httpClient, ApiJwtProvider? jwtProvider})
+    : _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;

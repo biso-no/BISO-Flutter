@@ -11,6 +11,7 @@ import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../helpers/membership_fixtures.dart';
 
@@ -119,6 +120,7 @@ void main() {
     DateTime? today,
   }) {
     final c = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         shopApiClientProvider.overrideWithValue(shop),
         membershipApiClientProvider.overrideWithValue(membership),
@@ -528,7 +530,7 @@ void main() {
     expect(membership.forcedChecks, before + 1);
     // The re-check is what shows the membership that was paid for — and,
     // with it, stops the server offering a plan to pay for again.
-    expect(c.read(membershipOverviewProvider).valueOrNull?.isMember, isTrue);
+    expect(c.read(membershipOverviewProvider).value?.isMember, isTrue);
   });
 
   test('a paid order that comes back after starting over is still shown '

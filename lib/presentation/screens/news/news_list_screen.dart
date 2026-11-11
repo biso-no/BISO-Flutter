@@ -136,7 +136,7 @@ class _NewsListScreenState extends ConsumerState<NewsListScreen> {
     _ensureLoaded(campusId, locale);
     final campusNames = {
       for (final campus
-          in ref.watch(allCampusesProvider).valueOrNull ?? const [])
+          in ref.watch(allCampusesProvider).value ?? const [])
         campus.id: campus.name,
     };
 

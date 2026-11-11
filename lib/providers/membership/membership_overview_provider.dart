@@ -51,9 +51,14 @@ const membershipCacheTrust = Duration(hours: 24);
 class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
   static String cacheKey(String userId) => 'membership_overview_v1_$userId';
 
+  /// Whether the build [refresh] asked for bypasses the server's cache.
+  bool _forceNextLoad = false;
+
   @override
   Future<MembershipOverview?> build() async {
     final userId = ref.watch(membershipUserIdProvider);
+    final force = _forceNextLoad;
+    _forceNextLoad = false;
 
     final lifecycle = AppLifecycleListener(
       onResume: () => unawaited(onAppResumed()),
@@ -61,22 +66,27 @@ class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
     ref.onDispose(lifecycle.dispose);
 
     if (userId == null) return null;
-    return _load(userId, refresh: false);
+    return _load(userId, refresh: force);
   }
 
   /// Re-checks with the server. [force] asks it to bypass its own cache
   /// (it still re-checks 24SevenOffice at most once a minute).
+  ///
+  /// Rebuilds rather than setting `state`, because only a rebuild by
+  /// invalidation reads as `isRefreshing` (keeping the current answer on
+  /// screen), while one caused by the account changing reads as
+  /// `isReloading`; `benefitStandingProvider` tells the two apart. A rebuild
+  /// also cannot land on the wrong account: when the account changes while
+  /// this fetch is in flight, Riverpod drops its result.
   Future<void> refresh({bool force = true}) async {
-    final userId = ref.read(membershipUserIdProvider);
-    if (userId == null) return;
-    state = const AsyncLoading<MembershipOverview?>().copyWithPrevious(state);
-    final result = await AsyncValue.guard(() => _load(userId, refresh: force));
-    // The signed-in account can change while this fetch is in flight (sign
-    // out, switch accounts) — Riverpod does not guard an imperative
-    // `state =` against a rebuild on its own. A stale result must never
-    // overwrite whatever the current account's state already is.
-    if (ref.read(membershipUserIdProvider) != userId) return;
-    state = result;
+    if (ref.read(membershipUserIdProvider) == null) return;
+    _forceNextLoad = force;
+    ref.invalidateSelf();
+    try {
+      await future;
+    } catch (_) {
+      // The failure is in `state`, as it was for the first load.
+    }
   }
 
   /// Re-checks membership when the app returns to the foreground, once the
@@ -85,7 +95,7 @@ class MembershipOverviewNotifier extends AsyncNotifier<MembershipOverview?> {
   /// tests can drive it directly instead of faking app-resume events.
   Future<void> onAppResumed() async {
     if (state.isLoading) return;
-    final current = state.valueOrNull;
+    final current = state.value;
     final stale =
         current == null ||
         current.fromCache ||
@@ -159,7 +169,7 @@ final membershipOverviewProvider =
 /// member-only products. A cached answer counts for [membershipCacheTrust];
 /// prices are always decided by the server.
 final hasValidMembershipProvider = Provider<bool>((ref) {
-  final overview = ref.watch(membershipOverviewProvider).valueOrNull;
+  final overview = ref.watch(membershipOverviewProvider).value;
   if (overview == null || !overview.isMember) return false;
   if (!overview.fromCache) return true;
   return DateTime.now().difference(overview.checkedAt) <= membershipCacheTrust;

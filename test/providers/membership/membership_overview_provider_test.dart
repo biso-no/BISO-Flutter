@@ -9,6 +9,7 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 MembershipOverview overview({
   MembershipGateState state = MembershipGateState.eligible,
@@ -60,6 +61,7 @@ void main() {
     String? userId = 'user-1',
   }) {
     final c = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         membershipApiClientProvider.overrideWithValue(api),
         membershipUserIdProvider.overrideWithValue(userId),
@@ -163,7 +165,7 @@ void main() {
     await c.read(membershipOverviewProvider.notifier).refresh();
 
     expect(api.refreshes, [false, true]);
-    expect(c.read(membershipOverviewProvider).valueOrNull?.isMember, isTrue);
+    expect(c.read(membershipOverviewProvider).value?.isMember, isTrue);
   });
 
   test(
@@ -276,6 +278,7 @@ void main() {
       final completer = Completer<MembershipOverview>();
       final api = _FakeMembershipApi(() async => overview(isMember: false));
       final c = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           membershipApiClientProvider.overrideWithValue(api),
           membershipUserIdProvider.overrideWith((ref) => currentId),
@@ -301,7 +304,7 @@ void main() {
       completer.complete(overview(isMember: true));
       await staleRefresh;
 
-      expect(c.read(membershipOverviewProvider).valueOrNull, isNull);
+      expect(c.read(membershipOverviewProvider).value, isNull);
       final prefs = await SharedPreferences.getInstance();
       final cached =
           jsonDecode(
@@ -321,6 +324,7 @@ void main() {
     String? currentId = 'user-1';
     final api = _FakeMembershipApi(() async => overview(isMember: true));
     final c = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         membershipApiClientProvider.overrideWithValue(api),
         membershipUserIdProvider.overrideWith((ref) => currentId),

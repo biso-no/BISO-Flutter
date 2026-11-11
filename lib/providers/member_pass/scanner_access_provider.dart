@@ -91,12 +91,12 @@ class ScannerAccessNotifier extends AsyncNotifier<ScannerAccessState> {
     final fresh =
         checkedAt != null &&
         _now() - checkedAt < maxAge.inMilliseconds &&
-        state.valueOrNull is! ScannerCheckFailed;
+        state.value is! ScannerCheckFailed;
     if (fresh && !force) return;
 
     final generation = _generation;
-    final previous = state.valueOrNull;
-    state = const AsyncLoading<ScannerAccessState>().copyWithPrevious(state);
+    final previous = state.value;
+    state = const AsyncLoading<ScannerAccessState>();
     final next = await _check(generation);
     if (generation != _generation) return;
     state = AsyncData(

@@ -7,7 +7,9 @@ import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../helpers/fake_member_pass_api.dart';
 import '../../helpers/membership_fixtures.dart';
@@ -164,6 +166,7 @@ void main() {
   test('a notMember pass waits for the overview before saying so', () async {
     final completer = Completer<MembershipOverview?>();
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         memberPassProvider.overrideWith(
           () => FixedMemberPass(
@@ -282,6 +285,7 @@ class _Accounts {
   required String? signedIn,
 }) {
   final container = ProviderContainer(
+    retry: noAutomaticRetry,
     overrides: [
       _signedIn.overrideWith((_) => signedIn),
       membershipUserIdProvider.overrideWith((ref) => ref.watch(_signedIn)),
@@ -307,15 +311,26 @@ class _Accounts {
 class _AccountOverview extends MembershipOverviewNotifier {
   _AccountOverview(this.accounts);
   final _Accounts accounts;
+  bool _refreshing = false;
 
   @override
-  Future<MembershipOverview?> build() =>
-      accounts.answers[ref.watch(membershipUserIdProvider)]!.future;
+  Future<MembershipOverview?> build() {
+    final userId = ref.watch(membershipUserIdProvider);
+    if (_refreshing) {
+      _refreshing = false;
+      return accounts.refreshes.removeAt(0).future;
+    }
+    return accounts.answers[userId]!.future;
+  }
 
+  /// Rebuilds by invalidation, as the app's overview does.
   @override
   Future<void> refresh({bool force = true}) async {
-    state = const AsyncLoading<MembershipOverview?>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() => accounts.refreshes.removeAt(0).future);
+    _refreshing = true;
+    ref.invalidateSelf();
+    try {
+      await future;
+    } catch (_) {}
   }
 }
 

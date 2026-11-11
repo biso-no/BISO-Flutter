@@ -11,7 +11,9 @@ import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 const tabs = [
   BisoNavDestination(icon: Icons.home, label: 'Home'),
@@ -34,7 +36,7 @@ class _ChatService implements ChatService {
 }
 
 Widget app(Widget page, {bool shell = true, ValueChanged<int>? onSelected}) =>
-  ProviderScope(overrides: [
+  ProviderScope(retry: noAutomaticRetry, overrides: [
     authStateProvider.overrideWith((_) => _Auth()),
     myOrdersProvider.overrideWith((_) async => List.generate(20, (i) => ShopOrder.fromJson({
       'id': '$i', 'status': 'paid', 'total': 100,

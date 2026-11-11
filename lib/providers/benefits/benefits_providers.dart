@@ -73,7 +73,7 @@ final benefitCampusNameProvider = Provider.autoDispose.family<String, String?>((
     filterCampusProvider.select((c) => c.id == campusId ? c.name : null),
   );
   if (filterName != null) return filterName;
-  final campuses = ref.watch(switcherCampusesProvider).valueOrNull;
+  final campuses = ref.watch(switcherCampusesProvider).value;
   for (final campus in campuses ?? const []) {
     if (campus.id == campusId) return campus.name;
   }

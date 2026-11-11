@@ -13,7 +13,7 @@ import '../models/board_member_model.dart';
 /// department" and answers with the campus's own management board, so the
 /// campus-to-board mapping lives in one place: the server.
 class LeadershipService {
-  LeadershipService({http.Client? httpClient}) : _httpClient = httpClient;
+  LeadershipService({this._httpClient});
 
   final http.Client? _httpClient;
 

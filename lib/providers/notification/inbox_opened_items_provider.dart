@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/logging/print_migration.dart';
@@ -33,10 +34,9 @@ class InboxOpenedItems {
 /// nothing is stored.
 class InboxOpenedItemsNotifier extends StateNotifier<InboxOpenedItems> {
   InboxOpenedItemsNotifier({
-    required String? userId,
+    required this._userId,
     Future<SharedPreferences> Function()? prefs,
-  }) : _userId = userId,
-       _prefs = prefs ?? SharedPreferences.getInstance,
+  }) : _prefs = prefs ?? SharedPreferences.getInstance,
        super(const InboxOpenedItems()) {
     loaded = _load();
   }

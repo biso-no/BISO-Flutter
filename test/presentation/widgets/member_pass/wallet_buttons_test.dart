@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/fake_member_pass_api.dart';
 
@@ -77,6 +78,7 @@ void main() {
     debugDefaultTargetPlatformOverride = platform;
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: [
           memberPassApiProvider.overrideWithValue(api),
           walletChannelProvider.overrideWithValue(wallet),

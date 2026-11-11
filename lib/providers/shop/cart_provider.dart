@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/logging/print_migration.dart';
@@ -90,9 +91,8 @@ class CartAddResult {
 }
 
 class CartNotifier extends StateNotifier<CartState> {
-  CartNotifier(this._api, {required String? userId})
-    : _userId = userId,
-      super(const CartState()) {
+  CartNotifier(this._api, {required this._userId})
+    : super(const CartState()) {
     _ready = _restore();
   }
 

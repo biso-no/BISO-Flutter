@@ -126,7 +126,7 @@ class _StatePage extends StatelessWidget {
 /// `members_only` anyway, so a member is never walled off by a blip.
 bool _knownNonMember(AsyncValue<MembershipOverview?> membership) {
   if (membership.hasError) return false;
-  final overview = membership.valueOrNull;
+  final overview = membership.value;
   return overview != null &&
       !overview.isMember &&
       !overview.fromCache &&

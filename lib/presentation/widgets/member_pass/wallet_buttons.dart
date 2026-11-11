@@ -64,7 +64,7 @@ class _WalletButtonsState extends ConsumerState<WalletButtons> {
     switch (defaultTargetPlatform) {
       case TargetPlatform.iOS when widget.wallets.apple:
         final canAdd =
-            ref.watch(canAddApplePassesProvider).valueOrNull ?? false;
+            ref.watch(canAddApplePassesProvider).value ?? false;
         if (!canAdd) return const SizedBox.shrink();
         if (_added) return _AddedLabel(text: l10n.walletAdded);
         return _Badge(

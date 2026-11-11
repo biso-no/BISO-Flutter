@@ -400,7 +400,7 @@ class _MembershipRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final overview = ref.watch(membershipOverviewProvider).valueOrNull;
+    final overview = ref.watch(membershipOverviewProvider).value;
     final expiry = overview?.currentMembership?.expiryDate;
     // Only the states where the server actually established that this
     // student has no membership may say so. A check that could not be made
