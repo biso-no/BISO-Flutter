@@ -2,7 +2,12 @@
 
 ## Report a vulnerability
 
-Email **[it@biso.no](mailto:it@biso.no)** with "Security" in the subject line.
+Report it privately, in one of two ways:
+
+- **On GitHub:** [report a vulnerability](https://github.com/biso-no/BISO-Flutter/security/advisories/new).
+  Only you and BISO's maintainers can see the report.
+- **By email:** write to **[it@biso.no](mailto:it@biso.no)** with "Security"
+  in the subject line.
 
 Don't open a public issue, pull request or discussion about it. This
 repository is public, so anyone could read it there.
@@ -39,7 +44,7 @@ stores gets fixes.
 The app talks to BISO's backend (appwrite.biso.no and api.biso.no). Problems
 there are covered by the
 [BISO-Sites security policy](https://github.com/biso-no/BISO-Sites/security/policy).
-You report to the same address.
+You report there the same way.
 
 Out of scope:
 
