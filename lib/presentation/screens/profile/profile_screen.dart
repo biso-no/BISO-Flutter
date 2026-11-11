@@ -11,8 +11,10 @@ import '../../../data/models/membership_overview.dart';
 import '../../../data/models/user_model.dart';
 import '../../../generated/l10n/app_localizations.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/benefits/benefits_providers.dart';
 import '../../../providers/config/app_config_provider.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
+import '../../widgets/benefits/benefits_profile_row.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/member_pass_row.dart';
 import 'edit_profile_screen.dart';
@@ -44,6 +46,10 @@ class ProfileScreen extends ConsumerWidget {
     final showExpenseHistory = ref
         .watch(expensesAvailabilityProvider)
         .showsEntryPoints;
+    // Left out, not hidden inside the group, so no divider trails it.
+    final showBenefits = !ref.watch(
+      benefitsNotDeployedProvider(user?.campusId),
+    );
 
     return BisoPage(
       title: l10n.profile,
@@ -193,6 +199,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const _MembershipRow(),
                 const MemberPassRow(),
+                if (showBenefits) const BenefitsProfileRow(),
               ],
             ),
           ),

@@ -3028,22 +3028,10 @@ class AppLocalizationsNo extends AppLocalizations {
   String get benefitsYourBenefits => 'Dine fordeler';
 
   @override
-  String get benefitsShowCode => 'Vis kode';
-
-  @override
-  String get benefitsOpenLink => 'Åpne lenken';
-
-  @override
-  String get benefitsShowCard => 'Vis medlemskortet i kassa';
-
-  @override
   String get benefitsCopy => 'Kopier';
 
   @override
   String get benefitsCopied => 'Kopiert';
-
-  @override
-  String get benefitsMembersOnly => 'Koden vises bare for medlemmer.';
 
   @override
   String get benefitsBecomeMember => 'Bli medlem';
@@ -3060,14 +3048,6 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get benefitsTerms => 'Vilkår';
-
-  @override
-  String benefitsValidUntil(String date) {
-    return 'Gjelder til $date';
-  }
-
-  @override
-  String get benefitsSignIn => 'Logg inn for å se koden';
 
   @override
   String get benefitsLinkFailed => 'Klarte ikke å åpne lenken. Prøv igjen.';
@@ -3125,4 +3105,246 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get eventRsvpSaveFailed => 'Kunne ikke lagre svaret. Prøv igjen.';
+
+  @override
+  String get benefitsScreenTitle => 'Fordeler';
+
+  @override
+  String benefitsCampusLine(String campus) {
+    return 'For BISO-medlemmer i $campus';
+  }
+
+  @override
+  String get benefitsAllOfBiso => 'Hele BISO';
+
+  @override
+  String benefitsTopNonMember(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'fordeler venter på deg som BISO-medlem i $campus',
+      one: 'fordel venter på deg som BISO-medlem i $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String benefitsTopMember(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'fordeler er dine i $campus',
+      one: 'fordel er din i $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String benefitsTopNeutral(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'fordeler for BISO-medlemmer i $campus',
+      one: 'fordel for BISO-medlemmer i $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String benefitsMoreLogos(int count) {
+    return '+ $count til';
+  }
+
+  @override
+  String get benefitsYouAreMember => 'Du er medlem';
+
+  @override
+  String benefitsMemberValidUntil(String date) {
+    return 'Gyldig til $date';
+  }
+
+  @override
+  String get benefitsShowCardShort => 'Vis kort';
+
+  @override
+  String get benefitsSignInAction => 'Logg inn';
+
+  @override
+  String get benefitsFeatured => 'Utvalgt';
+
+  @override
+  String get benefitsReasonPicked => 'Valgt av BISO';
+
+  @override
+  String benefitsReasonEnds(String date) {
+    return 'Slutter $date';
+  }
+
+  @override
+  String get benefitsReasonNew => 'Nytt';
+
+  @override
+  String get benefitsAllDeals => 'Alle tilbud';
+
+  @override
+  String get benefitsCategoryAll => 'Alle';
+
+  @override
+  String get benefitsCategoryFoodDrink => 'Mat og drikke';
+
+  @override
+  String get benefitsCategoryHealthFitness => 'Trening og helse';
+
+  @override
+  String get benefitsCategoryNightlife => 'Uteliv';
+
+  @override
+  String get benefitsCategoryShopping => 'Shopping';
+
+  @override
+  String get benefitsCategoryTravel => 'Reise';
+
+  @override
+  String get benefitsCategorySoftware => 'Programvare';
+
+  @override
+  String get benefitsCategoryEvents => 'Arrangementer';
+
+  @override
+  String get benefitsCategoryOther => 'Annet';
+
+  @override
+  String get benefitsClaimCard => 'Vis kortet i kassen';
+
+  @override
+  String get benefitsClaimCode => 'Rabattkode';
+
+  @override
+  String get benefitsClaimLink => 'Lenke';
+
+  @override
+  String get benefitsMembersOnlyShort => 'Bare for medlemmer';
+
+  @override
+  String get benefitsMoreThanDiscounts => 'Mer enn rabatter';
+
+  @override
+  String get benefitsSectionCareer => 'Karrierefordeler';
+
+  @override
+  String get benefitsSectionSocial => 'Sosialt nettverk';
+
+  @override
+  String get benefitsSectionSafety => 'Trygghet og støtte';
+
+  @override
+  String get benefitsStickyTitle => 'Alt dette får du som medlem';
+
+  @override
+  String benefitsCountInCampus(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count fordeler i $campus',
+      one: '$count fordel i $campus',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get benefitsLockedTitle => 'Bare for BISO-medlemmer';
+
+  @override
+  String benefitsLockedBody(int count, String campus) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Bli medlem for å bruke dette tilbudet og $count andre fordeler i $campus.',
+      one: 'Bli medlem for å bruke dette tilbudet og 1 annen fordel i $campus.',
+      zero: 'Bli medlem for å bruke dette tilbudet.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get benefitsLockedSignedOutBody =>
+      'Logg inn for å bruke tilbudet som medlem.';
+
+  @override
+  String get benefitsUseAtTillTitle => 'Vis medlemskortet i kassen';
+
+  @override
+  String get benefitsUseAtTillBody =>
+      'Vis kortet før du betaler, så får du rabatten.';
+
+  @override
+  String get benefitsShowMemberCard => 'Vis medlemskortet';
+
+  @override
+  String get benefitsRevealCode => 'Vis rabattkode';
+
+  @override
+  String get benefitsOpenDeal => 'Åpne tilbudet';
+
+  @override
+  String get benefitsYourCode => 'Din rabattkode';
+
+  @override
+  String get benefitsCodeNote => 'Koden gjelder bare for BISO-medlemmer.';
+
+  @override
+  String get benefitsToShop => 'Til butikken';
+
+  @override
+  String get benefitsMemberHasIt => 'Du har denne fordelen som medlem.';
+
+  @override
+  String benefitsUpcomingPanel(String date) {
+    return 'Medlemskapet ditt starter $date. Da kan du bruke tilbudet.';
+  }
+
+  @override
+  String get benefitsDiscountForMembers => 'rabatt for medlemmer';
+
+  @override
+  String get benefitsFree => 'Gratis';
+
+  @override
+  String get benefitsAboutDeal => 'Om tilbudet';
+
+  @override
+  String get benefitsValid => 'Gyldig';
+
+  @override
+  String benefitsUntilDate(String date) {
+    return 'Til $date';
+  }
+
+  @override
+  String get benefitsUntilFurther => 'Til videre';
+
+  @override
+  String get benefitsWebsite => 'Nettside';
+
+  @override
+  String benefitsMoreInCategory(String category) {
+    return 'Mer innen $category';
+  }
+
+  @override
+  String get benefitsMoreDeals => 'Flere tilbud';
+
+  @override
+  String get benefitsForYou => 'Fordeler for deg';
+
+  @override
+  String get benefitsMemberBenefits => 'Medlemsfordeler';
+
+  @override
+  String get benefitsMemberBenefitsSubtitle =>
+      'Rabatter og tilbud for medlemmer';
+
+  @override
+  String get benefitsSeeWhatYouGet => 'Se hva du får';
 }

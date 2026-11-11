@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Files already moved onto the BISO design system. Each migration task adds
 /// its files here, and from then on the rules below hold for them.
 const migratedFiles = <String>[
+  'lib/presentation/screens/auth/continue_with_bi_action.dart',
   'lib/core/theme/biso_page.dart',
   'lib/core/theme/biso_page_header.dart',
   'lib/presentation/widgets/biso/biso_bottom_bar.dart',
@@ -62,7 +63,18 @@ const migratedFiles = <String>[
   'lib/presentation/screens/onboarding/onboarding_screen.dart',
   'lib/presentation/widgets/member_pass/pass_card.dart',
   'lib/presentation/widgets/benefits/benefit_list_section.dart',
-  'lib/presentation/widgets/benefits/benefit_detail_sheet.dart',
+  'lib/presentation/widgets/benefits/benefit_visuals.dart',
+  'lib/presentation/widgets/benefits/benefit_action_panel.dart',
+  'lib/presentation/widgets/benefits/benefits_top_card.dart',
+  'lib/presentation/widgets/benefits/benefit_spotlight.dart',
+  'lib/presentation/widgets/benefits/benefit_grid.dart',
+  'lib/presentation/widgets/home/home_benefits_section.dart',
+  'lib/presentation/widgets/benefits/benefit_perks.dart',
+  'lib/presentation/widgets/benefits/benefits_profile_row.dart',
+  'lib/presentation/screens/benefits/benefits_routes.dart',
+  'lib/presentation/screens/benefits/benefit_detail_screen.dart',
+  'lib/presentation/screens/benefits/benefits_screen.dart',
+  'lib/presentation/widgets/campus/campus_switcher_sheet.dart',
   'lib/presentation/screens/profile/member_pass_presentation.dart',
   'lib/presentation/screens/profile/member_pass_screen.dart',
   'lib/presentation/widgets/member_pass/member_pass_row.dart',

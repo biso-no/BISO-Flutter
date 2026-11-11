@@ -9,7 +9,6 @@ import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/oslo_time.dart';
 import '../../../data/models/member_pass.dart';
 import '../../../generated/l10n/app_localizations.dart';
-import '../../../providers/auth/bi_sign_in_provider.dart';
 import '../../../providers/member_pass/member_pass_provider.dart';
 import '../../../providers/member_pass/member_pass_session.dart';
 import '../../../providers/membership/membership_overview_provider.dart';
@@ -17,7 +16,7 @@ import '../../widgets/benefits/benefit_list_section.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/member_pass/pass_card.dart';
 import '../../widgets/member_pass/wallet_buttons.dart';
-import '../auth/bi_sign_in_messages.dart';
+import '../auth/continue_with_bi_action.dart';
 import 'member_pass_presentation.dart';
 
 /// The signed-in member's live pass, or why there is none.
@@ -50,15 +49,10 @@ class _MemberPassScreenState extends ConsumerState<MemberPassScreen> {
   /// (signing in with BI when the account has none), then reloads the pass.
   Future<void> _continueWithBi() async {
     setState(() => _biBusy = true);
-    final outcome = await continueWithBi(ref);
-    if (!mounted) return;
-    setState(() => _biBusy = false);
-    unawaited(ref.read(memberPassProvider.notifier).retry());
-    final message = biContinueMessage(AppLocalizations.of(context)!, outcome);
-    final messenger = ScaffoldMessenger.of(context);
-    goToOnboardingAfterBi(context, ref, outcome);
-    if (message != null) {
-      messenger.showSnackBar(SnackBar(content: Text(message)));
+    try {
+      await runContinueWithBi(context, ref);
+    } finally {
+      if (mounted) setState(() => _biBusy = false);
     }
   }
 

@@ -42,6 +42,8 @@ import 'presentation/screens/explore/unit_detail_screen.dart';
 import 'presentation/screens/explore/departures_screen.dart';
 import 'presentation/screens/explore/campus_detail_screen.dart';
 import 'presentation/screens/ai_chat/ai_chat_screen.dart';
+import 'presentation/screens/benefits/benefit_detail_screen.dart';
+import 'presentation/screens/benefits/benefits_screen.dart';
 import 'presentation/screens/profile/membership_screen.dart';
 import 'presentation/screens/profile/member_pass_screen.dart';
 import 'presentation/screens/profile/profile_screen.dart';
@@ -460,6 +462,14 @@ final _router = GoRouter(
                   ],
                 ),
               ],
+            ),
+            GoRoute(
+              path: '/benefits',
+              name: 'benefits',
+              builder: (context, state) => BenefitsScreen(
+                campusParam: state.uri.queryParameters['campus'],
+              ),
+              routes: [benefitDetailRoute()],
             ),
             GoRoute(
               path: '/ai-chat',
