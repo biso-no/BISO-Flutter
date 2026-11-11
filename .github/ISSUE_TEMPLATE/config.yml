@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/biso-no/BISO-Flutter/security/policy
+    about: Please don't report security problems in a public issue. Follow the security policy instead.

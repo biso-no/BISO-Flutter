@@ -99,9 +99,9 @@ Use the service files in `lib/data/services/` as the source of truth for current
 
 ### Requirements
 
-- Flutter `3.32.8` stable is used in CI.
-- Dart SDK `^3.8.1` is required by `pubspec.yaml`.
-- Java 17 is used for Android builds in CI.
+- Flutter `3.47.9` stable is used in CI (`FLUTTER_VERSION` in `.github/workflows/build.yml`).
+- Dart SDK `^3.13.0` is required by `pubspec.yaml`.
+- Java 21 is used for Android builds in CI.
 - Xcode and CocoaPods are required for iOS development.
 - Android Studio or Android command-line tools are required for Android development.
 
@@ -114,12 +114,12 @@ flutter pub get
 ### Generate local files when needed
 
 ```sh
-flutter pub run intl_utils:generate
-flutter pub run flutter_launcher_icons
-flutter pub run build_runner build --delete-conflicting-outputs
+dart run flutter_launcher_icons
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs
 ```
 
-`build_runner` is currently allowed to fail in CI, so treat failures there as feature-specific unless you are working on generated code.
+CI runs all three, in this order, before the tests.
 
 ### Run the app
 
@@ -151,7 +151,7 @@ flutter analyze
 flutter test
 ```
 
-There are currently no committed tests, so `flutter test` is mostly a smoke check until test coverage is added.
+CI runs `flutter test` on every pull request, then builds a debug APK. It doesn't run `flutter analyze`, so run that yourself.
 
 For Android build verification:
 
@@ -180,7 +180,7 @@ The app supports English and Norwegian:
 After editing localization strings, regenerate localization output:
 
 ```sh
-flutter pub run intl_utils:generate
+flutter gen-l10n
 ```
 
 Generated localization files should be updated through tooling rather than edited manually.
@@ -218,7 +218,7 @@ GitHub Actions are configured in `.github/workflows/build.yml`.
 
 On pushes to `main` and version tags, CI:
 
-1. Sets up Java 17 and Flutter `3.32.8`.
+1. Sets up Java 21 and Flutter `3.47.9`.
 2. Runs `flutter pub get`.
 3. Generates launcher icons and localization files.
 4. Runs `build_runner`.
@@ -281,7 +281,7 @@ The previous manual CI setup also referenced these iOS secrets; keep them availa
 - Feature availability may be controlled through Appwrite-backed feature flags.
 - Chat screens and services exist, but chat is not currently a bottom navigation tab.
 - Generated files should be regenerated through Flutter tooling instead of edited manually.
-- No test suite is currently committed. Add focused tests around risky service/model/provider changes as coverage grows.
+- Tests live in `test/`. Add focused tests around risky service, model and provider changes.
 
 ## Useful Commands
 
@@ -294,11 +294,11 @@ flutter analyze
 flutter test
 
 # Localization and generated code
-flutter pub run intl_utils:generate
-flutter pub run build_runner build --delete-conflicting-outputs
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs
 
 # Icons
-flutter pub run flutter_launcher_icons
+dart run flutter_launcher_icons
 
 # Run app
 flutter run
@@ -314,3 +314,21 @@ flutter build appbundle --release
 cd ios
 bundle exec fastlane beta
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report a bug, set up the
+project and get a change merged. Everyone who takes part follows the
+[code of conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Found a security problem? Don't open an issue. Follow
+[SECURITY.md](SECURITY.md).
+
+## License
+
+Copyright (c) 2025-2026 BI Studentorganisasjon (BISO). All rights reserved.
+
+The code is public so anyone can read it, but it isn't open source. You may
+not reuse it without written permission from BISO. See [LICENSE](LICENSE).

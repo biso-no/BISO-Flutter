@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in the BISO app doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. The repository is public, so leave out personal data: no names, email addresses, student numbers, or screenshots that show them.
+
+        **Found a security problem?** Don't use this form. Follow the [security policy](https://github.com/biso-no/BISO-Flutter/security/policy) instead.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Phone
+      options:
+        - iPhone (iOS)
+        - Android
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: App version and operating system version
+      description: The app version is on its page in the App Store or Google Play.
+      placeholder: App 2.2.16, iOS 26.1
+  - type: input
+    id: screen
+    attributes:
+      label: Where in the app?
+      placeholder: Events, the event page, the "Get tickets" button
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. See …
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or a screen recording
+      description: Drag them in here. Hide any personal data first.

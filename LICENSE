@@ -1,0 +1,44 @@
+Copyright (c) 2025-2026 BI Studentorganisasjon (BISO)
+All rights reserved.
+
+This repository is public so that anyone can read the code. Being able to read
+it does not give you a license to use it.
+
+You may not copy, modify, distribute, sublicense or sell the software in this
+repository, in whole or in part, or build, publish or distribute an app from
+it, without written permission from BISO. To ask for permission, write to
+it@biso.no.
+
+The only uses allowed without permission are the ones GitHub's Terms of
+Service give GitHub users for public repositories: viewing the repository and
+forking it on GitHub.
+
+
+Material this notice does not cover
+
+The following keep their own terms. Nothing in this repository gives you any
+rights to them:
+
+- Third-party software, including the packages listed in pubspec.yaml and
+  pubspec.lock, and any file or package that states its own license.
+- The Museo Sans font file in assets/fonts/. It belongs to its type foundry,
+  exljbris, and is subject to its license.
+- Photos and other media that belong to the people who made them.
+- The BISO name, logos, app icon and other brand assets, which are BISO's
+  trademarks.
+
+
+Contributions
+
+By submitting a contribution to this repository you agree to the terms in
+CONTRIBUTING.md.
+
+
+Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL BISO BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
