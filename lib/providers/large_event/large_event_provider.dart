@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/large_event_model.dart';
@@ -33,27 +35,35 @@ class LargeEventState {
 }
 
 final largeEventProvider =
-    StateNotifierProvider<LargeEventNotifier, LargeEventState>((ref) {
-      return LargeEventNotifier(ref);
-    });
+    NotifierProvider<LargeEventNotifier, LargeEventState>(
+      LargeEventNotifier.new,
+    );
 
-class LargeEventNotifier extends StateNotifier<LargeEventState> {
-  final Ref _ref;
-
-  LargeEventNotifier(this._ref) : super(const LargeEventState()) {
-    loadActive();
+class LargeEventNotifier extends Notifier<LargeEventState> {
+  @override
+  LargeEventState build() {
+    unawaited(_fetchActive());
     // Live updates
-    _ref.read(largeEventServiceProvider).subscribeActiveEvents().listen((_) {
-      loadActive();
-    });
+    final updates = ref
+        .read(largeEventServiceProvider)
+        .subscribeActiveEvents()
+        .listen((_) => loadActive());
+    ref.onDispose(updates.cancel);
+    return const LargeEventState(isLoading: true);
   }
 
   Future<void> loadActive() async {
     state = state.copyWith(isLoading: true, error: null);
+    await _fetchActive();
+  }
+
+  Future<void> _fetchActive() async {
     try {
-      final events = await _ref
-          .read(largeEventServiceProvider)
-          .fetchActiveEvents();
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final events = await Future.sync(
+        () => ref.read(largeEventServiceProvider).fetchActiveEvents(),
+      );
       state = state.copyWith(activeEvents: events, isLoading: false);
     } catch (e) {
       state = state.copyWith(error: e.toString(), isLoading: false);

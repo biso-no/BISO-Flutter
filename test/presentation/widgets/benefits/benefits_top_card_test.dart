@@ -70,16 +70,19 @@ class _FakeBiSignIn extends BiSignInService {
 
 /// Signed in as [_user]. A BI sign-in switches to [signedInState] when set,
 /// then waits for [gate] before it answers, as the real one waits on BI.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth()
-    : super(
-        const AuthState(
+    : _initial = const AuthState(
           isAuthenticated: true,
           user: _user,
           hasProfile: true,
           isProfileComplete: true,
-        ),
-      );
+        );
 
   BiSignInOutcome biOutcome = const BiSignInFailed(BiSignInFailure.failed);
   AuthState? signedInState;
@@ -184,7 +187,7 @@ Future<void> _pump(
     overrides: [
       memberPassProvider.overrideWith(() => _FakePass(pass ?? activeView())),
       membershipOverviewProvider.overrideWith(() => _Overview(overview)),
-      authStateProvider.overrideWith((_) => _auth = _Auth()),
+      authStateProvider.overrideWith(() => _auth = _Auth()),
       biSignInServiceProvider.overrideWithValue(_bi = _FakeBiSignIn()),
       screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
     ],

@@ -36,7 +36,7 @@ class _ScannerGateState extends ConsumerState<ScannerGate> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final async = ref.watch(scannerAccessProvider);
-    final value = async.valueOrNull;
+    final value = async.value;
     if (value is ScannerGranted) {
       return MembershipScannerScreen(access: value.access);
     }

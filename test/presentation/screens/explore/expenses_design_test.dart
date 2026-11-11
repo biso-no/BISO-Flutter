@@ -9,13 +9,19 @@ import 'package:biso/providers/expense/expense_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(bool isAuthenticated)
-    : super(AuthState(isAuthenticated: isAuthenticated));
+    : _initial = AuthState(isAuthenticated: isAuthenticated);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -66,7 +72,7 @@ List<Override> _overrides(
   List<ExpenseModel> expenses, {
   bool authenticated = true,
 }) => [
-  authStateProvider.overrideWith((_) => _Auth(authenticated)),
+  authStateProvider.overrideWith(() => _Auth(authenticated)),
   expenseServiceProvider.overrideWithValue(_FakeExpenseService(expenses)),
   appConfigProvider.overrideWith(
     (_) async => const AppConfig(expensesEnabled: true),

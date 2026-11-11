@@ -88,20 +88,20 @@ class PendingCheckout {
 }
 
 /// Drives a checkout attempt and follows it home.
-class CheckoutController extends StateNotifier<AsyncValue<void>> {
-  CheckoutController(this._ref) : super(const AsyncValue.data(null)) {
+class CheckoutController extends Notifier<AsyncValue<void>> {
+  @override
+  AsyncValue<void> build() {
     // The buyer completes payment in another app. Coming back to the
     // foreground is the earliest reliable moment to find out how it went —
     // the deep link from the return route is faster but not guaranteed, since
     // a browser may decline to hand a custom scheme back to the app.
-    _lifecycle = AppLifecycleListener(
+    final lifecycle = AppLifecycleListener(
       onResume: () => unawaited(resolvePendingCheckout()),
     );
+    ref.onDispose(lifecycle.dispose);
     unawaited(_restorePending());
+    return const AsyncValue.data(null);
   }
-
-  final Ref _ref;
-  late final AppLifecycleListener _lifecycle;
 
   static const String _pendingOrderKey = 'shop_pending_order_id';
   static const String _pendingStartedKey = 'shop_pending_order_started_at';
@@ -110,12 +110,6 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
   PendingCheckout? _pending;
 
   PendingCheckout? get pending => _pending;
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
 
   Future<void> _restorePending() async {
     try {
@@ -221,8 +215,8 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
   }) async {
     state = const AsyncValue.loading();
     try {
-      final items = _ref.read(cartProvider).items;
-      final started = await _ref
+      final items = ref.read(cartProvider).items;
+      final started = await ref
           .read(shopApiClientProvider)
           .startCheckout(
             provider: provider,
@@ -251,7 +245,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
   /// answering, so a "paid" here is not a guess about a webhook that may not
   /// have landed yet.
   Future<ShopOrder> verifyOrder(String orderId) async {
-    final order = await _ref.read(shopApiClientProvider).fetchOrder(orderId);
+    final order = await ref.read(shopApiClientProvider).fetchOrder(orderId);
     await _applyOutcome(order);
     return order;
   }
@@ -270,7 +264,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
     }
 
     try {
-      final order = await _ref
+      final order = await ref
           .read(shopApiClientProvider)
           .fetchOrder(pending.orderId);
       await _applyOutcome(order);
@@ -315,7 +309,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
     final forgotten = _clearPending();
 
     if (order.status.isSuccessful) {
-      final cart = _ref.read(cartProvider.notifier);
+      final cart = ref.read(cartProvider.notifier);
       if (pending.lines.isEmpty) {
         await cart.clear(releaseHolds: false);
       } else {
@@ -327,7 +321,7 @@ class CheckoutController extends StateNotifier<AsyncValue<void>> {
 }
 
 final checkoutControllerProvider =
-    StateNotifierProvider<CheckoutController, AsyncValue<void>>(
+    NotifierProvider<CheckoutController, AsyncValue<void>>(
       CheckoutController.new,
     );
 

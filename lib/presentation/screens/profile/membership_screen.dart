@@ -179,7 +179,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
     }
 
     final overviewAsync = ref.watch(membershipOverviewProvider);
-    final overview = overviewAsync.valueOrNull;
+    final overview = overviewAsync.value;
     final purchase = ref.watch(membershipCheckoutControllerProvider);
 
     if (overview == null) {
@@ -256,7 +256,7 @@ class _MembershipScreenState extends ConsumerState<MembershipScreen> {
         overview.defaultCampusId ??
         overview.campuses.firstOrNull?.id;
     final providers = ref.watch(availablePaymentProvidersProvider);
-    final available = providers.valueOrNull ?? const <PaymentProvider>[];
+    final available = providers.value ?? const <PaymentProvider>[];
     final provider = available.contains(_provider)
         ? _provider
         : available.firstOrNull;

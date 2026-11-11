@@ -36,9 +36,8 @@ class ShopApiException implements Exception {
 /// provider availability and payment outcomes are all decided server-side; this
 /// class asks, and never computes.
 class ShopApiClient {
-  ShopApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  ShopApiClient({this._httpClient, ApiJwtProvider? jwtProvider})
+    : _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;

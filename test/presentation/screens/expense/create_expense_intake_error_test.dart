@@ -8,6 +8,7 @@ import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -19,8 +20,13 @@ const _user = UserModel(
   campusId: 'c1',
 );
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true, user: _user);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -43,7 +49,7 @@ class _FakeExpenseService extends ExpenseServiceV2 {
 }
 
 List<Override> _overrides() => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   expenseServiceProvider.overrideWithValue(_FakeExpenseService()),
   appConfigProvider.overrideWith(
     (_) async => const AppConfig(expensesEnabled: true),

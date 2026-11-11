@@ -26,9 +26,8 @@ class RecruitmentApiException implements Exception {
 /// access to `job_applications` or the `resumes` bucket. The server takes the
 /// applicant's email from the account, never from the form.
 class RecruitmentApiClient {
-  RecruitmentApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  RecruitmentApiClient({this._httpClient, ApiJwtProvider? jwtProvider})
+    : _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;

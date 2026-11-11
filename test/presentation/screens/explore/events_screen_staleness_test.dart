@@ -11,6 +11,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Regression cover for the staleness guard added to events_screen,
 /// jobs_screen and marketplace_screen.
@@ -86,6 +87,7 @@ void main() {
 
       final service = _FakeEventService();
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           eventServiceProvider.overrideWithValue(service),
           filterCampusProvider.overrideWithValue(campus),

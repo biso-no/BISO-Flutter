@@ -1,19 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((
-  ref,
-) {
-  return ThemeModeNotifier();
-});
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
+);
 
-class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+class ThemeModeNotifier extends Notifier<ThemeMode> {
   static const _themeModeKey = 'theme_mode';
   static const _legacyDarkModeKey = 'dark_mode';
 
-  ThemeModeNotifier() : super(ThemeMode.system) {
-    _load();
+  @override
+  ThemeMode build() {
+    unawaited(_load());
+    return ThemeMode.system;
   }
 
   Future<void> _load() async {

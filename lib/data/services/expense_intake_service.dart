@@ -24,9 +24,8 @@ class ExpenseIntakeException implements Exception {
 class ExpenseIntakeService {
   ExpenseIntakeService({
     Directory? rootDirectory,
-    void Function(String route)? openRoute,
-  }) : _rootDirectoryOverride = rootDirectory,
-       _openRoute = openRoute;
+    this._openRoute,
+  }) : _rootDirectoryOverride = rootDirectory;
 
   /// `CreateExpenseScreen` reads this singleton directly rather than through
   /// Riverpod, and the default instance resolves its storage root through

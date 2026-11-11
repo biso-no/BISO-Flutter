@@ -7,23 +7,30 @@ import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
 /// A signed-out auth state, mirroring the `_Auth` pattern used across the
 /// other screen design tests (`profile_design_test.dart`,
-/// `profile_forms_design_test.dart`): a `StateNotifier` faked via
+/// `profile_forms_design_test.dart`): a `Notifier` faked via
 /// `noSuchMethod` so no method call reaches a real `AuthService` or network.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState());
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-List<Override> _overrides() => [authStateProvider.overrideWith((_) => _Auth())];
+List<Override> _overrides() => [authStateProvider.overrideWith(() => _Auth())];
 
 void main() {
   testWidgets(
@@ -141,6 +148,7 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          retry: noAutomaticRetry,
           overrides: _overrides(),
           child: MaterialApp.router(
             theme: PremiumTheme.build(Brightness.light),

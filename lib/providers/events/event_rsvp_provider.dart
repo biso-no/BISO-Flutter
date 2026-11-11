@@ -45,26 +45,48 @@ class EventRsvpState {
   );
 }
 
-class EventRsvpNotifier extends StateNotifier<EventRsvpState> {
-  EventRsvpNotifier(this._api, this._eventId, {required bool signedIn})
-    : _signedIn = signedIn,
-      super(const EventRsvpState()) {
-    load();
-  }
+/// Rebuilt when the student signs in or out. Every await below checks that
+/// the build it started in is still current, so an answer for the previous
+/// one never lands.
+class EventRsvpNotifier extends Notifier<EventRsvpState> {
+  EventRsvpNotifier(this._eventId);
 
-  final EventRsvpApi _api;
   final String _eventId;
-  final bool _signedIn;
+  late EventRsvpApi _api;
+  late bool _signedIn;
+
+  /// The current build, until the provider is invalidated or disposed.
+  late _Build _build;
+
+  @override
+  EventRsvpState build() {
+    final current = _build = _Build();
+    ref.onDispose(() => current.live = false);
+    _api = ref.watch(eventRsvpApiProvider);
+    _signedIn =
+        ref.watch(authStateProvider.select((s) => s.signedInUserId)) != null;
+    unawaited(_fetch());
+    return const EventRsvpState(loading: true);
+  }
 
   /// Fetches the counts. A failure leaves the summary null, quietly.
   Future<void> load() async {
     state = state.copyWith(loading: true);
+    await _fetch();
+  }
+
+  Future<void> _fetch() async {
+    final build = _build;
     try {
-      final summary = await _api.fetch(_eventId, signedIn: _signedIn);
-      if (!mounted) return;
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final summary = await Future.sync(
+        () => _api.fetch(_eventId, signedIn: _signedIn),
+      );
+      if (!build.live) return;
       state = state.copyWith(summary: summary, loading: false);
     } catch (_) {
-      if (!mounted) return;
+      if (!build.live) return;
       state = state.copyWith(loading: false);
     }
   }
@@ -74,9 +96,10 @@ class EventRsvpNotifier extends StateNotifier<EventRsvpState> {
   /// answer is being saved (the save brings the server's summary itself).
   Future<void> refresh() async {
     if (state.saving) return;
+    final build = _build;
     try {
       final summary = await _api.fetch(_eventId, signedIn: _signedIn);
-      if (!mounted || state.saving) return;
+      if (!build.live || state.saving) return;
       state = state.copyWith(summary: summary);
     } catch (_) {
       // Keep what is shown.
@@ -89,13 +112,14 @@ class EventRsvpNotifier extends StateNotifier<EventRsvpState> {
     final previous = state.summary;
     if (state.saving || previous == null) return EventRsvpSaveResult.ignored;
     state = state.copyWith(summary: previous.withAnswer(status), saving: true);
+    final build = _build;
     try {
       final summary = await _api.respond(_eventId, status);
-      if (!mounted) return EventRsvpSaveResult.saved;
+      if (!build.live) return EventRsvpSaveResult.saved;
       state = state.copyWith(summary: summary, saving: false);
       return EventRsvpSaveResult.saved;
     } catch (_) {
-      if (!mounted) return EventRsvpSaveResult.failed;
+      if (!build.live) return EventRsvpSaveResult.failed;
       state = state.copyWith(summary: previous, saving: false);
       unawaited(refresh());
       return EventRsvpSaveResult.failed;
@@ -103,13 +127,9 @@ class EventRsvpNotifier extends StateNotifier<EventRsvpState> {
   }
 }
 
-final eventRsvpProvider = StateNotifierProvider.autoDispose
-    .family<EventRsvpNotifier, EventRsvpState, String>((ref, eventId) {
-      final signedIn =
-          ref.watch(authStateProvider.select((s) => s.signedInUserId)) != null;
-      return EventRsvpNotifier(
-        ref.watch(eventRsvpApiProvider),
-        eventId,
-        signedIn: signedIn,
-      );
-    });
+class _Build {
+  bool live = true;
+}
+
+final eventRsvpProvider = NotifierProvider.autoDispose
+    .family<EventRsvpNotifier, EventRsvpState, String>(EventRsvpNotifier.new);

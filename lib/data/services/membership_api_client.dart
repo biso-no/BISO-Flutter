@@ -35,9 +35,8 @@ class MembershipApiException implements Exception {
 /// asks. Purchases use the same trusted checkout as the website, marked
 /// `client: "app"` so the payment provider returns the student to the app.
 class MembershipApiClient {
-  MembershipApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  MembershipApiClient({this._httpClient, ApiJwtProvider? jwtProvider})
+    : _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;

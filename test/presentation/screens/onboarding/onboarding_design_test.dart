@@ -2,22 +2,28 @@ import 'package:biso/presentation/screens/onboarding/onboarding_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
 /// A signed-out, not-loading auth state, mirroring the `_Auth` pattern used
 /// across the other screen design tests (`auth_design_test.dart`,
-/// `profile_design_test.dart`): a `StateNotifier` faked via `noSuchMethod` so
+/// `profile_design_test.dart`): a `Notifier` faked via `noSuchMethod` so
 /// no method call reaches a real `AuthService` or network.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState());
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-List<Override> _overrides() => [authStateProvider.overrideWith((_) => _Auth())];
+List<Override> _overrides() => [authStateProvider.overrideWith(() => _Auth())];
 
 void main() {
   testWidgets('Onboarding builds on BisoPage in every appearance', (

@@ -221,7 +221,7 @@ class AppLogger {
       'timestamp': DateTime.now().toIso8601String(),
       'app_version': appVersion,
       'platform': defaultTargetPlatform.name,
-      if (extra != null) ...extra,
+      ...?extra,
       if (error != null) 'error': error.toString(),
       if (stackTrace != null) 'stack_trace': stackTrace.toString(),
     };

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/large_event_model.dart';
@@ -31,30 +33,41 @@ class LargeEventItemsState {
   }
 }
 
-class LargeEventItemsNotifier extends StateNotifier<LargeEventItemsState> {
-  final Ref _ref;
-  LargeEventItemsNotifier(this._ref) : super(const LargeEventItemsState());
+class LargeEventItemsNotifier extends Notifier<LargeEventItemsState> {
+  LargeEventItemsNotifier(this._params);
 
-  Future<void> load({required String eventId, required String campusId}) async {
-    state = state.copyWith(isLoading: true, error: null);
+  final ({String eventId, String campusId}) _params;
+
+  @override
+  LargeEventItemsState build() {
+    unawaited(_load());
+    return const LargeEventItemsState(isLoading: true);
+  }
+
+  Future<void> _load() async {
+    // The screen can close before the items arrive.
+    final ref = this.ref;
     try {
-      final items = await _ref
-          .read(largeEventItemServiceProvider)
-          .listItems(eventId: eventId, campusId: campusId);
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final items = await Future.sync(
+        () => ref.read(largeEventItemServiceProvider).listItems(
+          eventId: _params.eventId,
+          campusId: _params.campusId,
+        ),
+      );
+      if (!ref.mounted) return;
       state = state.copyWith(items: items, isLoading: false);
     } catch (e) {
+      if (!ref.mounted) return;
       state = state.copyWith(error: e.toString(), isLoading: false);
     }
   }
 }
 
-final largeEventItemsProvider = StateNotifierProvider.autoDispose
+final largeEventItemsProvider = NotifierProvider.autoDispose
     .family<
       LargeEventItemsNotifier,
       LargeEventItemsState,
       ({String eventId, String campusId})
-    >((ref, params) {
-      final notifier = LargeEventItemsNotifier(ref);
-      notifier.load(eventId: params.eventId, campusId: params.campusId);
-      return notifier;
-    });
+    >(LargeEventItemsNotifier.new);

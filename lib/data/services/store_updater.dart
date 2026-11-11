@@ -62,12 +62,11 @@ Future<bool> _openExternally(Uri uri) =>
 /// Every other platform does nothing: it never sees a prompt.
 class StoreUpdater {
   StoreUpdater({
-    required TargetPlatform platform,
+    required this._platform,
     PlayUpdates? play,
     AppStoreChannel? appStore,
     UrlOpener? openUrl,
-  }) : _platform = platform,
-       _play = play ?? const InAppUpdatePlayUpdates(),
+  }) : _play = play ?? const InAppUpdatePlayUpdates(),
        _appStore = appStore ?? const AppStoreChannel(),
        _openUrl = openUrl ?? _openExternally;
 

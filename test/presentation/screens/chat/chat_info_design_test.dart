@@ -8,6 +8,7 @@ import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -41,8 +42,13 @@ const _memberChat = ChatModel(
   metadata: {'created_by': 'owner-1'},
 );
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true, user: _user);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -62,7 +68,7 @@ class _FakeChatService implements ChatService {
 }
 
 List<Override> _overrides() => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   chatServiceProvider.overrideWithValue(_FakeChatService()),
 ];
 

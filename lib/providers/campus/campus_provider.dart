@@ -11,9 +11,9 @@ import '../../core/constants/app_constants.dart';
 
 // Filter campus provider - used for filtering content display
 final filterCampusStateProvider =
-    StateNotifierProvider<FilterCampusNotifier, CampusState>((ref) {
-      return FilterCampusNotifier();
-    });
+    NotifierProvider<FilterCampusNotifier, CampusState>(
+      FilterCampusNotifier.new,
+    );
 
 // Provider for the current campus (for backward compatibility)
 final filterCampusProvider = Provider<CampusModel>((ref) {
@@ -88,23 +88,25 @@ class CampusState {
 }
 
 // Filter campus state notifier - manages campus for content filtering
-class FilterCampusNotifier extends StateNotifier<CampusState> {
+class FilterCampusNotifier extends Notifier<CampusState> {
   static const String _filterCampusKey = 'filter_campus_id';
   final CampusService _campusService = CampusService();
 
-  FilterCampusNotifier() : super(const CampusState(
-    campus: CampusModel(
-      id: '',
-      name: '',
-      description: '',
-      location: '',
-      imageUrl: '',
-      heroImageUrl: '',
-      stats: CampusStats(),
-    ),
-    isInitialized: false,
-  )) {
+  @override
+  CampusState build() {
     _loadFilterCampus();
+    return const CampusState(
+      campus: CampusModel(
+        id: '',
+        name: '',
+        description: '',
+        location: '',
+        imageUrl: '',
+        heroImageUrl: '',
+        stats: CampusStats(),
+      ),
+      isInitialized: false,
+    );
   }
 
   Future<void> _loadFilterCampus() async {
@@ -162,7 +164,7 @@ class FilterCampusNotifier extends StateNotifier<CampusState> {
         ),
       ).timeout(const Duration(seconds: 5));
 
-      final placemarks = await geocoding.placemarkFromCoordinates(
+      final placemarks = await geocoding.Geocoding().placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       );

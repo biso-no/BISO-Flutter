@@ -6,8 +6,10 @@ import 'package:biso/presentation/screens/auth/login_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -21,9 +23,14 @@ const _failed =
 
 /// Signed out until [signInWithBi] answers [outcome], after which it is in
 /// [after].
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(this.outcome, {this.after = const AuthState()})
-    : super(const AuthState());
+    : _initial = const AuthState();
 
   final BiSignInOutcome outcome;
   final AuthState after;
@@ -47,7 +54,7 @@ void main() {
     BiSignInOutcome outcome, {
     AuthState after = const AuthState(),
   }) => [
-    authStateProvider.overrideWith((_) => auth = _Auth(outcome, after: after)),
+    authStateProvider.overrideWith(() => auth = _Auth(outcome, after: after)),
   ];
 
   Future<void> pumpRouted(
@@ -74,6 +81,7 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         overrides: overrides(outcome, after: after),
         child: MaterialApp.router(
           theme: PremiumTheme.build(Brightness.light),

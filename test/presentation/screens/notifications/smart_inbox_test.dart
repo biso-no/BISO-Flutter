@@ -10,6 +10,7 @@ import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -37,9 +38,14 @@ AppNotification _n(
   items: items,
 );
 
-class _FakeInbox extends StateNotifier<NotificationInboxState>
+class _FakeInbox extends Notifier<NotificationInboxState>
     implements NotificationInboxNotifier {
-  _FakeInbox(super.state);
+  final NotificationInboxState _initial;
+
+  @override
+  NotificationInboxState build() => _initial;
+
+  _FakeInbox(this._initial);
 
   final marked = <String>[];
 
@@ -60,13 +66,10 @@ void _openedBefore(Map<String, List<String>> opened) =>
       'inbox_opened_items_$_student': jsonEncode(opened),
     });
 
-Override _openedItems() => inboxOpenedItemsProvider.overrideWith(
-  (ref) => InboxOpenedItemsNotifier(userId: _student),
-);
+Override _openedItems() => inboxOpenedItemsUserIdProvider.overrideWithValue(_student);
 
 List<Override> _overrides(List<AppNotification> items, {_FakeInbox? inbox}) => [
-  notificationInboxProvider.overrideWith(
-    (ref) => inbox ?? _FakeInbox(NotificationInboxState(items: items)),
+  notificationInboxProvider.overrideWith(() => inbox ?? _FakeInbox(NotificationInboxState(items: items)),
   ),
   _openedItems(),
 ];

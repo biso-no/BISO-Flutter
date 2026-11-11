@@ -589,11 +589,11 @@ class _ChatConversationScreenState
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.pickFiles();
+      final path = (await FilePicker.pickFile())?.path;
 
-      if (result != null && result.files.single.path != null) {
+      if (path != null) {
         setState(() {
-          _attachments.add(File(result.files.single.path!));
+          _attachments.add(File(path));
         });
       }
     } catch (e) {

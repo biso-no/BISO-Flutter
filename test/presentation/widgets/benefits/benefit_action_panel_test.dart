@@ -98,8 +98,14 @@ class _FakeAuthService extends AuthService {
 }
 
 class _FakeAuth extends AuthNotifier {
-  _FakeAuth(UserModel? user) : super(_FakeAuthService()) {
-    state = AuthState(user: user, isAuthenticated: user != null);
+  _FakeAuth(this.user) : super(authService: _FakeAuthService());
+
+  final UserModel? user;
+
+  @override
+  AuthState build() {
+    super.build();
+    return AuthState(user: user, isAuthenticated: user != null);
   }
 }
 
@@ -198,7 +204,7 @@ Future<_FakeApi> _pump(
       membershipOverviewProvider.overrideWith(
         () => _overview = _Overview(overview),
       ),
-      authStateProvider.overrideWith((_) => _FakeAuth(_user)),
+      authStateProvider.overrideWith(() => _FakeAuth(_user)),
       biSignInServiceProvider.overrideWithValue(_bi = _FakeBiSignIn()),
       screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
       if (openerThrows)

@@ -1,5 +1,10 @@
 platform :ios, '15.6'
 
+# Every plugin but one is built through Swift Package Manager. CocoaPods stays
+# only for flutter_background_service_ios, which the appwrite SDK (28+) depends
+# on and which ships no Package.swift. Once it does, this Podfile, Podfile.lock
+# and the Pods integration in Runner.xcodeproj can go.
+
 # CocoaPods analytics sends network stats synchronously affecting Flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -34,44 +39,6 @@ require File.expand_path(
   flutter_root
 )
 
-# Google ML Kit workaround for Apple Silicon + iOS 26+ simulators.
-# IMPORTANT: this must be loaded BEFORE post_install calls
-# mlkit_apple_silicon_simulator_patch().
-#
-# The plugin is located through .flutter-plugins-dependencies rather than
-# through .symlinks/, because .symlinks/ is only (re)created by
-# flutter_install_all_ios_pods further down this file. On a fresh clone it does
-# not exist yet, and after a plugin version bump it still points at the old
-# version — either way this require would load nothing (or the wrong thing) and
-# `pod install` would die here with a LoadError, long before the symlinks that
-# would have fixed it are written.
-def mlkit_commons_script
-  manifest = File.expand_path('../.flutter-plugins-dependencies', __dir__)
-  root = nil
-  if File.exist?(manifest)
-    require 'json'
-    entry = (JSON.parse(File.read(manifest)).dig('plugins', 'ios') || [])
-            .find { |plugin| plugin['name'] == 'google_mlkit_commons' }
-    root = entry['path'] if entry
-  end
-  root ||= File.expand_path('.symlinks/plugins/google_mlkit_commons', __dir__)
-  File.join(root, 'ios', 'scripts', 'apple_silicon_simulator')
-end
-
-mlkit_script = mlkit_commons_script
-
-if File.exist?("#{mlkit_script}.rb")
-  require mlkit_script
-else
-  # Never leave `pod install` broken over an optional workaround: without the
-  # patch, ML Kit still excludes arm64 from simulator builds, so device builds
-  # keep working and only Apple Silicon simulators are affected.
-  Pod::UI.warn '[ml_kit] Apple Silicon simulator patch not found; run ' \
-               '`flutter pub get` first. Simulator builds may fail to find a ' \
-               'destination.'
-  def mlkit_apple_silicon_simulator_patch(installer); end
-end
-
 flutter_ios_podfile_setup
 
 target 'Runner' do
@@ -92,8 +59,4 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
     end
   end
-
-  # Google ML Kit Apple Silicon simulator patch.
-  # The require near the top of this file defines this function.
-  mlkit_apple_silicon_simulator_patch(installer)
 end

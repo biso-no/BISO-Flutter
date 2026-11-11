@@ -32,11 +32,14 @@ CampusModel _campus(String id, String name) => CampusModel(
   stats: const CampusStats(),
 );
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(UserModel user)
-    : super(
-        AuthState(isAuthenticated: true, user: user, isProfileComplete: true),
-      );
+    : _initial = AuthState(isAuthenticated: true, user: user, isProfileComplete: true);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -101,7 +104,7 @@ Future<_FakeApi> _pump(
     locale: const Locale('no'),
     extraRoutes: [_benefitsStub],
     overrides: [
-      authStateProvider.overrideWith((_) => _Auth(user)),
+      authStateProvider.overrideWith(() => _Auth(user)),
       filterCampusProvider.overrideWithValue(_campus('1', 'Oslo')),
       switcherCampusesProvider.overrideWith(
         (_) async => [_campus('1', 'Oslo'), _campus('3', 'Trondheim')],

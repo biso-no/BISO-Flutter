@@ -7,6 +7,7 @@ import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 class _FakeAuthService extends AuthService {
   @override
@@ -14,7 +15,7 @@ class _FakeAuthService extends AuthService {
 }
 
 class _TestAuthNotifier extends AuthNotifier {
-  _TestAuthNotifier() : super(_FakeAuthService());
+  _TestAuthNotifier() : super(authService: _FakeAuthService());
 
   void signIn(String id) {
     state = AuthState(
@@ -28,8 +29,12 @@ class _TestAuthNotifier extends AuthNotifier {
 }
 
 Future<InboxOpenedItemsNotifier> _loaded(String? userId) async {
-  final notifier = InboxOpenedItemsNotifier(userId: userId);
-  addTearDown(notifier.dispose);
+  final container = ProviderContainer(
+    retry: noAutomaticRetry,
+    overrides: [inboxOpenedItemsUserIdProvider.overrideWithValue(userId)],
+  );
+  addTearDown(container.dispose);
+  final notifier = container.read(inboxOpenedItemsProvider.notifier);
   await notifier.loaded;
   return notifier;
 }
@@ -138,7 +143,8 @@ void main() {
   test('the provider follows the signed-in student', () async {
     final auth = _TestAuthNotifier();
     final container = ProviderContainer(
-      overrides: [authStateProvider.overrideWith((ref) => auth)],
+      retry: noAutomaticRetry,
+      overrides: [authStateProvider.overrideWith(() => auth)],
     );
     addTearDown(container.dispose);
     // Keep the provider alive across rebuilds.

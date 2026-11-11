@@ -14,6 +14,7 @@ import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -36,15 +37,18 @@ const _campus = CampusModel(
 
 const _user = UserModel(id: 'u1', name: 'Test Student', email: 'student@bi.no');
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth()
-    : super(
-        const AuthState(
+    : _initial = const AuthState(
           isAuthenticated: true,
           user: _user,
           isProfileComplete: true,
-        ),
-      );
+        );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -70,7 +74,7 @@ List<Override> _explore(Override config) => [
   campusInitializedProvider.overrideWithValue(true),
   currentCampusDataProvider.overrideWithValue(const AsyncValue.data(null)),
   featuredLargeEventProvider.overrideWithValue(null),
-  localeProvider.overrideWith((ref) => _Locale()),
+  localeProvider.overrideWith(() => _Locale()),
   scannerAccessProvider.overrideWith(
     () => FixedScannerAccess(const ScannerDenied()),
   ),
@@ -78,7 +82,7 @@ List<Override> _explore(Override config) => [
 ];
 
 List<Override> _profile(Override config) => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
   membershipOverviewProvider.overrideWith(_NoMembership.new),
   config,

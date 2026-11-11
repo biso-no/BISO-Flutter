@@ -7,6 +7,7 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Answers [syncOnly] with [answer] and records it in [log].
 class _FakeBiSignIn extends BiSignInService {
@@ -27,8 +28,13 @@ class _FakeBiSignIn extends BiSignInService {
   }) => throw StateError('signing in goes through AuthNotifier');
 }
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth(this.log, this.outcome) : super(const AuthState(isAuthenticated: true));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth(this.log, this.outcome) : _initial = const AuthState(isAuthenticated: true);
 
   final List<String> log;
   final BiSignInOutcome outcome;
@@ -75,11 +81,12 @@ void main() {
     late WidgetRef captured;
     await tester.pumpWidget(
       ProviderScope(
+        retry: noAutomaticRetry,
         // A fresh scope per run, so each run's overrides apply.
         key: UniqueKey(),
         overrides: [
           biSignInServiceProvider.overrideWithValue(_FakeBiSignIn(log, sync)),
-          authStateProvider.overrideWith((_) => _Auth(log, signIn)),
+          authStateProvider.overrideWith(() => _Auth(log, signIn)),
           membershipOverviewProvider.overrideWith(() => _Overview(log)),
         ],
         child: Consumer(

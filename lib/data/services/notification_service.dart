@@ -491,7 +491,10 @@ class NotificationService {
 
   /// Whether the OS will no longer show its notification permission dialog,
   /// so only the system settings can turn notifications on: on iOS once the
-  /// student has declined it, on Android once they have declined it for good.
+  /// student has declined it. Android cannot tell "declined for good" apart
+  /// from "never asked" or "Ask every time", so there (permission_handler
+  /// 14.1+) this is always `false`: the caller asks, the request returns at
+  /// once without a dialog, and the caller then offers the system settings.
   /// A status that cannot be read reports `false`, which leaves the caller to
   /// ask again.
   Future<bool> isPermissionPermanentlyDenied() async {
@@ -557,11 +560,19 @@ class NotificationService {
         settings.authorizationStatus == AuthorizationStatus.provisional;
   }
 
+  // firebase_messaging 17 deprecates the FCM token API in favour of
+  // register()/onRegistered, which identify the device by its Firebase
+  // Installation ID (FID) instead. The push target this service registers
+  // with Appwrite holds the FCM token, and Appwrite's FCM provider sends to
+  // that token, so the token API stays until the server can send to an FID.
+  // Moving over changes every target's identifier, not just these calls.
+
   /// This device's FCM token, straight from Firebase, which throws when it
   /// cannot produce one (e.g. `SERVICE_NOT_AVAILABLE`).
   ///
   /// A test seam, like [requestPlatformPermission].
   @visibleForTesting
+  // ignore: deprecated_member_use
   Future<String?> fetchPlatformToken() => _firebaseMessaging.getToken();
 
   /// Every new FCM token Firebase issues this device.
@@ -569,6 +580,7 @@ class NotificationService {
   /// A test seam, like [requestPlatformPermission].
   @visibleForTesting
   Stream<String> get platformTokenRefreshes =>
+      // ignore: deprecated_member_use
       _firebaseMessaging.onTokenRefresh;
 
   /// Invalidates this device's FCM token, so nothing bound to it — a push
@@ -577,6 +589,7 @@ class NotificationService {
   ///
   /// A test seam, like [requestPlatformPermission].
   @visibleForTesting
+  // ignore: deprecated_member_use
   Future<void> deletePlatformToken() => _firebaseMessaging.deleteToken();
 
   /// Retries a token invalidation that sign-out could not complete (see

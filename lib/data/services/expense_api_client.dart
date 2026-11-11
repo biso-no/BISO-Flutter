@@ -24,9 +24,8 @@ class ExpenseApiException implements Exception {
 /// user create grant, so every write — receipts, drafts, submission, draft
 /// deletion — goes through the API with the student's JWT.
 class ExpenseApiClient {
-  ExpenseApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  ExpenseApiClient({this._httpClient, ApiJwtProvider? jwtProvider})
+    : _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;

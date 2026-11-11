@@ -26,7 +26,7 @@ class HomeBenefitsSection extends ConsumerWidget {
     final Widget body;
     if (showcase.hasError) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
-    } else if (showcase.valueOrNull case final value?) {
+    } else if (showcase.value case final value?) {
       if (value.homeItems.isEmpty) {
         return const SliverToBoxAdapter(child: SizedBox.shrink());
       }

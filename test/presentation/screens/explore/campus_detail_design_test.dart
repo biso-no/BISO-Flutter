@@ -15,8 +15,10 @@ import 'package:biso/providers/leadership/leadership_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -158,6 +160,7 @@ Future<void> _pumpRouted(WidgetTester tester, GoRouter router) async {
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
+      retry: noAutomaticRetry,
       overrides: _overrides(),
       child: MaterialApp.router(
         theme: PremiumTheme.build(Brightness.light),

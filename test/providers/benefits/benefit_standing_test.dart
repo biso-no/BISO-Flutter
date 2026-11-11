@@ -8,9 +8,11 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../helpers/fake_member_pass_api.dart';
 import '../../helpers/membership_fixtures.dart';
+import '../../helpers/test_value.dart';
 
 void main() {
   final upcoming = DateTime.utc(2027, 1, 1);
@@ -164,6 +166,7 @@ void main() {
   test('a notMember pass waits for the overview before saying so', () async {
     final completer = Completer<MembershipOverview?>();
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         memberPassProvider.overrideWith(
           () => FixedMemberPass(
@@ -266,7 +269,7 @@ void main() {
 }
 
 /// The signed-in account, which [membershipUserIdProvider] follows.
-final _signedIn = StateProvider<String?>((_) => null);
+final _signedIn = testValueProvider<String?>(null);
 
 /// What each account's overview answers, and the answer for each refresh.
 class _Accounts {
@@ -282,8 +285,9 @@ class _Accounts {
   required String? signedIn,
 }) {
   final container = ProviderContainer(
+    retry: noAutomaticRetry,
     overrides: [
-      _signedIn.overrideWith((_) => signedIn),
+      _signedIn.overrideWith(() => TestValue(signedIn)),
       membershipUserIdProvider.overrideWith((ref) => ref.watch(_signedIn)),
       memberPassProvider.overrideWith(
         () => FixedMemberPass(
@@ -307,15 +311,26 @@ class _Accounts {
 class _AccountOverview extends MembershipOverviewNotifier {
   _AccountOverview(this.accounts);
   final _Accounts accounts;
+  bool _refreshing = false;
 
   @override
-  Future<MembershipOverview?> build() =>
-      accounts.answers[ref.watch(membershipUserIdProvider)]!.future;
+  Future<MembershipOverview?> build() {
+    final userId = ref.watch(membershipUserIdProvider);
+    if (_refreshing) {
+      _refreshing = false;
+      return accounts.refreshes.removeAt(0).future;
+    }
+    return accounts.answers[userId]!.future;
+  }
 
+  /// Rebuilds by invalidation, as the app's overview does.
   @override
   Future<void> refresh({bool force = true}) async {
-    state = const AsyncLoading<MembershipOverview?>().copyWithPrevious(state);
-    state = await AsyncValue.guard(() => accounts.refreshes.removeAt(0).future);
+    _refreshing = true;
+    ref.invalidateSelf();
+    try {
+      await future;
+    } catch (_) {}
   }
 }
 

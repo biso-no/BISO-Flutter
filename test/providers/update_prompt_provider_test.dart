@@ -13,6 +13,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Answers `getConfig` from a queue: each call takes the next answer, and the
 /// last one keeps answering every call after it.
@@ -83,6 +84,7 @@ void main() {
     UpdateSnoozeStore? snoozeStore,
   }) {
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         appConfigServiceProvider.overrideWithValue(service),
         installedVersionProvider.overrideWith(
@@ -385,7 +387,7 @@ void main() {
 
     TargetPlatform? platformOn(TargetPlatform platform) {
       debugDefaultTargetPlatformOverride = platform;
-      final container = ProviderContainer();
+      final container = ProviderContainer(retry: noAutomaticRetry);
       addTearDown(container.dispose);
       return container.read(updatePlatformProvider);
     }
@@ -625,6 +627,7 @@ void main() {
       // clock tells whether anything is still listening.
       var clockReads = 0;
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           appConfigServiceProvider.overrideWithValue(
             _FakeConfigService([_network()]),

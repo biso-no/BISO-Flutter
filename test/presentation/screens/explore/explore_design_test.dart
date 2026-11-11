@@ -10,6 +10,7 @@ import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -37,7 +38,7 @@ List<Override> _overrides() => [
   currentCampusDataProvider.overrideWithValue(const AsyncValue.data(null)),
   appConfigProvider.overrideWith((ref) async => const AppConfig()),
   featuredLargeEventProvider.overrideWithValue(null),
-  localeProvider.overrideWith((ref) => _Locale()),
+  localeProvider.overrideWith(() => _Locale()),
   scannerAccessProvider.overrideWith(
     () => FixedScannerAccess(const ScannerDenied()),
   ),

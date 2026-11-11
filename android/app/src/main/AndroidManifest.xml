@@ -1,9 +1,19 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- The appwrite SDK (28+) ships Appwrite Push: background delivery over
+         MQTT, with boot receivers, alarms and a remoteMessaging foreground
+         service (through flutter_background_service). This app delivers push
+         through FCM and never calls Push, so none of it is merged in. A
+         foreground-service permission would also need a Play Console
+         declaration. Remove these removals before adopting Appwrite Push. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
     <application
         android:label="BISO"
         android:name="${applicationName}"
@@ -110,6 +120,16 @@
                 <data android:scheme="appwrite-callback-biso"/>
             </intent-filter>
         </activity>
+
+        <!-- Appwrite Push and flutter_background_service; see the permissions above. -->
+        <activity android:name="io.appwrite.flutter.services.PushOpenActivity" tools:node="remove" />
+        <service android:name="io.appwrite.flutter.services.PushService" tools:node="remove" />
+        <service android:name="io.appwrite.flutter.services.PushJobService" tools:node="remove" />
+        <receiver android:name="io.appwrite.flutter.services.PushAlarmReceiver" tools:node="remove" />
+        <receiver android:name="io.appwrite.flutter.services.PushBootReceiver" tools:node="remove" />
+        <service android:name="id.flutter.flutter_background_service.BackgroundService" tools:node="remove" />
+        <receiver android:name="id.flutter.flutter_background_service.WatchdogReceiver" tools:node="remove" />
+        <receiver android:name="id.flutter.flutter_background_service.BootReceiver" tools:node="remove" />
 
         <!-- Channel FCM uses for pushes that arrive while the app is in the
              background. Created by FlutterLocalNotificationsPresenter. -->

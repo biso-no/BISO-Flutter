@@ -23,9 +23,8 @@ class ProfileApiException implements Exception {
 /// everything else. The student id and other BI fields are set by the
 /// server's BI sync (`POST /api/auth/bi-sync`), never through here.
 class ProfileApiClient {
-  ProfileApiClient({http.Client? httpClient, ApiJwtProvider? jwtProvider})
-    : _httpClient = httpClient,
-      _jwtProvider = jwtProvider ?? appwriteJwt;
+  ProfileApiClient({this._httpClient, ApiJwtProvider? jwtProvider})
+    : _jwtProvider = jwtProvider ?? appwriteJwt;
 
   final http.Client? _httpClient;
   final ApiJwtProvider _jwtProvider;

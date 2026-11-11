@@ -126,11 +126,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     final theme = Theme.of(context);
     final palette = BisoPalette.of(context);
     final configAsync = ref.watch(appConfigProvider);
-    final config = configAsync.valueOrNull ?? const AppConfig();
+    final config = configAsync.value ?? const AppConfig();
     final expenses = ref.watch(expensesAvailabilityProvider);
     final event = ref.watch(featuredLargeEventProvider);
     final canScan =
-        ref.watch(scannerAccessProvider).valueOrNull is ScannerGranted;
+        ref.watch(scannerAccessProvider).value is ScannerGranted;
     // Explore can't know the API is too old to have benefits until the Home
     // campus's list fails that way; until then the row shows.
     final homeCampusId = ref.watch(filterCampusProvider.select((c) => c.id));

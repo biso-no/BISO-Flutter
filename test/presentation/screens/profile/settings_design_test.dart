@@ -17,6 +17,7 @@ import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:biso/providers/privacy/privacy_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,8 +41,13 @@ const _user = UserModel(
 );
 
 /// A signed-in user, mirroring the `_Auth` pattern in profile_design_test.dart.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true, user: _user);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -156,8 +162,7 @@ class _FakePrivacyService implements PrivacyService {
 /// to a real service, so a test can assert exactly what it was called with
 /// and control what it reports back.
 class _FakeTopicIntentNotifier extends TopicIntentNotifier {
-  _FakeTopicIntentNotifier(NotificationService service)
-    : super(service, null, studentId: 'u1', signedInStudentId: () => 'u1');
+  _FakeTopicIntentNotifier() : super(signedInStudentId: () => 'u1');
 
   final List<(String, bool)> calls = [];
 
@@ -175,7 +180,7 @@ class _NoMembership extends MembershipOverviewNotifier {
 }
 
 List<Override> _overrides({_FakeNotificationService? notifications}) => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
   notificationServiceProvider.overrideWithValue(
     notifications ?? _FakeNotificationService(),
@@ -289,13 +294,13 @@ void main() {
     'a permissionDenied outcome shows its snackbar and setTopic was called with the '
     'right topic and value',
     (tester) async {
-      final fake = _FakeTopicIntentNotifier(_FakeNotificationService());
+      final fake = _FakeTopicIntentNotifier();
       await pumpBisoScreen(
         tester,
         const SettingsSectionPage(section: SettingsSection.notifications),
         overrides: [
           ..._overrides(),
-          topicIntentProvider.overrideWith((ref) => fake),
+          topicIntentProvider.overrideWith(() => fake),
         ],
       );
 

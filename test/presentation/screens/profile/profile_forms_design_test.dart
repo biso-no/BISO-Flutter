@@ -9,6 +9,7 @@ import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 
@@ -25,16 +26,19 @@ const _user = UserModel(
 );
 
 /// A signed-in user with no payment info yet, mirroring `profile_design_test`'s
-/// `_Auth` pattern (a `StateNotifier` faked via `noSuchMethod`).
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+/// `_Auth` pattern (a `Notifier` faked via `noSuchMethod`).
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth()
-    : super(
-        const AuthState(
+    : _initial = const AuthState(
           isAuthenticated: true,
           user: _user,
           isProfileComplete: true,
-        ),
-      );
+        );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -42,15 +46,18 @@ class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
 
 /// Records `updateProfile` calls instead of hitting a real `AuthService`, so
 /// the save action can be asserted without network access.
-class _RecordingAuth extends StateNotifier<AuthState> implements AuthNotifier {
+class _RecordingAuth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _RecordingAuth()
-    : super(
-        const AuthState(
+    : _initial = const AuthState(
           isAuthenticated: true,
           user: _user,
           isProfileComplete: true,
-        ),
-      );
+        );
 
   int updateProfileCalls = 0;
   String? lastCampusId;
@@ -81,7 +88,7 @@ void main() {
     await expectBuildsCleanly(
       tester,
       () => const PaymentInformationScreen(),
-      overrides: [authStateProvider.overrideWith((_) => _Auth())],
+      overrides: [authStateProvider.overrideWith(() => _Auth())],
     );
   });
 
@@ -91,7 +98,7 @@ void main() {
     await expectBuildsCleanly(
       tester,
       () => const EditProfileScreen(),
-      overrides: [authStateProvider.overrideWith((_) => _Auth())],
+      overrides: [authStateProvider.overrideWith(() => _Auth())],
     );
   });
 
@@ -101,7 +108,7 @@ void main() {
       await pumpBisoScreen(
         tester,
         const PaymentInformationScreen(),
-        overrides: [authStateProvider.overrideWith((_) => _Auth())],
+        overrides: [authStateProvider.overrideWith(() => _Auth())],
       );
       await tester.pumpAndSettle();
 
@@ -122,7 +129,7 @@ void main() {
       await pumpBisoScreen(
         tester,
         const PaymentInformationScreen(),
-        overrides: [authStateProvider.overrideWith((_) => _Auth())],
+        overrides: [authStateProvider.overrideWith(() => _Auth())],
         textScale: 1.6,
         size: const Size(390, 844),
       );
@@ -154,7 +161,8 @@ void main() {
     // unchanged from before the migration) to return to.
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authStateProvider.overrideWith((_) => auth)],
+        retry: noAutomaticRetry,
+        overrides: [authStateProvider.overrideWith(() => auth)],
         child: MaterialApp(
           theme: PremiumTheme.build(Brightness.light),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -195,7 +203,7 @@ void main() {
       await pumpBisoScreen(
         tester,
         const EditProfileScreen(),
-        overrides: [authStateProvider.overrideWith((_) => _Auth())],
+        overrides: [authStateProvider.overrideWith(() => _Auth())],
       );
       await tester.pumpAndSettle();
 
@@ -227,7 +235,8 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [authStateProvider.overrideWith((_) => auth)],
+        retry: noAutomaticRetry,
+        overrides: [authStateProvider.overrideWith(() => auth)],
         child: MaterialApp(
           theme: PremiumTheme.build(Brightness.light),
           localizationsDelegates: AppLocalizations.localizationsDelegates,

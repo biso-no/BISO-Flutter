@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:appwrite/appwrite.dart';
 import 'package:biso/data/models/app_notification_model.dart';
@@ -7,7 +8,12 @@ import 'package:biso/data/services/notification_inbox_service.dart';
 import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:biso/data/models/user_model.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/providers/provider_retry.dart';
+import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final _now = DateTime.utc(2026, 10, 20, 12);
@@ -22,6 +28,34 @@ AppNotification _n(String id, {int hoursOld = 0, bool read = false}) =>
       createdAt: _now.subtract(Duration(hours: hoursOld)),
       read: read,
     );
+
+/// Student `u`, at campus `2`.
+class _Student extends Notifier<AuthState> implements AuthNotifier {
+  @override
+  AuthState build() => const AuthState(
+    isAuthenticated: true,
+    user: UserModel(id: 'u', name: 'U', email: 'u@bi.no', campusId: '2'),
+  );
+
+  /// What [AuthNotifier.updateProfile] does to the state around a save: the
+  /// same student, loading and then not.
+  void saveProfile() {
+    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: false);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// The app in English.
+class _English extends Notifier<ui.Locale> implements LocaleNotifier {
+  @override
+  ui.Locale build() => const ui.Locale('en');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 /// The server, as far as the inbox can tell: [server] is what a fetch
 /// returns, and a read or clear that succeeds changes it. Fetches and writes
@@ -137,15 +171,23 @@ void main() {
       ..server = [_n('a'), _n('b', hoursOld: 1), _n('c', hoursOld: 2)];
   });
 
+  late ProviderContainer container;
+
   /// The notifier once its first load has landed.
   Future<NotificationInboxNotifier> loaded() async {
-    final notifier = NotificationInboxNotifier(
-      service,
-      notificationService: _QuietNotificationService(),
-      userId: 'u',
-      locale: 'en',
-      campusId: '2',
+    container = ProviderContainer(
+      retry: noAutomaticRetry,
+      overrides: [
+        notificationInboxServiceProvider.overrideWithValue(service),
+        notificationServiceProvider.overrideWithValue(
+          _QuietNotificationService(),
+        ),
+        authStateProvider.overrideWith(_Student.new),
+        localeProvider.overrideWith(_English.new),
+      ],
     );
+    addTearDown(container.dispose);
+    final notifier = container.read(notificationInboxProvider.notifier);
     await pumpEventQueue();
     return notifier;
   }
@@ -280,6 +322,26 @@ void main() {
   });
 
   test(
+    'a profile save while a clear is on its way does not bring the row back: '
+    'the inbox is still for the same student, so it keeps what it is saving',
+    () async {
+      final notifier = await loaded();
+      final hold = service.holdWrites = Completer<void>();
+      final clearing = notifier.clear(['b']);
+      expect(ids(notifier), ['a', 'c']);
+
+      (container.read(authStateProvider.notifier) as _Student).saveProfile();
+      container.read(notificationInboxProvider);
+      await pumpEventQueue(); // a fetch, if the save set one off
+
+      expect(ids(notifier), ['a', 'c']);
+      hold.complete();
+      expect(await clearing, isTrue);
+      expect(ids(notifier), ['a', 'c']);
+    },
+  );
+
+  test(
     'disposing while a read or clear is in flight writes no state and throws '
     'nothing',
     () async {
@@ -291,7 +353,7 @@ void main() {
 
       final saving = notifier.markRead(item(notifier, 'a'));
       final clearing = notifier.clear(['b']);
-      notifier.dispose();
+      container.dispose();
       hold.complete();
 
       await expectLater(saving, completes);

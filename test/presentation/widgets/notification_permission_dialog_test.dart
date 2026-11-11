@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// A [NotificationService] for which permission is always granted, and whose
 /// reconcile reports [outcome]. Every method the dialog reaches is overridden,
@@ -145,12 +146,12 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
+          retry: noAutomaticRetry,
           overrides: [
             notificationServiceProvider.overrideWithValue(
               _GrantingNotificationService(outcome),
             ),
-            authStateProvider.overrideWith(
-              (ref) => AuthNotifier(_SignedOutAuthService()),
+            authStateProvider.overrideWith(() => AuthNotifier(authService: _SignedOutAuthService()),
             ),
           ],
           child: MaterialApp(

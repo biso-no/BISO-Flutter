@@ -12,6 +12,7 @@ import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 const tabs = [
   BisoNavDestination(icon: Icons.home, label: 'Home'),
@@ -19,9 +20,14 @@ const tabs = [
   BisoNavDestination(icon: Icons.person, label: 'Profile'),
 ];
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true,
-    user: UserModel(id: 'test', name: 'Student', email: 'student@bi.no')));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true,
+    user: UserModel(id: 'test', name: 'Student', email: 'student@bi.no'));
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -34,8 +40,8 @@ class _ChatService implements ChatService {
 }
 
 Widget app(Widget page, {bool shell = true, ValueChanged<int>? onSelected}) =>
-  ProviderScope(overrides: [
-    authStateProvider.overrideWith((_) => _Auth()),
+  ProviderScope(retry: noAutomaticRetry, overrides: [
+    authStateProvider.overrideWith(() => _Auth()),
     myOrdersProvider.overrideWith((_) async => List.generate(20, (i) => ShopOrder.fromJson({
       'id': '$i', 'status': 'paid', 'total': 100,
     }))),

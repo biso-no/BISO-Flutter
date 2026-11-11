@@ -183,7 +183,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     BisoPalette palette,
   ) {
     final providers = ref.watch(availablePaymentProvidersProvider);
-    final available = providers.valueOrNull ?? const <PaymentProvider>[];
+    final available = providers.value ?? const <PaymentProvider>[];
     final membersOnly = _membersOnlyBlocked();
 
     return Form(

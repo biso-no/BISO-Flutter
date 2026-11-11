@@ -31,7 +31,7 @@ final scannerControllerProvider =
 
 /// Turns camera reads into scans and scans into what the screen shows.
 /// Scanned strings are held only for the request and never logged.
-class ScannerController extends AutoDisposeNotifier<ScannerDisplay> {
+class ScannerController extends Notifier<ScannerDisplay> {
   static const resultDuration = Duration(seconds: 3);
 
   final ScanGate _gate = ScanGate();

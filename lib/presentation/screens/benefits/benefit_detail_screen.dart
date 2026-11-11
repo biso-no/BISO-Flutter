@@ -123,7 +123,7 @@ class BenefitDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showcase = ref.watch(benefitShowcaseProvider(campusId));
-    final loaded = showcase.valueOrNull;
+    final loaded = showcase.value;
     final benefit = _find(loaded, benefitId) ?? initial;
     final back = _backTo(context, pinnedCampusParam(campusId));
 

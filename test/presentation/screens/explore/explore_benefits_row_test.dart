@@ -55,7 +55,7 @@ Future<void> _pump(
     currentCampusDataProvider.overrideWithValue(const AsyncValue.data(null)),
     appConfigProvider.overrideWith((ref) async => const AppConfig()),
     featuredLargeEventProvider.overrideWithValue(null),
-    localeProvider.overrideWith((ref) => _Locale()),
+    localeProvider.overrideWith(() => _Locale()),
     scannerAccessProvider.overrideWith(() => FixedScannerAccess(scanner)),
     campusBenefitsProvider('3').overrideWith((_) => load()),
   ],

@@ -32,10 +32,15 @@ AppNotification _n(
 
 /// The inbox, holding [state]; [clear] records each call's ids and takes them
 /// out at once, then puts them back when [clearSucceeds] is false.
-class _FakeInbox extends StateNotifier<NotificationInboxState>
+class _FakeInbox extends Notifier<NotificationInboxState>
     implements NotificationInboxNotifier {
+  final NotificationInboxState _initial;
+
+  @override
+  NotificationInboxState build() => _initial;
+
   _FakeInbox(List<AppNotification> items)
-    : super(NotificationInboxState(items: items));
+    : _initial = NotificationInboxState(items: items);
 
   final clears = <List<String>>[];
   bool clearSucceeds = true;
@@ -75,10 +80,8 @@ Future<_FakeInbox> _pump(
     inShell: false,
     locale: locale,
     overrides: [
-      notificationInboxProvider.overrideWith((ref) => inbox),
-      inboxOpenedItemsProvider.overrideWith(
-        (ref) => InboxOpenedItemsNotifier(userId: 'u1'),
-      ),
+      notificationInboxProvider.overrideWith(() => inbox),
+      inboxOpenedItemsUserIdProvider.overrideWithValue('u1'),
     ],
   );
   return inbox;

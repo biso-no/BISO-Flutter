@@ -9,7 +9,7 @@ import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/member_pass/scanner_access_provider.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 
 const testDayColor = DayColor(name: 'teal', hex: '#12A594');
 

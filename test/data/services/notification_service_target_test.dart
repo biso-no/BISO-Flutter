@@ -60,6 +60,8 @@ class _FakeAccount extends Account {
     required String targetId,
     required String identifier,
     String? providerId,
+    String? bundleId,
+    String? environment,
   }) async {
     createCalls++;
     lastProviderId = providerId;
@@ -74,6 +76,8 @@ class _FakeAccount extends Account {
   Future<models.Target> updatePushTarget({
     required String targetId,
     required String identifier,
+    String? bundleId,
+    String? environment,
   }) async {
     updateCalls++;
     final failure = updateThrows;

@@ -39,7 +39,7 @@ final expensesAvailabilityProvider = Provider<ExpensesAvailability>((ref) {
   final config = ref.watch(appConfigProvider);
   // A value we already hold outranks an error on a later re-read: it is
   // still what the server last said.
-  final value = config.valueOrNull;
+  final value = config.value;
   if (value != null) {
     return value.expensesEnabled
         ? ExpensesAvailability.on

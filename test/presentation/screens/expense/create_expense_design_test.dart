@@ -12,6 +12,7 @@ import 'package:biso/providers/expense/expense_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -35,9 +36,14 @@ void _expectFullSizeAmount(WidgetTester tester, String text) {
   }
 }
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(UserModel? user)
-    : super(AuthState(isAuthenticated: user != null, user: user));
+    : _initial = AuthState(isAuthenticated: user != null, user: user);
 
   @override
   Future<void> refreshProfile() async {}
@@ -102,7 +108,7 @@ List<Override> _overrides({
   List<Map<String, dynamic>> campuses = const [_campus],
   List<Map<String, dynamic>> departments = const [_department],
 }) => [
-  authStateProvider.overrideWith((_) => _Auth(user)),
+  authStateProvider.overrideWith(() => _Auth(user)),
   expenseServiceProvider.overrideWithValue(
     _FakeExpenseService(campuses: campuses, departments: departments),
   ),

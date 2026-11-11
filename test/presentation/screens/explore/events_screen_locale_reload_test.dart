@@ -12,6 +12,7 @@ import 'package:biso/providers/ui/locale_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Regression cover for "events don't react to a language change".
 ///
@@ -78,11 +79,12 @@ void main() {
 
       final service = _FakeEventService();
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           eventServiceProvider.overrideWithValue(service),
           filterCampusProvider.overrideWithValue(campus),
           campusInitializedProvider.overrideWithValue(true),
-          localeProvider.overrideWith((ref) => _TestLocaleNotifier()),
+          localeProvider.overrideWith(() => _TestLocaleNotifier()),
         ],
       );
       addTearDown(container.dispose);

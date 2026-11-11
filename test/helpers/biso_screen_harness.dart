@@ -5,8 +5,10 @@ import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 const _tabs = [
   BisoNavDestination(icon: CupertinoIcons.house, label: 'Home'),
@@ -56,6 +58,7 @@ Future<void> pumpBisoScreen(
       : ThemeMode.light;
   await tester.pumpWidget(
     ProviderScope(
+      retry: noAutomaticRetry,
       overrides: overrides,
       child: routed
           ? MaterialApp.router(

@@ -40,7 +40,7 @@ class CampusLeadershipSection extends ConsumerWidget {
           );
     final boardMembersAsync = ref.watch(provider);
 
-    final loaded = boardMembersAsync.valueOrNull;
+    final loaded = boardMembersAsync.value;
     if (hideWhenEmpty &&
         loaded != null &&
         loaded.success &&

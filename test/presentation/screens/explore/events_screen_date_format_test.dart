@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Regression cover for "events display 2 hours early".
 ///
@@ -122,6 +123,7 @@ void main() {
 
       final service = _FakeEventService([event]);
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [
           eventServiceProvider.overrideWithValue(service),
           filterCampusProvider.overrideWithValue(campus),

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// Review finding 1: required-field validation on the webshop product
 /// detail screen must block even when the offending field lies below the
@@ -173,6 +174,7 @@ void main() {
     }) {
       return tester.pumpWidget(
         ProviderScope(
+          retry: noAutomaticRetry,
           overrides: [
             // Pin the identity rather than standing up the whole
             // authentication stack (which would try to reach Appwrite).

@@ -89,14 +89,25 @@ class CartAddResult {
   bool get isPartial => added > 0 && added < requested;
 }
 
-class CartNotifier extends StateNotifier<CartState> {
-  CartNotifier(this._api, {required String? userId})
-    : _userId = userId,
-      super(const CartState()) {
+class CartNotifier extends Notifier<CartState> {
+  @override
+  CartState build() {
+    _api = ref.watch(shopApiClientProvider);
+    _userId = ref.read(cartUserIdProvider);
+
+    // Reload the cart when the account changes, so a sign-in picks up that
+    // buyer's cart and a sign-out does not leave it on a shared device.
+    ref.listen<String?>(cartUserIdProvider, (previous, next) {
+      if (previous != next) {
+        handleUserChanged(next);
+      }
+    });
+
     _ready = _restore();
+    return const CartState();
   }
 
-  final ShopApiClient _api;
+  late ShopApiClient _api;
 
   /// Completes when the persisted cart has been read back.
   ///
@@ -441,22 +452,9 @@ final cartUserIdProvider = Provider<String?>(
   (ref) => ref.watch(authStateProvider.select((state) => state.user?.id)),
 );
 
-final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
-  final notifier = CartNotifier(
-    ref.watch(shopApiClientProvider),
-    userId: ref.read(cartUserIdProvider),
-  );
-
-  // Reload the cart when the account changes, so a sign-in picks up that
-  // buyer's cart and a sign-out does not leave it on a shared device.
-  ref.listen<String?>(cartUserIdProvider, (previous, next) {
-    if (previous != next) {
-      notifier.handleUserChanged(next);
-    }
-  });
-
-  return notifier;
-});
+final cartProvider = NotifierProvider<CartNotifier, CartState>(
+  CartNotifier.new,
+);
 
 /// Total units in the cart, for the badge.
 final cartItemCountProvider = Provider<int>(

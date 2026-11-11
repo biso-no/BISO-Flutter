@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 /// The update prompt, fixed to whatever the test sets it to.
 class _FixedPrompt extends UpdatePromptNotifier {
@@ -162,6 +163,7 @@ void main() {
     addTearDown(router.dispose);
 
     return ProviderScope(
+      retry: noAutomaticRetry,
       overrides: [
         updatePromptProvider.overrideWith(() => notifier),
         storeUpdaterProvider.overrideWithValue(updater),

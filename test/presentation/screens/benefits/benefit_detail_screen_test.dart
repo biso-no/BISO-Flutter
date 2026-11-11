@@ -19,12 +19,14 @@ import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
 import '../../../helpers/fake_member_pass_api.dart'
     show FakeScreenPresentation, activeView;
+import '../../../helpers/test_value.dart';
 
 class _FakeApi implements BenefitsApi {
   _FakeApi({this.benefits = const [], this.listError, this.pending});
@@ -814,7 +816,7 @@ void main() {
     testWidgets('a bare link waits for the Home campus to load', (
       tester,
     ) async {
-      final ready = StateProvider<bool>((_) => false);
+      final ready = testValueProvider(false);
       final api = await _open(
         tester,
         '/explore/benefits/b1',

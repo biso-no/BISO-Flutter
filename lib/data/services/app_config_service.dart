@@ -23,7 +23,7 @@ class AppConfigUnavailableException implements Exception {
 }
 
 class AppConfigService {
-  AppConfigService({http.Client? httpClient}) : _httpClient = httpClient;
+  AppConfigService({this._httpClient});
 
   static const _cacheKey = 'app_config_cache';
   static const _cacheTimestampKey = 'app_config_cache_ts';

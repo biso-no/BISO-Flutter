@@ -7,6 +7,7 @@ import 'package:biso/providers/benefits/benefits_providers.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 class _CountingApi implements BenefitsApi {
   int fetches = 0;
@@ -40,6 +41,7 @@ ProviderContainer _names({
   bool switcherLoads = false,
 }) {
   final container = ProviderContainer(
+    retry: noAutomaticRetry,
     overrides: [
       filterCampusProvider.overrideWithValue(
         filter ?? _campus('3', 'Trondheim'),
@@ -61,6 +63,7 @@ void main() {
   test('fetches the list again on the next visit', () async {
     final api = _CountingApi();
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [benefitsApiProvider.overrideWithValue(api)],
     );
     addTearDown(container.dispose);
@@ -82,6 +85,7 @@ void main() {
   test('keeps one fetch while the screen stays open', () async {
     final api = _CountingApi();
     final container = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [benefitsApiProvider.overrideWithValue(api)],
     );
     addTearDown(container.dispose);
@@ -97,6 +101,7 @@ void main() {
   group('benefitsNotDeployedProvider', () {
     Future<List<bool>> seen(Future<List<CampusBenefit>> Function() load) async {
       final container = ProviderContainer(
+        retry: noAutomaticRetry,
         overrides: [campusBenefitsProvider('3').overrideWith((_) => load())],
       );
       addTearDown(container.dispose);

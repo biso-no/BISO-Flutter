@@ -3,6 +3,8 @@ import 'package:biso/data/models/webshop_product_model.dart';
 import 'package:biso/data/services/shop_api_client.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:biso/providers/provider_retry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A stand-in for the shop API that records what the cart asked it to hold.
@@ -61,8 +63,16 @@ void main() {
   });
 
   Future<CartNotifier> buildCart({String? userId = 'buyer-1'}) async {
-    final cart = CartNotifier(api, userId: userId);
-    // The persisted cart is read back asynchronously from the constructor.
+    final container = ProviderContainer(
+      retry: noAutomaticRetry,
+      overrides: [
+        shopApiClientProvider.overrideWithValue(api),
+        cartUserIdProvider.overrideWithValue(userId),
+      ],
+    );
+    addTearDown(container.dispose);
+    final cart = container.read(cartProvider.notifier);
+    // The persisted cart is read back asynchronously from build().
     await pumpEventQueue();
     return cart;
   }

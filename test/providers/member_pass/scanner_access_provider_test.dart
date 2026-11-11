@@ -6,6 +6,7 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:biso/providers/provider_retry.dart';
 
 import '../../helpers/fake_member_pass_api.dart';
 
@@ -22,6 +23,7 @@ void main() {
 
   ProviderContainer container({String? userId = 'u1'}) {
     final c = ProviderContainer(
+      retry: noAutomaticRetry,
       overrides: [
         memberPassApiProvider.overrideWithValue(api),
         memberPassClockProvider.overrideWithValue(() => now),
@@ -97,12 +99,12 @@ void main() {
         .read(scannerAccessProvider.notifier)
         .ensureFresh(force: true);
     expect(
-      c.read(scannerAccessProvider).valueOrNull,
+      c.read(scannerAccessProvider).value,
       const ScannerGranted(access),
     );
     await refresh;
     expect(api.scannerAccessCalls, 2);
-    expect(c.read(scannerAccessProvider).valueOrNull, const ScannerDenied());
+    expect(c.read(scannerAccessProvider).value, const ScannerDenied());
   });
 
   test('a failed check is retried at once', () async {
@@ -115,7 +117,7 @@ void main() {
     await c.read(scannerAccessProvider.notifier).ensureFresh();
     expect(api.scannerAccessCalls, 2);
     expect(
-      c.read(scannerAccessProvider).valueOrNull,
+      c.read(scannerAccessProvider).value,
       const ScannerGranted(access),
     );
   });
@@ -155,14 +157,14 @@ void main() {
       await c.read(scannerAccessProvider.notifier).ensureFresh();
       expect(api.scannerAccessCalls, 3);
       expect(
-        c.read(scannerAccessProvider).valueOrNull,
+        c.read(scannerAccessProvider).value,
         const ScannerGranted(access),
       );
 
       // A definitive answer still replaces it.
       failWith(403);
       await c.read(scannerAccessProvider.notifier).ensureFresh();
-      expect(c.read(scannerAccessProvider).valueOrNull, const ScannerDenied());
+      expect(c.read(scannerAccessProvider).value, const ScannerDenied());
     });
 
     test('a resume after five minutes on a bad network keeps the grant, '
@@ -208,7 +210,7 @@ void main() {
       await backgroundAndResume();
       expect(api.scannerAccessCalls, 3);
       expect(
-        c.read(scannerAccessProvider).valueOrNull,
+        c.read(scannerAccessProvider).value,
         const ScannerGranted(other),
       );
 
@@ -217,7 +219,7 @@ void main() {
       await backgroundAndResume();
       expect(api.scannerAccessCalls, 4);
       expect(
-        c.read(scannerAccessProvider).valueOrNull,
+        c.read(scannerAccessProvider).value,
         const ScannerSignedOut(),
       );
     });

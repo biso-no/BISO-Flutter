@@ -167,7 +167,7 @@ class _BenefitsScreenState extends ConsumerState<BenefitsScreen> {
     final info = ref.watch(benefitStandingProvider);
     // A retry after a failure shows the skeleton; a refresh keeps the list.
     final failed = showcase.hasError && !showcase.isLoading;
-    final loaded = failed ? null : showcase.valueOrNull;
+    final loaded = failed ? null : showcase.value;
     final shown = loaded != null && !loaded.isEmpty ? loaded : null;
     final eligible = shown != null && info.isNonMember;
 

@@ -4,6 +4,7 @@ import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/biso_screen_harness.dart';
@@ -28,23 +29,26 @@ final _read = AppNotification(
 /// A [NotificationInboxNotifier] double that skips the network entirely and
 /// simply carries the state a test hands it. Mirrors the `_Auth` pattern used
 /// throughout (e.g. profile_design_test.dart): extends the real
-/// [StateNotifier] for `state`/`dispose`, and implements the notifier's own
+/// [Notifier] for `state` and its life cycle, and implements the notifier's own
 /// interface via `noSuchMethod` so `refresh`/`load`/`markRead` - never invoked
 /// by these tests, since nothing pulls to refresh or taps a row - don't need
 /// real bodies.
-class _FakeInbox extends StateNotifier<NotificationInboxState>
+class _FakeInbox extends Notifier<NotificationInboxState>
     implements NotificationInboxNotifier {
-  _FakeInbox(super.state);
+  final NotificationInboxState _initial;
+
+  @override
+  NotificationInboxState build() => _initial;
+
+  _FakeInbox(this._initial);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 List<Override> _overrides(NotificationInboxState state) => [
-  notificationInboxProvider.overrideWith((ref) => _FakeInbox(state)),
-  inboxOpenedItemsProvider.overrideWith(
-    (ref) => InboxOpenedItemsNotifier(userId: null),
-  ),
+  notificationInboxProvider.overrideWith(() => _FakeInbox(state)),
+  inboxOpenedItemsUserIdProvider.overrideWithValue(null),
 ];
 
 void main() {
