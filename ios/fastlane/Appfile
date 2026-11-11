@@ -1,8 +1,0 @@
-app_identifier("com.biso.no")
-apple_id(ENV["APPLE_ID"]) # Your Apple ID email
-
-# Use App Store Connect API key if provided (preferred for CI)
-itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"]) if ENV["APP_STORE_CONNECT_TEAM_ID"]
-team_id(ENV["DEVELOPER_TEAM_ID"] || "4JQ6VWVRGY")
-
-

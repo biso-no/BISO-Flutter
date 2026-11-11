@@ -25,9 +25,9 @@ in [The mobile app](https://docs.biso.no/developers/change-it/the-mobile-app).
 
 ## Set up
 
-You need the Flutter version CI uses (`FLUTTER_VERSION` in
-`.github/workflows/build.yml`), plus Xcode for iOS and the Android tools for
-Android.
+You need the Flutter version CI uses (`flutter-version` in
+`.github/actions/setup-flutter/action.yml`), plus Xcode for iOS and the Android
+tools for Android.
 
 ```bash
 git clone https://github.com/biso-no/BISO-Flutter.git
@@ -55,8 +55,8 @@ flutter run
 
 ## Check your work
 
-CI runs the tests and a debug Android build on every pull request. It doesn't
-run the analyzer, so run it yourself:
+CI runs the analyzer, the tests, a debug Android build and an unsigned iOS
+build on every pull request. Run the first two yourself before you push:
 
 ```bash
 flutter analyze
@@ -65,6 +65,10 @@ flutter test
 
 Try the change on a real device or a simulator, on iOS and on Android if it
 touches anything platform-specific.
+
+Don't bump the version in `pubspec.yaml`. Every merge to `main` is released to
+Google Play internal testing and TestFlight, and the release picks the version.
+The README's "Build, CI, and Release" section explains how.
 
 ## Open a pull request
 

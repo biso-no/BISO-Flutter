@@ -864,8 +864,12 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Appwrite**: SDK 28.x targets server 2.7. Its Android Push (MQTT, boot receivers, a
   foreground service) is stripped from the merged manifest because push goes through FCM; see
   the comment in `android/app/src/main/AndroidManifest.xml` before adopting Appwrite Push.
-- **CI pins**: `FLUTTER_VERSION` in `.github/workflows/build.yml` and in
-  `ios/ci_scripts/ci_post_clone.sh` (Xcode Cloud) follow the local toolchain
+- **CI pins**: `flutter-version` in `.github/actions/setup-flutter/action.yml` follows the local
+  toolchain; it is the only place CI names a Flutter version
+- **Releases** (README, "Build, CI, and Release"): every push to `main` ships to Play internal
+  testing and TestFlight through `.github/workflows/release.yml`, which also bumps and commits
+  `pubspec.yaml`'s version, so don't bump it by hand. iOS builds on GitHub Actions (no Xcode
+  Cloud, no fastlane), signed manually with the profiles named in `ios/ExportOptions.plist`.
 
 ---
 

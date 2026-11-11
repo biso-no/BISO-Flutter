@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Export options for the App Store IPA built by .github/workflows/release.yml.
+     The profile names below must match App Store profiles in the Apple
+     Developer portal; tool/release/ios_manual_signing.rb reads them from here
+     to sign the archive with the same profiles. -->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>destination</key>
+	<string>export</string>
+	<key>teamID</key>
+	<string>4JQ6VWVRGY</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.biso.no</key>
+		<string>BISO App Store</string>
+		<key>com.biso.no.BISOShareExtension</key>
+		<string>BISO Share Extension App Store</string>
+	</dict>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>

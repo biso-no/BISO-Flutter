@@ -45,6 +45,13 @@
 	     https://biso.no/auth/verify and shows "Page Not Found". -->
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
+	<!-- Answers App Store Connect's export compliance questions for every
+	     build. The app's only encryption is standard TLS (HTTPS), and it is
+	     not distributed in France, so no encryption documentation is
+	     required. Distributing in France, or adding encryption of its own,
+	     would change this answer. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

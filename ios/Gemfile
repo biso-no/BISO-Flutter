@@ -1,9 +1,0 @@
-source "https://rubygems.org"
-
-# Support Ruby 3.2+ for GitHub Actions compatibility
-ruby ">= 3.2.0"
-
-gem "fastlane"
-gem "cocoapods"
-
-

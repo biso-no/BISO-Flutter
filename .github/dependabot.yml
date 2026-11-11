@@ -19,7 +19,9 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # "/" covers the workflows; the second entry covers the local composite
+    # actions, such as setup-flutter, which pins flutter-action.
+    directories: ["/", "/.github/actions/*"]
     schedule:
       interval: "monthly"
       timezone: "Europe/Oslo"
