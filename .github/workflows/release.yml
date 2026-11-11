@@ -152,6 +152,12 @@ jobs:
           p12-file-base64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
           p12-password: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
 
+      - name: Read the App Store Connect key
+        id: asc-key
+        uses: ./.github/actions/app-store-connect-key
+        with:
+          private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+
       - name: Download the app's profile
         uses: apple-actions/download-provisioning-profiles@233aa54e59082c0e8a8cf8b0b02c72dea2422ef9 # v7.1.0
         with:
@@ -159,7 +165,7 @@ jobs:
           profile-type: IOS_APP_STORE
           issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
-          api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          api-private-key: ${{ steps.asc-key.outputs.private-key }}
 
       - name: Download the share extension's profile
         uses: apple-actions/download-provisioning-profiles@233aa54e59082c0e8a8cf8b0b02c72dea2422ef9 # v7.1.0
@@ -168,7 +174,7 @@ jobs:
           profile-type: IOS_APP_STORE
           issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
-          api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          api-private-key: ${{ steps.asc-key.outputs.private-key }}
 
       - name: Sign with those profiles
         run: |
@@ -223,6 +229,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60 # Includes waiting for App Store Connect to process the build
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions # Only the local actions are needed here
+      - name: Read the App Store Connect key
+        id: asc-key
+        uses: ./.github/actions/app-store-connect-key
+        with:
+          private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+
       - uses: actions/download-artifact@v8
         with:
           name: ios
@@ -244,7 +259,7 @@ jobs:
           app-path: ${{ steps.build.outputs.ipa }}
           issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
-          api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          api-private-key: ${{ steps.asc-key.outputs.private-key }}
           release-notes: ${{ steps.build.outputs.notes }}
           # Also set by ITSAppUsesNonExemptEncryption in Info.plist; see the comment there.
           uses-non-exempt-encryption: 'false'

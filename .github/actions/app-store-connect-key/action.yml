@@ -1,0 +1,40 @@
+name: App Store Connect key
+description: >-
+  Gives the App Store Connect API key as the .p8 file's text, which Apple's
+  actions require. The secret may hold that text, or the file base64-encoded
+  (as the old fastlane setup stored it).
+
+inputs:
+  private-key:
+    description: The APPLE_API_PRIVATE_KEY secret
+    required: true
+
+outputs:
+  private-key:
+    description: The key as the .p8 file's text
+    value: ${{ steps.key.outputs.pem }}
+
+runs:
+  using: composite
+  steps:
+    - id: key
+      shell: bash
+      env:
+        KEY: ${{ inputs.private-key }}
+      run: |
+        header='-----BEGIN PRIVATE KEY-----'
+        key=$KEY
+        if [[ $key != *"$header"* ]]; then
+          key=$(printf '%s' "$key" | tr -d ' \t\r\n' | base64 --decode 2>/dev/null || true)
+        fi
+        if [[ $key != *"$header"* ]]; then
+          echo "::error::APPLE_API_PRIVATE_KEY is neither a .p8 file's text nor that text base64-encoded. Set it with: gh secret set APPLE_API_PRIVATE_KEY < AuthKey_<key id>.p8"
+          exit 1
+        fi
+        # A decoded key is not a registered secret, so hide its lines in the logs.
+        while IFS= read -r line; do
+          line=${line%$'\r'}
+          if [[ -n $line && $line != -----* ]]; then echo "::add-mask::$line"; fi
+        done <<< "$key"
+        delimiter="key_$(openssl rand -hex 8)"
+        { echo "pem<<$delimiter"; printf '%s\n' "$key"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
