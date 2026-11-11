@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../../data/models/entur_models.dart';
@@ -56,15 +55,18 @@ class EnturUiState {
   }
 }
 
-final enturUiProvider = StateNotifierProvider<EnturUiNotifier, EnturUiState>((ref) {
-  final service = ref.watch(enturServiceProvider);
-  return EnturUiNotifier(service);
-});
+final enturUiProvider = NotifierProvider<EnturUiNotifier, EnturUiState>(
+  EnturUiNotifier.new,
+);
 
-class EnturUiNotifier extends StateNotifier<EnturUiState> {
-  final EnturService _service;
-  EnturUiNotifier(this._service)
-      : super(EnturUiState(showBus: true, showMetro: true));
+class EnturUiNotifier extends Notifier<EnturUiState> {
+  late EnturService _service;
+
+  @override
+  EnturUiState build() {
+    _service = ref.watch(enturServiceProvider);
+    return EnturUiState(showBus: true, showMetro: true);
+  }
 
   void setStopPlace(String? stopPlaceId) async {
     state = state.copyWith(selectedStopPlaceId: stopPlaceId);

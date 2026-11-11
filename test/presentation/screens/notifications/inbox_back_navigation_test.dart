@@ -7,7 +7,6 @@ import 'package:biso/providers/notification/inbox_opened_items_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,9 +18,14 @@ import 'package:biso/providers/provider_retry.dart';
 /// routes come from main.dart and sit inside a tab shell beside Home, with
 /// the content routes nested under Explore as in the app.
 
-class _FakeInbox extends StateNotifier<NotificationInboxState>
+class _FakeInbox extends Notifier<NotificationInboxState>
     implements NotificationInboxNotifier {
-  _FakeInbox(super.state);
+  final NotificationInboxState _initial;
+
+  @override
+  NotificationInboxState build() => _initial;
+
+  _FakeInbox(this._initial);
 
   @override
   Future<void> markRead(AppNotification notification) async {}
@@ -123,13 +127,10 @@ Future<GoRouter> _pumpApp(WidgetTester tester) async {
     ProviderScope(
       retry: noAutomaticRetry,
       overrides: [
-        notificationInboxProvider.overrideWith(
-          (ref) => _FakeInbox(NotificationInboxState(items: [_burst, _news])),
+        notificationInboxProvider.overrideWith(() => _FakeInbox(NotificationInboxState(items: [_burst, _news])),
         ),
         announcementDetailProvider('b1').overrideWith((ref) async => _burst),
-        inboxOpenedItemsProvider.overrideWith(
-          (ref) => InboxOpenedItemsNotifier(userId: 'u1'),
-        ),
+        inboxOpenedItemsUserIdProvider.overrideWithValue('u1'),
       ],
       child: MaterialApp.router(
         theme: PremiumTheme.build(Brightness.light),

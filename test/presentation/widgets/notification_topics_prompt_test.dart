@@ -12,9 +12,9 @@ import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:biso/providers/provider_retry.dart';
+import '../../helpers/test_value.dart';
 
 /// An [Account] whose [getPrefs] does not resolve until [release] is called,
 /// so the test can observe the prompt's loading state deterministically
@@ -72,7 +72,7 @@ const _studentB = UserModel(id: 'student-b', name: 'B', email: 'b@bi.no');
 
 /// Who is signed in, for the tests that call [maybeShowTopicsPrompt]; stands
 /// in behind `currentUserProvider` so a test can switch students.
-final _signedInStudent = StateProvider<UserModel?>((ref) => null);
+final _signedInStudent = testValueProvider<UserModel?>(null);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

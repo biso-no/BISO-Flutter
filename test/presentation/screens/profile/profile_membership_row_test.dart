@@ -8,7 +8,7 @@ import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,15 +27,18 @@ const _campus = CampusModel(
 
 const _user = UserModel(id: 'u1', name: 'Test Student', email: 'student@bi.no');
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth()
-    : super(
-        const AuthState(
+    : _initial = const AuthState(
           isAuthenticated: true,
           user: _user,
           isProfileComplete: true,
-        ),
-      );
+        );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -63,7 +66,7 @@ MembershipOverview _overview(
 );
 
 List<Override> _overrides(MembershipOverview? overview) => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   selectedCampusProvider.overrideWithValue(_campus),
   appConfigProvider.overrideWith(
     (_) async => const AppConfig(expensesEnabled: true),

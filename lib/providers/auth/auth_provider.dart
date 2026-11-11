@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import '../../data/models/user_model.dart';
 import '../../data/services/api_auth.dart';
 import '../../data/services/auth_service.dart';
@@ -12,12 +13,9 @@ import 'bi_sign_in_service_provider.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
-final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier(
-    ref.watch(authServiceProvider),
-    biSignIn: ref.watch(biSignInServiceProvider),
-  );
-});
+final authStateProvider = NotifierProvider<AuthNotifier, AuthState>(
+  AuthNotifier.new,
+);
 
 class AuthState {
   final UserModel? user;
@@ -67,8 +65,19 @@ class AuthState {
   String? get signedInUserId => isAuthenticated ? user?.id : null;
 }
 
-class AuthNotifier extends StateNotifier<AuthState> {
-  final AuthService _authService;
+class AuthNotifier extends Notifier<AuthState> {
+  /// The services default to the providers', or to a lazily built
+  /// [NotificationService]; tests pass their own.
+  AuthNotifier({
+    AuthService? authService,
+    NotificationService? notificationService,
+    BiSignInService? biSignIn,
+  }) : _authServiceOverride = authService,
+       _notificationServiceOverride = notificationService,
+       _biSignInOverride = biSignIn;
+
+  final AuthService? _authServiceOverride;
+  late AuthService _authService;
 
   /// The [NotificationService] supplied by a test, if any.
   final NotificationService? _notificationServiceOverride;
@@ -78,27 +87,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
   NotificationService get _notificationService =>
       _notificationServiceOverride ?? NotificationService();
 
-  /// The [BiSignInService] supplied by the provider or a test, if any.
   final BiSignInService? _biSignInOverride;
 
   /// Resolved on use, like [_notificationService].
-  BiSignInService get _biSignIn => _biSignInOverride ?? BiSignInService();
+  BiSignInService get _biSignIn =>
+      _biSignInOverride ?? ref.read(biSignInServiceProvider);
 
-  AuthNotifier(
-    this._authService, {
-    NotificationService? notificationService,
-    BiSignInService? biSignIn,
-  }) : _notificationServiceOverride = notificationService,
-       _biSignInOverride = biSignIn,
-       super(const AuthState()) {
-    _checkAuthState();
+  @override
+  AuthState build() {
+    _authService = _authServiceOverride ?? ref.watch(authServiceProvider);
+    unawaited(_resolveSession());
+    return const AuthState(isLoading: true);
   }
 
   Future<void> _checkAuthState() async {
     state = state.copyWith(isLoading: true, error: null);
+    await _resolveSession();
+  }
 
+  /// The rest of [_checkAuthState], which [build] starts itself.
+  Future<void> _resolveSession() async {
     try {
-      final user = await _authService.getCurrentUser();
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final user = await Future.sync(_authService.getCurrentUser);
 
       // If user exists, also load their complete profile
       if (user != null) {

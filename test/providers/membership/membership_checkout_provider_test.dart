@@ -130,8 +130,7 @@ void main() {
           return launchSucceeds;
         }),
         membershipCheckoutControllerProvider.overrideWith(
-          (ref) => MembershipCheckoutController(
-            ref,
+          () => MembershipCheckoutController(
             activationPollInterval: Duration.zero,
             activationAttempts: 3,
             clock: () => today ?? DateTime.now(),

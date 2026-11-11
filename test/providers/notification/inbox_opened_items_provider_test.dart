@@ -15,7 +15,7 @@ class _FakeAuthService extends AuthService {
 }
 
 class _TestAuthNotifier extends AuthNotifier {
-  _TestAuthNotifier() : super(_FakeAuthService());
+  _TestAuthNotifier() : super(authService: _FakeAuthService());
 
   void signIn(String id) {
     state = AuthState(
@@ -29,8 +29,12 @@ class _TestAuthNotifier extends AuthNotifier {
 }
 
 Future<InboxOpenedItemsNotifier> _loaded(String? userId) async {
-  final notifier = InboxOpenedItemsNotifier(userId: userId);
-  addTearDown(notifier.dispose);
+  final container = ProviderContainer(
+    retry: noAutomaticRetry,
+    overrides: [inboxOpenedItemsUserIdProvider.overrideWithValue(userId)],
+  );
+  addTearDown(container.dispose);
+  final notifier = container.read(inboxOpenedItemsProvider.notifier);
   await notifier.loaded;
   return notifier;
 }
@@ -140,7 +144,7 @@ void main() {
     final auth = _TestAuthNotifier();
     final container = ProviderContainer(
       retry: noAutomaticRetry,
-      overrides: [authStateProvider.overrideWith((ref) => auth)],
+      overrides: [authStateProvider.overrideWith(() => auth)],
     );
     addTearDown(container.dispose);
     // Keep the provider alive across rebuilds.

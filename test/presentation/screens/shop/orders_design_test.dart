@@ -10,7 +10,7 @@ import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,14 +20,17 @@ import '../../../helpers/biso_screen_harness.dart';
 const _buyerId = 'buyer-1';
 const _user = UserModel(id: _buyerId, name: 'Test Buyer', email: 'buyer@bi.no');
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(bool isAuthenticated)
-    : super(
-        AuthState(
+    : _initial = AuthState(
           isAuthenticated: isAuthenticated,
           user: isAuthenticated ? _user : null,
-        ),
-      );
+        );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -126,7 +129,7 @@ void main() {
           tester,
           () => const OrdersScreen(),
           overrides: [
-            authStateProvider.overrideWith((_) => _Auth(false)),
+            authStateProvider.overrideWith(() => _Auth(false)),
             myOrdersProvider.overrideWith((_) async => const []),
           ],
         );
@@ -135,7 +138,7 @@ void main() {
           tester,
           () => const OrdersScreen(),
           overrides: [
-            authStateProvider.overrideWith((_) => _Auth(true)),
+            authStateProvider.overrideWith(() => _Auth(true)),
             myOrdersProvider.overrideWith((_) async => const []),
           ],
         );
@@ -144,7 +147,7 @@ void main() {
           tester,
           () => const OrdersScreen(),
           overrides: [
-            authStateProvider.overrideWith((_) => _Auth(true)),
+            authStateProvider.overrideWith(() => _Auth(true)),
             myOrdersProvider.overrideWith(
               (_) async => [
                 _order(id: '1', status: ShopOrderStatus.paid),
@@ -181,7 +184,7 @@ void main() {
             tester,
             const OrdersScreen(),
             overrides: [
-              authStateProvider.overrideWith((_) => _Auth(true)),
+              authStateProvider.overrideWith(() => _Auth(true)),
               myOrdersProvider.overrideWith((_) async => [order]),
             ],
             brightness: brightness,
@@ -216,7 +219,7 @@ void main() {
           tester,
           const OrdersScreen(),
           overrides: [
-            authStateProvider.overrideWith((_) => _Auth(true)),
+            authStateProvider.overrideWith(() => _Auth(true)),
             myOrdersProvider.overrideWith((_) async => [order]),
           ],
           textScale: 1.6,
@@ -270,7 +273,7 @@ void main() {
           tester,
           const OrdersScreen(),
           overrides: [
-            authStateProvider.overrideWith((_) => _Auth(true)),
+            authStateProvider.overrideWith(() => _Auth(true)),
             myOrdersProvider.overrideWith((_) async => [wideRowOrder]),
           ],
           size: const Size(320, 844),
@@ -313,7 +316,7 @@ void main() {
           tester,
           const OrdersScreen(),
           overrides: [
-            authStateProvider.overrideWith((_) => _Auth(true)),
+            authStateProvider.overrideWith(() => _Auth(true)),
             myOrdersProvider.overrideWith((_) async => [wideRowOrder]),
           ],
         );
@@ -365,7 +368,7 @@ void main() {
               tester,
               const OrdersScreen(),
               overrides: [
-                authStateProvider.overrideWith((_) => _Auth(true)),
+                authStateProvider.overrideWith(() => _Auth(true)),
                 myOrdersProvider.overrideWith((_) async => [order]),
               ],
               brightness: brightness,

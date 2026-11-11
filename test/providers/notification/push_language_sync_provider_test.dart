@@ -20,7 +20,7 @@ class _FakeAuthService extends AuthService {
 }
 
 class _TestAuthNotifier extends AuthNotifier {
-  _TestAuthNotifier() : super(_FakeAuthService());
+  _TestAuthNotifier() : super(authService: _FakeAuthService());
 
   void signIn({required bool hasProfile}) {
     state = AuthState(
@@ -72,9 +72,8 @@ void main() {
       retry: noAutomaticRetry,
       overrides: [
         profileApiClientProvider.overrideWithValue(api),
-        authStateProvider.overrideWith((ref) => auth),
-        localeProvider.overrideWith(
-          (ref) =>
+        authStateProvider.overrideWith(() => auth),
+        localeProvider.overrideWith(() =>
               locale ?? LocaleNotifier(deviceLocale: () => ui.Locale(device)),
         ),
       ],

@@ -1,7 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -20,9 +21,9 @@ import 'settings_screen_chat_tab.dart';
 
 // Settings providers
 final appSettingsProvider =
-    StateNotifierProvider<AppSettingsNotifier, AppSettingsState>((ref) {
-      return AppSettingsNotifier();
-    });
+    NotifierProvider<AppSettingsNotifier, AppSettingsState>(
+      AppSettingsNotifier.new,
+    );
 
 class AppSettingsState {
   final bool darkMode;
@@ -58,14 +59,14 @@ class AppSettingsState {
   }
 }
 
-class AppSettingsNotifier extends StateNotifier<AppSettingsState> {
-  AppSettingsNotifier() : super(const AppSettingsState()) {
-    _loadSettings();
+class AppSettingsNotifier extends Notifier<AppSettingsState> {
+  @override
+  AppSettingsState build() {
+    unawaited(_loadSettings());
+    return const AppSettingsState(isLoading: true);
   }
 
   Future<void> _loadSettings() async {
-    state = state.copyWith(isLoading: true);
-
     try {
       final prefs = await SharedPreferences.getInstance();
 

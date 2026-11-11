@@ -11,7 +11,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,15 +40,18 @@ const _user = UserModel(
 
 /// A signed-in, profile-complete user, mirroring the `_Auth` pattern in
 /// navigation_content_clearance_test.dart.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth({bool isProfileComplete = true, UserModel user = _user})
-    : super(
-        AuthState(
+    : _initial = AuthState(
           isAuthenticated: true,
           user: user,
           isProfileComplete: isProfileComplete,
-        ),
-      );
+        );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -64,8 +67,7 @@ List<Override> _overrides({
   bool isProfileComplete = true,
   UserModel user = _user,
 }) => [
-  authStateProvider.overrideWith(
-    (_) => _Auth(isProfileComplete: isProfileComplete, user: user),
+  authStateProvider.overrideWith(() => _Auth(isProfileComplete: isProfileComplete, user: user),
   ),
   selectedCampusProvider.overrideWithValue(_campus),
   appConfigProvider.overrideWith(

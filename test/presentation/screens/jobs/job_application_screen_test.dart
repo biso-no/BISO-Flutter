@@ -15,7 +15,6 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:biso/providers/provider_retry.dart';
@@ -28,9 +27,14 @@ const _consent =
     'applications, with your name and contact details removed first; all '
     'decisions are made by people.';
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(UserModel? user)
-    : super(AuthState(isAuthenticated: user != null, user: user));
+    : _initial = AuthState(isAuthenticated: user != null, user: user);
 
   int authRefreshes = 0;
 
@@ -148,7 +152,7 @@ void main() {
       ProviderScope(
         retry: noAutomaticRetry,
         overrides: [
-          authStateProvider.overrideWith((_) => auth = _Auth(user)),
+          authStateProvider.overrideWith(() => auth = _Auth(user)),
           membershipOverviewProvider.overrideWith(
             () => _Membership(membership),
           ),

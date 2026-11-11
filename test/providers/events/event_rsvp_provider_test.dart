@@ -4,6 +4,10 @@ import 'package:biso/data/models/event_rsvp.dart';
 import 'package:biso/data/services/event_rsvp_api_client.dart';
 import 'package:biso/providers/events/event_rsvp_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:biso/providers/provider_retry.dart';
+import 'package:biso/providers/auth/auth_provider.dart';
+import 'package:biso/data/models/user_model.dart';
 
 const _base = EventRsvpSummary(going: 4, maybe: 2, mine: null, open: true);
 
@@ -40,8 +44,30 @@ class _FakeRsvpApi implements EventRsvpApi {
   }
 }
 
+/// A signed-in student, which the notifier reads to ask for their answer.
+class _SignedIn extends Notifier<AuthState> implements AuthNotifier {
+  @override
+  AuthState build() => const AuthState(
+    isAuthenticated: true,
+    user: UserModel(id: 'student-a', name: 'A', email: 'a@bi.no'),
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 Future<EventRsvpNotifier> _loaded(_FakeRsvpApi api) async {
-  final notifier = EventRsvpNotifier(api, 'e1', signedIn: true);
+  final container = ProviderContainer(
+    retry: noAutomaticRetry,
+    overrides: [
+      eventRsvpApiProvider.overrideWithValue(api),
+      authStateProvider.overrideWith(_SignedIn.new),
+    ],
+  );
+  addTearDown(container.dispose);
+  // Keeps the autoDispose provider alive, as the card watching it does.
+  container.listen(eventRsvpProvider('e1'), (_, _) {});
+  final notifier = container.read(eventRsvpProvider('e1').notifier);
   await pumpEventQueue();
   return notifier;
 }

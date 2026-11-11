@@ -151,8 +151,7 @@ void main() {
             notificationServiceProvider.overrideWithValue(
               _GrantingNotificationService(outcome),
             ),
-            authStateProvider.overrideWith(
-              (ref) => AuthNotifier(_SignedOutAuthService()),
+            authStateProvider.overrideWith(() => AuthNotifier(authService: _SignedOutAuthService()),
             ),
           ],
           child: MaterialApp(

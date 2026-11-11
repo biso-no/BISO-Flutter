@@ -13,7 +13,6 @@ import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -102,8 +101,13 @@ class _FixedEventService extends EventService {
 
 /// Signed out, so the detail sheet's personalised trip card renders nothing
 /// and nothing reaches Appwrite. Membership is overridden separately.
-class _SignedOut extends StateNotifier<AuthState> implements AuthNotifier {
-  _SignedOut() : super(const AuthState());
+class _SignedOut extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _SignedOut() : _initial = const AuthState();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -157,7 +161,7 @@ Future<void> _openGala(
       filterCampusProvider.overrideWithValue(_campus),
       campusInitializedProvider.overrideWithValue(true),
       eventRsvpApiProvider.overrideWithValue(_NoRsvpApi()),
-      authStateProvider.overrideWith((_) => _SignedOut()),
+      authStateProvider.overrideWith(() => _SignedOut()),
       hasValidMembershipProvider.overrideWithValue(isMember),
     ],
   );

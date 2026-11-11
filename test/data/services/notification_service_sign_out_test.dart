@@ -384,7 +384,10 @@ class _SessionKeepingAuthService extends AuthService {
 /// cannot delete the session.
 class _SessionKeepingAuthNotifier extends AuthNotifier {
   _SessionKeepingAuthNotifier(NotificationService service)
-    : super(_SessionKeepingAuthService(), notificationService: service);
+    : super(
+        authService: _SessionKeepingAuthService(),
+        notificationService: service,
+      );
 
   void signIn(String studentId, {required String campusId}) {
     state = AuthState(
@@ -1518,7 +1521,7 @@ void main() {
         retry: noAutomaticRetry,
         overrides: [
           notificationServiceProvider.overrideWithValue(service),
-          authStateProvider.overrideWith((ref) => auth),
+          authStateProvider.overrideWith(() => auth),
         ],
       );
       addTearDown(container.dispose);

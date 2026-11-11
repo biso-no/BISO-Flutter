@@ -1,14 +1,15 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:biso/core/constants/notification_topics.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Provider that manages the app's locale based on user preferences
-final localeProvider = StateNotifierProvider<LocaleNotifier, Locale>((ref) {
-  return LocaleNotifier();
-});
+final localeProvider = NotifierProvider<LocaleNotifier, Locale>(
+  LocaleNotifier.new,
+);
 
 /// The app language for a device locale: Norwegian variants give `'no'`,
 /// everything else gives `'en'`.
@@ -21,17 +22,20 @@ Locale _platformLocale() => PlatformDispatcher.instance.locale;
 ///
 /// An explicit choice (saved under `language`) wins. Otherwise the app follows
 /// the device language, including while the app is running.
-class LocaleNotifier extends StateNotifier<Locale> with WidgetsBindingObserver {
+class LocaleNotifier extends Notifier<Locale> with WidgetsBindingObserver {
   LocaleNotifier({
     Locale Function()? deviceLocale,
     Future<SharedPreferences> Function()? prefs,
   }) : _deviceLocale = deviceLocale ?? _platformLocale,
-       _prefs = prefs ?? SharedPreferences.getInstance,
-       super(
-         Locale(appLanguageForDevice((deviceLocale ?? _platformLocale)())),
-       ) {
+       _prefs = prefs ?? SharedPreferences.getInstance;
+
+  @override
+  Locale build() {
+    _explicit = false;
     _observe();
-    _loadLocale();
+    ref.onDispose(_stopObserving);
+    unawaited(_loadLocale());
+    return Locale(appLanguageForDevice(_deviceLocale()));
   }
 
   final Locale Function() _deviceLocale;
@@ -60,13 +64,11 @@ class LocaleNotifier extends StateNotifier<Locale> with WidgetsBindingObserver {
     state = Locale(appLanguageForDevice(_deviceLocale()));
   }
 
-  @override
-  void dispose() {
+  void _stopObserving() {
     if (_observing) {
       WidgetsBinding.instance.removeObserver(this);
       _observing = false;
     }
-    super.dispose();
   }
 
   /// Load an explicit choice from SharedPreferences, if there is one
@@ -76,7 +78,7 @@ class LocaleNotifier extends StateNotifier<Locale> with WidgetsBindingObserver {
       final saved = prefs.getString('language');
       if (saved == null) return;
       _explicit = true;
-      if (mounted) state = Locale(saved);
+      if (ref.mounted) state = Locale(saved);
     } catch (e) {
       // Keep the device-derived locale if loading fails
     }
@@ -88,7 +90,7 @@ class LocaleNotifier extends StateNotifier<Locale> with WidgetsBindingObserver {
       final prefs = await _prefs();
       await prefs.setString('language', languageCode);
       _explicit = true;
-      if (mounted) state = Locale(languageCode);
+      if (ref.mounted) state = Locale(languageCode);
     } catch (e) {
       // Keep current locale if saving fails
     }

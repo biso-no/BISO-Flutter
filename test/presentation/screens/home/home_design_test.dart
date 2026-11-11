@@ -6,7 +6,7 @@ import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/large_event/large_event_provider.dart';
 import 'package:biso/providers/notification/notification_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,8 +27,13 @@ const _campus = CampusModel(
 /// directly and cannot be overridden from outside the screen file — are never
 /// watched and the content sections render their loading skeleton instead of
 /// making a real network call.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState());
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState();
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -38,7 +43,7 @@ List<Override> _overrides({int unread = 0}) => [
   campusInitializedProvider.overrideWithValue(false),
   heroShowcaseItemsProvider.overrideWithValue(const []),
   unreadCountProvider.overrideWithValue(unread),
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
 ];
 
 void main() {

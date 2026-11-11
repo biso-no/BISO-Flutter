@@ -5,7 +5,7 @@ import 'package:biso/presentation/screens/jobs/my_applications_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/jobs/jobs_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -14,9 +14,14 @@ import '../../../helpers/biso_screen_harness.dart';
 
 const _user = UserModel(id: 'u1', name: 'Kari Nordmann', email: 'kari@bi.no');
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth(UserModel? user)
-    : super(AuthState(isAuthenticated: user != null, user: user));
+    : _initial = AuthState(isAuthenticated: user != null, user: user);
 
   int authRefreshes = 0;
 
@@ -77,7 +82,7 @@ List<Override> _overrides({
   List<MyApplication> applications = const [],
   Exception? failure,
 }) => [
-  authStateProvider.overrideWith((_) => _auth = _Auth(user)),
+  authStateProvider.overrideWith(() => _auth = _Auth(user)),
   recruitmentApiClientProvider.overrideWithValue(
     _FakeRecruitmentApi(applications, failure: failure),
   ),

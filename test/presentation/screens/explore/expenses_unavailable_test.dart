@@ -10,7 +10,7 @@ import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,9 +18,14 @@ import '../../../helpers/biso_screen_harness.dart';
 
 const _user = UserModel(id: 'u1', name: 'Test Student', email: 'student@bi.no');
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
   _Auth([UserModel user = _user])
-    : super(AuthState(isAuthenticated: true, user: user));
+    : _initial = AuthState(isAuthenticated: true, user: user);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -46,7 +51,7 @@ class _FakeExpenseService extends ExpenseServiceV2 {
 }
 
 List<Override> _switchedOff() => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   appConfigProvider.overrideWith(
     (_) async => const AppConfig(expensesEnabled: false),
   ),
@@ -57,7 +62,7 @@ List<Override> _switchedOff() => [
 /// known about BISO's settings, which is not the same as knowing they are
 /// off.
 List<Override> _configFailed() => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   appConfigProvider.overrideWith(
     (_) async => throw const AppConfigUnavailableException(),
   ),
@@ -126,7 +131,7 @@ void main() {
       tester,
       const ExpensesScreen(),
       overrides: [
-        authStateProvider.overrideWith((_) => _Auth()),
+        authStateProvider.overrideWith(() => _Auth()),
         expenseServiceProvider.overrideWithValue(_FakeExpenseService()),
         appConfigProvider.overrideWith((_) async {
           reads++;
@@ -154,7 +159,7 @@ void main() {
       tester,
       const CreateExpenseScreen(),
       overrides: [
-        authStateProvider.overrideWith((_) => _Auth(_userOnCampus)),
+        authStateProvider.overrideWith(() => _Auth(_userOnCampus)),
         expenseServiceProvider.overrideWithValue(lookups),
         appConfigProvider.overrideWith((_) async {
           configReads++;

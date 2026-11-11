@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,7 +17,17 @@ import '../../widgets/biso/biso.dart';
 import '../../widgets/event/event_detail_body.dart';
 
 // Search term for events (server-backed)
-final eventsSearchTermProvider = StateProvider<String?>((ref) => null);
+final eventsSearchTermProvider = NotifierProvider<EventsSearchTerm, String?>(
+  EventsSearchTerm.new,
+);
+
+/// What the events list is searched for, or null when it is not.
+class EventsSearchTerm extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? term) => state = term;
+}
 
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
@@ -373,7 +382,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
     // filter rather than leaving the list filtered by the previous one.
     final query = trimmed.length < 2 ? null : trimmed;
     if (ref.read(eventsSearchTermProvider) == query) return;
-    ref.read(eventsSearchTermProvider.notifier).state = query;
+    ref.read(eventsSearchTermProvider.notifier).set(query);
     await _reload();
   }
 

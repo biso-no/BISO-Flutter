@@ -282,7 +282,7 @@ void main() {
           ),
           appConfigProvider.overrideWith((ref) async => const AppConfig()),
           featuredLargeEventProvider.overrideWithValue(null),
-          localeProvider.overrideWith((ref) => _Locale()),
+          localeProvider.overrideWith(() => _Locale()),
           scannerAccessProvider.overrideWith(
             () => FixedScannerAccess(const ScannerDenied()),
           ),

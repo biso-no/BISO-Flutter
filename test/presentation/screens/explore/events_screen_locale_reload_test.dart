@@ -84,7 +84,7 @@ void main() {
           eventServiceProvider.overrideWithValue(service),
           filterCampusProvider.overrideWithValue(campus),
           campusInitializedProvider.overrideWithValue(true),
-          localeProvider.overrideWith((ref) => _TestLocaleNotifier()),
+          localeProvider.overrideWith(() => _TestLocaleNotifier()),
         ],
       );
       addTearDown(container.dispose);

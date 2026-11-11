@@ -54,8 +54,14 @@ class _FakeAuthService extends AuthService {
 }
 
 class _FakeAuth extends AuthNotifier {
-  _FakeAuth(UserModel? user) : super(_FakeAuthService()) {
-    state = AuthState(user: user, isAuthenticated: user != null);
+  _FakeAuth(this.user) : super(authService: _FakeAuthService());
+
+  final UserModel? user;
+
+  @override
+  AuthState build() {
+    super.build();
+    return AuthState(user: user, isAuthenticated: user != null);
   }
 }
 
@@ -114,7 +120,7 @@ Future<_FakeApi> _pump(
     overrides: [
       benefitsApiProvider.overrideWithValue(api),
       memberPassProvider.overrideWith(() => _FakePass(_active)),
-      authStateProvider.overrideWith((_) => _FakeAuth(user)),
+      authStateProvider.overrideWith(() => _FakeAuth(user)),
     ],
   );
   return api;
@@ -234,7 +240,7 @@ void main() {
       overrides: [
         campusBenefitsProvider.overrideWith((ref, _) => completer.future),
         memberPassProvider.overrideWith(() => _FakePass(_active)),
-        authStateProvider.overrideWith((_) => _FakeAuth(_user)),
+        authStateProvider.overrideWith(() => _FakeAuth(_user)),
       ],
     );
     expect(find.text('Dine fordeler'), findsOneWidget);

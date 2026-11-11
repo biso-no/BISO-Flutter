@@ -6,7 +6,7 @@ import 'package:biso/presentation/screens/chat/chat_list_screen.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,8 +22,13 @@ const _chat = ChatModel(
   participants: [_userId, 'seller-1', 'seller-2'],
 );
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true, user: _user);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -140,7 +145,7 @@ List<ChatMessageModel> _messages() {
 }
 
 List<Override> _overrides([ChatModel chat = _chat]) => [
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   chatServiceProvider.overrideWithValue(_FakeChatService()),
   chatMessagesProvider(chat.id).overrideWith((_) => Stream.value(_messages())),
 ];

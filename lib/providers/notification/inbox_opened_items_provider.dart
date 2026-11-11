@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/logging/print_migration.dart';
@@ -32,24 +31,30 @@ class InboxOpenedItems {
 /// `{announcementId: [itemId, …]}`, ordered from least to most recently
 /// touched and capped at [kInboxOpenedItemsLimit] announcements. Signed out,
 /// nothing is stored.
-class InboxOpenedItemsNotifier extends StateNotifier<InboxOpenedItems> {
-  InboxOpenedItemsNotifier({
-    required this._userId,
-    Future<SharedPreferences> Function()? prefs,
-  }) : _prefs = prefs ?? SharedPreferences.getInstance,
-       super(const InboxOpenedItems()) {
-    loaded = _load();
-  }
+///
+/// Rebuilds, and rereads, when the student changes. Each build keeps its
+/// student and items in its own [_OpenedItemsStore], so a read or write still
+/// running for the previous student can never reach the next one.
+class InboxOpenedItemsNotifier extends Notifier<InboxOpenedItems> {
+  InboxOpenedItemsNotifier({Future<SharedPreferences> Function()? prefs})
+    : _prefs = prefs ?? SharedPreferences.getInstance;
 
-  final String? _userId;
   final Future<SharedPreferences> Function() _prefs;
 
-  /// The source of [state]. Literal maps and sets keep insertion order, so
-  /// the least recently touched announcement comes first.
-  final Map<String, Set<String>> _opened = {};
+  late _OpenedItemsStore _store;
+
+  @override
+  InboxOpenedItems build() {
+    final userId = ref.watch(inboxOpenedItemsUserIdProvider);
+    final store = _store = _OpenedItemsStore(userId);
+    // Set as soon as the student changes, before any rebuild.
+    ref.onDispose(() => store.disposed = true);
+    store.loaded = _load(store);
+    return const InboxOpenedItems();
+  }
 
   /// Completes once the stored items have been read.
-  late final Future<void> loaded;
+  Future<void> get loaded => _store.loaded;
 
   /// The ids of the items opened in [announcementId].
   Set<String> openedFor(String announcementId) =>
@@ -57,19 +62,21 @@ class InboxOpenedItemsNotifier extends StateNotifier<InboxOpenedItems> {
 
   /// Remembers that [itemId] of [announcementId] was opened.
   Future<void> markOpened(String announcementId, String itemId) async {
-    await loaded;
-    final items = _opened.remove(announcementId) ?? <String>{};
+    final store = _store;
+    await store.loaded;
+    final opened = store.opened;
+    final items = opened.remove(announcementId) ?? <String>{};
     items.add(itemId);
-    _opened[announcementId] = items;
-    while (_opened.length > kInboxOpenedItemsLimit) {
-      _opened.remove(_opened.keys.first);
+    opened[announcementId] = items;
+    while (opened.length > kInboxOpenedItemsLimit) {
+      opened.remove(opened.keys.first);
     }
-    _publish();
-    await _save();
+    _publish(store);
+    await _save(store);
   }
 
-  Future<void> _load() async {
-    final userId = _userId;
+  Future<void> _load(_OpenedItemsStore store) async {
+    final userId = store.userId;
     if (userId == null || userId.isEmpty) return;
     try {
       final raw = (await _prefs()).getString(_key(userId));
@@ -78,22 +85,22 @@ class InboxOpenedItemsNotifier extends StateNotifier<InboxOpenedItems> {
       if (decoded is! Map) return;
       for (final MapEntry(:key, :value) in decoded.entries) {
         if (key is! String || value is! List) continue;
-        _opened[key] = value.whereType<String>().toSet();
+        store.opened[key] = value.whereType<String>().toSet();
       }
-      _publish();
+      _publish(store);
     } catch (e) {
       logPrint('Inbox opened items could not be read: $e');
     }
   }
 
-  Future<void> _save() async {
-    final userId = _userId;
+  Future<void> _save(_OpenedItemsStore store) async {
+    final userId = store.userId;
     if (userId == null || userId.isEmpty) return;
     try {
       await (await _prefs()).setString(
         _key(userId),
         jsonEncode({
-          for (final MapEntry(:key, :value) in _opened.entries)
+          for (final MapEntry(:key, :value) in store.opened.entries)
             key: value.toList(),
         }),
       );
@@ -102,21 +109,48 @@ class InboxOpenedItemsNotifier extends StateNotifier<InboxOpenedItems> {
     }
   }
 
-  void _publish() {
-    if (!mounted) return;
+  /// Shows [store]'s items, unless the build it belongs to is gone. The
+  /// student is compared too: this provider is invalidated only once
+  /// [inboxOpenedItemsUserIdProvider] recomputes, which can be a frame after
+  /// the sign-in that changed it.
+  void _publish(_OpenedItemsStore store) {
+    if (store.disposed ||
+        !ref.mounted ||
+        ref.read(inboxOpenedItemsUserIdProvider) != store.userId) {
+      return;
+    }
     state = InboxOpenedItems({
-      for (final MapEntry(:key, :value) in _opened.entries)
+      for (final MapEntry(:key, :value) in store.opened.entries)
         key: Set.unmodifiable(value),
     });
   }
 }
 
+/// One build's student and opened items.
+class _OpenedItemsStore {
+  _OpenedItemsStore(this.userId);
+
+  final String? userId;
+
+  /// The source of the state. Literal maps and sets keep insertion order, so
+  /// the least recently touched announcement comes first.
+  final Map<String, Set<String>> opened = {};
+
+  late Future<void> loaded;
+
+  /// Whether the build this store belongs to has been invalidated.
+  bool disposed = false;
+}
+
+/// Whose opened items these are: the signed-in student, or null. Separate so
+/// tests can pin a student.
+final inboxOpenedItemsUserIdProvider = Provider<String?>(
+  (ref) => ref.watch(authStateProvider.select((state) => state.signedInUserId)),
+);
+
 /// The signed-in student's opened burst items. Rebuilds, and rereads, when
 /// the student changes, so one student's opened items never show for another.
 final inboxOpenedItemsProvider =
-    StateNotifierProvider<InboxOpenedItemsNotifier, InboxOpenedItems>((ref) {
-      final userId = ref.watch(
-        authStateProvider.select((state) => state.signedInUserId),
-      );
-      return InboxOpenedItemsNotifier(userId: userId);
-    });
+    NotifierProvider<InboxOpenedItemsNotifier, InboxOpenedItems>(
+      InboxOpenedItemsNotifier.new,
+    );

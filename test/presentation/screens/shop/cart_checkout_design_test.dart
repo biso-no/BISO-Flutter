@@ -16,7 +16,7 @@ import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,8 +29,13 @@ const _user = UserModel(id: _buyerId, name: 'Test Buyer', email: 'buyer@bi.no');
 
 /// A signed-in user, mirroring the `_Auth` pattern used by the other design
 /// tests (e.g. profile_design_test.dart).
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true, user: _user);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -497,7 +502,7 @@ void main() {
       CheckoutQuote quote = _quote,
       bool isMember = false,
     }) => [
-      authStateProvider.overrideWith((_) => _Auth()),
+      authStateProvider.overrideWith(() => _Auth()),
       hasValidMembershipProvider.overrideWithValue(isMember),
       cartUserIdProvider.overrideWithValue(_buyerId),
       checkoutQuoteProvider.overrideWith((ref) async => quote),

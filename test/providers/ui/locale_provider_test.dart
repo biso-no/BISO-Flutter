@@ -1,6 +1,8 @@
 import 'dart:ui';
 
 import 'package:biso/providers/ui/locale_provider.dart';
+import 'package:biso/providers/provider_retry.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,10 +11,21 @@ Future<void> _settle() => Future<void>.delayed(Duration.zero);
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  LocaleNotifier build(Locale Function() device) => LocaleNotifier(
-    deviceLocale: device,
-    prefs: SharedPreferences.getInstance,
-  );
+  LocaleNotifier build(Locale Function() device) {
+    final container = ProviderContainer(
+      retry: noAutomaticRetry,
+      overrides: [
+        localeProvider.overrideWith(
+          () => LocaleNotifier(
+            deviceLocale: device,
+            prefs: SharedPreferences.getInstance,
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container.read(localeProvider.notifier);
+  }
 
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -22,7 +35,6 @@ void main() {
     await _settle();
     expect(n.state.languageCode, 'no');
     expect(n.isExplicit, isFalse);
-    n.dispose();
   });
 
   test('an English or Swedish phone gets English', () async {
@@ -32,8 +44,6 @@ void main() {
     final sv = build(() => const Locale('sv', 'SE'));
     await _settle();
     expect(sv.state.languageCode, 'en');
-    en.dispose();
-    sv.dispose();
   });
 
   test('an explicit choice wins over the phone', () async {
@@ -42,7 +52,6 @@ void main() {
     await _settle();
     expect(n.state.languageCode, 'en');
     expect(n.isExplicit, isTrue);
-    n.dispose();
   });
 
   test('setLocale makes the choice explicit and persists it', () async {
@@ -52,7 +61,6 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('language'), 'no');
     expect(n.isExplicit, isTrue);
-    n.dispose();
   });
 
   test('follows the phone when it changes, until a choice is made', () async {
@@ -67,6 +75,5 @@ void main() {
     device = const Locale('nn');
     n.onDeviceLocaleChanged();
     expect(n.state.languageCode, 'en');
-    n.dispose();
   });
 }

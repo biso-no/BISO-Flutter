@@ -195,9 +195,33 @@ class _FakeAuthService extends AuthService {
   Future<UserModel?> getCurrentUser() async => null;
 }
 
+/// Student A, signed in at [campusId], for as long as a test runs. Who is
+/// signed in *now* is what each test's `signedInStudentId` reports.
+class _StudentA extends Notifier<AuthState> implements AuthNotifier {
+  _StudentA(this.campusId);
+
+  final String? campusId;
+
+  @override
+  AuthState build() => AuthState(
+    user: UserModel(
+      id: _studentA,
+      name: _studentA,
+      email: '$_studentA@bi.no',
+      campusId: campusId,
+    ),
+    isAuthenticated: true,
+    hasProfile: true,
+    isProfileComplete: true,
+  );
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 /// An [AuthNotifier] a test signs students in to directly.
 class _TestAuthNotifier extends AuthNotifier {
-  _TestAuthNotifier() : super(_FakeAuthService());
+  _TestAuthNotifier() : super(authService: _FakeAuthService());
 
   void signIn(String studentId, {String campusId = '1'}) {
     state = AuthState(
@@ -244,20 +268,45 @@ void main() {
     },
   };
 
-  /// Builds a notifier for student A and waits for its constructor-triggered
-  /// seed load to resolve, so `state.value` is populated before a test drives
-  /// it. [signedInStudentId] reports who is signed in: student A throughout,
+  /// The container [topicIntentNotifier] and [buildNotifier] last built.
+  late ProviderContainer container;
+
+  /// The notifier for student A at [campusId], built but not yet loaded.
+  /// [signedInStudentId] reports who is signed in: student A throughout,
   /// unless a test says otherwise.
+  TopicIntentNotifier topicIntentNotifier(
+    _FakeNotificationService service, {
+    String? campusId = '1',
+    String? Function()? signedInStudentId,
+  }) {
+    container = ProviderContainer(
+      retry: noAutomaticRetry,
+      overrides: [
+        notificationServiceProvider.overrideWithValue(service),
+        authStateProvider.overrideWith(() => _StudentA(campusId)),
+        topicIntentProvider.overrideWith(
+          () => TopicIntentNotifier(
+            signedInStudentId: signedInStudentId ?? () => _studentA,
+            currentLanguage: () => 'en',
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container.read(topicIntentProvider.notifier);
+  }
+
+  /// Builds a notifier for student A and waits for its build-triggered seed
+  /// load to resolve, so `state.value` is populated before a test drives it.
   Future<TopicIntentNotifier> buildNotifier(
     _FakeNotificationService service, {
     String? campusId = '1',
     String? Function()? signedInStudentId,
   }) async {
-    final notifier = TopicIntentNotifier(
+    final notifier = topicIntentNotifier(
       service,
-      campusId,
-      studentId: _studentA,
-      signedInStudentId: signedInStudentId ?? () => _studentA,
+      campusId: campusId,
+      signedInStudentId: signedInStudentId,
     );
     await pumpEventQueue();
     return notifier;
@@ -344,16 +393,11 @@ void main() {
     test('returns null without saving or reconciling when called before the '
         'initial load has produced a value to update', () async {
       final service = _FakeNotificationService(seededIntent);
-      // Deliberately not awaited: the constructor's seed load is still
-      // pending, so `state.value` is null at this point. Nothing yields
-      // back to the event loop between construction and the assertions
-      // below, so the pending load cannot race ahead of them.
-      final notifier = TopicIntentNotifier(
-        service,
-        '1',
-        studentId: _studentA,
-        signedInStudentId: () => _studentA,
-      );
+      // Deliberately not awaited: the build's seed load is still pending,
+      // so `state.value` is null at this point. Nothing yields back to the
+      // event loop between building and the assertions below, so the
+      // pending load cannot race ahead of them.
+      final notifier = topicIntentNotifier(service);
 
       final result = await notifier.setTopic('events', false);
 
@@ -594,9 +638,9 @@ void main() {
       final on = notifier.setTopic('news', true);
 
       final shown = <bool?>[];
-      final removeListener = notifier.addListener(
-        (state) => shown.add(state.value?['news']),
-        fireImmediately: false,
+      final listening = container.listen(
+        topicIntentProvider,
+        (_, state) => shown.add(state.value?['news']),
       );
 
       gates[0].complete();
@@ -606,7 +650,7 @@ void main() {
 
       gates[1].complete();
       final results = await Future.wait([off, on]);
-      removeListener();
+      listening.close();
 
       expect(results, [ReconcileOutcome.applied, ReconcileOutcome.applied]);
       expect(
@@ -640,7 +684,9 @@ void main() {
         final events = notifier.setTopic('events', false);
         final jobs = notifier.setTopic('jobs', false); // ...and these queue.
 
-        notifier.dispose();
+        // As a campus change does: the build these saves were queued in is
+        // gone.
+        container.invalidate(topicIntentProvider);
         for (final gate in gates) {
           gate.complete();
         }
@@ -723,13 +769,13 @@ void main() {
         signedIn = _studentB;
 
         final shown = <AsyncValue<Map<String, bool>>>[];
-        final removeListener = notifier.addListener(
-          shown.add,
-          fireImmediately: false,
+        final listening = container.listen(
+          topicIntentProvider,
+          (_, state) => shown.add(state),
         );
         gates.single.complete();
         final results = await Future.wait([news, events]);
-        removeListener();
+        listening.close();
 
         expect(results, [null, null], reason: 'neither was saved');
         expect(service.account.prefsByStudent[_studentB], isEmpty);
@@ -788,8 +834,8 @@ void main() {
           retry: noAutomaticRetry,
           overrides: [
             notificationServiceProvider.overrideWithValue(service),
-            authStateProvider.overrideWith((ref) => auth),
-            localeProvider.overrideWith((ref) => locale),
+            authStateProvider.overrideWith(() => auth),
+            localeProvider.overrideWith(() => locale),
           ],
         );
         addTearDown(container.dispose);
@@ -813,7 +859,7 @@ void main() {
 
   group('topicIntentProvider', () {
     test(
-      'builds a new notifier when a different student signs in, even on the '
+      'rebuilds when a different student signs in, even on the '
       'same campus, and the first student\'s queued save does not reach the '
       'second student\'s account: it rebuilt only when the campus changed',
       () async {
@@ -824,10 +870,11 @@ void main() {
           retry: noAutomaticRetry,
           overrides: [
             notificationServiceProvider.overrideWithValue(service),
-            authStateProvider.overrideWith((ref) => auth),
+            authStateProvider.overrideWith(() => auth),
           ],
         );
         addTearDown(container.dispose);
+        container.read(authStateProvider);
         await pumpEventQueue(); // the auth notifier's own session check
 
         auth.signIn(_studentA);
@@ -841,7 +888,11 @@ void main() {
         service.account.session = _studentB;
         auth.signIn(_studentB);
         final forB = container.read(topicIntentProvider.notifier);
-        expect(forB, isNot(same(forA)));
+        expect(
+          container.read(topicIntentProvider).isLoading,
+          isTrue,
+          reason: "a new build for B, loading B's own intent",
+        );
 
         service.saveGates!.single.complete();
         expect(await saving, isNull);
@@ -887,11 +938,12 @@ void main() {
         retry: noAutomaticRetry,
         overrides: [
           notificationServiceProvider.overrideWithValue(service),
-          authStateProvider.overrideWith((ref) => auth),
+          authStateProvider.overrideWith(() => auth),
         ],
       );
       addTearDown(container.dispose);
       container.listen(notificationPermissionResumeProvider, (_, _) {});
+      container.read(authStateProvider);
       await pumpEventQueue(); // the auth notifier's own session check
       return (container, service, auth);
     }

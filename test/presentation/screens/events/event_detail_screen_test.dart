@@ -20,9 +20,13 @@ import '../../../helpers/biso_screen_harness.dart';
 
 /// A signed-out session that never asks Appwrite who is signed in.
 class _SignedOutAuth extends AuthNotifier {
-  _SignedOutAuth() : super(_NeverAuthService()) {
-    // The base constructor starts a check that never ends; settle it.
-    state = const AuthState();
+  _SignedOutAuth() : super(authService: _NeverAuthService());
+
+  @override
+  AuthState build() {
+    // The real build starts a check that never ends; settle it.
+    super.build();
+    return const AuthState();
   }
 }
 
@@ -57,7 +61,7 @@ List<Override> _overrides(EventModel? event, {bool member = false}) => [
   eventDetailProvider.overrideWith((ref, idOrSlug) async => event),
   hasValidMembershipProvider.overrideWithValue(member),
   eventRsvpApiProvider.overrideWithValue(_NoRsvpApi()),
-  authStateProvider.overrideWith((_) => _SignedOutAuth()),
+  authStateProvider.overrideWith(() => _SignedOutAuth()),
   // Signed out: the trip card reads nothing from Appwrite.
   myTripProvider.overrideWith((ref, eventId) async => const []),
 ];

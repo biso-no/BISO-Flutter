@@ -20,7 +20,6 @@ import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -81,18 +80,28 @@ class _Overview extends MembershipOverviewNotifier {
   Future<void> refresh({bool force = true}) async {}
 }
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth(super.state);
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth(this._initial);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// The Home campus. Counts every write, which the screen must never make.
-class _FilterCampus extends StateNotifier<CampusState>
+class _FilterCampus extends Notifier<CampusState>
     implements FilterCampusNotifier {
+  final CampusState _initial;
+
+  @override
+  CampusState build() => _initial;
+
   _FilterCampus(CampusModel campus)
-    : super(CampusState(campus: campus, isInitialized: true));
+    : _initial = CampusState(campus: campus, isInitialized: true);
 
   int writes = 0;
 
@@ -225,9 +234,8 @@ Future<_FakeApi> _pump(
         () => _pass = _FakePass(pass ?? activeView()),
       ),
       membershipOverviewProvider.overrideWith(() => _Overview(overview)),
-      authStateProvider.overrideWith((_) => _Auth(auth)),
-      filterCampusStateProvider.overrideWith(
-        (_) => _filter = _FilterCampus(_campus('3', 'Trondheim')),
+      authStateProvider.overrideWith(() => _Auth(auth)),
+      filterCampusStateProvider.overrideWith(() => _filter = _FilterCampus(_campus('3', 'Trondheim')),
       ),
       switcherCampusesProvider.overrideWith(
         (_) async => [_campus('1', 'Oslo'), _campus('3', 'Trondheim')],

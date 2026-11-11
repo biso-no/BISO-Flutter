@@ -22,19 +22,26 @@ class _NeverAuthService extends AuthService {
 }
 
 class _FakeAuth extends AuthNotifier {
-  _FakeAuth({required bool signedIn, bool loading = false})
-    : super(_NeverAuthService()) {
-    // The base constructor starts a check that never ends; settle it.
-    state = loading ? const AuthState(isLoading: true) : const AuthState();
-    if (signedIn) signIn();
+  _FakeAuth({required this.signedIn, this.loading = false})
+    : super(authService: _NeverAuthService());
+
+  final bool signedIn;
+  final bool loading;
+
+  static final _signedIn = AuthState(
+    user: UserModel(id: 'student-a', name: 'A', email: 'a@bi.no'),
+    isAuthenticated: true,
+  );
+
+  @override
+  AuthState build() {
+    // The real build starts a check that never ends; settle it.
+    super.build();
+    if (signedIn) return _signedIn;
+    return loading ? const AuthState(isLoading: true) : const AuthState();
   }
 
-  void signIn() {
-    state = AuthState(
-      user: UserModel(id: 'student-a', name: 'A', email: 'a@bi.no'),
-      isAuthenticated: true,
-    );
-  }
+  void signIn() => state = _signedIn;
 
   void finishLoading() => state = const AuthState();
 }
@@ -129,8 +136,7 @@ Future<void> _pump(
     ],
     overrides: [
       eventRsvpApiProvider.overrideWithValue(api),
-      authStateProvider.overrideWith(
-        (_) => auth ?? _FakeAuth(signedIn: signedIn),
+      authStateProvider.overrideWith(() => auth ?? _FakeAuth(signedIn: signedIn),
       ),
       hasValidMembershipProvider.overrideWithValue(member),
     ],

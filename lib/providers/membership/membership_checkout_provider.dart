@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -146,33 +145,34 @@ final membershipUrlLauncherProvider = Provider<ExternalUrlLauncher>(
 /// arrives. The order is read through `GET /api/payment/orders/:id`, which
 /// reconciles with the provider and runs fulfilment (24SevenOffice customer,
 /// category and invoice) before answering, so a "paid" here is real.
-class MembershipCheckoutController
-    extends StateNotifier<MembershipPurchaseState> {
-  MembershipCheckoutController(
-    this._ref, {
+class MembershipCheckoutController extends Notifier<MembershipPurchaseState> {
+  MembershipCheckoutController({
     this._activationPollInterval = const Duration(seconds: 10),
     this._activationAttempts = 10,
     this._clock = DateTime.now,
-  }) : super(const MembershipPurchaseState()) {
-    _lifecycle = AppLifecycleListener(
+  });
+
+  @override
+  MembershipPurchaseState build() {
+    final lifecycle = AppLifecycleListener(
       onResume: () => unawaited(resolvePending()),
     );
+    ref.onDispose(lifecycle.dispose);
     _restored = _restorePending();
     // A cold launch is not a resume, so resolve now rather than waiting for
     // the next time the app comes back to the foreground. `resolvePending`
     // itself waits on `_restored`, so calling it immediately is safe even
     // though restoration is still in flight.
     unawaited(resolvePending());
+    return const MembershipPurchaseState();
   }
 
-  final Ref _ref;
   final Duration _activationPollInterval;
 
   /// Polls long enough (about 100 s by default) to outlast the server's
   /// once-a-minute refresh floor on the membership check.
   final int _activationAttempts;
   final DateTime Function() _clock;
-  late final AppLifecycleListener _lifecycle;
 
   static const String _pendingOrderKey = 'membership_pending_order_id';
   static const String _pendingStartedKey = 'membership_pending_started_at';
@@ -187,19 +187,13 @@ class MembershipCheckoutController
   /// cold launch — before the marker has loaded — would be checked against a
   /// `_pendingOrderId` that is still `null`, collapsing "a different order is
   /// pending" into "nothing is pending" and defeating the guard below.
-  late final Future<void> _restored;
+  late Future<void> _restored;
 
   String? _pendingOrderId;
 
   /// The plan [_pendingOrderId] was placed for, when known.
   PurchasedPlan? _pendingPlan;
   bool _resolving = false;
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
 
   Future<void> start({
     required PaymentProvider provider,
@@ -210,7 +204,7 @@ class MembershipCheckoutController
       phase: MembershipPurchasePhase.starting,
     );
     try {
-      final started = await _ref
+      final started = await ref
           .read(membershipApiClientProvider)
           .startCheckout(
             provider: provider,
@@ -219,10 +213,10 @@ class MembershipCheckoutController
           );
       await _rememberPending(started.orderId, _planOnOffer(planId));
 
-      final opened = await _ref.read(membershipUrlLauncherProvider)(
+      final opened = await ref.read(membershipUrlLauncherProvider)(
         Uri.parse(started.checkoutUrl),
       );
-      if (!mounted) return;
+      if (!ref.mounted) return;
       if (!opened) {
         // The order stays payable: starting again reuses the same session
         // within the server's idempotency window.
@@ -238,7 +232,7 @@ class MembershipCheckoutController
         orderId: started.orderId,
       );
     } on MembershipApiException catch (error) {
-      if (!mounted) return;
+      if (!ref.mounted) return;
       state = MembershipPurchaseState(
         phase: MembershipPurchasePhase.failed,
         message: error.message,
@@ -247,11 +241,11 @@ class MembershipCheckoutController
         _recheckMembership();
       }
       if (error.isProviderDisabled) {
-        _ref.invalidate(paymentProvidersProvider);
+        ref.invalidate(paymentProvidersProvider);
       }
     } catch (error) {
       logPrint('🎫 Membership checkout failed to start: $error');
-      if (!mounted) return;
+      if (!ref.mounted) return;
       state = const MembershipPurchaseState(
         phase: MembershipPurchasePhase.failed,
         message: 'We could not start the payment. Please try again.',
@@ -297,8 +291,8 @@ class MembershipCheckoutController
       // With nothing pending this still fetches: the read makes the server
       // reconcile the order with the provider, and its answer decides below
       // whether there is a payment to show.
-      final order = await _ref.read(shopApiClientProvider).fetchOrder(id);
-      if (!mounted) return;
+      final order = await ref.read(shopApiClientProvider).fetchOrder(id);
+      if (!ref.mounted) return;
       final pending = _pendingOrderId;
       final plan = _pendingPlan;
       if (pending == null && order.status.isSuccessful) {
@@ -380,7 +374,7 @@ class MembershipCheckoutController
   /// could catch its error either; it is handled explicitly instead.
   void _recheckMembership() {
     unawaited(
-      _ref
+      ref
           .read(membershipOverviewProvider.notifier)
           .refresh(force: true)
           .catchError((Object error) {
@@ -392,7 +386,7 @@ class MembershipCheckoutController
   /// The offered plan [planId] names, remembered with the order so the
   /// activation can tell what to wait for.
   PurchasedPlan? _planOnOffer(String planId) {
-    final offered = _ref
+    final offered = ref
         .read(membershipOverviewProvider)
         .value
         ?.offeredPlans
@@ -411,19 +405,19 @@ class MembershipCheckoutController
   /// student a member yet, so that counts as landed too (see
   /// [landedPurchase]).
   Future<void> _activate(String orderId, {PurchasedPlan? plan}) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     state = MembershipPurchaseState(
       phase: MembershipPurchasePhase.activating,
       orderId: orderId,
     );
-    final overview = _ref.read(membershipOverviewProvider.notifier);
+    final overview = ref.read(membershipOverviewProvider.notifier);
     for (var attempt = 0; attempt < _activationAttempts; attempt++) {
       if (attempt > 0) {
         await Future<void>.delayed(_activationPollInterval);
       }
-      if (!mounted) return;
+      if (!ref.mounted) return;
       await overview.refresh();
-      final current = _ref.read(membershipOverviewProvider).value;
+      final current = ref.read(membershipOverviewProvider).value;
       final landed = current == null
           ? null
           : landedPurchase(
@@ -437,7 +431,7 @@ class MembershipCheckoutController
         return;
       }
     }
-    if (!mounted) return;
+    if (!ref.mounted) return;
     state = MembershipPurchaseState(
       phase: MembershipPurchasePhase.activationDelayed,
       orderId: orderId,
@@ -518,7 +512,6 @@ class MembershipCheckoutController
 }
 
 final membershipCheckoutControllerProvider =
-    StateNotifierProvider<
-      MembershipCheckoutController,
-      MembershipPurchaseState
-    >(MembershipCheckoutController.new);
+    NotifierProvider<MembershipCheckoutController, MembershipPurchaseState>(
+      MembershipCheckoutController.new,
+    );

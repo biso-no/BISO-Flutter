@@ -21,7 +21,6 @@ import 'package:biso/providers/member_pass/member_pass_session.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -52,8 +51,13 @@ class _Overview extends MembershipOverviewNotifier {
   Future<void> refresh({bool force = true}) async => refreshes++;
 }
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true);
 
   BiSignInOutcome biOutcome = const BiSignInFailed(BiSignInFailure.failed);
 
@@ -110,7 +114,7 @@ void main() {
       membershipOverviewProvider.overrideWith(
         () => overview = _Overview(membership),
       ),
-      authStateProvider.overrideWith((_) => auth = _Auth()),
+      authStateProvider.overrideWith(() => auth = _Auth()),
       biSignInServiceProvider.overrideWithValue(bi),
       screenPresentationProvider.overrideWithValue(FakeScreenPresentation()),
       canAddApplePassesProvider.overrideWith((ref) async => false),

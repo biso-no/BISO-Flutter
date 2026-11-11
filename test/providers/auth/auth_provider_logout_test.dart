@@ -9,7 +9,21 @@ import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:biso/providers/provider_retry.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// [notifier], built in a container of its own, as the app's provider builds
+/// it.
+AuthNotifier _built(AuthNotifier notifier) {
+  final container = ProviderContainer(
+    retry: noAutomaticRetry,
+    overrides: [authStateProvider.overrideWith(() => notifier)],
+  );
+  addTearDown(container.dispose);
+  return container.read(authStateProvider.notifier);
+}
 
 /// Resolves the session to "nobody signed in" without a network call, and
 /// records sign-outs instead of deleting a session - ending [session], when
@@ -134,9 +148,11 @@ void main() {
       'would otherwise have hung sign-out forever',
       (tester) async {
         final authService = _FakeAuthService();
-        final notifier = AuthNotifier(
-          authService,
-          notificationService: _StuckService(tokenDeletionHangs: true),
+        final notifier = _built(
+          AuthNotifier(
+            authService: authService,
+            notificationService: _StuckService(tokenDeletionHangs: true),
+          ),
         );
         await tester.pump();
 
@@ -178,9 +194,11 @@ void main() {
         final account = _SessionAccount();
         final authService = _FakeAuthService(session: account);
         final service = _StuckService(reconcileHangs: true, account: account);
-        final notifier = AuthNotifier(
-          authService,
-          notificationService: service,
+        final notifier = _built(
+          AuthNotifier(
+            authService: authService,
+            notificationService: service,
+          ),
         );
         await tester.pump();
 
@@ -213,9 +231,11 @@ void main() {
       'cleanup failure must never leave a student unable to sign out',
       () async {
         final authService = _FakeAuthService();
-        final notifier = AuthNotifier(
-          authService,
-          notificationService: _ThrowingCleanupService(),
+        final notifier = _built(
+          AuthNotifier(
+            authService: authService,
+            notificationService: _ThrowingCleanupService(),
+          ),
         );
         await pumpEventQueue();
 
@@ -236,9 +256,11 @@ void main() {
         'was refused with a 409 no target of theirs matched', () async {
       final log = <String>[];
       final authService = _FakeAuthService(log: log);
-      final notifier = AuthNotifier(
-        authService,
-        notificationService: _LoggingCleanupService(log),
+      final notifier = _built(
+        AuthNotifier(
+          authService: authService,
+          notificationService: _LoggingCleanupService(log),
+        ),
       );
       await pumpEventQueue();
 
@@ -254,9 +276,11 @@ void main() {
       'cleanup hangs, leaving the pending token invalidation recorded',
       (tester) async {
         final authService = _FakeAuthService();
-        final notifier = AuthNotifier(
-          authService,
-          notificationService: _StuckService(tokenDeletionHangs: true),
+        final notifier = _built(
+          AuthNotifier(
+            authService: authService,
+            notificationService: _StuckService(tokenDeletionHangs: true),
+          ),
         );
         await tester.pump();
 
@@ -283,9 +307,11 @@ void main() {
       'still deletes the session when the notification cleanup throws',
       () async {
         final authService = _FakeAuthService();
-        final notifier = AuthNotifier(
-          authService,
-          notificationService: _ThrowingCleanupService(),
+        final notifier = _built(
+          AuthNotifier(
+            authService: authService,
+            notificationService: _ThrowingCleanupService(),
+          ),
         );
         await pumpEventQueue();
 

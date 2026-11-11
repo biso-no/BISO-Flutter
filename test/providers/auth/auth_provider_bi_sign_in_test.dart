@@ -9,6 +9,19 @@ import 'package:biso/data/services/notification_service.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:biso/providers/provider_retry.dart';
+
+/// [notifier], built in a container of its own, as the app's provider builds
+/// it.
+AuthNotifier _built(AuthNotifier notifier) {
+  final container = ProviderContainer(
+    retry: noAutomaticRetry,
+    overrides: [authStateProvider.overrideWith(() => notifier)],
+  );
+  addTearDown(container.dispose);
+  return container.read(authStateProvider.notifier);
+}
 
 const _student = UserModel(id: 'u1', name: 'Kari', email: 'kari@example.com');
 
@@ -94,10 +107,12 @@ void main() {
     final service = _FakeAuthService(log, cached: signedIn)
       ..online = signedIn == null;
     final bi = _FakeBiSignIn(log, const BiSignInCancelled());
-    final notifier = AuthNotifier(
-      service,
-      notificationService: _RecordingNotifications(log),
-      biSignIn: bi,
+    final notifier = _built(
+      AuthNotifier(
+        authService: service,
+        notificationService: _RecordingNotifications(log),
+        biSignIn: bi,
+      ),
     );
     await pumpEventQueue();
     log.clear();

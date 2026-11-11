@@ -6,7 +6,7 @@ import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:biso/providers/shop/cart_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -25,8 +25,13 @@ const _campus = CampusModel(
 /// Signed out, so `_PremiumProductCard`'s favorite check (which calls
 /// `ProductService()` directly rather than through an injectable provider)
 /// never runs: it is gated on `auth.isAuthenticated`.
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState());
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState();
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -73,7 +78,7 @@ List<Override> _overrides({
 }) => [
   filterCampusProvider.overrideWithValue(_campus),
   campusInitializedProvider.overrideWithValue(true),
-  authStateProvider.overrideWith((_) => _Auth()),
+  authStateProvider.overrideWith(() => _Auth()),
   marketplaceFeatureEnabledProvider.overrideWith(
     (ref) async => marketplaceEnabled,
   ),

@@ -7,12 +7,12 @@ import 'package:biso/providers/member_pass/member_pass_provider.dart';
 import 'package:biso/providers/membership/membership_overview_provider.dart';
 import 'package:biso/data/models/membership_overview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:biso/providers/provider_retry.dart';
 
 import '../../helpers/fake_member_pass_api.dart';
 import '../../helpers/membership_fixtures.dart';
+import '../../helpers/test_value.dart';
 
 void main() {
   final upcoming = DateTime.utc(2027, 1, 1);
@@ -269,7 +269,7 @@ void main() {
 }
 
 /// The signed-in account, which [membershipUserIdProvider] follows.
-final _signedIn = StateProvider<String?>((_) => null);
+final _signedIn = testValueProvider<String?>(null);
 
 /// What each account's overview answers, and the answer for each refresh.
 class _Accounts {
@@ -287,7 +287,7 @@ class _Accounts {
   final container = ProviderContainer(
     retry: noAutomaticRetry,
     overrides: [
-      _signedIn.overrideWith((_) => signedIn),
+      _signedIn.overrideWith(() => TestValue(signedIn)),
       membershipUserIdProvider.overrideWith((ref) => ref.watch(_signedIn)),
       memberPassProvider.overrideWith(
         () => FixedMemberPass(

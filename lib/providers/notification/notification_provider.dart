@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:appwrite/appwrite.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../data/models/app_notification_model.dart';
 import '../../data/services/notification_inbox_service.dart';
@@ -37,21 +36,29 @@ final chatNotificationPreferenceProvider = FutureProvider<bool>((ref) async {
 
 // State notifier for managing notification preferences
 class NotificationPreferencesNotifier
-    extends StateNotifier<AsyncValue<Map<String, bool>>> {
-  final NotificationService _notificationService;
+    extends Notifier<AsyncValue<Map<String, bool>>> {
+  late NotificationService _notificationService;
 
-  NotificationPreferencesNotifier(this._notificationService)
-    : super(const AsyncValue.loading()) {
-    _loadPreferences();
+  @override
+  AsyncValue<Map<String, bool>> build() {
+    _notificationService = ref.read(notificationServiceProvider);
+    unawaited(_fetchPreferences());
+    return const AsyncValue.loading();
   }
 
   Future<void> _loadPreferences() async {
-    try {
-      state = const AsyncValue.loading();
+    state = const AsyncValue.loading();
+    await _fetchPreferences();
+  }
 
+  Future<void> _fetchPreferences() async {
+    try {
       // Load chat notifications preference
-      final chatEnabled = await _notificationService
-          .getChatNotificationPreference();
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final chatEnabled = await Future.sync(
+        _notificationService.getChatNotificationPreference,
+      );
 
       // Await the load: reading the in-memory map directly renders hardcoded
       // defaults over the student's saved choices on a cold start.
@@ -113,13 +120,10 @@ class NotificationPreferencesNotifier
 
 // Provider for notification preferences state notifier
 final notificationPreferencesProvider =
-    StateNotifierProvider<
+    NotifierProvider<
       NotificationPreferencesNotifier,
       AsyncValue<Map<String, bool>>
-    >((ref) {
-      final service = ref.read(notificationServiceProvider);
-      return NotificationPreferencesNotifier(service);
-    });
+    >(NotificationPreferencesNotifier.new);
 
 /// The student's topic intent, and the only UI entry point for changing it.
 ///
@@ -139,33 +143,111 @@ final notificationPreferencesProvider =
 /// replaced by an error message that hides all four switches. Since this
 /// provider is not autoDispose, nothing short of an app restart would bring
 /// them back.
-class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
-  TopicIntentNotifier(
+///
+/// Rebuilds when the signed-in student or their home campus changes: a campus
+/// move resubscribes this device, and the saves queued in one build belong to
+/// that build's student (see [_TopicIntentSession._commit]). Each build gets
+/// its own [_TopicIntentSession], which holds everything a build owns.
+class TopicIntentNotifier extends Notifier<AsyncValue<Map<String, bool>>> {
+  /// [signedInStudentId] and [currentLanguage] replace the container reads of
+  /// who is signed in and the app language, for tests.
+  TopicIntentNotifier({
+    String? Function()? signedInStudentId,
+    String Function()? currentLanguage,
+  }) : _signedInStudentIdOverride = signedInStudentId,
+       _currentLanguageOverride = currentLanguage;
+
+  final String? Function()? _signedInStudentIdOverride;
+  final String Function()? _currentLanguageOverride;
+
+  late _TopicIntentSession _session;
+
+  @override
+  AsyncValue<Map<String, bool>> build() {
+    final service = ref.watch(notificationServiceProvider);
+    final (studentId, campusId) = ref.watch(
+      authStateProvider.select(
+        (state) => (state.signedInUserId, state.user?.campusId),
+      ),
+    );
+    // Asked through the container, not this ref: a save asks after the
+    // student has changed, when a ref whose dependency changed may not be
+    // used.
+    final container = ref.container;
+    final session = _session = _TopicIntentSession(
+      this,
+      ref,
+      service,
+      campusId,
+      studentId: studentId,
+      signedInStudentId:
+          _signedInStudentIdOverride ??
+          () => container.read(authStateProvider).signedInUserId,
+      currentLanguage:
+          _currentLanguageOverride ??
+          () => container.read(localeProvider).languageCode,
+    );
+    ref.onDispose(session.dispose);
+    unawaited(session._load());
+    return const AsyncValue.loading();
+  }
+
+  /// See [_TopicIntentSession.setTopic].
+  Future<ReconcileOutcome?> setTopic(String topicId, bool enabled) =>
+      _session.setTopic(topicId, enabled);
+
+  /// See [_TopicIntentSession.refresh].
+  Future<void> refresh() => _session.refresh();
+
+  AsyncValue<Map<String, bool>> get _state => state;
+  set _state(AsyncValue<Map<String, bool>> value) => state = value;
+}
+
+/// One build of [topicIntentProvider]: its student, campus, and every save it
+/// has queued.
+class _TopicIntentSession {
+  _TopicIntentSession(
+    this._notifier,
+    this._ref,
     this._service,
     this._campusId, {
     required this._studentId,
     required this._signedInStudentId,
-    String Function()? currentLanguage,
-  }) : _currentLanguage = currentLanguage ?? _defaultLanguage,
-       super(const AsyncValue.loading()) {
-    _load();
+    required this._currentLanguage,
+  });
+
+  final TopicIntentNotifier _notifier;
+  final Ref _ref;
+  bool _disposed = false;
+
+  /// Called as soon as the provider is invalidated (a new student or campus)
+  /// or disposed, before any rebuild.
+  void dispose() => _disposed = true;
+
+  /// False once the provider has been invalidated or disposed. A save queued
+  /// in this session can still finish after that, but it no longer reads or
+  /// writes the switches, which belong to the next session.
+  bool get mounted => !_disposed && _ref.mounted;
+
+  AsyncValue<Map<String, bool>> get state => _notifier._state;
+  set state(AsyncValue<Map<String, bool>> value) {
+    if (mounted) _notifier._state = value;
   }
 
   final NotificationService _service;
   final String? _campusId;
 
   /// The app language now, asked afresh on every commit, since the language
-  /// can change without this notifier being rebuilt.
+  /// can change without this session being replaced.
   final String Function() _currentLanguage;
-  static String _defaultLanguage() => 'en';
 
-  /// The student this notifier was built for, and so the student every save
-  /// it queues belongs to: [topicIntentProvider] builds a new notifier when
-  /// the signed-in student changes.
+  /// The student this session was built for, and so the student every save
+  /// it queues belongs to: [topicIntentProvider] rebuilds, with a new
+  /// session, when the signed-in student changes.
   final String? _studentId;
 
   /// Who is signed in now, asked afresh on every call - even once this
-  /// notifier has been disposed.
+  /// session has been replaced.
   final String? Function() _signedInStudentId;
 
   /// Whether the student this notifier's saves belong to is still the one
@@ -219,7 +301,9 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 
   Future<void> _load() async {
     try {
-      final intent = await _service.loadTopicIntent();
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final intent = await Future.sync(_service.loadTopicIntent);
       _confirmed = intent;
       // Taps whose commits have not resolved stay on screen: each one's
       // commit settles its own switch, and nothing else would put back a tap
@@ -287,13 +371,13 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
   /// written to the preferences or to [state], nothing reconciles, and the
   /// result is null, since nothing was saved.
   ///
-  /// [topicIntentProvider] also rebuilds this notifier when the campus
-  /// changes, so a commit can find it disposed by the time its save completes.
-  /// For the same student the save still counts — intent is campus-free, and
+  /// [topicIntentProvider] also rebuilds when the campus changes, so a commit
+  /// can find its session replaced by the time its save completes. For the
+  /// same student the save still counts — intent is campus-free, and
   /// genuinely the student's choice — but nothing else happens here: no state
-  /// is read or written (StateNotifier asserts on both after dispose), and
+  /// is read or written (the switches belong to the next session), and
   /// nothing reconciles a campus that is no longer the student's. The rebuilt
-  /// notifier and the launch reconciler own the new campus. The result is then
+  /// provider and the launch reconciler own the new campus. The result is then
   /// [ReconcileOutcome.unavailable]: saved, but this device was not updated by
   /// this call.
   Future<ReconcileOutcome?> _commit(
@@ -392,31 +476,12 @@ class TopicIntentNotifier extends StateNotifier<AsyncValue<Map<String, bool>>> {
 }
 
 /// Rebuilds when the signed-in student or their home campus changes: a campus
-/// move resubscribes this device, and a notifier, with every save it has
-/// queued, belongs to one student (see [TopicIntentNotifier._commit]).
+/// move resubscribes this device, and a session, with every save it has
+/// queued, belongs to one student (see [_TopicIntentSession._commit]).
 final topicIntentProvider =
-    StateNotifierProvider<TopicIntentNotifier, AsyncValue<Map<String, bool>>>((
-      ref,
-    ) {
-      final service = ref.watch(notificationServiceProvider);
-      final (studentId, campusId) = ref.watch(
-        authStateProvider.select(
-          (state) => (state.signedInUserId, state.user?.campusId),
-        ),
-      );
-      // Asked through the container, not this ref: a save asks after the
-      // student has changed, when a ref whose dependency changed may not be
-      // used.
-      final container = ref.container;
-      return TopicIntentNotifier(
-        service,
-        campusId,
-        studentId: studentId,
-        signedInStudentId: () =>
-            container.read(authStateProvider).signedInUserId,
-        currentLanguage: () => container.read(localeProvider).languageCode,
-      );
-    });
+    NotifierProvider<TopicIntentNotifier, AsyncValue<Map<String, bool>>>(
+      TopicIntentNotifier.new,
+    );
 
 // ---------------------------------------------------------------------------
 // In-app notification inbox
@@ -450,7 +515,75 @@ class NotificationInboxState {
   }
 }
 
-class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
+/// The signed-in student's inbox.
+///
+/// Rebuilds when the signed-in user, their home campus, or the locale
+/// changes. Each build gets its own [_InboxSession], which holds that build's
+/// fetches, saves and subscriptions, so nothing still running for the previous
+/// student or campus can show in the next one.
+class NotificationInboxNotifier extends Notifier<NotificationInboxState> {
+  late _InboxSession _session;
+
+  @override
+  NotificationInboxState build() {
+    final service = ref.watch(notificationInboxServiceProvider);
+    final userId = ref.watch(authStateProvider).user?.id;
+    final locale = ref.watch(localeProvider).languageCode;
+    final notificationService = ref.watch(notificationServiceProvider);
+    final campusId = ref.watch(
+      authStateProvider.select((state) => state.user?.campusId),
+    );
+    final joinedAt = ref.watch(
+      authStateProvider.select((state) => state.user?.createdAt),
+    );
+
+    final session = _session = _InboxSession(
+      this,
+      ref,
+      service,
+      notificationService: notificationService,
+      userId: userId,
+      locale: locale,
+      campusId: campusId,
+      joinedAt: joinedAt,
+    );
+    ref.onDispose(session.dispose);
+    return session.start();
+  }
+
+  /// See [_InboxSession.load].
+  Future<void> load() => _session.load();
+
+  /// See [_InboxSession.refresh].
+  Future<void> refresh() => _session.refresh();
+
+  /// See [_InboxSession.markRead].
+  Future<void> markRead(AppNotification notification) =>
+      _session.markRead(notification);
+
+  /// See [_InboxSession.clear].
+  Future<bool> clear(Iterable<String> announcementIds) =>
+      _session.clear(announcementIds);
+
+  NotificationInboxState get _state => state;
+  set _state(NotificationInboxState value) => state = value;
+}
+
+/// One build of [notificationInboxProvider].
+class _InboxSession {
+  final NotificationInboxNotifier _notifier;
+  final Ref _ref;
+  bool _disposed = false;
+
+  /// False once the provider has been invalidated or disposed: this
+  /// session's fetches and saves then no longer reach the state.
+  bool get mounted => !_disposed && _ref.mounted;
+
+  NotificationInboxState get state => _notifier._state;
+  set state(NotificationInboxState value) {
+    if (mounted) _notifier._state = value;
+  }
+
   final NotificationInboxService _service;
   final NotificationService _notificationService;
   final String? _userId;
@@ -474,21 +607,33 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
   final Set<String> _readIds = {};
   final Set<String> _clearedIds = {};
 
-  NotificationInboxNotifier(
+  _InboxSession(
+    this._notifier,
+    this._ref,
     this._service, {
     required this._notificationService,
     required this._userId,
     required this._locale,
     required this._campusId,
     this._joinedAt,
-  }) : super(const NotificationInboxState()) {
-    if (_userId != null && _userId.isNotEmpty) {
-      load();
-      _subscription = _service.subscribe(onChange: refresh);
-      _foregroundSubscription = _notificationService.onForegroundMessage.listen(
-        (_) => refresh(),
-      );
+  });
+
+  /// Starts loading a signed-in student's inbox, and returns the state the
+  /// build begins with: loading for a student, empty otherwise.
+  NotificationInboxState start() {
+    final userId = _userId;
+    if (userId == null || userId.isEmpty) {
+      return const NotificationInboxState();
     }
+    unawaited(refresh());
+    _subscription = _service.subscribe(onChange: refresh);
+    _foregroundSubscription = _notificationService.onForegroundMessage.listen(
+      (_) => refresh(),
+    );
+    return const NotificationInboxState().copyWith(
+      isLoading: true,
+      clearError: true,
+    );
   }
 
   /// The student's logical topic intent, or an empty map when the read
@@ -644,11 +789,12 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
     state = state.copyWith(items: _visible());
   }
 
-  @override
+  /// Called as soon as the provider is invalidated or disposed, before any
+  /// rebuild.
   void dispose() {
+    _disposed = true;
     _subscription?.close();
     _foregroundSubscription?.cancel();
-    super.dispose();
   }
 }
 
@@ -657,30 +803,9 @@ class NotificationInboxNotifier extends StateNotifier<NotificationInboxState> {
 /// who transfers keeps seeing their old campus's announcements alongside the
 /// new one (see [isTopicAudienceVisible]).
 final notificationInboxProvider =
-    StateNotifierProvider<NotificationInboxNotifier, NotificationInboxState>((
-      ref,
-    ) {
-      final service = ref.watch(notificationInboxServiceProvider);
-      final userId = ref.watch(authStateProvider).user?.id;
-      final locale = ref.watch(localeProvider).languageCode;
-      final notificationService = ref.watch(notificationServiceProvider);
-      final campusId = ref.watch(
-        authStateProvider.select((state) => state.user?.campusId),
-      );
-
-      final joinedAt = ref.watch(
-        authStateProvider.select((state) => state.user?.createdAt),
-      );
-
-      return NotificationInboxNotifier(
-        service,
-        notificationService: notificationService,
-        userId: userId,
-        locale: locale,
-        campusId: campusId,
-        joinedAt: joinedAt,
-      );
-    });
+    NotifierProvider<NotificationInboxNotifier, NotificationInboxState>(
+      NotificationInboxNotifier.new,
+    );
 
 /// Convenience provider for the unread badge count.
 final unreadCountProvider = Provider<int>((ref) {

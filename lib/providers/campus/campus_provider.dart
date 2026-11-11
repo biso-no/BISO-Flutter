@@ -2,7 +2,6 @@ import 'package:biso/core/logging/migration_helper.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geocoding;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/campus_model.dart';
@@ -12,9 +11,9 @@ import '../../core/constants/app_constants.dart';
 
 // Filter campus provider - used for filtering content display
 final filterCampusStateProvider =
-    StateNotifierProvider<FilterCampusNotifier, CampusState>((ref) {
-      return FilterCampusNotifier();
-    });
+    NotifierProvider<FilterCampusNotifier, CampusState>(
+      FilterCampusNotifier.new,
+    );
 
 // Provider for the current campus (for backward compatibility)
 final filterCampusProvider = Provider<CampusModel>((ref) {
@@ -89,23 +88,25 @@ class CampusState {
 }
 
 // Filter campus state notifier - manages campus for content filtering
-class FilterCampusNotifier extends StateNotifier<CampusState> {
+class FilterCampusNotifier extends Notifier<CampusState> {
   static const String _filterCampusKey = 'filter_campus_id';
   final CampusService _campusService = CampusService();
 
-  FilterCampusNotifier() : super(const CampusState(
-    campus: CampusModel(
-      id: '',
-      name: '',
-      description: '',
-      location: '',
-      imageUrl: '',
-      heroImageUrl: '',
-      stats: CampusStats(),
-    ),
-    isInitialized: false,
-  )) {
+  @override
+  CampusState build() {
     _loadFilterCampus();
+    return const CampusState(
+      campus: CampusModel(
+        id: '',
+        name: '',
+        description: '',
+        location: '',
+        imageUrl: '',
+        heroImageUrl: '',
+        stats: CampusStats(),
+      ),
+      isInitialized: false,
+    );
   }
 
   Future<void> _loadFilterCampus() async {

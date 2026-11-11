@@ -5,7 +5,7 @@ import 'package:biso/presentation/widgets/biso/biso.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/campus/campus_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,20 +23,30 @@ const _campus = CampusModel(
 
 const _user = UserModel(id: 'seller-1', name: 'Kari Nordmann', email: 'kari@bi.no');
 
-class _SignedIn extends StateNotifier<AuthState> implements AuthNotifier {
-  _SignedIn() : super(const AuthState(isAuthenticated: true, user: _user));
+class _SignedIn extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _SignedIn() : _initial = const AuthState(isAuthenticated: true, user: _user);
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _SignedOut extends StateNotifier<AuthState> implements AuthNotifier {
-  _SignedOut() : super(const AuthState());
+class _SignedOut extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _SignedOut() : _initial = const AuthState();
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 List<Override> _overrides({bool signedIn = true}) => [
-  authStateProvider.overrideWith((_) => signedIn ? _SignedIn() : _SignedOut()),
+  authStateProvider.overrideWith(() => signedIn ? _SignedIn() : _SignedOut()),
   filterCampusProvider.overrideWithValue(_campus),
 ];
 

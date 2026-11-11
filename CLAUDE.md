@@ -758,8 +758,24 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 
 #### State Management
 - **Riverpod**: All providers follow established patterns
-- **Riverpod 3**: `StateNotifier`, `StateNotifierProvider` and `StateProvider` come from
-  `package:flutter_riverpod/legacy.dart`; `Override` and other test types from `misc.dart`.
+- **Riverpod 3, no legacy API**: notifiers are `Notifier`/`AsyncNotifier` (nothing imports
+  `legacy.dart`); `Override` and other test types come from `misc.dart`. Dependencies from
+  providers are read in `build()`; plain test seams (clocks, a fake service) stay constructor
+  parameters, as `AuthNotifier({authService, notificationService, biSignIn})` does.
+- **One instance across rebuilds**: a `Notifier` keeps its instance when `build()` re-runs, and
+  `ref.mounted` turns false only at the rebuild, not at the invalidation before it. A notifier
+  rebuilt per student/campus/locale therefore keeps that build's data in a session object made
+  in `build()` and marked dead from `ref.onDispose` (`_TopicIntentSession`, `_InboxSession`,
+  `_OpenedItemsStore`, `EventRsvpNotifier._build`), so work started for one student never
+  lands in the next build.
+- **Loads started from `build()`** may not touch `state` synchronously, not even in a `catch`:
+  `build()` returns the loading state itself, and the first awaited call goes through
+  `Future.sync` so a call that throws at once is caught only after `build()` has returned.
+- **Test fakes** extend `Notifier<S>` and implement the real notifier
+  (`class _Auth extends Notifier<AuthState> implements AuthNotifier`), with `build()` returning
+  the state; overrides are `provider.overrideWith(() => fake)`. A fake that must exist before
+  a test drives it needs a `container.read(provider)` first, since nothing builds until read.
+  For a hand-set value use `testValueProvider` (`test/helpers/test_value.dart`).
 - **No automatic retry**: Riverpod 3 retries a failing provider and reports it as loading
   meanwhile. The app shows failures with its own retry instead, so the root `ProviderScope`
   passes `retry: noAutomaticRetry` (`lib/providers/provider_retry.dart`). Every

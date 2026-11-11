@@ -20,7 +20,6 @@ import 'package:biso/providers/shop/checkout_provider.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -46,8 +45,13 @@ const _trondheim = CampusModel(
   stats: CampusStats(),
 );
 
-class _Auth extends StateNotifier<AuthState> implements AuthNotifier {
-  _Auth() : super(const AuthState(isAuthenticated: true, user: _user));
+class _Auth extends Notifier<AuthState> implements AuthNotifier {
+  final AuthState _initial;
+
+  @override
+  AuthState build() => _initial;
+
+  _Auth() : _initial = const AuthState(isAuthenticated: true, user: _user);
 
   BiSignInOutcome biOutcome = const BiSignInCancelled();
   int authRefreshes = 0;
@@ -96,13 +100,12 @@ class _FakeBiSignIn extends BiSignInService {
 }
 
 class _RecordingCheckout extends MembershipCheckoutController {
-  _RecordingCheckout(super.ref);
 
   final List<String> started = [];
 
   /// Explicit `resolvePending(orderId: ..., cancelled: ...)` calls, as
   /// `_handleArrival` makes them for a payment return. The base
-  /// controller's own constructor also calls `resolvePending()` once with no
+  /// controller's own build also calls `resolvePending()` once with no
   /// arguments (the "cold launch is not a resume" check), which is not an
   /// arrival and is not what a test asserting on an arrival cares about, so
   /// only calls that name an order are recorded here.
@@ -177,10 +180,10 @@ void main() {
       campusBenefitsProvider(
         _trondheim.id,
       ).overrideWith((_) => benefits?.call() ?? Future.value(const [])),
-      authStateProvider.overrideWith((_) => auth = _Auth()),
+      authStateProvider.overrideWith(() => auth = _Auth()),
       membershipOverviewProvider.overrideWith(() => overview),
       membershipCheckoutControllerProvider.overrideWith(
-        (ref) => checkout = _RecordingCheckout(ref),
+        () => checkout = _RecordingCheckout(),
       ),
       biSignInServiceProvider.overrideWithValue(bi),
       availablePaymentProvidersProvider.overrideWithValue(

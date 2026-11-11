@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import '../../data/models/expense_model.dart';
 import '../../data/services/expense_api_client.dart';
 import '../../data/services/expense_service_v2.dart';
@@ -19,12 +20,7 @@ final expenseApiClientProvider = Provider<ExpenseApiClient>(
 
 // Expenses state provider
 final expensesStateProvider =
-    StateNotifierProvider<ExpensesNotifier, ExpensesState>((ref) {
-      return ExpensesNotifier(
-        ref.watch(expenseServiceProvider),
-        ref.watch(expenseApiClientProvider),
-      );
-    });
+    NotifierProvider<ExpensesNotifier, ExpensesState>(ExpensesNotifier.new);
 
 // Filtered expenses provider
 final filteredExpensesProvider = Provider.family<List<ExpenseModel>, String>((
@@ -100,21 +96,32 @@ class ExpensesState {
   int get rejectedCount => expenses.where((e) => e.isRejected).length;
 }
 
-class ExpensesNotifier extends StateNotifier<ExpensesState> {
-  final ExpenseServiceV2 _service;
-  final ExpenseApiClient _api;
+class ExpensesNotifier extends Notifier<ExpensesState> {
+  late ExpenseServiceV2 _service;
+  late ExpenseApiClient _api;
 
-  ExpensesNotifier(this._service, this._api) : super(const ExpensesState()) {
-    loadUserExpenses();
+  @override
+  ExpensesState build() {
+    _service = ref.watch(expenseServiceProvider);
+    _api = ref.watch(expenseApiClientProvider);
+    unawaited(_fetchUserExpenses());
+    return const ExpensesState(isLoading: true);
   }
 
   /// Load user expenses
   Future<void> loadUserExpenses({String? userId}) async {
+    state = state.copyWith(isLoading: true, error: null);
+    await _fetchUserExpenses(userId: userId);
+  }
+
+  Future<void> _fetchUserExpenses({String? userId}) async {
     try {
       logPrint('💰 ExpensesNotifier: Loading user expenses');
-      state = state.copyWith(isLoading: true, error: null);
-
-      final expenses = await _service.getUserExpenses(userId: userId);
+      // Future.sync: a call that throws at once must still reach the catch
+      // below only after build() has returned, when `state` can be read.
+      final expenses = await Future.sync(
+        () => _service.getUserExpenses(userId: userId),
+      );
 
       logPrint('💰 ExpensesNotifier: Loaded ${expenses.length} expenses');
       state = state.copyWith(expenses: expenses, isLoading: false, error: null);
