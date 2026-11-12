@@ -1,8 +1,8 @@
+import 'package:flutter/material.dart';
+
 import '../../../../core/utils/expense_approval_switch.dart';
 import '../../../../generated/l10n/app_localizations.dart';
 import '../../../widgets/biso/biso.dart';
-
-import 'package:flutter/material.dart';
 
 /// A labelled card with a switch for the expense form's self-declaration: "I'm
 /// this department's financial manager" or "I'm the campus controller". The

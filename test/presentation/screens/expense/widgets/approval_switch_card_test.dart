@@ -60,4 +60,29 @@ void main() {
     await tester.tap(find.byType(Switch));
     expect(changed, isTrue);
   });
+
+  testWidgets('one node exposes the label as a toggle with one tap action', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.controller,
+      value: false,
+      onChanged: (_) {},
+    );
+    final node = tester.getSemantics(
+      find.bySemanticsLabel(RegExp("I'm the campus controller")),
+    );
+    expect(node.label, contains("I'm the campus controller"));
+    expect(
+      node,
+      isSemantics(
+        hasToggledState: true,
+        isToggled: false,
+        hasTapAction: true,
+      ),
+    );
+    handle.dispose();
+  });
 }

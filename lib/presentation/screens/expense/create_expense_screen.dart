@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -29,6 +30,8 @@ import '../../widgets/expenses_unavailable_page.dart';
 import '../home/premium_home_screen.dart';
 import 'widgets/approval_switch_card.dart';
 import 'widgets/expense_type_picker_sheet.dart';
+import 'widgets/occasion_field.dart';
+import 'widgets/receipt_notices.dart';
 import 'widgets/receipt_type_chip.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
@@ -67,6 +70,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _eventController = TextEditingController();
+  final TextEditingController _occasionController = TextEditingController();
+  final FocusNode _occasionFocus = FocusNode();
+  final GlobalKey _occasionKey = GlobalKey();
 
   List<Map<String, String>> _campuses = [];
   List<Map<String, String>> _departments = [];
@@ -76,6 +82,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   String? _draftExpenseId;
   bool _submitterIsFinancialManager = false;
   bool _submitterIsController = false;
+
+  /// The occasion field stays on the report once it has been shown, so an
+  /// answer is never hidden by a later change of type.
+  bool _occasionShown = false;
+  String? _occasionError;
   String? _lastSummarySnapshot;
   bool _isLoadingLookups = true;
   bool _isSavingDraft = false;
@@ -110,6 +121,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       _mobileTabIndex = 1;
     }
     _descriptionController.text = widget.draftExpense?.description ?? '';
+    _occasionController.text = widget.draftExpense?.occasion ?? '';
+    _occasionShown = _occasionController.text.trim().isNotEmpty;
     _eventController.text =
         widget.eventName ?? widget.draftExpense?.eventName ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadLookups());
@@ -135,6 +148,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   void dispose() {
     _descriptionController.dispose();
     _eventController.dispose();
+    _occasionController.dispose();
+    _occasionFocus.dispose();
     super.dispose();
   }
 
@@ -257,6 +272,17 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   /// True while the types could not be read. Drafts still save, since the
   /// stored slugs stay as they are; submit waits.
+  bool get _occasionRequired => occasionRequired(
+    _receipts,
+    ref.read(expenseCostTypesProvider).value ?? const [],
+  );
+
+  /// Shown once a chosen type asks for it, and from then on.
+  bool get _showOccasion {
+    if (_occasionRequired) _occasionShown = true;
+    return _occasionShown;
+  }
+
   bool get _typesUnavailable => ref.read(expenseCostTypesProvider).hasError;
 
   /// Reads the types again. Once they arrive, a receipt whose stored slug is
@@ -1034,6 +1060,23 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             ),
           ],
         ),
+        if (_showOccasion) ...[
+          const SizedBox(height: 16),
+          KeyedSubtree(
+            key: _occasionKey,
+            child: OccasionField(
+              controller: _occasionController,
+              focusNode: _occasionFocus,
+              scrollPadding: scrollPadding,
+              errorText: _occasionError,
+              onChanged: (_) {
+                if (_occasionError != null) {
+                  setState(() => _occasionError = null);
+                }
+              },
+            ),
+          ),
+        ],
         if (approvalSwitchFor(assignment.campusId, assignment.departmentId)
             case final kind?) ...[
           const SizedBox(height: 16),
@@ -1392,6 +1435,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           assignment,
           ApprovalSwitch.controller,
         ),
+        occasion: _occasionController.text,
       );
       final result = await _apiClient.saveDraft(payload);
       if (!result.success || result.draftId == null) {
@@ -1409,9 +1453,68 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
+  /// True when the receipts need something before they can be sent, after
+  /// pointing the student at it. A draft never goes through this.
+  bool _submitBlockedByChecks() {
+    final l10n = AppLocalizations.of(context)!;
+    final missing = _readyReceipts.where(isTypeMissing).toList();
+    if (missing.isNotEmpty) {
+      final first = missing.first;
+      setState(() {
+        _selectedReceiptId = first.localId;
+        _mobileTabIndex = 0;
+      });
+      _showSnack(l10n.expenseTypesMissing(missing.length));
+      unawaited(_chooseType(first));
+      return true;
+    }
+    if (_occasionRequired && _occasionController.text.trim().isEmpty) {
+      _askForOccasion(l10n.expenseOccasionError);
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _chooseType(ExpenseReceiptDraft receipt) async {
+    final types = ref.read(expenseCostTypesProvider);
+    final choice = await showExpenseTypePicker(
+      context,
+      types: types.value,
+      currentSlug: receipt.costType,
+      currentText: receipt.costTypeText,
+      onRetry: _retryCostTypes,
+      loading: types.isLoading,
+    );
+    if (!mounted) return;
+    final updated = receiptWithTypeChoice(receipt, choice);
+    if (updated != null) _updateReceipt(updated);
+  }
+
+  /// Shows the occasion field with [message] under it and moves focus there.
+  void _askForOccasion(String message) {
+    setState(() {
+      _occasionShown = true;
+      _occasionError = message;
+      _mobileTabIndex = 1;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _occasionFocus.requestFocus();
+      final fieldContext = _occasionKey.currentContext;
+      if (fieldContext != null) {
+        Scrollable.ensureVisible(
+          fieldContext,
+          duration: const Duration(milliseconds: 250),
+          alignment: 0.3,
+        );
+      }
+    });
+  }
+
   Future<void> _submit(UserModel? user) async {
     final assignment = _assignment;
     if (assignment == null || user == null) return;
+    if (_submitBlockedByChecks()) return;
     setState(() {
       _isSubmitting = true;
       _flowError = null;
@@ -1432,6 +1535,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           assignment,
           ApprovalSwitch.controller,
         ),
+        occasion: _occasionController.text,
       );
       final result = await _apiClient.submit(payload);
       await ref.read(expensesStateProvider.notifier).refresh();
@@ -1442,6 +1546,19 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         Navigator.of(context).pop(expense);
       } else {
         context.go('/explore/expenses');
+      }
+    } on ExpenseApiException catch (e) {
+      if (!mounted) return;
+      if (e.field == 'occasion') {
+        // The server decided the occasion is needed, and kept the draft.
+        final draftId = e.expenseId;
+        if (draftId != null && draftId.isNotEmpty) {
+          setState(() => _draftExpenseId = draftId);
+          unawaited(ref.read(expensesStateProvider.notifier).refresh());
+        }
+        _askForOccasion(AppLocalizations.of(context)!.expenseOccasionError);
+      } else {
+        setState(() => _flowError = 'Failed to submit: $e');
       }
     } catch (e) {
       if (mounted) setState(() => _flowError = 'Failed to submit: $e');
@@ -2262,6 +2379,10 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                 ),
               ),
             ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: ReceiptNotices(receipt: receipt),
+            ),
           ],
         ),
       ),
@@ -2356,20 +2477,24 @@ class _ReportReceiptRow extends StatelessWidget {
       titleStyle: text.bodyMedium?.copyWith(color: palette.ink),
       amountStyle: text.bodyMedium?.copyWith(color: palette.muted),
     );
-    if (!needsType(receipt)) return amountRow;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         amountRow,
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: ReceiptTypeChip(
-            receipt: receipt,
-            types: costTypes,
-            loading: typesLoading,
-            onChanged: onTypeChanged,
-            onRetry: onRetryTypes,
+        if (needsType(receipt))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: ReceiptTypeChip(
+              receipt: receipt,
+              types: costTypes,
+              loading: typesLoading,
+              onChanged: onTypeChanged,
+              onRetry: onRetryTypes,
+            ),
           ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+          child: ReceiptNotices(receipt: receipt, compact: true),
         ),
       ],
     );

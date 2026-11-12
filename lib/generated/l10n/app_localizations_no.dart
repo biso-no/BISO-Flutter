@@ -3400,4 +3400,55 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get benefitsSeeWhatYouGet => 'Se hva du får';
+
+  @override
+  String get expenseOccasionLabel => 'Hva var anledningen, og hvem var med?';
+
+  @override
+  String get expenseOccasionError => 'Svar på dette før du sender inn';
+
+  @override
+  String expenseTypesMissing(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Velg type for $count kvitteringer',
+      one: 'Velg type for 1 kvittering',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expenseReceiptIssueNotAReceipt =>
+      'Ser ut som en ordrebekreftelse, ikke en kvittering';
+
+  @override
+  String get expenseReceiptIssueNoItems => 'Kvitteringen viser ingen varer';
+
+  @override
+  String get expenseReceiptIssueUnreadable =>
+      'Vanskelig å lese. Et tydeligere bilde hjelper';
+
+  @override
+  String get expenseReceiptIssueMissingSeller => 'Kvitteringen mangler selger';
+
+  @override
+  String get expenseReceiptIssueMissingDate => 'Kvitteringen mangler dato';
+
+  @override
+  String get expenseReceiptIssueMissingTotal =>
+      'Kvitteringen mangler totalbeløp';
+
+  @override
+  String get expenseReceiptIssueGeneric =>
+      'Noe ser ikke riktig ut med denne kvitteringen';
+
+  @override
+  String get expenseReceiptDuplicate =>
+      'Ser ut som en kvittering du allerede har sendt inn';
+
+  @override
+  String expenseReceiptAmountDiffers(String scanned, String entered) {
+    return 'Kvitteringen viser $scanned kr; du har skrevet $entered kr';
+  }
 }

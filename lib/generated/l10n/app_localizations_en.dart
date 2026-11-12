@@ -3392,4 +3392,54 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitsSeeWhatYouGet => 'See what you get';
+
+  @override
+  String get expenseOccasionLabel => 'What was the occasion, and who attended?';
+
+  @override
+  String get expenseOccasionError => 'Answer this before you submit';
+
+  @override
+  String expenseTypesMissing(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Choose a type for $count receipts',
+      one: 'Choose a type for 1 receipt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expenseReceiptIssueNotAReceipt =>
+      'Looks like an order confirmation, not a receipt';
+
+  @override
+  String get expenseReceiptIssueNoItems => 'No items on the receipt';
+
+  @override
+  String get expenseReceiptIssueUnreadable =>
+      'Hard to read. A clearer photo helps';
+
+  @override
+  String get expenseReceiptIssueMissingSeller => 'No seller on the receipt';
+
+  @override
+  String get expenseReceiptIssueMissingDate => 'No date on the receipt';
+
+  @override
+  String get expenseReceiptIssueMissingTotal => 'No total on the receipt';
+
+  @override
+  String get expenseReceiptIssueGeneric =>
+      'Something looks wrong with this receipt';
+
+  @override
+  String get expenseReceiptDuplicate =>
+      'This looks like a receipt you\'ve already sent';
+
+  @override
+  String expenseReceiptAmountDiffers(String scanned, String entered) {
+    return 'The receipt says $scanned kr; you entered $entered kr';
+  }
 }

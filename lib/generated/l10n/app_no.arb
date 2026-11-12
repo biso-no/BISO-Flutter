@@ -3924,5 +3924,66 @@
   "benefitsForYou": "Fordeler for deg",
   "benefitsMemberBenefits": "Medlemsfordeler",
   "benefitsMemberBenefitsSubtitle": "Rabatter og tilbud for medlemmer",
-  "benefitsSeeWhatYouGet": "Se hva du får"
+  "benefitsSeeWhatYouGet": "Se hva du får",
+  "expenseOccasionLabel": "Hva var anledningen, og hvem var med?",
+  "@expenseOccasionLabel": {
+    "description": "Label of the occasion field on the expense report"
+  },
+  "expenseOccasionError": "Svar på dette før du sender inn",
+  "@expenseOccasionError": {
+    "description": "Shown under the occasion field when it is required and empty"
+  },
+  "expenseTypesMissing": "{count, plural, =1{Velg type for 1 kvittering} other{Velg type for {count} kvitteringer}}",
+  "@expenseTypesMissing": {
+    "description": "Message when submit is blocked because receipts have no expense type",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "expenseReceiptIssueNotAReceipt": "Ser ut som en ordrebekreftelse, ikke en kvittering",
+  "@expenseReceiptIssueNotAReceipt": {
+    "description": "Receipt notice: the scan says the file is not a receipt"
+  },
+  "expenseReceiptIssueNoItems": "Kvitteringen viser ingen varer",
+  "@expenseReceiptIssueNoItems": {
+    "description": "Receipt notice: no items found"
+  },
+  "expenseReceiptIssueUnreadable": "Vanskelig å lese. Et tydeligere bilde hjelper",
+  "@expenseReceiptIssueUnreadable": {
+    "description": "Receipt notice: the scan could not read the file well"
+  },
+  "expenseReceiptIssueMissingSeller": "Kvitteringen mangler selger",
+  "@expenseReceiptIssueMissingSeller": {
+    "description": "Receipt notice: no seller found"
+  },
+  "expenseReceiptIssueMissingDate": "Kvitteringen mangler dato",
+  "@expenseReceiptIssueMissingDate": {
+    "description": "Receipt notice: no date found"
+  },
+  "expenseReceiptIssueMissingTotal": "Kvitteringen mangler totalbeløp",
+  "@expenseReceiptIssueMissingTotal": {
+    "description": "Receipt notice: no total found"
+  },
+  "expenseReceiptIssueGeneric": "Noe ser ikke riktig ut med denne kvitteringen",
+  "@expenseReceiptIssueGeneric": {
+    "description": "Receipt notice for a scan issue code the app does not know"
+  },
+  "expenseReceiptDuplicate": "Ser ut som en kvittering du allerede har sendt inn",
+  "@expenseReceiptDuplicate": {
+    "description": "Receipt notice: possible duplicate of an earlier submission"
+  },
+  "expenseReceiptAmountDiffers": "Kvitteringen viser {scanned} kr; du har skrevet {entered} kr",
+  "@expenseReceiptAmountDiffers": {
+    "description": "Receipt notice: the amount read from the receipt differs from the entered amount",
+    "placeholders": {
+      "scanned": {
+        "type": "String"
+      },
+      "entered": {
+        "type": "String"
+      }
+    }
+  }
 }

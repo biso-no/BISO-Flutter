@@ -746,6 +746,22 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   `DELETE /api/expenses/draft`. Expense rows and the `expenses` bucket give students no write
   access. The screens follow `features.expenses` from `GET /api/config`, which is the admin's
   `expenses_module` switch.
+- **Types, switches, occasion and notices**: types come from the active rows of
+  `expense_cost_types` (never account numbers); each receipt that needs one is AI picked
+  (confidence 0.8 or more, active slug), needs a choice, or chosen
+  (`lib/core/utils/expense_type_state.dart`), and `ReceiptTypeChip` opens the searchable picker
+  with "use what I typed". One approval card at most (`approvalSwitchFor`) sets
+  `submitter_is_financial_manager` or `submitter_is_controller`. A type that asks for it makes
+  the report ask "What was the occasion, and who attended?" (sent as `occasion`, `null` when
+  blank; a server 400 with `field: "occasion"` focuses the field and keeps its `expenseId`).
+  Submit is blocked, with the first receipt's picker opened, while any receipt lacks a type;
+  drafts are never blocked. `ReceiptNotices` shows scan issues, a possible duplicate and an
+  amount that differs by more than 1 kr, and never blocks submit.
+- **Location**: `lib/presentation/screens/expense/widgets/` (`receipt_type_chip.dart`,
+  `expense_type_picker_sheet.dart`, `approval_switch_card.dart`, `occasion_field.dart`,
+  `receipt_notices.dart`), `lib/core/utils/expense_type_state.dart`,
+  `lib/core/utils/expense_approval_switch.dart`, `EXPENSE_V2.md`.
+- **Spec**: BISO-Sites `docs/superpowers/specs/2026-11-11-expense-ai-booking-design.md`.
 
 #### 🔐 Smart Authentication
 - **Public-First Architecture**: No auth walls on content discovery

@@ -17,11 +17,15 @@ class ExpenseApiException implements Exception {
   final String? code;
   final String? field;
 
+  /// The draft the server kept when it refused the submit, if it says so.
+  final String? expenseId;
+
   const ExpenseApiException(
     this.message, {
     this.statusCode,
     this.code,
     this.field,
+    this.expenseId,
   });
 
   @override
@@ -192,6 +196,7 @@ class ExpenseApiClient {
         statusCode: statusCode,
         code: map['code']?.toString(),
         field: map['field']?.toString(),
+        expenseId: map['expenseId']?.toString(),
       );
     }
     return map;

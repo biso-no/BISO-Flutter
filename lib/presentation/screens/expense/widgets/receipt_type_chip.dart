@@ -147,13 +147,18 @@ class ReceiptTypeChip extends StatelessWidget {
       onRetry: onRetry,
       loading: loading,
     );
-    switch (choice) {
-      case PickedType(:final slug):
-        onChanged(receipt.chooseType(slug));
-      case OwnText(:final text):
-        onChanged(receipt.useOwnText(text));
-      case null:
-        break;
-    }
+    final updated = receiptWithTypeChoice(receipt, choice);
+    if (updated != null) onChanged(updated);
   }
 }
+
+/// [receipt] with what the student picked in the type sheet, or null when the
+/// sheet was dismissed.
+ExpenseReceiptDraft? receiptWithTypeChoice(
+  ExpenseReceiptDraft receipt,
+  ExpenseTypeChoice? choice,
+) => switch (choice) {
+  PickedType(:final slug) => receipt.chooseType(slug),
+  OwnText(:final text) => receipt.useOwnText(text),
+  null => null,
+};

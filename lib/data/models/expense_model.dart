@@ -32,6 +32,7 @@ class ExpenseModel extends Equatable {
   final DateTime? paidAt;
   final bool submitterIsFinancialManager;
   final bool submitterIsController;
+  final String? occasion;
 
   const ExpenseModel({
     required this.id,
@@ -59,6 +60,7 @@ class ExpenseModel extends Equatable {
     this.paidAt,
     this.submitterIsFinancialManager = false,
     this.submitterIsController = false,
+    this.occasion,
   });
 
   factory ExpenseModel.fromMap(Map<String, dynamic> map) {
@@ -111,6 +113,7 @@ class ExpenseModel extends Equatable {
       submitterIsFinancialManager:
           map['submitter_is_financial_manager'] == true,
       submitterIsController: map['submitter_is_controller'] == true,
+      occasion: map['occasion']?.toString(),
     );
   }
 
@@ -161,6 +164,7 @@ class ExpenseModel extends Equatable {
     String? approverName,
     DateTime? approvedAt,
     DateTime? paidAt,
+    String? occasion,
   }) {
     return ExpenseModel(
       id: id ?? this.id,
@@ -186,6 +190,9 @@ class ExpenseModel extends Equatable {
       approverName: approverName ?? this.approverName,
       approvedAt: approvedAt ?? this.approvedAt,
       paidAt: paidAt ?? this.paidAt,
+      submitterIsFinancialManager: submitterIsFinancialManager,
+      submitterIsController: submitterIsController,
+      occasion: occasion ?? this.occasion,
     );
   }
 
@@ -303,6 +310,6 @@ class ExpenseModel extends Equatable {
     // UI/display fields
     userName, userEmail, departmentName, rejectionReason,
     approverUserId, approverName, approvedAt, paidAt,
-    submitterIsFinancialManager, submitterIsController,
+    submitterIsFinancialManager, submitterIsController, occasion,
   ];
 }

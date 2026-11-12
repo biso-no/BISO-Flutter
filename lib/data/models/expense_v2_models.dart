@@ -465,6 +465,7 @@ class ExpensePayloadBuilder {
     String? eventName,
     bool submitterIsFinancialManager = false,
     bool submitterIsController = false,
+    String? occasion,
   }) {
     final normalizedBank = normalizeNorwegianBankAccount(bankAccount);
     final readyReceipts = receipts
@@ -485,6 +486,7 @@ class ExpensePayloadBuilder {
       'eventName': eventName ?? '',
       'submitter_is_financial_manager': submitterIsFinancialManager,
       'submitter_is_controller': submitterIsController,
+      'occasion': (occasion?.trim().isEmpty ?? true) ? null : occasion!.trim(),
       'expenseAttachments': [
         for (final (index, receipt) in readyReceipts.indexed)
           receipt.toAttachmentMap(sortOrder: index),

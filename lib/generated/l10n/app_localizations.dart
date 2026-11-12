@@ -6086,6 +6086,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'See what you get'**
   String get benefitsSeeWhatYouGet;
+
+  /// Label of the occasion field on the expense report
+  ///
+  /// In en, this message translates to:
+  /// **'What was the occasion, and who attended?'**
+  String get expenseOccasionLabel;
+
+  /// Shown under the occasion field when it is required and empty
+  ///
+  /// In en, this message translates to:
+  /// **'Answer this before you submit'**
+  String get expenseOccasionError;
+
+  /// Message when submit is blocked because receipts have no expense type
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Choose a type for 1 receipt} other{Choose a type for {count} receipts}}'**
+  String expenseTypesMissing(int count);
+
+  /// Receipt notice: the scan says the file is not a receipt
+  ///
+  /// In en, this message translates to:
+  /// **'Looks like an order confirmation, not a receipt'**
+  String get expenseReceiptIssueNotAReceipt;
+
+  /// Receipt notice: no items found
+  ///
+  /// In en, this message translates to:
+  /// **'No items on the receipt'**
+  String get expenseReceiptIssueNoItems;
+
+  /// Receipt notice: the scan could not read the file well
+  ///
+  /// In en, this message translates to:
+  /// **'Hard to read. A clearer photo helps'**
+  String get expenseReceiptIssueUnreadable;
+
+  /// Receipt notice: no seller found
+  ///
+  /// In en, this message translates to:
+  /// **'No seller on the receipt'**
+  String get expenseReceiptIssueMissingSeller;
+
+  /// Receipt notice: no date found
+  ///
+  /// In en, this message translates to:
+  /// **'No date on the receipt'**
+  String get expenseReceiptIssueMissingDate;
+
+  /// Receipt notice: no total found
+  ///
+  /// In en, this message translates to:
+  /// **'No total on the receipt'**
+  String get expenseReceiptIssueMissingTotal;
+
+  /// Receipt notice for a scan issue code the app does not know
+  ///
+  /// In en, this message translates to:
+  /// **'Something looks wrong with this receipt'**
+  String get expenseReceiptIssueGeneric;
+
+  /// Receipt notice: possible duplicate of an earlier submission
+  ///
+  /// In en, this message translates to:
+  /// **'This looks like a receipt you\'ve already sent'**
+  String get expenseReceiptDuplicate;
+
+  /// Receipt notice: the amount read from the receipt differs from the entered amount
+  ///
+  /// In en, this message translates to:
+  /// **'The receipt says {scanned} kr; you entered {entered} kr'**
+  String expenseReceiptAmountDiffers(String scanned, String entered);
 }
 
 class _AppLocalizationsDelegate
