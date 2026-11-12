@@ -5232,7 +5232,7 @@ abstract class AppLocalizations {
   /// Expense form: hint under the National controller switch, saying the general manager approves when it is on
   ///
   /// In en, this message translates to:
-  /// **'The general manager approves instead.'**
+  /// **'The general manager approves instead'**
   String get expenseNationalControllerHint;
 
   /// Notification settings: row shown while the OS has notifications off for the app

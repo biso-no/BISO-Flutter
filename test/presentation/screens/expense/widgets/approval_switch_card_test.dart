@@ -66,7 +66,7 @@ void main() {
       national: true,
     );
     expect(find.text("I'm the controller"), findsOneWidget);
-    expect(find.text('The general manager approves instead.'), findsOneWidget);
+    expect(find.text('The general manager approves instead'), findsOneWidget);
     expect(find.text("I'm the campus controller"), findsNothing);
   });
 

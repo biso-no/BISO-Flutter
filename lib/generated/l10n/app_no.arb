@@ -3792,7 +3792,7 @@
   "@expenseNationalControllerLabel": {
     "description": "Expense form: label of the controller switch on National's Drift BISO and Operations Unit, for a submitter who is the National controller"
   },
-  "expenseNationalControllerHint": "Daglig leder godkjenner i stedet.",
+  "expenseNationalControllerHint": "Daglig leder godkjenner i stedet",
   "@expenseNationalControllerHint": {
     "description": "Expense form: hint under the National controller switch, saying the general manager approves when it is on"
   },

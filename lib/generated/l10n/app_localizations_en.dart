@@ -2868,7 +2868,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get expenseNationalControllerHint =>
-      'The general manager approves instead.';
+      'The general manager approves instead';
 
   @override
   String get notificationsTurnOnTitle => 'Turn on notifications';

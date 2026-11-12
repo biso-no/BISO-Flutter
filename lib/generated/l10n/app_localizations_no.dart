@@ -2876,7 +2876,7 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get expenseNationalControllerHint =>
-      'Daglig leder godkjenner i stedet.';
+      'Daglig leder godkjenner i stedet';
 
   @override
   String get notificationsTurnOnTitle => 'Slå på varsler';
