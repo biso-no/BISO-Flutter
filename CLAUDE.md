@@ -751,7 +751,9 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   (confidence 0.8 or more, active slug), needs a choice, or chosen
   (`lib/core/utils/expense_type_state.dart`), and `ReceiptTypeChip` opens the searchable picker
   with "use what I typed". One approval card at most (`approvalSwitchFor`) sets
-  `submitter_is_financial_manager` or `submitter_is_controller`. A type that asks for it makes
+  `submitter_is_financial_manager` or `submitter_is_controller`. The controller card also shows on
+  National's Drift BISO (1000) and Operations Unit (1002), as "I'm the controller" with the general
+  manager approving instead; other National departments have no card. A type that asks for it makes
   the report ask "What was the occasion, and who attended?" (sent as `occasion`, `null` when
   blank; a server 400 with `field: "occasion"` focuses the field and keeps its `expenseId`).
   Submit is blocked, with the first receipt's picker opened, while any receipt lacks a type;

@@ -34,6 +34,9 @@ import 'widgets/occasion_field.dart';
 import 'widgets/receipt_notices.dart';
 import 'widgets/receipt_type_chip.dart';
 
+/// Campus id of BISO National.
+const _nationalCampusId = '5';
+
 class CreateExpenseScreen extends ConsumerStatefulWidget {
   final String? eventId;
   final String? eventName;
@@ -1095,6 +1098,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           const SizedBox(height: 16),
           ApprovalSwitchCard(
             kind: kind,
+            national: assignment.campusId == _nationalCampusId,
             value: kind == ApprovalSwitch.controller
                 ? _submitterIsController
                 : _submitterIsFinancialManager,

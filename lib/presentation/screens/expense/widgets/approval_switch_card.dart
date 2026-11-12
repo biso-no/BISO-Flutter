@@ -13,11 +13,16 @@ class ApprovalSwitchCard extends StatelessWidget {
     required this.kind,
     required this.value,
     required this.onChanged,
+    this.national = false,
   });
 
   final ApprovalSwitch kind;
   final bool value;
   final ValueChanged<bool> onChanged;
+
+  /// True on the National campus, where the controller switch reads "I'm the
+  /// controller" and the general manager approves instead.
+  final bool national;
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +31,14 @@ class ApprovalSwitchCard extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final label = switch (kind) {
       ApprovalSwitch.financialManager => l10n.expenseFinancialManagerLabel,
+      ApprovalSwitch.controller when national =>
+        l10n.expenseNationalControllerLabel,
       ApprovalSwitch.controller => l10n.expenseControllerLabel,
     };
     final hint = switch (kind) {
       ApprovalSwitch.financialManager => l10n.expenseFinancialManagerHint,
+      ApprovalSwitch.controller when national =>
+        l10n.expenseNationalControllerHint,
       ApprovalSwitch.controller => l10n.expenseControllerHint,
     };
     return BisoFormGroup(

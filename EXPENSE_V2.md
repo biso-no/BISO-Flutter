@@ -315,7 +315,10 @@ Spec: BISO-Sites `docs/superpowers/specs/2026-11-11-expense-ai-booking-design.md
   `cost_type_chosen: true`.
 - **Approval switches**: at most one card on the report, from campus and department
   (`approvalSwitchFor`). Financial manager on Oslo departments other than 1 and 2, controller on
-  the leadership departments of their own campus. Both reset when campus or department change;
+  the leadership departments of their own campus, and on National the controller switch also appears
+  on Drift BISO (1000) and Operations Unit (1002), reading "I'm the controller" with the hint
+  "The general manager approves instead." Other National departments (HR, Control Committee) get
+  no switch and the National controller approves. Both reset when campus or department change;
   a switch that is not shown is sent as `false`
   (`submitter_is_financial_manager`, `submitter_is_controller`).
 - **Occasion**: when a chosen type asks for it, the report shows "What was the occasion, and who

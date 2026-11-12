@@ -10,10 +10,16 @@ Future<void> _pump(
   required ApprovalSwitch kind,
   required bool value,
   required ValueChanged<bool> onChanged,
+  bool national = false,
 }) => pumpBisoScreen(
   tester,
   Scaffold(
-    body: ApprovalSwitchCard(kind: kind, value: value, onChanged: onChanged),
+    body: ApprovalSwitchCard(
+      kind: kind,
+      value: value,
+      onChanged: onChanged,
+      national: national,
+    ),
   ),
 );
 
@@ -47,6 +53,21 @@ void main() {
     );
     expect(find.text("I'm the campus controller"), findsOneWidget);
     expect(find.text('The campus president approves instead'), findsOneWidget);
+  });
+
+  testWidgets('the National controller card names the general manager', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.controller,
+      value: false,
+      onChanged: (_) {},
+      national: true,
+    );
+    expect(find.text("I'm the controller"), findsOneWidget);
+    expect(find.text('The general manager approves instead.'), findsOneWidget);
+    expect(find.text("I'm the campus controller"), findsNothing);
   });
 
   testWidgets('tapping the card reports the new value', (tester) async {

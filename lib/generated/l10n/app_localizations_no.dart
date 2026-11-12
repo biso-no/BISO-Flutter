@@ -2872,6 +2872,13 @@ class AppLocalizationsNo extends AppLocalizations {
   String get expenseControllerHint => 'Campuspresidenten godkjenner i stedet';
 
   @override
+  String get expenseNationalControllerLabel => 'Jeg er controller';
+
+  @override
+  String get expenseNationalControllerHint =>
+      'Daglig leder godkjenner i stedet.';
+
+  @override
   String get notificationsTurnOnTitle => 'Slå på varsler';
 
   @override

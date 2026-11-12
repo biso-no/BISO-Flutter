@@ -5223,6 +5223,18 @@ abstract class AppLocalizations {
   /// **'The campus president approves instead'**
   String get expenseControllerHint;
 
+  /// Expense form: label of the controller switch on National's Drift BISO and Operations Unit, for a submitter who is the National controller
+  ///
+  /// In en, this message translates to:
+  /// **'I\'m the controller'**
+  String get expenseNationalControllerLabel;
+
+  /// Expense form: hint under the National controller switch, saying the general manager approves when it is on
+  ///
+  /// In en, this message translates to:
+  /// **'The general manager approves instead.'**
+  String get expenseNationalControllerHint;
+
   /// Notification settings: row shown while the OS has notifications off for the app
   ///
   /// In en, this message translates to:

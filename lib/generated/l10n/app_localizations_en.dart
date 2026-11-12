@@ -2864,6 +2864,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get expenseControllerHint => 'The campus president approves instead';
 
   @override
+  String get expenseNationalControllerLabel => 'I\'m the controller';
+
+  @override
+  String get expenseNationalControllerHint =>
+      'The general manager approves instead.';
+
+  @override
   String get notificationsTurnOnTitle => 'Turn on notifications';
 
   @override
