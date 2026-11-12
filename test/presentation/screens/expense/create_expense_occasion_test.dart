@@ -8,7 +8,8 @@ import 'package:biso/data/services/expense_api_client.dart';
 import 'package:biso/data/services/expense_cost_type_service.dart';
 import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
-import 'package:biso/presentation/screens/expense/widgets/receipt_notices.dart';
+import 'package:biso/presentation/screens/expense/widgets/expense_type_picker_sheet.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
@@ -123,11 +124,14 @@ Future<_RecordingApi> _pump(
   WidgetTester tester,
   ExpenseModel draft, {
   Object? submitError,
+  Size size = const Size(390, 844),
 }) async {
   final api = _RecordingApi()..submitError = submitError;
   await pumpBisoScreen(
     tester,
     CreateExpenseScreen(draftExpense: draft),
+    size: size,
+    inShell: size.height == 844,
     overrides: <Override>[
       expenseCostTypeServiceProvider.overrideWithValue(_Types()),
       authStateProvider.overrideWith(() => _Auth()),
@@ -170,16 +174,35 @@ void main() {
     await _tapSubmit(tester);
 
     expect(api.submits, isEmpty);
-    expect(find.text('Choose a type for 1 receipt'), findsOneWidget);
-    // The picker for the missing receipt is open.
+    // The picker for the missing receipt is open, saying why.
     expect(find.text('Expense type'), findsOneWidget);
     expect(find.text('Dinner'), findsOneWidget);
+    final message = find.text('Choose a type for 1 receipt');
+    expect(
+      find.descendant(
+        of: find.byType(ExpenseTypePickerSheet),
+        matching: message,
+      ),
+      findsOneWidget,
+    );
     // On a phone the Receipts tab is showing.
-    expect(find.text('Receipts'), findsWidgets);
+    expect(
+      tester
+          .widget<SegmentedButton<int>>(find.byType(SegmentedButton<int>))
+          .selected,
+      {0},
+    );
     expect(find.byKey(const ValueKey('expense-occasion-field')), findsNothing);
+
+    // The message belongs to the sheet: once it closes nothing is left over.
+    await tester.tap(find.text('Dinner'));
+    await tester.pumpAndSettle();
+    expect(message, findsNothing);
   });
 
-  testWidgets('occasion shows when a chosen type asks for it', (tester) async {
+  testWidgets('occasion is absent when no chosen type asks for it', (
+    tester,
+  ) async {
     await _pump(tester, _draft([_attachment('a1', costType: 'food')]));
     expect(find.text(_occasionLabel), findsNothing);
   });
@@ -262,10 +285,115 @@ void main() {
     expect(api.drafts.single['occasion'], 'Kickoff');
   });
 
-  testWidgets('the report row shows its notices', (tester) async {
-    await _pump(tester, _draft([_attachment('a1', costType: 'food')]));
-    // Hydrated drafts carry no scan results, so no notices yet.
-    expect(find.byType(ReceiptNotices), findsWidgets);
-    expect(find.text('Hard to read. A clearer photo helps'), findsNothing);
+  testWidgets('the occasion field stays once shown, when the type changes', (
+    tester,
+  ) async {
+    await _pump(tester, _draft([_attachment('a1', costType: 'dinner')]));
+    expect(find.text(_occasionLabel), findsOneWidget);
+
+    final chip = find.text('Dinner').first;
+    await tester.ensureVisible(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(chip);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Food').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dinner'), findsNothing);
+    expect(find.text(_occasionLabel), findsOneWidget);
+  });
+
+  testWidgets('a typed amount on a receipt with none asks for a type and '
+      'blocks submit', (tester) async {
+    final api = await _pump(
+      tester,
+      _draft([
+        _attachment('a1', costType: 'food'),
+        const ExpenseAttachmentModel(
+          id: 'a2',
+          url: 'file-a2',
+          description: 'Receipt a2',
+          type: 'image/jpeg',
+        ),
+      ]),
+      size: const Size(390, 2400),
+    );
+    // No amount, so no type is asked for yet.
+    expect(find.text('Choose a type'), findsNothing);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(SegmentedButton<int>),
+        matching: find.text('Receipts'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('file-a2'));
+    await tester.pumpAndSettle();
+    final amountField = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          (w.decoration?.prefixIcon as Icon?)?.icon ==
+              CupertinoIcons.money_dollar,
+    );
+    await tester.enterText(amountField, '250');
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a type'), findsWidgets);
+
+    await _tapSubmit(tester);
+    expect(api.submits, isEmpty);
+    expect(find.text('Expense type'), findsOneWidget);
+  });
+
+  testWidgets('an amount the student cleared to 0 asks for no type', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _draft([_attachment('a1')]),
+      size: const Size(390, 2400),
+    );
+    expect(find.text('Choose a type'), findsWidgets);
+
+    final amountField = find.byWidgetPredicate(
+      (w) =>
+          w is TextField &&
+          (w.decoration?.prefixIcon as Icon?)?.icon ==
+              CupertinoIcons.money_dollar,
+    );
+    await tester.ensureVisible(amountField);
+    await tester.pumpAndSettle();
+    await tester.enterText(amountField, '0');
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a type'), findsNothing);
+  });
+
+  testWidgets('a report row shows its scan issues and the duplicate flag', (
+    tester,
+  ) async {
+    await pumpBisoScreen(
+      tester,
+      Scaffold(
+        body: ReportReceiptRow(
+          receipt: ExpenseReceiptDraft(
+            localId: 'r1',
+            fileName: 'r1.jpg',
+            mimeType: 'image/jpeg',
+            status: ExpenseReceiptStatus.ready,
+            amount: 120,
+            amountInNok: 120,
+            receiptIssues: const ['unreadable'],
+            possibleDuplicate: true,
+          ).chooseType('food'),
+          costTypes: const [ExpenseCostTypeOption(slug: 'food', label: 'Food')],
+          typesLoading: false,
+          onTypeChanged: (_) {},
+          onRetryTypes: () async => null,
+        ),
+      ),
+      inShell: false,
+    );
+    expect(find.text('Hard to read. A clearer photo helps'), findsOneWidget);
+    expect(find.text('Looks like a receipt already submitted'), findsOneWidget);
   });
 }

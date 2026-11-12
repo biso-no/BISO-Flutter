@@ -125,7 +125,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _occasionShown = _occasionController.text.trim().isNotEmpty;
     _eventController.text =
         widget.eventName ?? widget.draftExpense?.eventName ?? '';
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadLookups());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // An earlier failed read (offline) must not stick for the session.
+      if (ref.read(expenseCostTypesProvider.exists) &&
+          ref.read(expenseCostTypesProvider).hasError) {
+        ref.invalidate(expenseCostTypesProvider);
+      }
+      _loadLookups();
+    });
   }
 
   @override
@@ -260,8 +267,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  /// The active expense types. A failed read leaves the list empty, so every
-  /// receipt asks for its type again rather than blocking the screen.
+  /// The active expense types, or null when they could not be read (the
+  /// stored slugs are kept then).
   Future<List<ExpenseCostTypeOption>?> _loadCostTypes() async {
     try {
       return await ref.read(expenseCostTypesProvider.future);
@@ -270,19 +277,22 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  /// True while the types could not be read. Drafts still save, since the
-  /// stored slugs stay as they are; submit waits.
   bool get _occasionRequired => occasionRequired(
     _receipts,
     ref.read(expenseCostTypesProvider).value ?? const [],
   );
 
   /// Shown once a chosen type asks for it, and from then on.
-  bool get _showOccasion {
+  bool get _showOccasion => _occasionShown;
+
+  /// Called where receipt types change: once a type asks for the occasion,
+  /// the field stays, so an answer is never hidden by a later change.
+  void _latchOccasion() {
     if (_occasionRequired) _occasionShown = true;
-    return _occasionShown;
   }
 
+  /// True while the types could not be read. Drafts still save, since the
+  /// stored slugs stay as they are; submit waits.
   bool get _typesUnavailable => ref.read(expenseCostTypesProvider).hasError;
 
   /// Reads the types again. Once they arrive, a receipt whose stored slug is
@@ -299,6 +309,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
               ? receipt.hydrateType(slug: receipt.costType, types: types)
               : receipt,
       ];
+      _latchOccasion();
     });
     return types;
   }
@@ -326,6 +337,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       );
     }).toList();
     _selectedReceiptId = _receipts.isNotEmpty ? _receipts.first.localId : null;
+    _latchOccasion();
   }
 
   Future<void> _loadDepartments(String campusId) async {
@@ -818,7 +830,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       onRemove: () => _removeReceipt(receipt.localId),
       costTypes: ref.watch(expenseCostTypesProvider).value,
       typesLoading: ref.watch(expenseCostTypesProvider).isLoading,
-      onTypeChanged: _updateReceipt,
+      onTypeChanged: _applyTypeChoice,
       onRetryTypes: _retryCostTypes,
       onRetry: receipt.localPath != null
           ? () => _processReceipt(receipt.localId)
@@ -902,6 +914,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                       onRetryTypes: _retryCostTypes,
                       scrollPadding: scrollPadding,
                       onChanged: _updateReceipt,
+                      onTypeChanged: _applyTypeChoice,
                       onAddBankStatement:
                           selected.isForeignCurrency &&
                               !selected.isBankStatement
@@ -1110,11 +1123,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 )
               else
                 for (final receipt in _readyReceipts)
-                  _ReportReceiptRow(
+                  ReportReceiptRow(
                     receipt: receipt,
                     costTypes: ref.watch(expenseCostTypesProvider).value,
                     typesLoading: ref.watch(expenseCostTypesProvider).isLoading,
-                    onTypeChanged: _updateReceipt,
+                    onTypeChanged: _applyTypeChoice,
                     onRetryTypes: _retryCostTypes,
                   ),
               _AmountRow(
@@ -1464,8 +1477,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         _selectedReceiptId = first.localId;
         _mobileTabIndex = 0;
       });
-      _showSnack(l10n.expenseTypesMissing(missing.length));
-      unawaited(_chooseType(first));
+      unawaited(
+        _chooseType(
+          first,
+          headerMessage: l10n.expenseTypesMissing(missing.length),
+        ),
+      );
       return true;
     }
     if (_occasionRequired && _occasionController.text.trim().isEmpty) {
@@ -1475,7 +1492,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     return false;
   }
 
-  Future<void> _chooseType(ExpenseReceiptDraft receipt) async {
+  Future<void> _chooseType(
+    ExpenseReceiptDraft receipt, {
+    String? headerMessage,
+  }) async {
     final types = ref.read(expenseCostTypesProvider);
     final choice = await showExpenseTypePicker(
       context,
@@ -1484,10 +1504,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       currentText: receipt.costTypeText,
       onRetry: _retryCostTypes,
       loading: types.isLoading,
+      headerMessage: headerMessage,
     );
     if (!mounted) return;
     final updated = receiptWithTypeChoice(receipt, choice);
-    if (updated != null) _updateReceipt(updated);
+    if (updated != null) _applyTypeChoice(updated);
   }
 
   /// Shows the occasion field with [message] under it and moves focus there.
@@ -1797,12 +1818,19 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             (receipt) => receipt.localId == updated.localId ? updated : receipt,
           )
           .toList();
+      _latchOccasion();
     });
   }
 
   void _updateReceipt(ExpenseReceiptDraft updated) {
     _replaceReceipt(updated.copyWith(status: ExpenseReceiptStatus.ready));
     _maybeGenerateSummary(force: true);
+  }
+
+  /// A type choice changes the receipt only: the description the student
+  /// has (or wrote) stays, and no summary is asked for.
+  void _applyTypeChoice(ExpenseReceiptDraft updated) {
+    _replaceReceipt(updated.copyWith(status: ExpenseReceiptStatus.ready));
   }
 
   void _removeReceipt(String localId) {
@@ -2166,6 +2194,7 @@ class _ReceiptDetailEditor extends StatefulWidget {
   final ReloadExpenseTypes onRetryTypes;
   final EdgeInsets scrollPadding;
   final ValueChanged<ExpenseReceiptDraft> onChanged;
+  final ValueChanged<ExpenseReceiptDraft> onTypeChanged;
   final VoidCallback? onAddBankStatement;
 
   const _ReceiptDetailEditor({
@@ -2175,6 +2204,7 @@ class _ReceiptDetailEditor extends StatefulWidget {
     required this.onRetryTypes,
     required this.scrollPadding,
     required this.onChanged,
+    required this.onTypeChanged,
     this.onAddBankStatement,
   });
 
@@ -2374,7 +2404,7 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                   receipt: receipt,
                   types: widget.costTypes,
                   loading: widget.typesLoading,
-                  onChanged: widget.onChanged,
+                  onChanged: widget.onTypeChanged,
                   onRetry: widget.onRetryTypes,
                 ),
               ),
@@ -2448,8 +2478,11 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
   }
 }
 
-class _ReportReceiptRow extends StatelessWidget {
-  const _ReportReceiptRow({
+/// One receipt on the report. Public so a test can show it with scan results
+/// a resumed draft never carries.
+@visibleForTesting
+class ReportReceiptRow extends StatelessWidget {
+  const ReportReceiptRow({
     required this.receipt,
     required this.costTypes,
     required this.typesLoading,

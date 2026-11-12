@@ -11,6 +11,7 @@ void main() {
 
   ExpenseReceiptDraft receipt({
     double? amount = 100,
+    double? amountInNok,
     String documentType = 'receipt',
     String? parentReceiptId,
   }) => ExpenseReceiptDraft(
@@ -18,6 +19,7 @@ void main() {
     fileName: 'a.jpg',
     mimeType: 'image/jpeg',
     amount: amount,
+    amountInNok: amountInNok,
     documentType: documentType,
     parentReceiptId: parentReceiptId,
   );
@@ -36,6 +38,17 @@ void main() {
       expect(needsType(receipt(amount: 0)), isFalse);
       expect(needsType(receipt(amount: null)), isFalse);
     });
+    test('a typed amount with no scanned one needs a type', () {
+      final typed = receipt(amount: null, amountInNok: 250);
+      expect(needsType(typed), isTrue);
+      expect(isTypeMissing(typed), isTrue);
+    });
+    test(
+      'an amount the student set to 0 needs none, whatever the scan read',
+      () {
+        expect(needsType(receipt(amount: 120, amountInNok: 0)), isFalse);
+      },
+    );
   });
 
   group('withAiPick', () {

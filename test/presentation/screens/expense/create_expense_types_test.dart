@@ -64,12 +64,16 @@ class _FakeExpenseService extends ExpenseServiceV2 {
 
 class _RecordingApi extends ExpenseApiClient {
   final List<Map<String, dynamic>> drafts = [];
+  int summaries = 0;
 
   @override
   Future<String> summarize({
     required ExpenseAssignment assignment,
     required List<ExpenseReceiptDraft> receipts,
-  }) async => '';
+  }) async {
+    summaries += 1;
+    return 'Rewritten by the summary';
+  }
 
   @override
   Future<ExpenseDraftResult> saveDraft(Map<String, dynamic> payload) async {
@@ -239,5 +243,126 @@ void main() {
     await tester.pumpAndSettle();
     final attachments = api.drafts.single['expenseAttachments'] as List;
     expect(attachments.map((a) => a['cost_type']), ['food', 'food']);
+  });
+
+  group('choosing a type leaves the description alone', () {
+    const drink = ExpenseCostTypeOption(slug: 'drink', label: 'Drink');
+
+    Future<_RecordingApi> pumpWallet(WidgetTester tester) async {
+      final api = _RecordingApi();
+      await pumpBisoScreen(
+        tester,
+        CreateExpenseScreen(draftExpense: _draft),
+        overrides: _overrides(
+          _FlakyTypes(failing: false, types: const [_food, drink]),
+          api,
+        ),
+      );
+      await tester.pumpAndSettle();
+      return api;
+    }
+
+    Future<void> pick(WidgetTester tester, String label) async {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> expectUntouched(WidgetTester tester, _RecordingApi api) async {
+      final description = find.byWidgetPredicate(
+        (w) => w is TextField && w.controller?.text == 'Trip',
+      );
+      if (description.evaluate().isEmpty) {
+        // Scrolled away on the report: bring the top back.
+        await tester.fling(
+          find.byType(Scrollable).first,
+          const Offset(0, 3000),
+          3000,
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(description, findsOneWidget);
+      expect(api.summaries, 0);
+      expect(find.text('Rewritten by the summary'), findsNothing);
+    }
+
+    testWidgets('from the wallet chip', (tester) async {
+      final api = await pumpWallet(tester);
+      await tester.tap(find.text('Choose a type'));
+      await tester.pumpAndSettle();
+      await pick(tester, 'Drink');
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      await expectUntouched(tester, api);
+    });
+
+    testWidgets('from the report row chip', (tester) async {
+      final api = await pumpWallet(tester);
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      // Report rows come before the detail editor; the second receipt's
+      // chip is the one asking for a type.
+      final chip = find.text('Choose a type').first;
+      await tester.ensureVisible(chip);
+      await tester.pumpAndSettle();
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      await pick(tester, 'Drink');
+      await expectUntouched(tester, api);
+    });
+
+    testWidgets('from the detail editor chip', (tester) async {
+      final api = await pumpWallet(tester);
+      await tester.tap(find.text('Report'));
+      await tester.pumpAndSettle();
+      // The editor shows the first receipt and its chip is the last one.
+      final chip = find.byType(ReceiptTypeChip).last;
+      await tester.ensureVisible(chip);
+      // Clear of the bar at the bottom of the screen.
+      await tester.drag(
+        find.ancestor(of: chip, matching: find.byType(Scrollable)).first,
+        const Offset(0, -250),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      await pick(tester, 'Drink');
+      await expectUntouched(tester, api);
+    });
+  });
+
+  testWidgets('a failed read from before the screen opened is tried again on '
+      'open', (tester) async {
+    final api = _RecordingApi();
+    final types = _FlakyTypes(failing: true, types: const [_food]);
+    final show = ValueNotifier(false);
+    addTearDown(show.dispose);
+    // Something outside the screen (a keep-alive listener) has already read
+    // the types while offline, so the provider holds that error.
+    await pumpBisoScreen(
+      tester,
+      Consumer(
+        builder: (context, ref, _) {
+          ref.watch(expenseCostTypesProvider);
+          return ValueListenableBuilder<bool>(
+            valueListenable: show,
+            builder: (context, shown, _) => shown
+                ? CreateExpenseScreen(draftExpense: _draft)
+                : const SizedBox.shrink(),
+          );
+        },
+      ),
+      overrides: _overrides(types, api),
+    );
+    await tester.pumpAndSettle();
+
+    types.failing = false;
+    show.value = true;
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Couldn\'t load expense types'), findsNothing);
+    expect(_submit(tester).onPressed, isNotNull);
   });
 }

@@ -15,13 +15,12 @@ class ExpenseCostTypeService {
     final result = await _db.listRows(
       databaseId: AppConstants.databaseId,
       tableId: AppConstants.expenseCostTypesTableId,
-      queries: [
-        Query.equal('active', true),
-        Query.orderAsc('sort_order'),
-        Query.limit(100),
-      ],
+      queries: [Query.orderAsc('sort_order'), Query.limit(100)],
     );
+    // Only an explicit false hides a type; a missing value counts as active,
+    // like on the server.
     return result.rows
+        .where((row) => row.data['active'] != false)
         .map((row) => ExpenseCostTypeOption.fromRow(row.data))
         .toList();
   }

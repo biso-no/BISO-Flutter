@@ -11,10 +11,12 @@ const aiTypeConfidenceThreshold = 0.8;
 /// The longest own-words type the server keeps.
 const maxOwnTypeTextLength = 120;
 
-/// A receipt takes a type when it has an amount of its own. A statement
-/// attached to a receipt backs that receipt up and never takes one.
+/// A receipt takes a type when it has an amount of its own. The amount is
+/// what is sent (a typed amount counts as well as a scanned one), since that
+/// is what the server judges. A statement attached to a receipt backs that
+/// receipt up and never takes one.
 bool needsType(ExpenseReceiptDraft r) =>
-    (r.amount ?? 0) > 0 && !r.isBankStatement && r.parentReceiptId == null;
+    r.effectiveAmount > 0 && !r.isBankStatement && r.parentReceiptId == null;
 
 /// A receipt that needs a type and has neither a slug nor own text.
 bool isTypeMissing(ExpenseReceiptDraft r) =>
