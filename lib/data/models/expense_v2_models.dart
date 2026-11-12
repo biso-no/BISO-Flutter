@@ -73,6 +73,13 @@ class ExpenseOcrResult {
   final double? exchangeRate;
   final String? method;
 
+  /// The AI's expense type pick (a slug) and how sure it is, 0 to 1.
+  final String? costType;
+  final double costTypeConfidence;
+  final List<String> receiptIssues;
+  final double? ocrAmount;
+  final bool possibleDuplicate;
+
   const ExpenseOcrResult({
     this.address,
     this.category,
@@ -88,6 +95,11 @@ class ExpenseOcrResult {
     this.amountInNok,
     this.exchangeRate,
     this.method,
+    this.costType,
+    this.costTypeConfidence = 0,
+    this.receiptIssues = const [],
+    this.ocrAmount,
+    this.possibleDuplicate = false,
   });
 
   factory ExpenseOcrResult.fromMap(Map<String, dynamic> map) {
@@ -109,6 +121,13 @@ class ExpenseOcrResult {
       amountInNok: _doubleOrNull(data['amountInNok']),
       exchangeRate: _doubleOrNull(data['exchangeRate']),
       method: _stringOrNull(map['method'] ?? data['method']),
+      costType: _stringOrNull(data['costType']),
+      costTypeConfidence: _doubleOrNull(data['costTypeConfidence']) ?? 0,
+      receiptIssues: data['receiptIssues'] is List
+          ? (data['receiptIssues'] as List).map((e) => e.toString()).toList()
+          : const [],
+      ocrAmount: _doubleOrNull(data['ocrAmount']),
+      possibleDuplicate: data['possibleDuplicate'] == true,
     );
   }
 }

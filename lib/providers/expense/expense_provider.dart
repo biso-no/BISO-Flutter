@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../data/models/expense_model.dart';
+import '../../data/models/expense_cost_type_option.dart';
 import '../../data/services/expense_api_client.dart';
+import '../../data/services/expense_cost_type_service.dart';
 import '../../data/services/expense_service_v2.dart';
 import '../../core/logging/print_migration.dart';
 
@@ -18,9 +21,15 @@ final expenseApiClientProvider = Provider<ExpenseApiClient>(
   (ref) => ExpenseApiClient(),
 );
 
+/// The active expense types from the table, in the order staff set.
+final expenseCostTypesProvider = FutureProvider<List<ExpenseCostTypeOption>>(
+  (ref) => ExpenseCostTypeService().listActive(),
+);
+
 // Expenses state provider
-final expensesStateProvider =
-    NotifierProvider<ExpensesNotifier, ExpensesState>(ExpensesNotifier.new);
+final expensesStateProvider = NotifierProvider<ExpensesNotifier, ExpensesState>(
+  ExpensesNotifier.new,
+);
 
 // Filtered expenses provider
 final filteredExpensesProvider = Provider.family<List<ExpenseModel>, String>((
@@ -78,9 +87,8 @@ class ExpensesState {
   double get totalPendingAmount =>
       expenses.where((e) => e.isPending).fold(0.0, (sum, e) => sum + e.total);
 
-  double get totalSubmittedAmount => expenses
-      .where((e) => e.isSubmitted)
-      .fold(0.0, (sum, e) => sum + e.total);
+  double get totalSubmittedAmount =>
+      expenses.where((e) => e.isSubmitted).fold(0.0, (sum, e) => sum + e.total);
 
   double get totalSuccessAmount =>
       expenses.where((e) => e.isSuccess).fold(0.0, (sum, e) => sum + e.total);

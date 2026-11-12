@@ -12,7 +12,17 @@ class ExpenseApiException implements Exception {
   final String message;
   final int? statusCode;
 
-  const ExpenseApiException(this.message, {this.statusCode});
+  /// Machine-readable error code and the offending field, when the server
+  /// sends them (e.g. `field: "occasion"` on a missing occasion).
+  final String? code;
+  final String? field;
+
+  const ExpenseApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.field,
+  });
 
   @override
   String toString() => message;
@@ -180,6 +190,8 @@ class ExpenseApiClient {
         (map['error'] ?? map['message'] ?? 'Expense API request failed')
             .toString(),
         statusCode: statusCode,
+        code: map['code']?.toString(),
+        field: map['field']?.toString(),
       );
     }
     return map;
