@@ -171,14 +171,21 @@ void main() {
     await client.submit({
       'submitter_is_financial_manager': true,
       'expenseAttachments': [
-        {'cost_type': 'travel', 'sort_order': 0},
+        {
+          'cost_type': '',
+          'cost_type_text': 'Pizza',
+          'cost_type_chosen': true,
+          'sort_order': 0,
+        },
       ],
     });
 
     final body = jsonDecode(sent.body) as Map<String, dynamic>;
     expect(sent.url.path, '/api/expenses/submit');
     expect(body['submitter_is_financial_manager'], true);
-    expect(body['expenseAttachments'][0]['cost_type'], 'travel');
+    expect(body['expenseAttachments'][0]['cost_type'], '');
+    expect(body['expenseAttachments'][0]['cost_type_text'], 'Pizza');
+    expect(body['expenseAttachments'][0]['cost_type_chosen'], true);
     expect(body['expenseAttachments'][0]['sort_order'], 0);
   });
 

@@ -20,4 +20,14 @@ void main() {
     expect(changed.amount, 120);
     expect(changed.type, 'image/jpeg');
   });
+
+  test('fromMap reads the own-words cost type text', () {
+    final model = ExpenseAttachmentModel.fromMap({
+      'type': 'image/jpeg',
+      'cost_type': '',
+      'cost_type_text': 'Pizza',
+    });
+
+    expect(model.costTypeText, 'Pizza');
+  });
 }

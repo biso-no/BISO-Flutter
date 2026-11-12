@@ -1,7 +1,8 @@
 import 'dart:convert';
 
-import '../../core/utils/expense_cost_types.dart';
+import '../../core/utils/expense_type_state.dart';
 import '../../core/utils/norwegian_bank_account.dart';
+import 'expense_cost_type_option.dart';
 import 'expense_model.dart';
 import 'user_model.dart';
 
@@ -152,9 +153,17 @@ class ExpenseReceiptDraft {
   final String? originalForeignAmount;
   final String? category;
 
-  /// The cost type the student chose; null until they do, in which case the
-  /// OCR [category] decides (see [effectiveCostType]).
+  /// The expense type slug, from the AI's pick or the student's choice. Null
+  /// until there is one; it never falls back to a default.
   final String? costType;
+
+  /// The student's own words, in place of a listed type.
+  final String? costTypeText;
+  final ExpenseTypeState typeState;
+  final double? aiConfidence;
+  final List<String> receiptIssues;
+  final bool possibleDuplicate;
+  final double? ocrAmount;
   final String? city;
   final String? country;
   final String? purchaseContext;
@@ -181,6 +190,12 @@ class ExpenseReceiptDraft {
     this.originalForeignAmount,
     this.category,
     this.costType,
+    this.costTypeText,
+    this.typeState = ExpenseTypeState.needsChoice,
+    this.aiConfidence,
+    this.receiptIssues = const [],
+    this.possibleDuplicate = false,
+    this.ocrAmount,
     this.city,
     this.country,
     this.purchaseContext,
@@ -212,8 +227,6 @@ class ExpenseReceiptDraft {
   bool get hasEstimatedNok =>
       isForeignCurrency && amountInNok != null && !hasLinkedBankStatement;
   double get effectiveAmount => amountInNok ?? amount ?? 0;
-  String get effectiveCostType =>
-      costType ?? defaultCostTypeSlugForCategory(category);
 
   ExpenseReceiptDraft copyWith({
     String? fileName,
@@ -234,6 +247,14 @@ class ExpenseReceiptDraft {
     String? originalForeignAmount,
     String? category,
     String? costType,
+    String? costTypeText,
+    ExpenseTypeState? typeState,
+    double? aiConfidence,
+    List<String>? receiptIssues,
+    bool? possibleDuplicate,
+    double? ocrAmount,
+    bool clearCostType = false,
+    bool clearCostTypeText = false,
     String? city,
     String? country,
     String? purchaseContext,
@@ -260,7 +281,15 @@ class ExpenseReceiptDraft {
       originalForeignAmount:
           originalForeignAmount ?? this.originalForeignAmount,
       category: category ?? this.category,
-      costType: costType ?? this.costType,
+      costType: clearCostType ? null : (costType ?? this.costType),
+      costTypeText: clearCostTypeText
+          ? null
+          : (costTypeText ?? this.costTypeText),
+      typeState: typeState ?? this.typeState,
+      aiConfidence: aiConfidence ?? this.aiConfidence,
+      receiptIssues: receiptIssues ?? this.receiptIssues,
+      possibleDuplicate: possibleDuplicate ?? this.possibleDuplicate,
+      ocrAmount: ocrAmount ?? this.ocrAmount,
       city: city ?? this.city,
       country: country ?? this.country,
       purchaseContext: purchaseContext ?? this.purchaseContext,
@@ -308,6 +337,73 @@ class ExpenseReceiptDraft {
     );
   }
 
+  /// Applies the AI's type pick from [ocr]: it counts at 0.8 confidence or
+  /// more with a slug among the active [types]; anything else needs a choice.
+  /// Also copies the receipt issues, duplicate flag and OCR amount. The screen
+  /// calls this after [withOcr], which leaves the type alone.
+  ExpenseReceiptDraft withAiPick(
+    ExpenseOcrResult ocr,
+    List<ExpenseCostTypeOption> types,
+  ) {
+    final slug = ocr.costType;
+    final picked =
+        slug != null &&
+        ocr.costTypeConfidence >= aiTypeConfidenceThreshold &&
+        types.any((type) => type.slug == slug);
+    return copyWith(
+      typeState: picked
+          ? ExpenseTypeState.aiPicked
+          : ExpenseTypeState.needsChoice,
+      costType: picked ? slug : null,
+      clearCostType: !picked,
+      clearCostTypeText: true,
+      aiConfidence: ocr.costTypeConfidence,
+      receiptIssues: ocr.receiptIssues,
+      possibleDuplicate: ocr.possibleDuplicate,
+      ocrAmount: ocr.ocrAmount,
+    );
+  }
+
+  /// The student chose a listed type.
+  ExpenseReceiptDraft chooseType(String slug) => copyWith(
+    costType: slug,
+    clearCostTypeText: true,
+    typeState: ExpenseTypeState.chosen,
+  );
+
+  /// The student wrote their own type. Blank text is refused and the receipt
+  /// stays as it is.
+  ExpenseReceiptDraft useOwnText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return this;
+    final capped = trimmed.length > maxOwnTypeTextLength
+        ? trimmed.substring(0, maxOwnTypeTextLength).trimRight()
+        : trimmed;
+    return copyWith(
+      costTypeText: capped,
+      clearCostType: true,
+      typeState: ExpenseTypeState.chosen,
+    );
+  }
+
+  /// Restores the type of a saved draft attachment. Own text and an active
+  /// slug count as chosen; a slug finance has since deactivated asks again.
+  ExpenseReceiptDraft hydrateType({
+    String? slug,
+    String? text,
+    required List<ExpenseCostTypeOption> types,
+  }) {
+    if (text != null && text.trim().isNotEmpty) return useOwnText(text);
+    if (slug != null && types.any((type) => type.slug == slug)) {
+      return chooseType(slug);
+    }
+    return copyWith(
+      clearCostType: true,
+      clearCostTypeText: true,
+      typeState: ExpenseTypeState.needsChoice,
+    );
+  }
+
   Map<String, dynamic> toSummaryMap() {
     return {
       'amount': effectiveAmount,
@@ -334,7 +430,7 @@ class ExpenseReceiptDraft {
           ? 'Bank statement'
           : fileName,
       'type': mimeType,
-      'cost_type': effectiveCostType,
+      ...attachmentTypeFields(this),
       'sort_order': sortOrder,
     };
   }

@@ -49,6 +49,7 @@ class _FakeExpenseService extends ExpenseServiceV2 {
 }
 
 List<Override> _overrides() => [
+  expenseCostTypesProvider.overrideWith((_) async => const []),
   authStateProvider.overrideWith(() => _Auth()),
   expenseServiceProvider.overrideWithValue(_FakeExpenseService()),
   appConfigProvider.overrideWith(

@@ -29,4 +29,17 @@ void main() {
     expect(result.ocrAmount, isNull);
     expect(result.possibleDuplicate, isFalse);
   });
+
+  test('an int confidence, a null issues list and a wrong-typed duplicate', () {
+    final result = ExpenseOcrResult.fromMap({
+      'data': {
+        'costTypeConfidence': 1,
+        'receiptIssues': null,
+        'possibleDuplicate': 'yes',
+      },
+    });
+    expect(result.costTypeConfidence, 1.0);
+    expect(result.receiptIssues, isEmpty);
+    expect(result.possibleDuplicate, isFalse);
+  });
 }

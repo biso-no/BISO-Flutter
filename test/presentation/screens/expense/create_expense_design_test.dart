@@ -22,7 +22,11 @@ import '../../../helpers/biso_screen_harness.dart';
 /// expenses_design_test.dart / orders_design_test.dart.
 void _expectFullSizeAmount(WidgetTester tester, String text) {
   final finder = find.text(text);
-  expect(finder, findsAtLeastNWidgets(1), reason: '"$text" should render in full');
+  expect(
+    finder,
+    findsAtLeastNWidgets(1),
+    reason: '"$text" should render in full',
+  );
   for (final element in finder.evaluate()) {
     final widgetFinder = find.byWidget(element.widget);
     expect(
@@ -32,7 +36,11 @@ void _expectFullSizeAmount(WidgetTester tester, String text) {
     );
     final paragraph = tester.renderObject<RenderParagraph>(widgetFinder);
     expect(paragraph.maxLines, 1, reason: '"$text" should be one line');
-    expect(paragraph.didExceedMaxLines, isFalse, reason: '"$text" was ellipsized');
+    expect(
+      paragraph.didExceedMaxLines,
+      isFalse,
+      reason: '"$text" was ellipsized',
+    );
   }
 }
 
@@ -108,6 +116,7 @@ List<Override> _overrides({
   List<Map<String, dynamic>> campuses = const [_campus],
   List<Map<String, dynamic>> departments = const [_department],
 }) => [
+  expenseCostTypesProvider.overrideWith((_) async => const []),
   authStateProvider.overrideWith(() => _Auth(user)),
   expenseServiceProvider.overrideWithValue(
     _FakeExpenseService(campuses: campuses, departments: departments),
@@ -118,40 +127,37 @@ List<Override> _overrides({
 ];
 
 void main() {
-  testWidgets(
-    'New expense builds on BisoPage in every appearance: the cost '
-    'allocation gate and the report pane',
-    (tester) async {
-      // No campus on the user yet: `_loadLookups` cannot complete an
-      // assignment, so the gate (campus/department pickers) renders.
-      await expectBuildsCleanly(
-        tester,
-        () => const CreateExpenseScreen(),
-        overrides: _overrides(
-          user: const UserModel(id: 'u1', name: 'Kari', email: 'kari@bi.no'),
-        ),
-      );
+  testWidgets('New expense builds on BisoPage in every appearance: the cost '
+      'allocation gate and the report pane', (tester) async {
+    // No campus on the user yet: `_loadLookups` cannot complete an
+    // assignment, so the gate (campus/department pickers) renders.
+    await expectBuildsCleanly(
+      tester,
+      () => const CreateExpenseScreen(),
+      overrides: _overrides(
+        user: const UserModel(id: 'u1', name: 'Kari', email: 'kari@bi.no'),
+      ),
+    );
 
-      // A draft whose campus/department already match the fake lookups:
-      // `_hasAssignment` is true as soon as `_loadLookups` resolves, so the
-      // wallet/report split renders instead of the gate.
-      await expectBuildsCleanly(
-        tester,
-        () => CreateExpenseScreen(
-          draftExpense: ExpenseModel(
-            id: 'draft-1',
-            userId: 'u1',
-            campus: 'c1',
-            department: 'd1',
-            bankAccount: '',
-            total: 0,
-            status: 'draft',
-          ),
+    // A draft whose campus/department already match the fake lookups:
+    // `_hasAssignment` is true as soon as `_loadLookups` resolves, so the
+    // wallet/report split renders instead of the gate.
+    await expectBuildsCleanly(
+      tester,
+      () => CreateExpenseScreen(
+        draftExpense: ExpenseModel(
+          id: 'draft-1',
+          userId: 'u1',
+          campus: 'c1',
+          department: 'd1',
+          bankAccount: '',
+          total: 0,
+          status: 'draft',
         ),
-        overrides: _overrides(),
-      );
-    },
-  );
+      ),
+      overrides: _overrides(),
+    );
+  });
 
   testWidgets(
     'tapping close on a dirty form (a resumed draft) shows the existing '
@@ -235,7 +241,10 @@ void main() {
       await tester.tap(find.text('Save profile'));
       await tester.pump();
 
-      expect(find.text('Invalid Norwegian bank account number'), findsOneWidget);
+      expect(
+        find.text('Invalid Norwegian bank account number'),
+        findsOneWidget,
+      );
 
       // Saving was short-circuited by the validator (it returns before
       // calling updateUserProfile/Navigator.pop): the sheet is still open,
@@ -285,7 +294,11 @@ void main() {
 
         await tester.tap(find.widgetWithText(BisoListRow, 'Department'));
         await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull, reason: 'open sheet at $textScale');
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'open sheet at $textScale',
+        );
 
         expect(find.text('Department 1'), findsOneWidget);
         expect(find.text('Department 30'), findsNothing);
@@ -304,77 +317,78 @@ void main() {
         // The gate is gone (assignment complete) and the split flow's
         // payment-details row shows the stored department name.
         expect(find.widgetWithText(BisoListRow, 'Department'), findsNothing);
-        expect(find.text('Department 30'), findsOneWidget, reason: '$textScale');
-
-        await tester.pumpWidget(const SizedBox());
-      }
-    },
-  );
-
-  testWidgets(
-    'a large receipt amount renders in full at 1.6x text on the wide '
-    '(side-by-side) layout, in both brightnesses (R11)',
-    (tester) async {
-      final draft = ExpenseModel(
-        id: 'draft-1',
-        userId: 'u1',
-        campus: 'c1',
-        department: 'd1',
-        bankAccount: '86011117947',
-        total: 12345.50,
-        status: 'draft',
-        expenseAttachments: const [
-          ExpenseAttachmentModel(
-            id: 'a1',
-            url: 'https://appwrite.biso.no/v1/storage/buckets/b/files/file123/view',
-            amount: 12345.50,
-            description: 'A very large taxi receipt',
-            type: 'image/jpeg',
-          ),
-        ],
-      );
-
-      for (final brightness in Brightness.values) {
-        await pumpBisoScreen(
-          tester,
-          CreateExpenseScreen(draftExpense: draft),
-          overrides: _overrides(
-            user: const UserModel(
-              id: 'u1',
-              name: 'Kari Nordmann',
-              email: 'kari@bi.no',
-              phone: '12345678',
-              address: 'Nydalsveien 15',
-              city: 'Oslo',
-              zipCode: '0484',
-              campusId: 'c1',
-              bankAccount: '86011117947',
-            ),
-          ),
-          brightness: brightness,
-          textScale: 1.6,
-          size: const Size(900, 844),
+        expect(
+          find.text('Department 30'),
+          findsOneWidget,
+          reason: '$textScale',
         );
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull, reason: '$brightness');
-
-        final amountFinder = find.text('NOK 12345.50');
-        expect(amountFinder, findsWidgets, reason: '$brightness');
-        for (final element in amountFinder.evaluate()) {
-          final paragraph = tester.renderObject<RenderParagraph>(
-            find.byWidget(element.widget),
-          );
-          expect(
-            paragraph.didExceedMaxLines,
-            isFalse,
-            reason: 'NOK 12345.50 was ellipsized ($brightness)',
-          );
-        }
 
         await tester.pumpWidget(const SizedBox());
       }
     },
   );
+
+  testWidgets('a large receipt amount renders in full at 1.6x text on the wide '
+      '(side-by-side) layout, in both brightnesses (R11)', (tester) async {
+    final draft = ExpenseModel(
+      id: 'draft-1',
+      userId: 'u1',
+      campus: 'c1',
+      department: 'd1',
+      bankAccount: '86011117947',
+      total: 12345.50,
+      status: 'draft',
+      expenseAttachments: const [
+        ExpenseAttachmentModel(
+          id: 'a1',
+          url: 'https://appwrite.biso.no/v1/storage/buckets/b/files/file123/view',
+          amount: 12345.50,
+          description: 'A very large taxi receipt',
+          type: 'image/jpeg',
+        ),
+      ],
+    );
+
+    for (final brightness in Brightness.values) {
+      await pumpBisoScreen(
+        tester,
+        CreateExpenseScreen(draftExpense: draft),
+        overrides: _overrides(
+          user: const UserModel(
+            id: 'u1',
+            name: 'Kari Nordmann',
+            email: 'kari@bi.no',
+            phone: '12345678',
+            address: 'Nydalsveien 15',
+            city: 'Oslo',
+            zipCode: '0484',
+            campusId: 'c1',
+            bankAccount: '86011117947',
+          ),
+        ),
+        brightness: brightness,
+        textScale: 1.6,
+        size: const Size(900, 844),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$brightness');
+
+      final amountFinder = find.text('NOK 12345.50');
+      expect(amountFinder, findsWidgets, reason: '$brightness');
+      for (final element in amountFinder.evaluate()) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.byWidget(element.widget),
+        );
+        expect(
+          paragraph.didExceedMaxLines,
+          isFalse,
+          reason: 'NOK 12345.50 was ellipsized ($brightness)',
+        );
+      }
+
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
 
   testWidgets(
     'the total, each receipt amount, and the bank account render in full '

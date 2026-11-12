@@ -9,9 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/utils/expense_cost_types.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
+import '../../../data/models/expense_cost_type_option.dart';
 import '../../../data/models/expense_model.dart';
 import '../../../data/models/expense_v2_models.dart';
 import '../../../data/models/user_model.dart';
@@ -208,7 +208,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       // Before the departments: the draft does not depend on them, and a
       // failure there must not leave its receipts behind.
       if (draft != null && !_draftHydrated) {
-        _hydrateDraft(draft);
+        _hydrateDraft(draft, await _loadCostTypes());
         _draftHydrated = true;
       }
       final user = ref.read(currentUserProvider);
@@ -239,7 +239,17 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     }
   }
 
-  void _hydrateDraft(ExpenseModel draft) {
+  /// The active expense types. A failed read leaves the list empty, so every
+  /// receipt asks for its type again rather than blocking the screen.
+  Future<List<ExpenseCostTypeOption>> _loadCostTypes() async {
+    try {
+      return await ref.read(expenseCostTypesProvider.future);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  void _hydrateDraft(ExpenseModel draft, List<ExpenseCostTypeOption> types) {
     if (draft.expenseAttachments.isEmpty) return;
     _receipts = draft.expenseAttachments.map((attachment) {
       final rawUrl = attachment.url ?? '';
@@ -255,7 +265,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         amount: attachment.amount,
         amountInNok: attachment.amount,
         description: attachment.description ?? '',
-        costType: attachment.costType,
+      ).hydrateType(
+        slug: attachment.costType,
+        text: attachment.costTypeText,
+        types: types,
       );
     }).toList();
     _selectedReceiptId = _receipts.isNotEmpty ? _receipts.first.localId : null;
@@ -703,8 +716,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                         icon: CupertinoIcons.doc_text,
                         accent: BisoAccent.coral,
                         title: 'No receipts yet',
-                        message:
-                            'Receipts are required before this can be submitted.',
+                        message: 'Receipts are required before this can be submitted.',
                       ),
                     )
                   : ListView(
@@ -787,16 +799,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                       icon: CupertinoIcons.hourglass,
                       color: palette.link,
                       title: 'Processing receipts',
-                      message:
-                          'Drafts and submissions wait until upload and OCR finish.',
+                      message: 'Drafts and submissions wait until upload and OCR finish.',
                     ),
                   if (_isImportingIntakeBatch)
                     _InfoBanner(
                       icon: CupertinoIcons.arrow_up_circle,
                       color: palette.link,
                       title: 'Importing shared receipts',
-                      message:
-                          'Files shared with BISO are being added to this reimbursement.',
+                      message: 'Files shared with BISO are being added to this reimbursement.',
                     ),
                   if (_flowError != null)
                     _WarningBanner(
@@ -812,10 +822,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   if (selected != null)
                     _ReceiptDetailEditor(
                       receipt: selected,
+                      costTypes:
+                          ref.watch(expenseCostTypesProvider).value ?? const [],
                       scrollPadding: scrollPadding,
                       onChanged: _updateReceipt,
                       onAddBankStatement:
-                          selected.isForeignCurrency && !selected.isBankStatement
+                          selected.isForeignCurrency &&
+                              !selected.isBankStatement
                           ? () => _pickBankStatement(selected.localId)
                           : null,
                     ),
@@ -938,7 +951,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         ),
         const SizedBox(height: 16),
         BisoFormGroup(
-          title: _isSummaryLoading ? 'Generating summary...' : 'Accounting summary',
+          title: _isSummaryLoading
+              ? 'Generating summary...'
+              : 'Accounting summary',
           children: [
             BisoFormRow(
               label: 'What was this expense for?',
@@ -1085,8 +1100,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       final batch = await ExpenseIntakeService.instance.getBatch(batchId);
       if (batch == null || batch.files.isEmpty) {
         setState(() {
-          _flowError =
-              'Shared receipt batch was not found. Try sharing the files again.';
+          _flowError = 'Shared receipt batch was not found. Try sharing the files again.';
         });
         return;
       }
@@ -1203,7 +1217,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       final analyzed = _receipts.firstWhere(
         (receipt) => receipt.localId == localId,
       );
-      var ready = analyzed.withOcr(ocr);
+      final costTypes = await _loadCostTypes();
+      var ready = analyzed.withOcr(ocr).withAiPick(ocr, costTypes);
       if (current.parentReceiptId != null) {
         ready = ready.copyWith(
           documentType: 'bank-statement',
@@ -1416,9 +1431,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 children: [
                   Text(
                     'Complete profile',
-                    style: Theme.of(
-                      sheetContext,
-                    ).textTheme.titleLarge?.copyWith(color: palette.ink),
+                    style: Theme.of(sheetContext).textTheme.titleLarge
+                        ?.copyWith(color: palette.ink),
                   ),
                   const SizedBox(height: 16),
                   BisoFormGroup(
@@ -1494,9 +1508,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                       );
                       final bankError = validateNorwegianBankAccount(bank);
                       if (bankError != null) {
-                        ScaffoldMessenger.of(
-                          sheetContext,
-                        ).showSnackBar(SnackBar(content: Text(bankError)));
+                        ScaffoldMessenger.of(sheetContext)
+                            .showSnackBar(SnackBar(content: Text(bankError)));
                         return;
                       }
                       // A blank field here must not erase stored profile data.
@@ -1605,9 +1618,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _newLocalId() {
@@ -1842,7 +1854,12 @@ class _ReceiptRow extends StatelessWidget {
     if (!isPdf && path != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(size / 4),
-        child: Image.file(File(path), width: size, height: size, fit: BoxFit.cover),
+        child: Image.file(
+          File(path),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+        ),
       );
     }
     final url = receipt.viewUrl;
@@ -1911,12 +1928,14 @@ class _ReceiptRow extends StatelessWidget {
 
 class _ReceiptDetailEditor extends StatefulWidget {
   final ExpenseReceiptDraft receipt;
+  final List<ExpenseCostTypeOption> costTypes;
   final EdgeInsets scrollPadding;
   final ValueChanged<ExpenseReceiptDraft> onChanged;
   final VoidCallback? onAddBankStatement;
 
   const _ReceiptDetailEditor({
     required this.receipt,
+    required this.costTypes,
     required this.scrollPadding,
     required this.onChanged,
     this.onAddBankStatement,
@@ -2069,7 +2088,9 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                         final picked = await showDatePicker(
                           context: context,
                           initialDate: _date ?? now,
-                          firstDate: now.subtract(const Duration(days: 365 * 5)),
+                          firstDate: now.subtract(
+                            const Duration(days: 365 * 5),
+                          ),
                           lastDate: now.add(const Duration(days: 1)),
                         );
                         if (picked != null) {
@@ -2113,16 +2134,17 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
               BisoFormRow(
                 label: AppLocalizations.of(context)!.expenseCostTypeLabel,
                 child: DropdownButtonFormField<String>(
-                  key: ValueKey(
-                    '${receipt.localId}-${receipt.effectiveCostType}',
-                  ),
-                  initialValue: receipt.effectiveCostType,
+                  key: ValueKey('${receipt.localId}-${receipt.costType}'),
+                  initialValue:
+                      widget.costTypes.any((t) => t.slug == receipt.costType)
+                      ? receipt.costType
+                      : null,
                   decoration: bisoInputDecoration(
                     context,
                     prefixIcon: const Icon(CupertinoIcons.tag),
                   ),
                   items: [
-                    for (final type in defaultExpenseCostTypes)
+                    for (final type in widget.costTypes)
                       DropdownMenuItem(
                         value: type.slug,
                         child: Text(type.label),
@@ -2131,10 +2153,9 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                   onChanged: (slug) {
                     if (slug == null) return;
                     widget.onChanged(
-                      widget.receipt.copyWith(
-                        costType: slug,
-                        status: ExpenseReceiptStatus.ready,
-                      ),
+                      widget.receipt
+                          .chooseType(slug)
+                          .copyWith(status: ExpenseReceiptStatus.ready),
                     );
                   },
                 ),
@@ -2160,7 +2181,10 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
           children: [
             Icon(CupertinoIcons.doc_fill, size: 42, color: palette.muted),
             const SizedBox(height: 8),
-            Text('No preview available', style: TextStyle(color: palette.muted)),
+            Text(
+              'No preview available',
+              style: TextStyle(color: palette.muted),
+            ),
           ],
         ),
       );

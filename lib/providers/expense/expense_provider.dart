@@ -21,9 +21,14 @@ final expenseApiClientProvider = Provider<ExpenseApiClient>(
   (ref) => ExpenseApiClient(),
 );
 
+/// Injectable so screen tests can fake the table read.
+final expenseCostTypeServiceProvider = Provider<ExpenseCostTypeService>(
+  (ref) => ExpenseCostTypeService(),
+);
+
 /// The active expense types from the table, in the order staff set.
 final expenseCostTypesProvider = FutureProvider<List<ExpenseCostTypeOption>>(
-  (ref) => ExpenseCostTypeService().listActive(),
+  (ref) => ref.read(expenseCostTypeServiceProvider).listActive(),
 );
 
 // Expenses state provider
