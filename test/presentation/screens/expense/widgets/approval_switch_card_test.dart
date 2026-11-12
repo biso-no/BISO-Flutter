@@ -1,0 +1,105 @@
+import 'package:biso/core/utils/expense_approval_switch.dart';
+import 'package:biso/presentation/screens/expense/widgets/approval_switch_card.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../../../helpers/biso_screen_harness.dart';
+
+Future<void> _pump(
+  WidgetTester tester, {
+  required ApprovalSwitch kind,
+  required bool value,
+  required ValueChanged<bool> onChanged,
+  bool national = false,
+}) => pumpBisoScreen(
+  tester,
+  Scaffold(
+    body: ApprovalSwitchCard(
+      kind: kind,
+      value: value,
+      onChanged: onChanged,
+      national: national,
+    ),
+  ),
+);
+
+void main() {
+  testWidgets('the financial-manager card says who approves instead', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.financialManager,
+      value: false,
+      onChanged: (_) {},
+    );
+    expect(
+      find.text("I'm this department's financial manager"),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Your department manager approves instead'),
+      findsOneWidget,
+    );
+    expect(find.byType(Checkbox), findsNothing);
+  });
+
+  testWidgets('the controller card says who approves instead', (tester) async {
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.controller,
+      value: false,
+      onChanged: (_) {},
+    );
+    expect(find.text("I'm the campus controller"), findsOneWidget);
+    expect(find.text('The campus president approves instead'), findsOneWidget);
+  });
+
+  testWidgets('the National controller card names the general manager', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.controller,
+      value: false,
+      onChanged: (_) {},
+      national: true,
+    );
+    expect(find.text("I'm the controller"), findsOneWidget);
+    expect(find.text('The general manager approves instead'), findsOneWidget);
+    expect(find.text("I'm the campus controller"), findsNothing);
+  });
+
+  testWidgets('tapping the card reports the new value', (tester) async {
+    bool? changed;
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.controller,
+      value: false,
+      onChanged: (v) => changed = v,
+    );
+    await tester.tap(find.byType(Switch));
+    expect(changed, isTrue);
+  });
+
+  testWidgets('one node exposes the label as a toggle with one tap action', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      kind: ApprovalSwitch.controller,
+      value: false,
+      onChanged: (_) {},
+    );
+    final node = tester.getSemantics(
+      find.bySemanticsLabel(RegExp("I'm the campus controller")),
+    );
+    expect(node.label, contains("I'm the campus controller"));
+    expect(
+      node,
+      isSemantics(hasToggledState: true, isToggled: false, hasTapAction: true),
+    );
+    handle.dispose();
+  });
+}

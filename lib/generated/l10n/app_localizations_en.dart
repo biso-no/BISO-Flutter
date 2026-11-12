@@ -2794,12 +2794,81 @@ class AppLocalizationsEn extends AppLocalizations {
   String get expenseCostTypeLabel => 'Cost type';
 
   @override
+  String get expenseTypesLoadFailedTitle => 'Couldn\'t load expense types';
+
+  @override
+  String get expenseTypesLoadFailedBody =>
+      'Saved types are kept. Submit once they load.';
+
+  @override
+  String get expenseTypesRetry => 'Retry';
+
+  @override
+  String get expenseTypePickerTitle => 'Expense type';
+
+  @override
+  String get expenseTypeSearchHint => 'Search or type your own';
+
+  @override
+  String get expenseTypeSearchLabel => 'Search expense types';
+
+  @override
+  String expenseTypeUseOwn(String text) {
+    return 'Use \"$text\"';
+  }
+
+  @override
+  String get expenseTypeUseOwnHint =>
+      'Finance will place it under the right type.';
+
+  @override
+  String get expenseTypePickerEmpty => 'No expense types available.';
+
+  @override
+  String get expenseTypeChoose => 'Choose a type';
+
+  @override
+  String get expenseTypeAiPickedTooltip => 'Picked by AI — tap to change';
+
+  @override
+  String expenseTypeSemantics(String type) {
+    return 'Expense type: $type. Tap to change.';
+  }
+
+  @override
+  String get expenseTypeSemanticsChoose =>
+      'Expense type needed. Tap to choose.';
+
+  @override
+  String expenseTypeOwnTextQuoted(String text) {
+    return '“$text”';
+  }
+
+  @override
+  String expenseTypeSemanticsAi(String type) {
+    return 'Expense type: $type, picked by AI. Tap to change.';
+  }
+
+  @override
   String get expenseFinancialManagerLabel =>
-      'I am the financial manager of this department';
+      'I\'m this department\'s financial manager';
 
   @override
   String get expenseFinancialManagerHint =>
-      'Turn this on so the approval is routed to your department manager instead of you.';
+      'Your department manager approves instead';
+
+  @override
+  String get expenseControllerLabel => 'I\'m the campus controller';
+
+  @override
+  String get expenseControllerHint => 'The campus president approves instead';
+
+  @override
+  String get expenseNationalControllerLabel => 'I\'m the controller';
+
+  @override
+  String get expenseNationalControllerHint =>
+      'The general manager approves instead';
 
   @override
   String get notificationsTurnOnTitle => 'Turn on notifications';
@@ -3340,4 +3409,54 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get benefitsSeeWhatYouGet => 'See what you get';
+
+  @override
+  String get expenseOccasionLabel => 'What was the occasion, and who attended?';
+
+  @override
+  String get expenseOccasionError => 'Answer this before you submit';
+
+  @override
+  String expenseTypesMissing(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Choose a type for $count receipts',
+      one: 'Choose a type for 1 receipt',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get expenseReceiptIssueNotAReceipt =>
+      'Looks like an order confirmation, not a receipt';
+
+  @override
+  String get expenseReceiptIssueNoItems => 'No items on the receipt';
+
+  @override
+  String get expenseReceiptIssueUnreadable =>
+      'Hard to read. A clearer photo helps';
+
+  @override
+  String get expenseReceiptIssueMissingSeller => 'No seller on the receipt';
+
+  @override
+  String get expenseReceiptIssueMissingDate => 'No date on the receipt';
+
+  @override
+  String get expenseReceiptIssueMissingTotal => 'No total on the receipt';
+
+  @override
+  String get expenseReceiptIssueGeneric =>
+      'Something looks wrong with this receipt';
+
+  @override
+  String get expenseReceiptDuplicate =>
+      'Looks like a receipt already submitted';
+
+  @override
+  String expenseReceiptAmountDiffers(String scanned, String entered) {
+    return 'The receipt says $scanned kr; you entered $entered kr';
+  }
 }

@@ -90,6 +90,7 @@ class _OfflineApi extends ExpenseApiClient {
 }
 
 List<Override> _overrides(_FlakyDepartments lookups) => [
+  expenseCostTypesProvider.overrideWith((_) async => const []),
   authStateProvider.overrideWith(() => _Auth()),
   expenseServiceProvider.overrideWithValue(lookups),
   expenseApiClientProvider.overrideWithValue(_OfflineApi()),
@@ -180,8 +181,7 @@ void main() {
       expenseAttachments: const [
         ExpenseAttachmentModel(
           id: 'a1',
-          url:
-              'https://appwrite.biso.no/v1/storage/buckets/b/files/file123/view',
+          url: 'https://appwrite.biso.no/v1/storage/buckets/b/files/file123/view',
           amount: 120,
           description: 'Taxi',
           type: 'image/jpeg',

@@ -139,7 +139,7 @@ void main() {
       );
     }
 
-    test('submit sends cost_type and sort_order for each receipt', () {
+    test('submit sends the type fields and sort_order for each receipt', () {
       final payload = ExpensePayloadBuilder.buildBasePayload(
         assignment: assignment,
         bankAccount: '86011117947',
@@ -147,15 +147,17 @@ void main() {
         receipts: [
           receipt('a', category: 'meal'),
           receipt('b', category: 'travel', costType: 'academic'),
-          receipt('c'),
+          receipt('c').useOwnText('Pizza'),
         ],
       );
       final attachments = payload['expenseAttachments'] as List;
-      expect(attachments.map((a) => a['cost_type']), [
-        'social',
-        'academic',
-        'other',
+      expect(attachments.map((a) => a['cost_type']), ['', 'academic', '']);
+      expect(attachments.map((a) => a['cost_type_text']), [
+        null,
+        null,
+        'Pizza',
       ]);
+      expect(attachments.every((a) => a['cost_type_chosen'] == true), isTrue);
       expect(attachments.map((a) => a['sort_order']), [0, 1, 2]);
     });
 
@@ -170,6 +172,24 @@ void main() {
           );
       expect(build()['submitter_is_financial_manager'], false);
       expect(build(manager: true)['submitter_is_financial_manager'], true);
+    });
+
+    test('sends both approval flags, each false unless set', () {
+      Map<String, dynamic> build({
+        bool manager = false,
+        bool controller = false,
+      }) => ExpensePayloadBuilder.buildBasePayload(
+        assignment: assignment,
+        bankAccount: '86011117947',
+        description: 'Trip',
+        receipts: [receipt('a')],
+        submitterIsFinancialManager: manager,
+        submitterIsController: controller,
+      );
+      expect(build()['submitter_is_controller'], false);
+      expect(build(controller: true)['submitter_is_controller'], true);
+      expect(build(controller: true)['submitter_is_financial_manager'], false);
+      expect(build(manager: true)['submitter_is_controller'], false);
     });
   });
 

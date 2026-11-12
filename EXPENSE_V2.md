@@ -75,7 +75,7 @@ The active creation experience is `ExpenseSplitView`, not the older `components/
 
 8. Submit
    - Submit posts to `/api/expenses/submit`.
-   - Payload includes campus ID, department ID, bank account, description, total, prepayment amount, event name, and attachment rows.
+   - Payload includes campus ID, department ID, bank account, description, total, prepayment amount, event name, the two approval flags, `occasion` and attachment rows (each with its type fields, see "Types, occasion and notices in the native app").
    - If the local draft was already saved, the submit payload includes `expenseId` and promotes the existing draft row instead of creating a duplicate.
    - On success, the app routes to `/fs/[expenseId]`.
 
@@ -296,6 +296,47 @@ Expense creation design:
 - The active `/fs/new` page imports `components/expense-v3/expense-split-view`.
 - `apps/web/src/app/api/expense/generate-description/route.ts` is an older singular route that calls an Appwrite function. The active v3 flow uses `/api/expenses/summary` from the API app.
 - `apps/admin` contains role access and i18n strings for expenses, but no implemented admin expense route was found in `apps/admin/src/app`.
+
+## Types, occasion and notices in the native app
+
+Spec: BISO-Sites `docs/superpowers/specs/2026-11-11-expense-ai-booking-design.md`.
+
+- **Where types come from**: the app reads the active rows of `expense_cost_types`
+  (`ExpenseCostTypeService`, `expenseCostTypesProvider`) and never account numbers. Labels follow
+  the app language (`label` / `label_no`). While the types cannot be read the screen shows a
+  banner with Retry and Submit is off; saving a draft still works and keeps the stored slugs.
+- **Three states per receipt** (`lib/core/utils/expense_type_state.dart`): AI picked (confidence
+  0.8 or more and the slug is an active type), needs a choice, and chosen. A receipt needs a type
+  when its amount is above 0, it is not a bank statement and it has no parent receipt. A hydrated
+  draft slug that is unknown or inactive becomes "needs a choice".
+- **Picker**: each receipt row, report row and the receipt detail show a type pill
+  (`ReceiptTypeChip`). Tapping it opens a searchable sheet, with "use what I typed" for own words
+  (up to 120 characters). Attachments send `cost_type` (a slug, or empty), `cost_type_text` and
+  `cost_type_chosen: true`.
+- **Approval switches**: at most one card on the report, from campus and department
+  (`approvalSwitchFor`). Financial manager on Oslo departments other than 1 and 2, controller on
+  the leadership departments of their own campus, and on National the controller switch also appears
+  on Drift BISO (1000) and Operations Unit (1002), reading "I'm the controller" with the hint
+  "The general manager approves instead". Other National departments (HR, Control Committee) get
+  no switch and the National controller approves. Both reset when campus or department change;
+  a switch that is not shown is sent as `false`
+  (`submitter_is_financial_manager`, `submitter_is_controller`).
+- **Occasion**: when a chosen type asks for it, the report shows "What was the occasion, and who
+  attended?" (up to 500 characters). Once shown it stays. It is sent as `occasion`, `null` when
+  blank, and a draft hydrates it. If the server answers 400 with `field: "occasion"`, the app
+  shows the field, focuses it and keeps the `expenseId` from the error body so the next submit
+  updates the same draft.
+- **Submit checks** (drafts are never blocked): if any receipt still needs a type, Submit opens
+  the first one's picker on the Receipts tab, with "Choose a type for N receipts" as a line under the
+  picker's title; choosing a type never rewrites the description; if the
+  occasion is required and blank, the field gets focus and its message.
+- **Receipt notices**: the receipt detail and, in compact form, the report row show the scan's
+  issue codes in plain sentences (unknown codes get a generic one), "Looks like a receipt already
+  submitted" for a possible duplicate, and "The receipt says X kr; you entered Y kr" whenever the
+  scan read an amount and it differs from the entered one by more than 1 kr (both are NOK). Notices
+  never block submit.
+- **Left to the web**: event matching (the app sends no `event_id`; the server keeps a stored one
+  on drafts) and rewriting the description when the type changes.
 
 ## Native App Implementation Checklist
 

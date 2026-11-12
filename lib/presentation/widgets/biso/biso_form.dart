@@ -40,9 +40,8 @@ class BisoFormRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: BisoPalette.of(context).muted,
-          ),
+          style: Theme.of(context).textTheme.labelMedium
+              ?.copyWith(color: BisoPalette.of(context).muted),
         ),
         const SizedBox(height: 2),
         child,
@@ -60,9 +59,11 @@ InputDecoration bisoInputDecoration(
   Widget? suffixIcon,
   String? prefixText,
   String? suffixText,
+  String? errorText,
 }) {
   return InputDecoration(
     hintText: hintText,
+    errorText: errorText,
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
     prefixText: prefixText,

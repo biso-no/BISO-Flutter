@@ -20,4 +20,21 @@ void main() {
     expect(changed.amount, 120);
     expect(changed.type, 'image/jpeg');
   });
+
+  test('fromMap reads the own-words cost type text', () {
+    final model = ExpenseAttachmentModel.fromMap({
+      'type': 'image/jpeg',
+      'cost_type': '',
+      'cost_type_text': 'Pizza',
+    });
+
+    expect(model.costTypeText, 'Pizza');
+  });
+
+  test('copyWith keeps and sets the own-words cost type text', () {
+    final withText = receipt.copyWith(costTypeText: 'Pizza');
+
+    expect(withText.costTypeText, 'Pizza');
+    expect(withText.copyWith(amount: 1).costTypeText, 'Pizza');
+  });
 }

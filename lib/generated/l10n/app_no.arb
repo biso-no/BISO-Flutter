@@ -3692,13 +3692,109 @@
   "@expenseCostTypeLabel": {
     "description": "Expense form"
   },
+  "expenseTypesLoadFailedTitle": "Kunne ikke laste kostnadstyper",
+  "@expenseTypesLoadFailedTitle": {
+    "description": "Expense form banner title when the expense types could not be read"
+  },
+  "expenseTypesLoadFailedBody": "Lagrede typer beholdes. Send inn når de er lastet.",
+  "@expenseTypesLoadFailedBody": {
+    "description": "Expense form banner text: drafts still save, submit waits for the types"
+  },
+  "expenseTypesRetry": "Prøv igjen",
+  "@expenseTypesRetry": {
+    "description": "Button that reads the expense types again"
+  },
+  "expenseTypePickerTitle": "Kostnadstype",
+  "@expenseTypePickerTitle": {
+    "description": "Title of the expense type picker sheet"
+  },
+  "expenseTypeSearchHint": "Søk eller skriv din egen",
+  "@expenseTypeSearchHint": {
+    "description": "Hint in the expense type search field"
+  },
+  "expenseTypeSearchLabel": "Søk i kostnadstyper",
+  "@expenseTypeSearchLabel": {
+    "description": "Screen reader label of the expense type search field"
+  },
+  "expenseTypeUseOwn": "Bruk «{text}»",
+  "@expenseTypeUseOwn": {
+    "description": "Last row of the type picker: use the typed words as the expense type",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeUseOwnHint": "Økonomi plasserer den under riktig type.",
+  "@expenseTypeUseOwnHint": {
+    "description": "Hint under the use-what-I-typed row"
+  },
+  "expenseTypePickerEmpty": "Ingen kostnadstyper tilgjengelig.",
+  "@expenseTypePickerEmpty": {
+    "description": "Type picker when the list is empty"
+  },
+  "expenseTypeChoose": "Velg type",
+  "@expenseTypeChoose": {
+    "description": "Receipt chip when the receipt still needs an expense type"
+  },
+  "expenseTypeAiPickedTooltip": "Valgt av AI. Trykk for å endre",
+  "@expenseTypeAiPickedTooltip": {
+    "description": "Tooltip on the receipt chip when the AI picked the type"
+  },
+  "expenseTypeSemantics": "Kostnadstype: {type}. Trykk for å endre.",
+  "@expenseTypeSemantics": {
+    "description": "Screen reader label of the receipt type chip",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeSemanticsChoose": "Kostnadstype mangler. Trykk for å velge.",
+  "@expenseTypeSemanticsChoose": {
+    "description": "Screen reader label of the receipt type chip when no type is set"
+  },
+  "expenseTypeOwnTextQuoted": "«{text}»",
+  "@expenseTypeOwnTextQuoted": {
+    "description": "A student's own-words expense type, in quotes, on the receipt type chip",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeSemanticsAi": "Kostnadstype: {type}, valgt av KI. Trykk for å endre.",
+  "@expenseTypeSemanticsAi": {
+    "description": "Screen reader label of the receipt type chip when the AI picked the type",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
   "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
   "@expenseFinancialManagerLabel": {
-    "description": "Expense form"
+    "description": "Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager"
   },
-  "expenseFinancialManagerHint": "Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.",
+  "expenseFinancialManagerHint": "Enhetslederen din godkjenner i stedet",
   "@expenseFinancialManagerHint": {
-    "description": "Expense form"
+    "description": "Expense form: hint under the financial-manager switch, saying who approves when it is on"
+  },
+  "expenseControllerLabel": "Jeg er campusets controller",
+  "@expenseControllerLabel": {
+    "description": "Expense form: label of the switch shown on Drift Campus and Ledelsen departments, for a submitter who is the campus controller"
+  },
+  "expenseControllerHint": "Campuspresidenten godkjenner i stedet",
+  "@expenseControllerHint": {
+    "description": "Expense form: hint under the controller switch, saying who approves when it is on"
+  },
+  "expenseNationalControllerLabel": "Jeg er controller",
+  "@expenseNationalControllerLabel": {
+    "description": "Expense form: label of the controller switch on National's Drift BISO and Operations Unit, for a submitter who is the National controller"
+  },
+  "expenseNationalControllerHint": "Daglig leder godkjenner i stedet",
+  "@expenseNationalControllerHint": {
+    "description": "Expense form: hint under the National controller switch, saying the general manager approves when it is on"
   },
   "notificationsTurnOnTitle": "Slå på varsler",
   "@notificationsTurnOnTitle": {
@@ -3894,5 +3990,66 @@
   "benefitsForYou": "Fordeler for deg",
   "benefitsMemberBenefits": "Medlemsfordeler",
   "benefitsMemberBenefitsSubtitle": "Rabatter og tilbud for medlemmer",
-  "benefitsSeeWhatYouGet": "Se hva du får"
+  "benefitsSeeWhatYouGet": "Se hva du får",
+  "expenseOccasionLabel": "Hva var anledningen, og hvem var med?",
+  "@expenseOccasionLabel": {
+    "description": "Label of the occasion field on the expense report"
+  },
+  "expenseOccasionError": "Svar på dette før du sender inn",
+  "@expenseOccasionError": {
+    "description": "Shown under the occasion field when it is required and empty"
+  },
+  "expenseTypesMissing": "{count, plural, =1{Velg type for 1 kvittering} other{Velg type for {count} kvitteringer}}",
+  "@expenseTypesMissing": {
+    "description": "Message when submit is blocked because receipts have no expense type",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "expenseReceiptIssueNotAReceipt": "Ser ut som en ordrebekreftelse, ikke en kvittering",
+  "@expenseReceiptIssueNotAReceipt": {
+    "description": "Receipt notice: the scan says the file is not a receipt"
+  },
+  "expenseReceiptIssueNoItems": "Kvitteringen viser ingen varer",
+  "@expenseReceiptIssueNoItems": {
+    "description": "Receipt notice: no items found"
+  },
+  "expenseReceiptIssueUnreadable": "Vanskelig å lese. Et tydeligere bilde hjelper",
+  "@expenseReceiptIssueUnreadable": {
+    "description": "Receipt notice: the scan could not read the file well"
+  },
+  "expenseReceiptIssueMissingSeller": "Kvitteringen mangler selger",
+  "@expenseReceiptIssueMissingSeller": {
+    "description": "Receipt notice: no seller found"
+  },
+  "expenseReceiptIssueMissingDate": "Kvitteringen mangler dato",
+  "@expenseReceiptIssueMissingDate": {
+    "description": "Receipt notice: no date found"
+  },
+  "expenseReceiptIssueMissingTotal": "Kvitteringen mangler totalbeløp",
+  "@expenseReceiptIssueMissingTotal": {
+    "description": "Receipt notice: no total found"
+  },
+  "expenseReceiptIssueGeneric": "Noe ser ikke riktig ut med denne kvitteringen",
+  "@expenseReceiptIssueGeneric": {
+    "description": "Receipt notice for a scan issue code the app does not know"
+  },
+  "expenseReceiptDuplicate": "Ser ut som en kvittering som allerede er sendt inn",
+  "@expenseReceiptDuplicate": {
+    "description": "Receipt notice: possible duplicate of an earlier submission"
+  },
+  "expenseReceiptAmountDiffers": "Kvitteringen viser {scanned} kr; du har skrevet {entered} kr",
+  "@expenseReceiptAmountDiffers": {
+    "description": "Receipt notice: the amount read from the receipt differs from the entered amount",
+    "placeholders": {
+      "scanned": {
+        "type": "String"
+      },
+      "entered": {
+        "type": "String"
+      }
+    }
+  }
 }

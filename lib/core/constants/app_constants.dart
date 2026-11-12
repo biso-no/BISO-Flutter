@@ -12,6 +12,7 @@ class AppConstants {
   // Collections
   static const String expensesCollectionId = 'expense';
   static const String expenseAttachmentsCollectionId = 'expense_attachments';
+  static const String expenseCostTypesTableId = 'expense_cost_types';
   static const String campusesCollectionId = 'campus';
   static const String departmentsCollectionId = 'departments';
   static const String contentTranslationsCollectionId = 'content_translations';

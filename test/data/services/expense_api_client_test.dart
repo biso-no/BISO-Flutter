@@ -47,8 +47,7 @@ void main() {
               'mimeType': 'image/png',
               'name': 'receipt.png',
               'size': 8,
-              'viewUrl':
-                  'https://appwrite.biso.no/v1/storage/buckets/expenses/files/file-1/view?project=biso',
+              'viewUrl': 'https://appwrite.biso.no/v1/storage/buckets/expenses/files/file-1/view?project=biso',
             },
           }),
           201,
@@ -172,14 +171,47 @@ void main() {
     await client.submit({
       'submitter_is_financial_manager': true,
       'expenseAttachments': [
-        {'cost_type': 'travel', 'sort_order': 0},
+        {
+          'cost_type': '',
+          'cost_type_text': 'Pizza',
+          'cost_type_chosen': true,
+          'sort_order': 0,
+        },
       ],
     });
 
     final body = jsonDecode(sent.body) as Map<String, dynamic>;
     expect(sent.url.path, '/api/expenses/submit');
     expect(body['submitter_is_financial_manager'], true);
-    expect(body['expenseAttachments'][0]['cost_type'], 'travel');
+    expect(body['expenseAttachments'][0]['cost_type'], '');
+    expect(body['expenseAttachments'][0]['cost_type_text'], 'Pizza');
+    expect(body['expenseAttachments'][0]['cost_type_chosen'], true);
     expect(body['expenseAttachments'][0]['sort_order'], 0);
+  });
+
+  test('ExpenseApiException carries code and field from a 400 body', () async {
+    final client = clientReturning(
+      http.Response(
+        jsonEncode({
+          'success': false,
+          'error': 'Occasion is required',
+          'code': 'occasion_required',
+          'field': 'occasion',
+          'expenseId': 'e1',
+        }),
+        400,
+      ),
+    );
+
+    await expectLater(
+      client.uploadExpenseAttachment(pngReceipt()),
+      throwsA(
+        isA<ExpenseApiException>()
+            .having((e) => e.message, 'message', 'Occasion is required')
+            .having((e) => e.statusCode, 'statusCode', 400)
+            .having((e) => e.code, 'code', 'occasion_required')
+            .having((e) => e.field, 'field', 'occasion'),
+      ),
+    );
   });
 }

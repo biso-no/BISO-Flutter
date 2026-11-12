@@ -5109,17 +5109,131 @@ abstract class AppLocalizations {
   /// **'Cost type'**
   String get expenseCostTypeLabel;
 
-  /// Expense form
+  /// Expense form banner title when the expense types could not be read
   ///
   /// In en, this message translates to:
-  /// **'I am the financial manager of this department'**
+  /// **'Couldn\'t load expense types'**
+  String get expenseTypesLoadFailedTitle;
+
+  /// Expense form banner text: drafts still save, submit waits for the types
+  ///
+  /// In en, this message translates to:
+  /// **'Saved types are kept. Submit once they load.'**
+  String get expenseTypesLoadFailedBody;
+
+  /// Button that reads the expense types again
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get expenseTypesRetry;
+
+  /// Title of the expense type picker sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type'**
+  String get expenseTypePickerTitle;
+
+  /// Hint in the expense type search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search or type your own'**
+  String get expenseTypeSearchHint;
+
+  /// Screen reader label of the expense type search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search expense types'**
+  String get expenseTypeSearchLabel;
+
+  /// Last row of the type picker: use the typed words as the expense type
+  ///
+  /// In en, this message translates to:
+  /// **'Use \"{text}\"'**
+  String expenseTypeUseOwn(String text);
+
+  /// Hint under the use-what-I-typed row
+  ///
+  /// In en, this message translates to:
+  /// **'Finance will place it under the right type.'**
+  String get expenseTypeUseOwnHint;
+
+  /// Type picker when the list is empty
+  ///
+  /// In en, this message translates to:
+  /// **'No expense types available.'**
+  String get expenseTypePickerEmpty;
+
+  /// Receipt chip when the receipt still needs an expense type
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a type'**
+  String get expenseTypeChoose;
+
+  /// Tooltip on the receipt chip when the AI picked the type
+  ///
+  /// In en, this message translates to:
+  /// **'Picked by AI — tap to change'**
+  String get expenseTypeAiPickedTooltip;
+
+  /// Screen reader label of the receipt type chip
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type: {type}. Tap to change.'**
+  String expenseTypeSemantics(String type);
+
+  /// Screen reader label of the receipt type chip when no type is set
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type needed. Tap to choose.'**
+  String get expenseTypeSemanticsChoose;
+
+  /// A student's own-words expense type, in quotes, on the receipt type chip
+  ///
+  /// In en, this message translates to:
+  /// **'“{text}”'**
+  String expenseTypeOwnTextQuoted(String text);
+
+  /// Screen reader label of the receipt type chip when the AI picked the type
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type: {type}, picked by AI. Tap to change.'**
+  String expenseTypeSemanticsAi(String type);
+
+  /// Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager
+  ///
+  /// In en, this message translates to:
+  /// **'I\'m this department\'s financial manager'**
   String get expenseFinancialManagerLabel;
 
-  /// Expense form
+  /// Expense form: hint under the financial-manager switch, saying who approves when it is on
   ///
   /// In en, this message translates to:
-  /// **'Turn this on so the approval is routed to your department manager instead of you.'**
+  /// **'Your department manager approves instead'**
   String get expenseFinancialManagerHint;
+
+  /// Expense form: label of the switch shown on Drift Campus and Ledelsen departments, for a submitter who is the campus controller
+  ///
+  /// In en, this message translates to:
+  /// **'I\'m the campus controller'**
+  String get expenseControllerLabel;
+
+  /// Expense form: hint under the controller switch, saying who approves when it is on
+  ///
+  /// In en, this message translates to:
+  /// **'The campus president approves instead'**
+  String get expenseControllerHint;
+
+  /// Expense form: label of the controller switch on National's Drift BISO and Operations Unit, for a submitter who is the National controller
+  ///
+  /// In en, this message translates to:
+  /// **'I\'m the controller'**
+  String get expenseNationalControllerLabel;
+
+  /// Expense form: hint under the National controller switch, saying the general manager approves when it is on
+  ///
+  /// In en, this message translates to:
+  /// **'The general manager approves instead'**
+  String get expenseNationalControllerHint;
 
   /// Notification settings: row shown while the OS has notifications off for the app
   ///
@@ -5996,6 +6110,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'See what you get'**
   String get benefitsSeeWhatYouGet;
+
+  /// Label of the occasion field on the expense report
+  ///
+  /// In en, this message translates to:
+  /// **'What was the occasion, and who attended?'**
+  String get expenseOccasionLabel;
+
+  /// Shown under the occasion field when it is required and empty
+  ///
+  /// In en, this message translates to:
+  /// **'Answer this before you submit'**
+  String get expenseOccasionError;
+
+  /// Message when submit is blocked because receipts have no expense type
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Choose a type for 1 receipt} other{Choose a type for {count} receipts}}'**
+  String expenseTypesMissing(int count);
+
+  /// Receipt notice: the scan says the file is not a receipt
+  ///
+  /// In en, this message translates to:
+  /// **'Looks like an order confirmation, not a receipt'**
+  String get expenseReceiptIssueNotAReceipt;
+
+  /// Receipt notice: no items found
+  ///
+  /// In en, this message translates to:
+  /// **'No items on the receipt'**
+  String get expenseReceiptIssueNoItems;
+
+  /// Receipt notice: the scan could not read the file well
+  ///
+  /// In en, this message translates to:
+  /// **'Hard to read. A clearer photo helps'**
+  String get expenseReceiptIssueUnreadable;
+
+  /// Receipt notice: no seller found
+  ///
+  /// In en, this message translates to:
+  /// **'No seller on the receipt'**
+  String get expenseReceiptIssueMissingSeller;
+
+  /// Receipt notice: no date found
+  ///
+  /// In en, this message translates to:
+  /// **'No date on the receipt'**
+  String get expenseReceiptIssueMissingDate;
+
+  /// Receipt notice: no total found
+  ///
+  /// In en, this message translates to:
+  /// **'No total on the receipt'**
+  String get expenseReceiptIssueMissingTotal;
+
+  /// Receipt notice for a scan issue code the app does not know
+  ///
+  /// In en, this message translates to:
+  /// **'Something looks wrong with this receipt'**
+  String get expenseReceiptIssueGeneric;
+
+  /// Receipt notice: possible duplicate of an earlier submission
+  ///
+  /// In en, this message translates to:
+  /// **'Looks like a receipt already submitted'**
+  String get expenseReceiptDuplicate;
+
+  /// Receipt notice: the amount read from the receipt differs from the entered amount
+  ///
+  /// In en, this message translates to:
+  /// **'The receipt says {scanned} kr; you entered {entered} kr'**
+  String expenseReceiptAmountDiffers(String scanned, String entered);
 }
 
 class _AppLocalizationsDelegate

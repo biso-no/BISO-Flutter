@@ -3,30 +3,47 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ExpenseModel', () {
-    test('reads the financial-manager flag and cost type from a saved draft', () {
+    test(
+      'reads the financial-manager flag and cost type from a saved draft',
+      () {
+        final draft = ExpenseModel.fromMap({
+          '\$id': 'expense-3',
+          'userId': 'user-3',
+          'campus': '1',
+          'department': 'dept',
+          'total': 10,
+          'submitter_is_financial_manager': true,
+          'expenseAttachments': [
+            {'type': 'image/jpeg', 'cost_type': 'travel'},
+          ],
+        });
+        expect(draft.submitterIsFinancialManager, isTrue);
+        expect(draft.submitterIsController, isFalse);
+        expect(draft.expenseAttachments.first.costType, 'travel');
+        expect(
+          ExpenseModel.fromMap({
+            '\$id': 'e',
+            'userId': 'u',
+            'campus': 'c',
+            'department': 'd',
+            'total': 0,
+          }).submitterIsFinancialManager,
+          isFalse,
+        );
+      },
+    );
+
+    test('reads the controller flag from a saved draft', () {
       final draft = ExpenseModel.fromMap({
-        '\$id': 'expense-3',
-        'userId': 'user-3',
-        'campus': '1',
-        'department': 'dept',
+        '\$id': 'expense-4',
+        'userId': 'user-4',
+        'campus': '2',
+        'department': '301',
         'total': 10,
-        'submitter_is_financial_manager': true,
-        'expenseAttachments': [
-          {'type': 'image/jpeg', 'cost_type': 'travel'},
-        ],
+        'submitter_is_controller': true,
       });
-      expect(draft.submitterIsFinancialManager, isTrue);
-      expect(draft.expenseAttachments.first.costType, 'travel');
-      expect(
-        ExpenseModel.fromMap({
-          '\$id': 'e',
-          'userId': 'u',
-          'campus': 'c',
-          'department': 'd',
-          'total': 0,
-        }).submitterIsFinancialManager,
-        isFalse,
-      );
+      expect(draft.submitterIsController, isTrue);
+      expect(draft.submitterIsFinancialManager, isFalse);
     });
 
     test('uses shared Norwegian account validation and formatting', () {
