@@ -756,7 +756,8 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   blank; a server 400 with `field: "occasion"` focuses the field and keeps its `expenseId`).
   Submit is blocked, with the first receipt's picker opened, while any receipt lacks a type;
   drafts are never blocked. `ReceiptNotices` shows scan issues, a possible duplicate and an
-  amount that differs by more than 1 kr, and never blocks submit.
+  amount that differs by more than 1 kr (both are NOK, so foreign currency is compared too), and
+  never blocks submit.
 - **Location**: `lib/presentation/screens/expense/widgets/` (`receipt_type_chip.dart`,
   `expense_type_picker_sheet.dart`, `approval_switch_card.dart`, `occasion_field.dart`,
   `receipt_notices.dart`), `lib/core/utils/expense_type_state.dart`,

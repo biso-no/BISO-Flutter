@@ -324,12 +324,13 @@ Spec: BISO-Sites `docs/superpowers/specs/2026-11-11-expense-ai-booking-design.md
   shows the field, focuses it and keeps the `expenseId` from the error body so the next submit
   updates the same draft.
 - **Submit checks** (drafts are never blocked): if any receipt still needs a type, Submit opens
-  the first one's picker on the Receipts tab and says "Choose a type for N receipts"; if the
+  the first one's picker on the Receipts tab, with "Choose a type for N receipts" as a line under the
+  picker's title; choosing a type never rewrites the description; if the
   occasion is required and blank, the field gets focus and its message.
 - **Receipt notices**: the receipt detail and, in compact form, the report row show the scan's
-  issue codes in plain sentences (unknown codes get a generic one), "This looks like a receipt
-  you've already sent" for a possible duplicate, and "The receipt says X kr; you entered Y kr"
-  when the scanned amount differs by more than 1 kr (not shown for foreign currency). Notices
+  issue codes in plain sentences (unknown codes get a generic one), "Looks like a receipt already
+  submitted" for a possible duplicate, and "The receipt says X kr; you entered Y kr" whenever the
+  scan read an amount and it differs from the entered one by more than 1 kr (both are NOK). Notices
   never block submit.
 - **Left to the web**: event matching (the app sends no `event_id`; the server keeps a stored one
   on drafts) and rewriting the description when the type changes.
