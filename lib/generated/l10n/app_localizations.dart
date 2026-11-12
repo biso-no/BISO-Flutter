@@ -5187,6 +5187,18 @@ abstract class AppLocalizations {
   /// **'Expense type needed. Tap to choose.'**
   String get expenseTypeSemanticsChoose;
 
+  /// A student's own-words expense type, in quotes, on the receipt type chip
+  ///
+  /// In en, this message translates to:
+  /// **'“{text}”'**
+  String expenseTypeOwnTextQuoted(String text);
+
+  /// Screen reader label of the receipt type chip when the AI picked the type
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type: {type}, picked by AI. Tap to change.'**
+  String expenseTypeSemanticsAi(String type);
+
   /// Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager
   ///
   /// In en, this message translates to:
@@ -6150,7 +6162,7 @@ abstract class AppLocalizations {
   /// Receipt notice: possible duplicate of an earlier submission
   ///
   /// In en, this message translates to:
-  /// **'This looks like a receipt you\'ve already sent'**
+  /// **'Looks like a receipt already submitted'**
   String get expenseReceiptDuplicate;
 
   /// Receipt notice: the amount read from the receipt differs from the entered amount

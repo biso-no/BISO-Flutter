@@ -77,11 +77,7 @@ void main() {
     expect(node.label, contains("I'm the campus controller"));
     expect(
       node,
-      isSemantics(
-        hasToggledState: true,
-        isToggled: false,
-        hasTapAction: true,
-      ),
+      isSemantics(hasToggledState: true, isToggled: false, hasTapAction: true),
     );
     handle.dispose();
   });

@@ -3754,6 +3754,24 @@
   "@expenseTypeSemanticsChoose": {
     "description": "Screen reader label of the receipt type chip when no type is set"
   },
+  "expenseTypeOwnTextQuoted": "“{text}”",
+  "@expenseTypeOwnTextQuoted": {
+    "description": "A student's own-words expense type, in quotes, on the receipt type chip",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeSemanticsAi": "Expense type: {type}, picked by AI. Tap to change.",
+  "@expenseTypeSemanticsAi": {
+    "description": "Screen reader label of the receipt type chip when the AI picked the type",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
   "expenseFinancialManagerLabel": "I'm this department's financial manager",
   "@expenseFinancialManagerLabel": {
     "description": "Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager"
@@ -4211,7 +4229,7 @@
   "@expenseReceiptIssueGeneric": {
     "description": "Receipt notice for a scan issue code the app does not know"
   },
-  "expenseReceiptDuplicate": "This looks like a receipt you've already sent",
+  "expenseReceiptDuplicate": "Looks like a receipt already submitted",
   "@expenseReceiptDuplicate": {
     "description": "Receipt notice: possible duplicate of an earlier submission"
   },

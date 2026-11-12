@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/expense_cost_type_option.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
 import 'package:biso/presentation/screens/expense/widgets/expense_type_picker_sheet.dart';
+import 'package:biso/providers/expense/expense_provider.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _food = ExpenseCostTypeOption(
@@ -28,6 +31,7 @@ Future<ValueNotifier<ExpenseTypeChoice?>> _open(
   String? currentSlug,
   ReloadExpenseTypes? onRetry,
   bool loading = false,
+  String? headerMessage,
 }) async {
   tester.view.physicalSize = const Size(390, 844) * 3;
   tester.view.devicePixelRatio = 3;
@@ -48,6 +52,7 @@ Future<ValueNotifier<ExpenseTypeChoice?>> _open(
                 currentSlug: currentSlug,
                 onRetry: onRetry,
                 loading: loading,
+                headerMessage: headerMessage,
               );
             },
             child: const Text('open'),
@@ -194,5 +199,64 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(find.text("Couldn't load expense types"), findsNothing);
     expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('a header message sits under the title', (tester) async {
+    await _open(tester, headerMessage: 'Choose a type for 2 receipts');
+    expect(find.text('Expense type'), findsOneWidget);
+    expect(find.text('Choose a type for 2 receipts'), findsOneWidget);
+  });
+
+  testWidgets('without a header message there is no extra line', (
+    tester,
+  ) async {
+    await _open(tester);
+    expect(find.textContaining('Choose a type'), findsNothing);
+  });
+
+  testWidgets('a sheet opened while loading fills in when the types arrive', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final completer = Completer<List<ExpenseCostTypeOption>>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          expenseCostTypesProvider.overrideWith((ref) => completer.future),
+        ],
+        child: MaterialApp(
+          theme: PremiumTheme.build(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Consumer(
+            builder: (context, ref, _) {
+              final state = ref.watch(expenseCostTypesProvider);
+              return Scaffold(
+                body: TextButton(
+                  // Opened with what the screen had at that moment.
+                  onPressed: () => showExpenseTypePicker(
+                    context,
+                    types: state.value,
+                    loading: state.isLoading,
+                  ),
+                  child: const Text('open'),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    completer.complete(const [_food, _travel]);
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Food and drink'), findsOneWidget);
+    expect(find.text('Travel'), findsOneWidget);
   });
 }

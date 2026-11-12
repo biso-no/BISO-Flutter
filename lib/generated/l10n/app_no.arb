@@ -3705,15 +3705,73 @@
     "description": "Button that reads the expense types again"
   },
   "expenseTypePickerTitle": "Kostnadstype",
+  "@expenseTypePickerTitle": {
+    "description": "Title of the expense type picker sheet"
+  },
   "expenseTypeSearchHint": "Søk eller skriv din egen",
+  "@expenseTypeSearchHint": {
+    "description": "Hint in the expense type search field"
+  },
   "expenseTypeSearchLabel": "Søk i kostnadstyper",
+  "@expenseTypeSearchLabel": {
+    "description": "Screen reader label of the expense type search field"
+  },
   "expenseTypeUseOwn": "Bruk «{text}»",
+  "@expenseTypeUseOwn": {
+    "description": "Last row of the type picker: use the typed words as the expense type",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
   "expenseTypeUseOwnHint": "Økonomi plasserer den under riktig type.",
+  "@expenseTypeUseOwnHint": {
+    "description": "Hint under the use-what-I-typed row"
+  },
   "expenseTypePickerEmpty": "Ingen kostnadstyper tilgjengelig.",
+  "@expenseTypePickerEmpty": {
+    "description": "Type picker when the list is empty"
+  },
   "expenseTypeChoose": "Velg type",
+  "@expenseTypeChoose": {
+    "description": "Receipt chip when the receipt still needs an expense type"
+  },
   "expenseTypeAiPickedTooltip": "Valgt av AI. Trykk for å endre",
+  "@expenseTypeAiPickedTooltip": {
+    "description": "Tooltip on the receipt chip when the AI picked the type"
+  },
   "expenseTypeSemantics": "Kostnadstype: {type}. Trykk for å endre.",
+  "@expenseTypeSemantics": {
+    "description": "Screen reader label of the receipt type chip",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
   "expenseTypeSemanticsChoose": "Kostnadstype mangler. Trykk for å velge.",
+  "@expenseTypeSemanticsChoose": {
+    "description": "Screen reader label of the receipt type chip when no type is set"
+  },
+  "expenseTypeOwnTextQuoted": "«{text}»",
+  "@expenseTypeOwnTextQuoted": {
+    "description": "A student's own-words expense type, in quotes, on the receipt type chip",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeSemanticsAi": "Kostnadstype: {type}, valgt av KI. Trykk for å endre.",
+  "@expenseTypeSemanticsAi": {
+    "description": "Screen reader label of the receipt type chip when the AI picked the type",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
   "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
   "@expenseFinancialManagerLabel": {
     "description": "Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager"
@@ -3970,7 +4028,7 @@
   "@expenseReceiptIssueGeneric": {
     "description": "Receipt notice for a scan issue code the app does not know"
   },
-  "expenseReceiptDuplicate": "Ser ut som en kvittering du allerede har sendt inn",
+  "expenseReceiptDuplicate": "Ser ut som en kvittering som allerede er sendt inn",
   "@expenseReceiptDuplicate": {
     "description": "Receipt notice: possible duplicate of an earlier submission"
   },

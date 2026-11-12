@@ -89,11 +89,10 @@ List<String> receiptNoticeMessages(
   ];
 }
 
-// A foreign-currency receipt is read in its own currency, so it has no
-// kroner to compare.
+// Both amounts are in kroner, so they compare whenever the scan read one.
 bool _amountDiffers(ExpenseReceiptDraft receipt) {
   final scanned = receipt.ocrAmount;
-  if (scanned == null || receipt.isForeignCurrency) return false;
+  if (scanned == null) return false;
   return (scanned - receipt.effectiveAmount).abs() > receiptAmountTolerance;
 }
 

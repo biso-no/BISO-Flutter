@@ -69,6 +69,7 @@ Future<_HostState> _pump(
   List<ExpenseCostTypeOption>? types = _types,
   bool loading = false,
   Locale locale = const Locale('en'),
+  double textScale = 1,
 }) async {
   tester.view.physicalSize = const Size(390, 844) * 3;
   tester.view.devicePixelRatio = 3;
@@ -79,6 +80,11 @@ Future<_HostState> _pump(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: locale,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: _Host(
         initial: receipt ?? _receipt(),
         types: types,
@@ -210,5 +216,62 @@ void main() {
     await _pump(tester, receipt: _receipt().chooseType('retired'));
     expect(find.text('Choose a type'), findsOneWidget);
     expect(find.text('retired'), findsNothing);
+  });
+
+  testWidgets('at 2x text the pill grows with the text: no overflow, not '
+      'clipped', (tester) async {
+    await _pump(tester, textScale: 2);
+    expect(tester.takeException(), isNull);
+    final pill = tester.getSize(
+      find
+          .ancestor(
+            of: find.text('Choose a type'),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    final text = tester.getSize(find.text('Choose a type'));
+    expect(pill.height, greaterThanOrEqualTo(text.height));
+    expect(pill.height, greaterThan(32));
+  });
+
+  testWidgets('the AI-picked chip says so to a screen reader', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      receipt: _receipt().copyWith(
+        costType: 'food',
+        typeState: ExpenseTypeState.aiPicked,
+      ),
+    );
+    expect(
+      find.bySemanticsLabel(
+        'Expense type: Food and drink, picked by AI. '
+        'Tap to change.',
+      ),
+      findsOneWidget,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('a chosen chip does not claim an AI pick', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, receipt: _receipt().chooseType('food'));
+    expect(
+      find.bySemanticsLabel('Expense type: Food and drink. Tap to change.'),
+      findsOneWidget,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('own text is quoted the Norwegian way in Norwegian', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      receipt: _receipt().useOwnText('Scenerøyk'),
+      locale: const Locale('no'),
+    );
+    expect(find.text('«Scenerøyk»'), findsOneWidget);
   });
 }

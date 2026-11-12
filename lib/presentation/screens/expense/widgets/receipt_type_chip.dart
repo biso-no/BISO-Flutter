@@ -53,7 +53,7 @@ class ReceiptTypeChip extends StatelessWidget {
     // the choice still reads as chosen.
     final String? chosenLabel;
     if (hasOwnText) {
-      chosenLabel = '“$ownText”';
+      chosenLabel = l10n.expenseTypeOwnTextQuoted(ownText);
     } else if (!hasSlug) {
       chosenLabel = null;
     } else if (types != null) {
@@ -73,7 +73,8 @@ class ReceiptTypeChip extends StatelessWidget {
         : palette.surfaceRaised;
 
     final pill = Container(
-      height: _pillHeight,
+      constraints: const BoxConstraints(minHeight: _pillHeight),
+      alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: fill,
@@ -113,6 +114,8 @@ class ReceiptTypeChip extends StatelessWidget {
       button: true,
       label: needsChoice
           ? l10n.expenseTypeSemanticsChoose
+          : isAi
+          ? l10n.expenseTypeSemanticsAi(label)
           : l10n.expenseTypeSemantics(label),
       excludeSemantics: true,
       onTap: () => _open(context),

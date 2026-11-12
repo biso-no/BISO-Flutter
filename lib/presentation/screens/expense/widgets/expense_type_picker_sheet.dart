@@ -1,10 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/utils/expense_type_search.dart';
 import '../../../../core/utils/expense_type_state.dart';
 import '../../../../data/models/expense_cost_type_option.dart';
 import '../../../../generated/l10n/app_localizations.dart';
+import '../../../../providers/expense/expense_provider.dart';
 import '../../../widgets/biso/biso.dart';
 
 /// What the student chose in the type picker.
@@ -30,7 +32,13 @@ class OwnText extends ExpenseTypeChoice {
 typedef ReloadExpenseTypes = Future<List<ExpenseCostTypeOption>?> Function();
 
 /// Opens the type picker. [types] is null while the list could not be read:
-/// the sheet then says so and offers [onRetry]. Returns null when dismissed.
+/// the sheet then says so and offers [onRetry]. [headerMessage] is a line
+/// under the title, such as what the student is being asked to do. Returns
+/// null when dismissed.
+///
+/// Under a [ProviderScope] the sheet follows the types provider while it is
+/// open, so a sheet opened during loading fills in when the types arrive.
+/// [types] and [loading] are what it shows without one.
 Future<ExpenseTypeChoice?> showExpenseTypePicker(
   BuildContext context, {
   required List<ExpenseCostTypeOption>? types,
@@ -38,24 +46,40 @@ Future<ExpenseTypeChoice?> showExpenseTypePicker(
   String? currentText,
   ReloadExpenseTypes? onRetry,
   bool loading = false,
+  String? headerMessage,
 }) {
+  Widget sheet(List<ExpenseCostTypeOption>? types, bool loading) =>
+      DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (sheetContext, scrollController) => ExpenseTypePickerSheet(
+          types: types,
+          currentSlug: currentSlug,
+          currentText: currentText,
+          onRetry: onRetry,
+          loading: loading,
+          headerMessage: headerMessage,
+          scrollController: scrollController,
+        ),
+      );
   return showBisoSheet<ExpenseTypeChoice>(
     context: context,
     isScrollControlled: true,
-    builder: (sheetContext) => DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (sheetContext, scrollController) => ExpenseTypePickerSheet(
-        types: types,
-        currentSlug: currentSlug,
-        currentText: currentText,
-        onRetry: onRetry,
-        loading: loading,
-        scrollController: scrollController,
-      ),
-    ),
+    builder: (sheetContext) {
+      final hasScope =
+          sheetContext
+              .findAncestorWidgetOfExactType<UncontrolledProviderScope>() !=
+          null;
+      if (!hasScope) return sheet(types, loading);
+      return Consumer(
+        builder: (context, ref, _) {
+          final state = ref.watch(expenseCostTypesProvider);
+          return sheet(state.value, state.isLoading);
+        },
+      );
+    },
   );
 }
 
@@ -70,7 +94,11 @@ class ExpenseTypePickerSheet extends StatefulWidget {
     this.currentText,
     this.onRetry,
     this.loading = false,
+    this.headerMessage,
   });
+
+  /// A line under the title.
+  final String? headerMessage;
 
   /// True while the types are still being read: [types] is null then too, but
   /// that is not an error.
@@ -96,6 +124,16 @@ class _ExpenseTypePickerSheetState extends State<ExpenseTypePickerSheet> {
     _types = widget.types;
     final ownText = widget.currentSlug == null ? widget.currentText : null;
     _controller = TextEditingController(text: ownText ?? '');
+  }
+
+  @override
+  void didUpdateWidget(covariant ExpenseTypePickerSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The types arrived (or were read again) while the sheet was open.
+    if (widget.types != oldWidget.types ||
+        widget.loading != oldWidget.loading) {
+      _types = widget.types;
+    }
   }
 
   @override
@@ -149,7 +187,12 @@ class _ExpenseTypePickerSheetState extends State<ExpenseTypePickerSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+              padding: EdgeInsets.fromLTRB(
+                4,
+                0,
+                4,
+                widget.headerMessage == null ? 10 : 4,
+              ),
               child: Semantics(
                 header: true,
                 child: Text(
@@ -158,6 +201,14 @@ class _ExpenseTypePickerSheetState extends State<ExpenseTypePickerSheet> {
                 ),
               ),
             ),
+            if (widget.headerMessage case final message?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+                child: Text(
+                  message,
+                  style: text.bodyMedium?.copyWith(color: palette.muted),
+                ),
+              ),
             if (types == null && widget.loading)
               const Expanded(
                 child: Center(child: CircularProgressIndicator.adaptive()),

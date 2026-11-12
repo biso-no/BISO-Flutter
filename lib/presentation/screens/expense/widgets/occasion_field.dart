@@ -7,8 +7,8 @@ import '../../../widgets/biso/biso.dart';
 const maxOccasionLength = 500;
 
 /// The occasion question on the report: what the expense was for and who
-/// attended. Types such as team meals ask for it. [errorText] shows below the
-/// field in the error colour.
+/// attended. Types such as team meals ask for it. [errorText] is the field's own
+/// error, shown below it in the error colour and announced with it.
 class OccasionField extends StatelessWidget {
   const OccasionField({
     super.key,
@@ -48,17 +48,12 @@ class OccasionField extends StatelessWidget {
                 keyboardType: TextInputType.multiline,
                 textCapitalization: TextCapitalization.sentences,
                 onChanged: onChanged,
-                decoration: bisoInputDecoration(context),
+                decoration: bisoInputDecoration(context, errorText: error)
+                    .copyWith(
+                      errorStyle: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: palette.error),
+                    ),
               ),
-              if (error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    error,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: palette.error),
-                  ),
-                ),
             ],
           ),
         ),

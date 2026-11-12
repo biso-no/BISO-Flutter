@@ -54,10 +54,7 @@ void main() {
       find.text('Something looks wrong with this receipt'),
       findsOneWidget,
     );
-    expect(
-      find.text("This looks like a receipt you've already sent"),
-      findsOneWidget,
-    );
+    expect(find.text("Looks like a receipt already submitted"), findsOneWidget);
     expect(
       find.text('The receipt says 120 kr; you entered 100 kr'),
       findsOneWidget,
@@ -70,19 +67,19 @@ void main() {
     expect(find.byType(ReceiptNotices), findsOneWidget);
   });
 
-  testWidgets('a foreign-currency receipt gets no amount notice', (
+  testWidgets('a foreign-currency receipt compares its amounts in kroner', (
     tester,
   ) async {
     await _pump(tester, _receipt(ocrAmount: 12, currency: 'EUR'));
-    expect(find.byType(Text), findsNothing);
+    expect(
+      find.text('The receipt says 12 kr; you entered 100 kr'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the compact form renders the same sentences', (tester) async {
     await _pump(tester, _receipt(duplicate: true), compact: true);
-    expect(
-      find.text("This looks like a receipt you've already sent"),
-      findsOneWidget,
-    );
+    expect(find.text("Looks like a receipt already submitted"), findsOneWidget);
   });
 
   testWidgets('Norwegian wording', (tester) async {

@@ -2840,6 +2840,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Expense type needed. Tap to choose.';
 
   @override
+  String expenseTypeOwnTextQuoted(String text) {
+    return '“$text”';
+  }
+
+  @override
+  String expenseTypeSemanticsAi(String type) {
+    return 'Expense type: $type, picked by AI. Tap to change.';
+  }
+
+  @override
   String get expenseFinancialManagerLabel =>
       'I\'m this department\'s financial manager';
 
@@ -3436,7 +3446,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get expenseReceiptDuplicate =>
-      'This looks like a receipt you\'ve already sent';
+      'Looks like a receipt already submitted';
 
   @override
   String expenseReceiptAmountDiffers(String scanned, String entered) {

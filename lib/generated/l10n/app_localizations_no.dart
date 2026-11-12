@@ -2848,6 +2848,16 @@ class AppLocalizationsNo extends AppLocalizations {
       'Kostnadstype mangler. Trykk for å velge.';
 
   @override
+  String expenseTypeOwnTextQuoted(String text) {
+    return '«$text»';
+  }
+
+  @override
+  String expenseTypeSemanticsAi(String type) {
+    return 'Kostnadstype: $type, valgt av KI. Trykk for å endre.';
+  }
+
+  @override
   String get expenseFinancialManagerLabel =>
       'Jeg er økonomiansvarlig for denne enheten';
 
@@ -3445,7 +3455,7 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get expenseReceiptDuplicate =>
-      'Ser ut som en kvittering du allerede har sendt inn';
+      'Ser ut som en kvittering som allerede er sendt inn';
 
   @override
   String expenseReceiptAmountDiffers(String scanned, String entered) {
