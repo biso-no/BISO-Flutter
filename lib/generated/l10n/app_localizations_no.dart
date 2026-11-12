@@ -2812,6 +2812,39 @@ class AppLocalizationsNo extends AppLocalizations {
   String get expenseTypesRetry => 'Prøv igjen';
 
   @override
+  String get expenseTypePickerTitle => 'Kostnadstype';
+
+  @override
+  String get expenseTypeSearchHint => 'Søk eller skriv din egen';
+
+  @override
+  String expenseTypeUseOwn(String text) {
+    return 'Bruk «$text»';
+  }
+
+  @override
+  String get expenseTypeUseOwnHint =>
+      'Økonomi plasserer den under riktig type.';
+
+  @override
+  String get expenseTypePickerEmpty => 'Ingen kostnadstyper tilgjengelig.';
+
+  @override
+  String get expenseTypeChoose => 'Velg type';
+
+  @override
+  String get expenseTypeAiPickedTooltip => 'Valgt av AI. Trykk for å endre';
+
+  @override
+  String expenseTypeSemantics(String type) {
+    return 'Kostnadstype: $type. Trykk for å endre.';
+  }
+
+  @override
+  String get expenseTypeSemanticsChoose =>
+      'Kostnadstype mangler. Trykk for å velge.';
+
+  @override
   String get expenseFinancialManagerLabel =>
       'Jeg er økonomiansvarlig for denne enheten';
 

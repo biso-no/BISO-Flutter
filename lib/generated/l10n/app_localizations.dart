@@ -5127,6 +5127,60 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get expenseTypesRetry;
 
+  /// Title of the expense type picker sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type'**
+  String get expenseTypePickerTitle;
+
+  /// Hint in the expense type search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search or type your own'**
+  String get expenseTypeSearchHint;
+
+  /// Last row of the type picker: use the typed words as the expense type
+  ///
+  /// In en, this message translates to:
+  /// **'Use \"{text}\"'**
+  String expenseTypeUseOwn(String text);
+
+  /// Hint under the use-what-I-typed row
+  ///
+  /// In en, this message translates to:
+  /// **'Finance will place it under the right type.'**
+  String get expenseTypeUseOwnHint;
+
+  /// Type picker when the list is empty
+  ///
+  /// In en, this message translates to:
+  /// **'No expense types available.'**
+  String get expenseTypePickerEmpty;
+
+  /// Receipt chip when the receipt still needs an expense type
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a type'**
+  String get expenseTypeChoose;
+
+  /// Tooltip on the receipt chip when the AI picked the type
+  ///
+  /// In en, this message translates to:
+  /// **'Picked by AI — tap to change'**
+  String get expenseTypeAiPickedTooltip;
+
+  /// Screen reader label of the receipt type chip
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type: {type}. Tap to change.'**
+  String expenseTypeSemantics(String type);
+
+  /// Screen reader label of the receipt type chip when no type is set
+  ///
+  /// In en, this message translates to:
+  /// **'Expense type needed. Tap to choose.'**
+  String get expenseTypeSemanticsChoose;
+
   /// Expense form
   ///
   /// In en, this message translates to:

@@ -3704,6 +3704,52 @@
   "@expenseTypesRetry": {
     "description": "Button that reads the expense types again"
   },
+  "expenseTypePickerTitle": "Expense type",
+  "@expenseTypePickerTitle": {
+    "description": "Title of the expense type picker sheet"
+  },
+  "expenseTypeSearchHint": "Search or type your own",
+  "@expenseTypeSearchHint": {
+    "description": "Hint in the expense type search field"
+  },
+  "expenseTypeUseOwn": "Use \"{text}\"",
+  "@expenseTypeUseOwn": {
+    "description": "Last row of the type picker: use the typed words as the expense type",
+    "placeholders": {
+      "text": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeUseOwnHint": "Finance will place it under the right type.",
+  "@expenseTypeUseOwnHint": {
+    "description": "Hint under the use-what-I-typed row"
+  },
+  "expenseTypePickerEmpty": "No expense types available.",
+  "@expenseTypePickerEmpty": {
+    "description": "Type picker when the list is empty"
+  },
+  "expenseTypeChoose": "Choose a type",
+  "@expenseTypeChoose": {
+    "description": "Receipt chip when the receipt still needs an expense type"
+  },
+  "expenseTypeAiPickedTooltip": "Picked by AI — tap to change",
+  "@expenseTypeAiPickedTooltip": {
+    "description": "Tooltip on the receipt chip when the AI picked the type"
+  },
+  "expenseTypeSemantics": "Expense type: {type}. Tap to change.",
+  "@expenseTypeSemantics": {
+    "description": "Screen reader label of the receipt type chip",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      }
+    }
+  },
+  "expenseTypeSemanticsChoose": "Expense type needed. Tap to choose.",
+  "@expenseTypeSemanticsChoose": {
+    "description": "Screen reader label of the receipt type chip when no type is set"
+  },
   "expenseFinancialManagerLabel": "I am the financial manager of this department",
   "@expenseFinancialManagerLabel": {
     "description": "Expense form"

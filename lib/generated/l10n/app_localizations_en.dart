@@ -2804,6 +2804,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get expenseTypesRetry => 'Retry';
 
   @override
+  String get expenseTypePickerTitle => 'Expense type';
+
+  @override
+  String get expenseTypeSearchHint => 'Search or type your own';
+
+  @override
+  String expenseTypeUseOwn(String text) {
+    return 'Use \"$text\"';
+  }
+
+  @override
+  String get expenseTypeUseOwnHint =>
+      'Finance will place it under the right type.';
+
+  @override
+  String get expenseTypePickerEmpty => 'No expense types available.';
+
+  @override
+  String get expenseTypeChoose => 'Choose a type';
+
+  @override
+  String get expenseTypeAiPickedTooltip => 'Picked by AI — tap to change';
+
+  @override
+  String expenseTypeSemantics(String type) {
+    return 'Expense type: $type. Tap to change.';
+  }
+
+  @override
+  String get expenseTypeSemanticsChoose =>
+      'Expense type needed. Tap to choose.';
+
+  @override
   String get expenseFinancialManagerLabel =>
       'I am the financial manager of this department';
 

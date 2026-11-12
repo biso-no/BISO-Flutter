@@ -3704,6 +3704,15 @@
   "@expenseTypesRetry": {
     "description": "Button that reads the expense types again"
   },
+  "expenseTypePickerTitle": "Kostnadstype",
+  "expenseTypeSearchHint": "Søk eller skriv din egen",
+  "expenseTypeUseOwn": "Bruk «{text}»",
+  "expenseTypeUseOwnHint": "Økonomi plasserer den under riktig type.",
+  "expenseTypePickerEmpty": "Ingen kostnadstyper tilgjengelig.",
+  "expenseTypeChoose": "Velg type",
+  "expenseTypeAiPickedTooltip": "Valgt av AI. Trykk for å endre",
+  "expenseTypeSemantics": "Kostnadstype: {type}. Trykk for å endre.",
+  "expenseTypeSemanticsChoose": "Kostnadstype mangler. Trykk for å velge.",
   "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
   "@expenseFinancialManagerLabel": {
     "description": "Expense form"

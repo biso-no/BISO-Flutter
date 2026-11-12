@@ -8,6 +8,7 @@ import 'package:biso/data/services/expense_api_client.dart';
 import 'package:biso/data/services/expense_cost_type_service.dart';
 import 'package:biso/data/services/expense_service_v2.dart';
 import 'package:biso/presentation/screens/expense/create_expense_screen.dart';
+import 'package:biso/presentation/screens/expense/widgets/receipt_type_chip.dart';
 import 'package:biso/providers/auth/auth_provider.dart';
 import 'package:biso/providers/config/app_config_provider.dart';
 import 'package:biso/providers/expense/expense_provider.dart';
@@ -155,22 +156,17 @@ FilledButton _submit(WidgetTester tester) => tester.widget<FilledButton>(
 );
 
 void main() {
-  testWidgets('a hydrated active slug stays chosen and the dropdown shows it', (
+  testWidgets('a hydrated active slug stays chosen and the chip shows it', (
     tester,
   ) async {
     final api = _RecordingApi();
     await _pump(tester, _FlakyTypes(failing: false, types: const [_food]), api);
 
     expect(find.text('Couldn\'t load expense types'), findsNothing);
-    await tester.scrollUntilVisible(
-      find.byType(DropdownButtonFormField<String>),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    final dropdown = tester.widget<DropdownButtonFormField<String>>(
-      find.byType(DropdownButtonFormField<String>),
-    );
-    expect(dropdown.initialValue, 'food');
+    expect(find.byType(ReceiptTypeChip), findsWidgets);
+    // The chosen slug reads as its label; the retired one asks again.
+    expect(find.text(_food.label), findsWidgets);
+    expect(find.text('Choose a type'), findsWidgets);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Update draft'));
     await tester.pumpAndSettle();

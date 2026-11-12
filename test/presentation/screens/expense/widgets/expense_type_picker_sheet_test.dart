@@ -1,0 +1,136 @@
+import 'package:biso/core/theme/premium_theme.dart';
+import 'package:biso/data/models/expense_cost_type_option.dart';
+import 'package:biso/generated/l10n/app_localizations.dart';
+import 'package:biso/presentation/screens/expense/widgets/expense_type_picker_sheet.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+const _food = ExpenseCostTypeOption(
+  slug: 'food',
+  label: 'Food and drink',
+  labelNo: 'Mat og drikke',
+  sortOrder: 1,
+);
+const _travel = ExpenseCostTypeOption(
+  slug: 'travel',
+  label: 'Travel',
+  labelNo: 'Reise',
+  sortOrder: 2,
+);
+
+/// Opens the sheet from a button and records what it returned.
+Future<ValueNotifier<ExpenseTypeChoice?>> _open(
+  WidgetTester tester, {
+  List<ExpenseCostTypeOption>? types = const [_food, _travel],
+  String? currentSlug,
+  ReloadExpenseTypes? onRetry,
+}) async {
+  tester.view.physicalSize = const Size(390, 844) * 3;
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+  final result = ValueNotifier<ExpenseTypeChoice?>(null);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: PremiumTheme.build(Brightness.light),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () async {
+              result.value = await showExpenseTypePicker(
+                context,
+                types: types,
+                currentSlug: currentSlug,
+                onRetry: onRetry,
+              );
+            },
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('open'));
+  await tester.pumpAndSettle();
+  return result;
+}
+
+Future<void> _type(WidgetTester tester, String text) async {
+  await tester.enterText(find.byType(TextField), text);
+  await tester.pump();
+}
+
+Future<void> _enter(WidgetTester tester) async {
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('enter on an exact name picks the type', (tester) async {
+    final result = await _open(tester);
+    await _type(tester, 'food and drink');
+    await _enter(tester);
+    expect(result.value, isA<PickedType>());
+    expect((result.value! as PickedType).slug, 'food');
+  });
+
+  testWidgets('enter on other text uses own text', (tester) async {
+    final result = await _open(tester);
+    await _type(tester, '  Stage smoke ');
+    await _enter(tester);
+    expect(result.value, isA<OwnText>());
+    expect((result.value! as OwnText).text, 'Stage smoke');
+  });
+
+  testWidgets('the own-text row appears only without an exact match', (
+    tester,
+  ) async {
+    await _open(tester);
+    expect(find.textContaining('Use "'), findsNothing);
+    await _type(tester, 'Travel');
+    expect(find.textContaining('Use "'), findsNothing);
+    await _type(tester, 'Trav');
+    expect(find.text('Use "Trav"'), findsOneWidget);
+    expect(
+      find.text('Finance will place it under the right type.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('tapping the own-text row returns the typed words', (
+    tester,
+  ) async {
+    final result = await _open(tester);
+    await _type(tester, 'Stage smoke');
+    await tester.tap(find.text('Use "Stage smoke"'));
+    await tester.pumpAndSettle();
+    expect((result.value! as OwnText).text, 'Stage smoke');
+  });
+
+  testWidgets('the search filters the list and the current type is checked', (
+    tester,
+  ) async {
+    await _open(tester, currentSlug: 'travel');
+    expect(find.byIcon(CupertinoIcons.checkmark), findsOneWidget);
+    await _type(tester, 'food');
+    expect(find.text('Travel'), findsNothing);
+    expect(find.text('Food and drink'), findsOneWidget);
+  });
+
+  testWidgets('a load error offers retry, and a retry that works lists types', (
+    tester,
+  ) async {
+    await _open(tester, types: null, onRetry: () async => const [_food]);
+    expect(find.text("Couldn't load expense types"), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Food and drink'), findsOneWidget);
+  });
+
+  testWidgets('no types shows the empty state', (tester) async {
+    await _open(tester, types: const []);
+    expect(find.text('No expense types available.'), findsOneWidget);
+  });
+}

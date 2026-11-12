@@ -26,6 +26,8 @@ import '../../../providers/expense/expense_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/expenses_unavailable_page.dart';
 import '../home/premium_home_screen.dart';
+import 'widgets/expense_type_picker_sheet.dart';
+import 'widgets/receipt_type_chip.dart';
 
 class CreateExpenseScreen extends ConsumerStatefulWidget {
   final String? eventId;
@@ -256,10 +258,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   /// Reads the types again. Once they arrive, a receipt whose stored slug is
   /// unknown or inactive asks for its type again.
-  Future<void> _retryCostTypes() async {
+  Future<List<ExpenseCostTypeOption>?> _retryCostTypes() async {
     ref.invalidate(expenseCostTypesProvider);
     final types = await _loadCostTypes();
-    if (!mounted || types == null) return;
+    if (!mounted || types == null) return types;
     setState(() {
       _receipts = [
         for (final receipt in _receipts)
@@ -269,6 +271,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
               : receipt,
       ];
     });
+    return types;
   }
 
   void _hydrateDraft(ExpenseModel draft, List<ExpenseCostTypeOption>? types) {
@@ -782,6 +785,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         _mobileTabIndex = 1;
       }),
       onRemove: () => _removeReceipt(receipt.localId),
+      costTypes: ref.watch(expenseCostTypesProvider).value,
+      onTypeChanged: _updateReceipt,
+      onRetryTypes: _retryCostTypes,
       onRetry: receipt.localPath != null
           ? () => _processReceipt(receipt.localId)
           : null,
@@ -857,8 +863,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   if (selected != null)
                     _ReceiptDetailEditor(
                       receipt: selected,
-                      costTypes:
-                          ref.watch(expenseCostTypesProvider).value ?? const [],
+                      costTypes: ref.watch(expenseCostTypesProvider).value,
+                      onRetryTypes: _retryCostTypes,
                       scrollPadding: scrollPadding,
                       onChanged: _updateReceipt,
                       onAddBankStatement:
@@ -1051,7 +1057,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 )
               else
                 for (final receipt in _readyReceipts)
-                  _ReportReceiptRow(receipt: receipt),
+                  _ReportReceiptRow(
+                    receipt: receipt,
+                    costTypes: ref.watch(expenseCostTypesProvider).value,
+                    onTypeChanged: _updateReceipt,
+                    onRetryTypes: _retryCostTypes,
+                  ),
               _AmountRow(
                 // "Total" lives in the label, not the amount string: the
                 // amount must stay exactly `currency code + space + number`
@@ -1788,6 +1799,9 @@ class _ReceiptRow extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.onRemove,
+    required this.costTypes,
+    required this.onTypeChanged,
+    required this.onRetryTypes,
     this.onRetry,
     this.indent = false,
   });
@@ -1798,6 +1812,11 @@ class _ReceiptRow extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback? onRetry;
   final bool indent;
+
+  /// Null while the types could not be read.
+  final List<ExpenseCostTypeOption>? costTypes;
+  final ValueChanged<ExpenseReceiptDraft> onTypeChanged;
+  final ReloadExpenseTypes onRetryTypes;
 
   @override
   Widget build(BuildContext context) {
@@ -1837,6 +1856,16 @@ class _ReceiptRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         row,
+        if (!receipt.isBusy && needsType(receipt))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: ReceiptTypeChip(
+              receipt: receipt,
+              types: costTypes,
+              onChanged: onTypeChanged,
+              onRetry: onRetryTypes,
+            ),
+          ),
         if (receipt.isBusy)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -1965,7 +1994,8 @@ class _ReceiptRow extends StatelessWidget {
 
 class _ReceiptDetailEditor extends StatefulWidget {
   final ExpenseReceiptDraft receipt;
-  final List<ExpenseCostTypeOption> costTypes;
+  final List<ExpenseCostTypeOption>? costTypes;
+  final ReloadExpenseTypes onRetryTypes;
   final EdgeInsets scrollPadding;
   final ValueChanged<ExpenseReceiptDraft> onChanged;
   final VoidCallback? onAddBankStatement;
@@ -1973,6 +2003,7 @@ class _ReceiptDetailEditor extends StatefulWidget {
   const _ReceiptDetailEditor({
     required this.receipt,
     required this.costTypes,
+    required this.onRetryTypes,
     required this.scrollPadding,
     required this.onChanged,
     this.onAddBankStatement,
@@ -2166,35 +2197,15 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                 onChanged: (_) => _emit(),
               ),
             ),
-            if (!receipt.isBankStatement) ...[
+            if (needsType(receipt)) ...[
               const SizedBox(height: 10),
               BisoFormRow(
                 label: AppLocalizations.of(context)!.expenseCostTypeLabel,
-                child: DropdownButtonFormField<String>(
-                  key: ValueKey('${receipt.localId}-${receipt.costType}'),
-                  initialValue:
-                      widget.costTypes.any((t) => t.slug == receipt.costType)
-                      ? receipt.costType
-                      : null,
-                  decoration: bisoInputDecoration(
-                    context,
-                    prefixIcon: const Icon(CupertinoIcons.tag),
-                  ),
-                  items: [
-                    for (final type in widget.costTypes)
-                      DropdownMenuItem(
-                        value: type.slug,
-                        child: Text(type.label),
-                      ),
-                  ],
-                  onChanged: (slug) {
-                    if (slug == null) return;
-                    widget.onChanged(
-                      widget.receipt
-                          .chooseType(slug)
-                          .copyWith(status: ExpenseReceiptStatus.ready),
-                    );
-                  },
+                child: ReceiptTypeChip(
+                  receipt: receipt,
+                  types: widget.costTypes,
+                  onChanged: widget.onChanged,
+                  onRetry: widget.onRetryTypes,
                 ),
               ),
             ],
@@ -2264,21 +2275,47 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
 }
 
 class _ReportReceiptRow extends StatelessWidget {
-  const _ReportReceiptRow({required this.receipt});
+  const _ReportReceiptRow({
+    required this.receipt,
+    required this.costTypes,
+    required this.onTypeChanged,
+    required this.onRetryTypes,
+  });
 
   final ExpenseReceiptDraft receipt;
+
+  /// Null while the types could not be read.
+  final List<ExpenseCostTypeOption>? costTypes;
+  final ValueChanged<ExpenseReceiptDraft> onTypeChanged;
+  final ReloadExpenseTypes onRetryTypes;
 
   @override
   Widget build(BuildContext context) {
     final palette = BisoPalette.of(context);
     final text = Theme.of(context).textTheme;
-    return _AmountRow(
+    final amountRow = _AmountRow(
       title: receipt.description.isNotEmpty
           ? receipt.description
           : receipt.fileName,
       amount: 'NOK ${receipt.effectiveAmount.toStringAsFixed(2)}',
       titleStyle: text.bodyMedium?.copyWith(color: palette.ink),
       amountStyle: text.bodyMedium?.copyWith(color: palette.muted),
+    );
+    if (!needsType(receipt)) return amountRow;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        amountRow,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: ReceiptTypeChip(
+            receipt: receipt,
+            types: costTypes,
+            onChanged: onTypeChanged,
+            onRetry: onRetryTypes,
+          ),
+        ),
+      ],
     );
   }
 }
