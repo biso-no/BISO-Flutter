@@ -83,6 +83,56 @@ void main() {
     });
   });
 
+  group('withAiPick on a re-scan', () {
+    const rescan = ExpenseOcrResult(
+      costType: 'party',
+      costTypeConfidence: 0.95,
+      receiptIssues: ['blurry'],
+      possibleDuplicate: true,
+    );
+
+    test('a re-scan keeps a chosen slug', () {
+      final r = receipt().chooseType('food').withAiPick(rescan, types);
+      expect(r.costType, 'food');
+      expect(r.typeState, ExpenseTypeState.chosen);
+      expect(r.receiptIssues, ['blurry']);
+      expect(r.possibleDuplicate, isTrue);
+    });
+
+    test('a re-scan keeps own text', () {
+      final r = receipt().useOwnText('Pizza').withAiPick(rescan, types);
+      expect(r.costTypeText, 'Pizza');
+      expect(r.costType, isNull);
+      expect(r.typeState, ExpenseTypeState.chosen);
+    });
+
+    test('a re-scan without an OCR amount clears the old one', () {
+      final first = receipt().withAiPick(
+        const ExpenseOcrResult(ocrAmount: 50),
+        types,
+      );
+      expect(first.ocrAmount, 50);
+      expect(
+        first.withAiPick(const ExpenseOcrResult(), types).ocrAmount,
+        isNull,
+      );
+      expect(
+        first
+            .chooseType('food')
+            .withAiPick(const ExpenseOcrResult(), types)
+            .ocrAmount,
+        isNull,
+      );
+    });
+
+    test('a bank statement takes no pick', () {
+      final statement = receipt(documentType: 'bank-statement');
+      final r = statement.withAiPick(rescan, types);
+      expect(r.costType, isNull);
+      expect(r.typeState, ExpenseTypeState.needsChoice);
+    });
+  });
+
   group('chooseType and useOwnText', () {
     test('chooseType picks the slug and clears own text', () {
       final r = receipt().useOwnText('Pizza').chooseType('food');
@@ -132,6 +182,18 @@ void main() {
       expect(r.costType, isNull);
     });
 
+    test('a stored slug survives when the types could not be read', () {
+      final r = receipt().hydrateType(slug: 'food', types: null);
+      expect(r.typeState, ExpenseTypeState.chosen);
+      expect(r.costType, 'food');
+      expect(attachmentTypeFields(r)['cost_type'], 'food');
+    });
+
+    test('an empty slug with unread types still needs a choice', () {
+      final r = receipt().hydrateType(slug: '', types: null);
+      expect(r.typeState, ExpenseTypeState.needsChoice);
+    });
+
     test('nothing saved needs a choice', () {
       final r = receipt().hydrateType(types: types);
       expect(r.typeState, ExpenseTypeState.needsChoice);
@@ -143,6 +205,16 @@ void main() {
       expect(isTypeMissing(receipt()), isTrue);
       expect(isTypeMissing(receipt().chooseType('food')), isFalse);
       expect(isTypeMissing(receipt(amount: 0)), isFalse);
+    });
+
+    test('goes by the value, not the display state', () {
+      expect(isTypeMissing(receipt().useOwnText('Pizza')), isFalse);
+      final picked = receipt().withAiPick(
+        const ExpenseOcrResult(costType: 'food', costTypeConfidence: 0.9),
+        types,
+      );
+      expect(isTypeMissing(picked), isFalse);
+      expect(isTypeMissing(receipt().copyWith(costType: '')), isTrue);
     });
   });
 

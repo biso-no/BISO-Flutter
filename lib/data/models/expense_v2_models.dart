@@ -255,6 +255,7 @@ class ExpenseReceiptDraft {
     double? ocrAmount,
     bool clearCostType = false,
     bool clearCostTypeText = false,
+    bool clearOcrAmount = false,
     String? city,
     String? country,
     String? purchaseContext,
@@ -289,7 +290,7 @@ class ExpenseReceiptDraft {
       aiConfidence: aiConfidence ?? this.aiConfidence,
       receiptIssues: receiptIssues ?? this.receiptIssues,
       possibleDuplicate: possibleDuplicate ?? this.possibleDuplicate,
-      ocrAmount: ocrAmount ?? this.ocrAmount,
+      ocrAmount: clearOcrAmount ? null : (ocrAmount ?? this.ocrAmount),
       city: city ?? this.city,
       country: country ?? this.country,
       purchaseContext: purchaseContext ?? this.purchaseContext,
@@ -340,11 +341,23 @@ class ExpenseReceiptDraft {
   /// Applies the AI's type pick from [ocr]: it counts at 0.8 confidence or
   /// more with a slug among the active [types]; anything else needs a choice.
   /// Also copies the receipt issues, duplicate flag and OCR amount. The screen
-  /// calls this after [withOcr], which leaves the type alone.
+  /// calls this after [withOcr], which leaves the type alone. A receipt whose
+  /// type the student already chose keeps it on a re-scan, and a bank
+  /// statement takes no type at all.
   ExpenseReceiptDraft withAiPick(
     ExpenseOcrResult ocr,
     List<ExpenseCostTypeOption> types,
   ) {
+    if (isBankStatement || parentReceiptId != null) return this;
+    if (typeState == ExpenseTypeState.chosen) {
+      return copyWith(
+        aiConfidence: ocr.costTypeConfidence,
+        receiptIssues: ocr.receiptIssues,
+        possibleDuplicate: ocr.possibleDuplicate,
+        ocrAmount: ocr.ocrAmount,
+        clearOcrAmount: ocr.ocrAmount == null,
+      );
+    }
     final slug = ocr.costType;
     final picked =
         slug != null &&
@@ -361,6 +374,7 @@ class ExpenseReceiptDraft {
       receiptIssues: ocr.receiptIssues,
       possibleDuplicate: ocr.possibleDuplicate,
       ocrAmount: ocr.ocrAmount,
+      clearOcrAmount: ocr.ocrAmount == null,
     );
   }
 
@@ -387,14 +401,18 @@ class ExpenseReceiptDraft {
   }
 
   /// Restores the type of a saved draft attachment. Own text and an active
-  /// slug count as chosen; a slug finance has since deactivated asks again.
+  /// slug count as chosen; a slug finance has since deactivated asks again,
+  /// but only against [types] that actually loaded. With null [types] a stored
+  /// slug stays chosen, so saving the draft sends it back unchanged.
   ExpenseReceiptDraft hydrateType({
     String? slug,
     String? text,
-    required List<ExpenseCostTypeOption> types,
+    required List<ExpenseCostTypeOption>? types,
   }) {
     if (text != null && text.trim().isNotEmpty) return useOwnText(text);
-    if (slug != null && types.any((type) => type.slug == slug)) {
+    if (slug != null &&
+        slug.isNotEmpty &&
+        (types == null || types.any((type) => type.slug == slug))) {
       return chooseType(slug);
     }
     return copyWith(

@@ -2802,6 +2802,16 @@ class AppLocalizationsNo extends AppLocalizations {
   String get expenseCostTypeLabel => 'Kostnadstype';
 
   @override
+  String get expenseTypesLoadFailedTitle => 'Kunne ikke laste kostnadstyper';
+
+  @override
+  String get expenseTypesLoadFailedBody =>
+      'Lagrede typer beholdes. Send inn når de er lastet.';
+
+  @override
+  String get expenseTypesRetry => 'Prøv igjen';
+
+  @override
   String get expenseFinancialManagerLabel =>
       'Jeg er økonomiansvarlig for denne enheten';
 

@@ -3692,6 +3692,18 @@
   "@expenseCostTypeLabel": {
     "description": "Expense form"
   },
+  "expenseTypesLoadFailedTitle": "Kunne ikke laste kostnadstyper",
+  "@expenseTypesLoadFailedTitle": {
+    "description": "Expense form banner title when the expense types could not be read"
+  },
+  "expenseTypesLoadFailedBody": "Lagrede typer beholdes. Send inn når de er lastet.",
+  "@expenseTypesLoadFailedBody": {
+    "description": "Expense form banner text: drafts still save, submit waits for the types"
+  },
+  "expenseTypesRetry": "Prøv igjen",
+  "@expenseTypesRetry": {
+    "description": "Button that reads the expense types again"
+  },
   "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
   "@expenseFinancialManagerLabel": {
     "description": "Expense form"

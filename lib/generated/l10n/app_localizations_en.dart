@@ -2794,6 +2794,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get expenseCostTypeLabel => 'Cost type';
 
   @override
+  String get expenseTypesLoadFailedTitle => 'Couldn\'t load expense types';
+
+  @override
+  String get expenseTypesLoadFailedBody =>
+      'Saved types are kept. Submit once they load.';
+
+  @override
+  String get expenseTypesRetry => 'Retry';
+
+  @override
   String get expenseFinancialManagerLabel =>
       'I am the financial manager of this department';
 

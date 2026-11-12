@@ -3692,6 +3692,18 @@
   "@expenseCostTypeLabel": {
     "description": "Expense form"
   },
+  "expenseTypesLoadFailedTitle": "Couldn't load expense types",
+  "@expenseTypesLoadFailedTitle": {
+    "description": "Expense form banner title when the expense types could not be read"
+  },
+  "expenseTypesLoadFailedBody": "Saved types are kept. Submit once they load.",
+  "@expenseTypesLoadFailedBody": {
+    "description": "Expense form banner text: drafts still save, submit waits for the types"
+  },
+  "expenseTypesRetry": "Retry",
+  "@expenseTypesRetry": {
+    "description": "Button that reads the expense types again"
+  },
   "expenseFinancialManagerLabel": "I am the financial manager of this department",
   "@expenseFinancialManagerLabel": {
     "description": "Expense form"

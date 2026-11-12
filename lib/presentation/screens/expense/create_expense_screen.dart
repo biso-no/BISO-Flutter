@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/expense_type_state.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
 import '../../../data/models/expense_cost_type_option.dart';
@@ -241,15 +242,36 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
 
   /// The active expense types. A failed read leaves the list empty, so every
   /// receipt asks for its type again rather than blocking the screen.
-  Future<List<ExpenseCostTypeOption>> _loadCostTypes() async {
+  Future<List<ExpenseCostTypeOption>?> _loadCostTypes() async {
     try {
       return await ref.read(expenseCostTypesProvider.future);
     } catch (_) {
-      return const [];
+      return null;
     }
   }
 
-  void _hydrateDraft(ExpenseModel draft, List<ExpenseCostTypeOption> types) {
+  /// True while the types could not be read. Drafts still save, since the
+  /// stored slugs stay as they are; submit waits.
+  bool get _typesUnavailable => ref.read(expenseCostTypesProvider).hasError;
+
+  /// Reads the types again. Once they arrive, a receipt whose stored slug is
+  /// unknown or inactive asks for its type again.
+  Future<void> _retryCostTypes() async {
+    ref.invalidate(expenseCostTypesProvider);
+    final types = await _loadCostTypes();
+    if (!mounted || types == null) return;
+    setState(() {
+      _receipts = [
+        for (final receipt in _receipts)
+          receipt.typeState == ExpenseTypeState.chosen &&
+                  receipt.costTypeText == null
+              ? receipt.hydrateType(slug: receipt.costType, types: types)
+              : receipt,
+      ];
+    });
+  }
+
+  void _hydrateDraft(ExpenseModel draft, List<ExpenseCostTypeOption>? types) {
     if (draft.expenseAttachments.isEmpty) return;
     _receipts = draft.expenseAttachments.map((attachment) {
       final rawUrl = attachment.url ?? '';
@@ -778,6 +800,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             ? EdgeInsets.fromLTRB(20, insets.top + 20, 20, insets.bottom + 20)
             : const EdgeInsets.all(20);
         final selected = _selectedReceipt();
+        final typesUnavailable = ref.watch(expenseCostTypesProvider).hasError;
         return Column(
           children: [
             Expanded(
@@ -793,6 +816,18 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                           'Missing: ${profileReadiness.missingFields.join(', ')}',
                       actionLabel: 'Update',
                       onAction: () => _showProfileCompletionSheet(user),
+                    ),
+                  if (typesUnavailable)
+                    _WarningBanner(
+                      icon: CupertinoIcons.exclamationmark_triangle,
+                      color: palette.warning,
+                      title: AppLocalizations.of(context)!
+                          .expenseTypesLoadFailedTitle,
+                      message: AppLocalizations.of(context)!
+                          .expenseTypesLoadFailedBody,
+                      actionLabel: AppLocalizations.of(context)!
+                          .expenseTypesRetry,
+                      onAction: _retryCostTypes,
                     ),
                   if (_hasBusyReceipts)
                     _InfoBanner(
@@ -1214,11 +1249,12 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         purpose: purpose ?? current.documentType,
       );
       await Future<void>.delayed(const Duration(milliseconds: 350));
+      // Before reading the receipt: edits made during the await must not be lost.
+      final costTypes = await _loadCostTypes();
       final analyzed = _receipts.firstWhere(
         (receipt) => receipt.localId == localId,
       );
-      final costTypes = await _loadCostTypes();
-      var ready = analyzed.withOcr(ocr).withAiPick(ocr, costTypes);
+      var ready = analyzed.withOcr(ocr).withAiPick(ocr, costTypes ?? const []);
       if (current.parentReceiptId != null) {
         ready = ready.copyWith(
           documentType: 'bank-statement',
@@ -1305,6 +1341,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         _hasAssignment &&
         !_hasBusyReceipts &&
         _hasReadyExpenseReceipts &&
+        !_typesUnavailable &&
         _descriptionController.text.trim().isNotEmpty &&
         !_isSavingDraft &&
         !_isSubmitting;

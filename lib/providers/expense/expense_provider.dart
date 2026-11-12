@@ -28,7 +28,7 @@ final expenseCostTypeServiceProvider = Provider<ExpenseCostTypeService>(
 
 /// The active expense types from the table, in the order staff set.
 final expenseCostTypesProvider = FutureProvider<List<ExpenseCostTypeOption>>(
-  (ref) => ref.read(expenseCostTypeServiceProvider).listActive(),
+  (ref) => ref.watch(expenseCostTypeServiceProvider).listActive(),
 );
 
 // Expenses state provider

@@ -63,6 +63,7 @@ class ExpenseAttachmentModel extends Equatable {
     String? description,
     String? type,
     String? costType,
+    String? costTypeText,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -74,6 +75,7 @@ class ExpenseAttachmentModel extends Equatable {
       description: description ?? this.description,
       type: type ?? this.type,
       costType: costType ?? this.costType,
+      costTypeText: costTypeText ?? this.costTypeText,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

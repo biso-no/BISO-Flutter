@@ -30,4 +30,11 @@ void main() {
 
     expect(model.costTypeText, 'Pizza');
   });
+
+  test('copyWith keeps and sets the own-words cost type text', () {
+    final withText = receipt.copyWith(costTypeText: 'Pizza');
+
+    expect(withText.costTypeText, 'Pizza');
+    expect(withText.copyWith(amount: 1).costTypeText, 'Pizza');
+  });
 }

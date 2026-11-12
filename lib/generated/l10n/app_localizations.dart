@@ -5109,6 +5109,24 @@ abstract class AppLocalizations {
   /// **'Cost type'**
   String get expenseCostTypeLabel;
 
+  /// Expense form banner title when the expense types could not be read
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load expense types'**
+  String get expenseTypesLoadFailedTitle;
+
+  /// Expense form banner text: drafts still save, submit waits for the types
+  ///
+  /// In en, this message translates to:
+  /// **'Saved types are kept. Submit once they load.'**
+  String get expenseTypesLoadFailedBody;
+
+  /// Button that reads the expense types again
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get expenseTypesRetry;
+
   /// Expense form
   ///
   /// In en, this message translates to:

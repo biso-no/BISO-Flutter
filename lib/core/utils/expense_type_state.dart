@@ -16,9 +16,11 @@ const maxOwnTypeTextLength = 120;
 bool needsType(ExpenseReceiptDraft r) =>
     (r.amount ?? 0) > 0 && !r.isBankStatement && r.parentReceiptId == null;
 
-/// A receipt that needs a type and has none yet.
+/// A receipt that needs a type and has neither a slug nor own text.
 bool isTypeMissing(ExpenseReceiptDraft r) =>
-    needsType(r) && r.typeState == ExpenseTypeState.needsChoice;
+    needsType(r) &&
+    (r.costType == null || r.costType!.isEmpty) &&
+    (r.costTypeText?.trim().isEmpty ?? true);
 
 /// The type fields of an attachment in the draft and submit payloads.
 /// `cost_type` is a slug, or empty when there is no choice yet or the student
