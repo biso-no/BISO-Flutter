@@ -786,6 +786,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       }),
       onRemove: () => _removeReceipt(receipt.localId),
       costTypes: ref.watch(expenseCostTypesProvider).value,
+      typesLoading: ref.watch(expenseCostTypesProvider).isLoading,
       onTypeChanged: _updateReceipt,
       onRetryTypes: _retryCostTypes,
       onRetry: receipt.localPath != null
@@ -864,6 +865,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     _ReceiptDetailEditor(
                       receipt: selected,
                       costTypes: ref.watch(expenseCostTypesProvider).value,
+                      typesLoading: ref
+                          .watch(expenseCostTypesProvider)
+                          .isLoading,
                       onRetryTypes: _retryCostTypes,
                       scrollPadding: scrollPadding,
                       onChanged: _updateReceipt,
@@ -1060,6 +1064,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   _ReportReceiptRow(
                     receipt: receipt,
                     costTypes: ref.watch(expenseCostTypesProvider).value,
+                    typesLoading: ref.watch(expenseCostTypesProvider).isLoading,
                     onTypeChanged: _updateReceipt,
                     onRetryTypes: _retryCostTypes,
                   ),
@@ -1800,6 +1805,7 @@ class _ReceiptRow extends StatelessWidget {
     required this.onTap,
     required this.onRemove,
     required this.costTypes,
+    required this.typesLoading,
     required this.onTypeChanged,
     required this.onRetryTypes,
     this.onRetry,
@@ -1815,6 +1821,7 @@ class _ReceiptRow extends StatelessWidget {
 
   /// Null while the types could not be read.
   final List<ExpenseCostTypeOption>? costTypes;
+  final bool typesLoading;
   final ValueChanged<ExpenseReceiptDraft> onTypeChanged;
   final ReloadExpenseTypes onRetryTypes;
 
@@ -1862,6 +1869,7 @@ class _ReceiptRow extends StatelessWidget {
             child: ReceiptTypeChip(
               receipt: receipt,
               types: costTypes,
+              loading: typesLoading,
               onChanged: onTypeChanged,
               onRetry: onRetryTypes,
             ),
@@ -1995,6 +2003,7 @@ class _ReceiptRow extends StatelessWidget {
 class _ReceiptDetailEditor extends StatefulWidget {
   final ExpenseReceiptDraft receipt;
   final List<ExpenseCostTypeOption>? costTypes;
+  final bool typesLoading;
   final ReloadExpenseTypes onRetryTypes;
   final EdgeInsets scrollPadding;
   final ValueChanged<ExpenseReceiptDraft> onChanged;
@@ -2003,6 +2012,7 @@ class _ReceiptDetailEditor extends StatefulWidget {
   const _ReceiptDetailEditor({
     required this.receipt,
     required this.costTypes,
+    required this.typesLoading,
     required this.onRetryTypes,
     required this.scrollPadding,
     required this.onChanged,
@@ -2204,6 +2214,7 @@ class _ReceiptDetailEditorState extends State<_ReceiptDetailEditor> {
                 child: ReceiptTypeChip(
                   receipt: receipt,
                   types: widget.costTypes,
+                  loading: widget.typesLoading,
                   onChanged: widget.onChanged,
                   onRetry: widget.onRetryTypes,
                 ),
@@ -2278,6 +2289,7 @@ class _ReportReceiptRow extends StatelessWidget {
   const _ReportReceiptRow({
     required this.receipt,
     required this.costTypes,
+    required this.typesLoading,
     required this.onTypeChanged,
     required this.onRetryTypes,
   });
@@ -2286,6 +2298,7 @@ class _ReportReceiptRow extends StatelessWidget {
 
   /// Null while the types could not be read.
   final List<ExpenseCostTypeOption>? costTypes;
+  final bool typesLoading;
   final ValueChanged<ExpenseReceiptDraft> onTypeChanged;
   final ReloadExpenseTypes onRetryTypes;
 
@@ -2311,6 +2324,7 @@ class _ReportReceiptRow extends StatelessWidget {
           child: ReceiptTypeChip(
             receipt: receipt,
             types: costTypes,
+            loading: typesLoading,
             onChanged: onTypeChanged,
             onRetry: onRetryTypes,
           ),

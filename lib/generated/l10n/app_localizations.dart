@@ -5139,6 +5139,12 @@ abstract class AppLocalizations {
   /// **'Search or type your own'**
   String get expenseTypeSearchHint;
 
+  /// Screen reader label of the expense type search field
+  ///
+  /// In en, this message translates to:
+  /// **'Search expense types'**
+  String get expenseTypeSearchLabel;
+
   /// Last row of the type picker: use the typed words as the expense type
   ///
   /// In en, this message translates to:

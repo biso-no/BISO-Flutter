@@ -2810,6 +2810,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get expenseTypeSearchHint => 'Search or type your own';
 
   @override
+  String get expenseTypeSearchLabel => 'Search expense types';
+
+  @override
   String expenseTypeUseOwn(String text) {
     return 'Use \"$text\"';
   }

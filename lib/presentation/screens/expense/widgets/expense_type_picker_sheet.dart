@@ -37,6 +37,7 @@ Future<ExpenseTypeChoice?> showExpenseTypePicker(
   String? currentSlug,
   String? currentText,
   ReloadExpenseTypes? onRetry,
+  bool loading = false,
 }) {
   return showBisoSheet<ExpenseTypeChoice>(
     context: context,
@@ -51,6 +52,7 @@ Future<ExpenseTypeChoice?> showExpenseTypePicker(
         currentSlug: currentSlug,
         currentText: currentText,
         onRetry: onRetry,
+        loading: loading,
         scrollController: scrollController,
       ),
     ),
@@ -67,8 +69,12 @@ class ExpenseTypePickerSheet extends StatefulWidget {
     this.currentSlug,
     this.currentText,
     this.onRetry,
+    this.loading = false,
   });
 
+  /// True while the types are still being read: [types] is null then too, but
+  /// that is not an error.
+  final bool loading;
   final List<ExpenseCostTypeOption>? types;
   final String? currentSlug;
   final String? currentText;
@@ -152,7 +158,11 @@ class _ExpenseTypePickerSheetState extends State<ExpenseTypePickerSheet> {
                 ),
               ),
             ),
-            if (types == null)
+            if (types == null && widget.loading)
+              const Expanded(
+                child: Center(child: CircularProgressIndicator.adaptive()),
+              )
+            else if (types == null)
               Expanded(child: _buildLoadError(l10n, palette, text))
             else ...[
               _buildSearchField(l10n, palette),
@@ -173,23 +183,27 @@ class _ExpenseTypePickerSheetState extends State<ExpenseTypePickerSheet> {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: TextField(
-          controller: _controller,
-          autofocus: true,
-          maxLength: maxOwnTypeTextLength,
-          textInputAction: TextInputAction.done,
-          onChanged: (_) => setState(() {}),
-          onSubmitted: (_) => _submit(),
-          buildCounter: (
-            context, {
-            required currentLength,
-            required isFocused,
-            required maxLength,
-          }) => null,
-          decoration: bisoInputDecoration(
-            context,
-            hintText: l10n.expenseTypeSearchHint,
-            prefixIcon: const Icon(CupertinoIcons.search),
+        child: Semantics(
+          label: l10n.expenseTypeSearchLabel,
+          textField: true,
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: maxOwnTypeTextLength,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _submit(),
+            buildCounter: (
+              context, {
+              required currentLength,
+              required isFocused,
+              required maxLength,
+            }) => null,
+            decoration: bisoInputDecoration(
+              context,
+              hintText: l10n.expenseTypeSearchHint,
+              prefixIcon: const Icon(CupertinoIcons.search),
+            ),
           ),
         ),
       ),
@@ -225,13 +239,16 @@ class _ExpenseTypePickerSheetState extends State<ExpenseTypePickerSheet> {
             itemBuilder: (context, index) {
               final type = matches[index];
               final selected = type.slug == widget.currentSlug;
-              return BisoListRow(
-                title: type.labelFor(locale),
-                trailing: selected
-                    ? Icon(CupertinoIcons.checkmark, color: palette.link)
-                    : null,
-                showChevron: false,
-                onTap: () => _pick(type),
+              return Semantics(
+                selected: selected,
+                child: BisoListRow(
+                  title: type.labelFor(locale),
+                  trailing: selected
+                      ? Icon(CupertinoIcons.checkmark, color: palette.link)
+                      : null,
+                  showChevron: false,
+                  onTap: () => _pick(type),
+                ),
               );
             },
           ),

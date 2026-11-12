@@ -32,7 +32,13 @@ ExpenseReceiptDraft _receipt() => const ExpenseReceiptDraft(
 
 /// Hosts the chip, keeping the receipt it reports so a test can read it back.
 class _Host extends StatefulWidget {
-  const _Host({required this.initial, required this.types});
+  const _Host({
+    required this.initial,
+    required this.types,
+    this.loading = false,
+  });
+
+  final bool loading;
 
   final ExpenseReceiptDraft initial;
   final List<ExpenseCostTypeOption>? types;
@@ -50,6 +56,7 @@ class _HostState extends State<_Host> {
       child: ReceiptTypeChip(
         receipt: receipt,
         types: widget.types,
+        loading: widget.loading,
         onChanged: (updated) => setState(() => receipt = updated),
       ),
     ),
@@ -60,6 +67,7 @@ Future<_HostState> _pump(
   WidgetTester tester, {
   ExpenseReceiptDraft? receipt,
   List<ExpenseCostTypeOption>? types = _types,
+  bool loading = false,
   Locale locale = const Locale('en'),
 }) async {
   tester.view.physicalSize = const Size(390, 844) * 3;
@@ -71,7 +79,11 @@ Future<_HostState> _pump(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: locale,
-      home: _Host(initial: receipt ?? _receipt(), types: types),
+      home: _Host(
+        initial: receipt ?? _receipt(),
+        types: types,
+        loading: loading,
+      ),
     ),
   );
   await tester.pump();
@@ -163,5 +175,40 @@ void main() {
     await tester.tap(find.text('food'));
     await tester.pumpAndSettle();
     expect(find.text("Couldn't load expense types"), findsOneWidget);
+  });
+
+  testWidgets('while loading the chip is neutral and the sheet shows a '
+      'spinner, not the error', (tester) async {
+    await _pump(
+      tester,
+      receipt: _receipt().chooseType('food'),
+      types: null,
+      loading: true,
+    );
+    expect(find.text('food'), findsNothing);
+    expect(find.text('…'), findsOneWidget);
+    await tester.tap(find.text('…'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text("Couldn't load expense types"), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('while loading own text still shows as itself', (tester) async {
+    await _pump(
+      tester,
+      receipt: _receipt().useOwnText('Stage smoke'),
+      types: null,
+      loading: true,
+    );
+    expect(find.text('“Stage smoke”'), findsOneWidget);
+  });
+
+  testWidgets('a stored slug missing from the loaded types asks again', (
+    tester,
+  ) async {
+    await _pump(tester, receipt: _receipt().chooseType('retired'));
+    expect(find.text('Choose a type'), findsOneWidget);
+    expect(find.text('retired'), findsNothing);
   });
 }

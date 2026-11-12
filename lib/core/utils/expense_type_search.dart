@@ -71,10 +71,7 @@ List<ExpenseCostTypeOption> searchTypes(
       if (type.labelNo != null) foldForSearch(type.labelNo!),
     ];
     if (!labels.any((label) => label.contains(needle))) continue;
-    (shown.startsWith(needle) || labels.any((l) => l.startsWith(needle))
-            ? prefix
-            : rest)
-        .add(type);
+    (labels.any((label) => label.startsWith(needle)) ? prefix : rest).add(type);
   }
   return [...prefix, ...rest];
 }

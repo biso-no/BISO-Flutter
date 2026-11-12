@@ -36,12 +36,8 @@ void main() {
     expect(searchTypes(_types, '  ', _en), [_travel, _food, _gifts]);
   });
 
-  test('prefix matches of the label come before other matches', () {
-    // "r" is in all three; Travel and Reise start with it only in Norwegian.
-    final result = searchTypes(_types, 'dr', _en);
-    expect(result, [_food]);
-    final both = searchTypes(_types, 'o', _en);
-    expect(both.first, _food, reason: 'Food starts with no o; falls back');
+  test('a type matches by a part of its label in either language', () {
+    expect(searchTypes(_types, 'dr', _en), [_food]);
     expect(searchTypes(_types, 'fo', _en).first, _food);
     expect(searchTypes(_types, 'g', _en).first, _gifts);
   });

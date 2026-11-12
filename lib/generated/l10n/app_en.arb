@@ -3712,6 +3712,10 @@
   "@expenseTypeSearchHint": {
     "description": "Hint in the expense type search field"
   },
+  "expenseTypeSearchLabel": "Search expense types",
+  "@expenseTypeSearchLabel": {
+    "description": "Screen reader label of the expense type search field"
+  },
   "expenseTypeUseOwn": "Use \"{text}\"",
   "@expenseTypeUseOwn": {
     "description": "Last row of the type picker: use the typed words as the expense type",

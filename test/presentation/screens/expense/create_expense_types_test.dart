@@ -209,4 +209,35 @@ void main() {
     // 'food' is active and stays; 'retired' is unknown now and asks again.
     expect(attachments.map((a) => a['cost_type']), ['food', '']);
   });
+
+  testWidgets('choosing a type from a wallet row chip updates that receipt', (
+    tester,
+  ) async {
+    final api = _RecordingApi();
+    await pumpBisoScreen(
+      tester,
+      CreateExpenseScreen(draftExpense: _draft),
+      overrides: _overrides(
+        _FlakyTypes(failing: false, types: const [_food]),
+        api,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // The retired slug asks again; the chip sits on its wallet row.
+    expect(find.text('Choose a type'), findsOneWidget);
+    await tester.tap(find.text('Choose a type'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Food').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a type'), findsNothing);
+    expect(find.text('Food'), findsNWidgets(2));
+
+    await tester.tap(find.text('Report'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Update draft'));
+    await tester.pumpAndSettle();
+    final attachments = api.drafts.single['expenseAttachments'] as List;
+    expect(attachments.map((a) => a['cost_type']), ['food', 'food']);
+  });
 }

@@ -2818,6 +2818,9 @@ class AppLocalizationsNo extends AppLocalizations {
   String get expenseTypeSearchHint => 'Søk eller skriv din egen';
 
   @override
+  String get expenseTypeSearchLabel => 'Søk i kostnadstyper';
+
+  @override
   String expenseTypeUseOwn(String text) {
     return 'Bruk «$text»';
   }

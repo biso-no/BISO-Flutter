@@ -3706,6 +3706,7 @@
   },
   "expenseTypePickerTitle": "Kostnadstype",
   "expenseTypeSearchHint": "Søk eller skriv din egen",
+  "expenseTypeSearchLabel": "Søk i kostnadstyper",
   "expenseTypeUseOwn": "Bruk «{text}»",
   "expenseTypeUseOwnHint": "Økonomi plasserer den under riktig type.",
   "expenseTypePickerEmpty": "Ingen kostnadstyper tilgjengelig.",

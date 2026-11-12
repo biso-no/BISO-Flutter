@@ -20,8 +20,11 @@ class ReceiptTypeChip extends StatelessWidget {
     required this.types,
     required this.onChanged,
     this.onRetry,
+    this.loading = false,
   });
 
+  /// True while [types] is still being read (null then, but not an error).
+  final bool loading;
   final ExpenseReceiptDraft receipt;
   final List<ExpenseCostTypeOption>? types;
   final ValueChanged<ExpenseReceiptDraft> onChanged;
@@ -44,12 +47,20 @@ class ReceiptTypeChip extends StatelessWidget {
     final listed = slug == null
         ? null
         : types?.where((t) => t.slug == slug).firstOrNull;
-    // A stored slug whose label is not at hand (types unavailable) still has
-    // to read as chosen, so the slug itself stands in.
-    final chosenLabel = hasOwnText
-        ? '“$ownText”'
-        : listed?.labelFor(locale) ??
-              ((slug?.isNotEmpty ?? false) ? slug : null);
+    final hasSlug = slug != null && slug.isNotEmpty;
+    // Loaded types: a slug that is not among them needs a new choice. Still
+    // loading: a neutral mark. Failed to load: the stored slug stands in, so
+    // the choice still reads as chosen.
+    final String? chosenLabel;
+    if (hasOwnText) {
+      chosenLabel = '“$ownText”';
+    } else if (!hasSlug) {
+      chosenLabel = null;
+    } else if (types != null) {
+      chosenLabel = listed?.labelFor(locale);
+    } else {
+      chosenLabel = loading ? '…' : slug;
+    }
 
     final isAi =
         receipt.typeState == ExpenseTypeState.aiPicked && chosenLabel != null;
@@ -134,6 +145,7 @@ class ReceiptTypeChip extends StatelessWidget {
       currentSlug: receipt.costType,
       currentText: receipt.costTypeText,
       onRetry: onRetry,
+      loading: loading,
     );
     switch (choice) {
       case PickedType(:final slug):

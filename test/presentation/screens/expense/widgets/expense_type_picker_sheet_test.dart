@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:biso/core/theme/premium_theme.dart';
 import 'package:biso/data/models/expense_cost_type_option.dart';
 import 'package:biso/generated/l10n/app_localizations.dart';
@@ -25,6 +27,7 @@ Future<ValueNotifier<ExpenseTypeChoice?>> _open(
   List<ExpenseCostTypeOption>? types = const [_food, _travel],
   String? currentSlug,
   ReloadExpenseTypes? onRetry,
+  bool loading = false,
 }) async {
   tester.view.physicalSize = const Size(390, 844) * 3;
   tester.view.devicePixelRatio = 3;
@@ -44,6 +47,7 @@ Future<ValueNotifier<ExpenseTypeChoice?>> _open(
                 types: types,
                 currentSlug: currentSlug,
                 onRetry: onRetry,
+                loading: loading,
               );
             },
             child: const Text('open'),
@@ -132,5 +136,63 @@ void main() {
   testWidgets('no types shows the empty state', (tester) async {
     await _open(tester, types: const []);
     expect(find.text('No expense types available.'), findsOneWidget);
+  });
+
+  testWidgets('the current row reports selected in the semantics tree', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await _open(tester, currentSlug: 'travel');
+    final selectedRow = find.byWidgetPredicate(
+      (w) => w is Semantics && w.properties.selected == true,
+    );
+    expect(selectedRow, findsOneWidget);
+    expect(
+      find.descendant(of: selectedRow, matching: find.text('Travel')),
+      findsOneWidget,
+    );
+    final data = tester.getSemantics(selectedRow).getSemanticsData();
+    expect(data.flagsCollection.isSelected, ui.Tristate.isTrue);
+    handle.dispose();
+  });
+
+  testWidgets('the search field has an accessible label', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _open(tester);
+    expect(find.bySemanticsLabel('Search expense types'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('while loading the sheet shows a spinner, no error and no '
+      'retry', (tester) async {
+    await tester.runAsync(() async {});
+    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: PremiumTheme.build(Brightness.light),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showExpenseTypePicker(
+                context,
+                types: null,
+                loading: true,
+                onRetry: () async => null,
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text("Couldn't load expense types"), findsNothing);
+    expect(find.text('Retry'), findsNothing);
   });
 }
