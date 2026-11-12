@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import '../../core/utils/norwegian_bank_account.dart';
 import 'expense_attachment_model.dart';
 
@@ -8,13 +9,11 @@ class ExpenseModel extends Equatable {
   final String userId; // Required - matches userId field
   final String campus; // Required - matches campus field
   final String department; // Required - matches department field
-  final String
-  bankAccount; // Required - matches bank_account field (Norwegian 11-digit format)
+  final String bankAccount; // Required - matches bank_account field (Norwegian 11-digit format)
   final String? description; // Optional - matches description field
   final double total; // Required - matches total field
   final double? prepaymentAmount; // Optional - matches prepayment_amount field
-  final String
-  status; // Enum - matches status field (draft, pending, submitted, success, rejected)
+  final String status; // Enum - matches status field (draft, pending, submitted, success, rejected)
   final int? invoiceId; // Optional - matches invoice_id field
   final String? eventName; // Optional - matches eventName field
   final List<ExpenseAttachmentModel>
@@ -32,6 +31,7 @@ class ExpenseModel extends Equatable {
   final DateTime? approvedAt;
   final DateTime? paidAt;
   final bool submitterIsFinancialManager;
+  final bool submitterIsController;
 
   const ExpenseModel({
     required this.id,
@@ -58,6 +58,7 @@ class ExpenseModel extends Equatable {
     this.approvedAt,
     this.paidAt,
     this.submitterIsFinancialManager = false,
+    this.submitterIsController = false,
   });
 
   factory ExpenseModel.fromMap(Map<String, dynamic> map) {
@@ -109,6 +110,7 @@ class ExpenseModel extends Equatable {
       paidAt: map['paid_at'] != null ? DateTime.parse(map['paid_at']) : null,
       submitterIsFinancialManager:
           map['submitter_is_financial_manager'] == true,
+      submitterIsController: map['submitter_is_controller'] == true,
     );
   }
 
@@ -301,6 +303,6 @@ class ExpenseModel extends Equatable {
     // UI/display fields
     userName, userEmail, departmentName, rejectionReason,
     approverUserId, approverName, approvedAt, paidAt,
-    submitterIsFinancialManager,
+    submitterIsFinancialManager, submitterIsController,
   ];
 }

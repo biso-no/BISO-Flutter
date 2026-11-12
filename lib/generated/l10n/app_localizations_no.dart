@@ -2853,7 +2853,13 @@ class AppLocalizationsNo extends AppLocalizations {
 
   @override
   String get expenseFinancialManagerHint =>
-      'Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.';
+      'Enhetslederen din godkjenner i stedet';
+
+  @override
+  String get expenseControllerLabel => 'Jeg er campusets controller';
+
+  @override
+  String get expenseControllerHint => 'Campuspresidenten godkjenner i stedet';
 
   @override
   String get notificationsTurnOnTitle => 'Slå på varsler';

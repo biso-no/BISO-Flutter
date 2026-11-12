@@ -5187,17 +5187,29 @@ abstract class AppLocalizations {
   /// **'Expense type needed. Tap to choose.'**
   String get expenseTypeSemanticsChoose;
 
-  /// Expense form
+  /// Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager
   ///
   /// In en, this message translates to:
-  /// **'I am the financial manager of this department'**
+  /// **'I\'m this department\'s financial manager'**
   String get expenseFinancialManagerLabel;
 
-  /// Expense form
+  /// Expense form: hint under the financial-manager switch, saying who approves when it is on
   ///
   /// In en, this message translates to:
-  /// **'Turn this on so the approval is routed to your department manager instead of you.'**
+  /// **'Your department manager approves instead'**
   String get expenseFinancialManagerHint;
+
+  /// Expense form: label of the switch shown on Drift Campus and Ledelsen departments, for a submitter who is the campus controller
+  ///
+  /// In en, this message translates to:
+  /// **'I\'m the campus controller'**
+  String get expenseControllerLabel;
+
+  /// Expense form: hint under the controller switch, saying who approves when it is on
+  ///
+  /// In en, this message translates to:
+  /// **'The campus president approves instead'**
+  String get expenseControllerHint;
 
   /// Notification settings: row shown while the OS has notifications off for the app
   ///

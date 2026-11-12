@@ -2841,11 +2841,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get expenseFinancialManagerLabel =>
-      'I am the financial manager of this department';
+      'I\'m this department\'s financial manager';
 
   @override
   String get expenseFinancialManagerHint =>
-      'Turn this on so the approval is routed to your department manager instead of you.';
+      'Your department manager approves instead';
+
+  @override
+  String get expenseControllerLabel => 'I\'m the campus controller';
+
+  @override
+  String get expenseControllerHint => 'The campus president approves instead';
 
   @override
   String get notificationsTurnOnTitle => 'Turn on notifications';

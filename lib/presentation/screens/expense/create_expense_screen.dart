@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/expense_approval_switch.dart';
 import '../../../core/utils/expense_type_state.dart';
 import '../../../core/utils/navigation_utils.dart';
 import '../../../core/utils/norwegian_bank_account.dart';
@@ -26,6 +27,7 @@ import '../../../providers/expense/expense_provider.dart';
 import '../../widgets/biso/biso.dart';
 import '../../widgets/expenses_unavailable_page.dart';
 import '../home/premium_home_screen.dart';
+import 'widgets/approval_switch_card.dart';
 import 'widgets/expense_type_picker_sheet.dart';
 import 'widgets/receipt_type_chip.dart';
 
@@ -59,9 +61,6 @@ class CreateExpenseScreen extends ConsumerStatefulWidget {
       _CreateExpenseScreenState();
 }
 
-const _osloCampusId = '1';
-const _ledelsenOsloDepartmentId = '2';
-
 class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   late final ExpenseServiceV2 _expenseService;
   late final ExpenseApiClient _apiClient;
@@ -76,6 +75,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   String? _selectedReceiptId;
   String? _draftExpenseId;
   bool _submitterIsFinancialManager = false;
+  bool _submitterIsController = false;
   String? _lastSummarySnapshot;
   bool _isLoadingLookups = true;
   bool _isSavingDraft = false;
@@ -103,6 +103,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _draftExpenseId = widget.draftExpense?.id;
     _submitterIsFinancialManager =
         widget.draftExpense?.submitterIsFinancialManager ?? false;
+    _submitterIsController =
+        widget.draftExpense?.submitterIsController ?? false;
     if (widget.intakeError != null) {
       _flowError = widget.intakeError;
       _mobileTabIndex = 1;
@@ -229,6 +231,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           departmentId: draft?.department ?? '',
           departmentName: draft?.departmentName ?? draft?.department ?? '',
         );
+        _dropInapplicableApprovalSwitch();
         await _loadDepartments(initialCampusId);
       }
     } catch (e) {
@@ -574,6 +577,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         departmentId: '',
         departmentName: '',
       );
+      _resetApprovalSwitches();
       _departments = [];
     });
     try {
@@ -618,6 +622,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         departmentId: departmentId,
         departmentName: departmentName,
       );
+      _resetApprovalSwitches();
     });
     _maybeGenerateSummary();
   }
@@ -1029,20 +1034,21 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
             ),
           ],
         ),
-        if (_showsFinancialManagerToggle(assignment)) ...[
+        if (approvalSwitchFor(assignment.campusId, assignment.departmentId)
+            case final kind?) ...[
           const SizedBox(height: 16),
-          CheckboxListTile(
-            value: _submitterIsFinancialManager,
-            onChanged: (value) =>
-                setState(() => _submitterIsFinancialManager = value ?? false),
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              AppLocalizations.of(context)!.expenseFinancialManagerLabel,
-            ),
-            subtitle: Text(
-              AppLocalizations.of(context)!.expenseFinancialManagerHint,
-            ),
+          ApprovalSwitchCard(
+            kind: kind,
+            value: kind == ApprovalSwitch.controller
+                ? _submitterIsController
+                : _submitterIsFinancialManager,
+            onChanged: (value) => setState(() {
+              if (kind == ApprovalSwitch.controller) {
+                _submitterIsController = value;
+              } else {
+                _submitterIsFinancialManager = value;
+              }
+            }),
           ),
         ],
         const SizedBox(height: 16),
@@ -1378,9 +1384,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description: _descriptionController.text.trim(),
         receipts: _receipts,
         eventName: _eventController.text.trim(),
-        submitterIsFinancialManager:
-            _showsFinancialManagerToggle(assignment) &&
-            _submitterIsFinancialManager,
+        submitterIsFinancialManager: _sendsApprovalSwitch(
+          assignment,
+          ApprovalSwitch.financialManager,
+        ),
+        submitterIsController: _sendsApprovalSwitch(
+          assignment,
+          ApprovalSwitch.controller,
+        ),
       );
       final result = await _apiClient.saveDraft(payload);
       if (!result.success || result.draftId == null) {
@@ -1413,9 +1424,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         description: _descriptionController.text.trim(),
         receipts: _receipts,
         eventName: _eventController.text.trim(),
-        submitterIsFinancialManager:
-            _showsFinancialManagerToggle(assignment) &&
-            _submitterIsFinancialManager,
+        submitterIsFinancialManager: _sendsApprovalSwitch(
+          assignment,
+          ApprovalSwitch.financialManager,
+        ),
+        submitterIsController: _sendsApprovalSwitch(
+          assignment,
+          ApprovalSwitch.controller,
+        ),
       );
       final result = await _apiClient.submit(payload);
       await ref.read(expensesStateProvider.notifier).refresh();
@@ -1623,12 +1639,38 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         false;
   }
 
-  /// Only Oslo has the department financial-manager approval step, and the
-  /// leadership unit there has no separate financial manager. Same rule as the
-  /// web expense report.
-  bool _showsFinancialManagerToggle(ExpenseAssignment assignment) =>
-      assignment.campusId == _osloCampusId &&
-      assignment.departmentId != _ledelsenOsloDepartmentId;
+  /// Whether [kind] is on and is the switch this assignment offers. A switch
+  /// that is not shown is sent as false. Same rule as the web expense report.
+  bool _sendsApprovalSwitch(ExpenseAssignment assignment, ApprovalSwitch kind) {
+    if (approvalSwitchFor(assignment.campusId, assignment.departmentId) !=
+        kind) {
+      return false;
+    }
+    return kind == ApprovalSwitch.controller
+        ? _submitterIsController
+        : _submitterIsFinancialManager;
+  }
+
+  /// A new campus or department starts with both switches off.
+  void _resetApprovalSwitches() {
+    _submitterIsFinancialManager = false;
+    _submitterIsController = false;
+  }
+
+  /// A resumed draft keeps a flag only while its department still offers that
+  /// switch.
+  void _dropInapplicableApprovalSwitch() {
+    final assignment = _assignment;
+    if (assignment == null) return;
+    final offered = approvalSwitchFor(
+      assignment.campusId,
+      assignment.departmentId,
+    );
+    if (offered != ApprovalSwitch.financialManager) {
+      _submitterIsFinancialManager = false;
+    }
+    if (offered != ApprovalSwitch.controller) _submitterIsController = false;
+  }
 
   void _replaceReceipt(ExpenseReceiptDraft updated) {
     if (!mounted) return;

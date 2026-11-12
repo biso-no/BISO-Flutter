@@ -3716,11 +3716,19 @@
   "expenseTypeSemanticsChoose": "Kostnadstype mangler. Trykk for å velge.",
   "expenseFinancialManagerLabel": "Jeg er økonomiansvarlig for denne enheten",
   "@expenseFinancialManagerLabel": {
-    "description": "Expense form"
+    "description": "Expense form: label of the switch shown on ordinary Oslo departments, for a submitter who is the department financial manager"
   },
-  "expenseFinancialManagerHint": "Slå på dette slik at godkjenningen går til enhetsleder i stedet for deg.",
+  "expenseFinancialManagerHint": "Enhetslederen din godkjenner i stedet",
   "@expenseFinancialManagerHint": {
-    "description": "Expense form"
+    "description": "Expense form: hint under the financial-manager switch, saying who approves when it is on"
+  },
+  "expenseControllerLabel": "Jeg er campusets controller",
+  "@expenseControllerLabel": {
+    "description": "Expense form: label of the switch shown on Drift Campus and Ledelsen departments, for a submitter who is the campus controller"
+  },
+  "expenseControllerHint": "Campuspresidenten godkjenner i stedet",
+  "@expenseControllerHint": {
+    "description": "Expense form: hint under the controller switch, saying who approves when it is on"
   },
   "notificationsTurnOnTitle": "Slå på varsler",
   "@notificationsTurnOnTitle": {

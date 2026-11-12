@@ -173,6 +173,24 @@ void main() {
       expect(build()['submitter_is_financial_manager'], false);
       expect(build(manager: true)['submitter_is_financial_manager'], true);
     });
+
+    test('sends both approval flags, each false unless set', () {
+      Map<String, dynamic> build({
+        bool manager = false,
+        bool controller = false,
+      }) => ExpensePayloadBuilder.buildBasePayload(
+        assignment: assignment,
+        bankAccount: '86011117947',
+        description: 'Trip',
+        receipts: [receipt('a')],
+        submitterIsFinancialManager: manager,
+        submitterIsController: controller,
+      );
+      expect(build()['submitter_is_controller'], false);
+      expect(build(controller: true)['submitter_is_controller'], true);
+      expect(build(controller: true)['submitter_is_financial_manager'], false);
+      expect(build(manager: true)['submitter_is_controller'], false);
+    });
   });
 
   group('ExpenseProfileReadiness', () {
