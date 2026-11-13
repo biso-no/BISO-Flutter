@@ -249,7 +249,7 @@ The certificate expires after a year. Then create a new one, regenerate both pro
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account key (JSON text) |
 | `IOS_CERTIFICATE_P12_BASE64`, `IOS_CERTIFICATE_PASSWORD` | Apple Distribution certificate with its private key (`.p12`), base64, and its password |
 | `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` | App Store Connect API key. It needs the App Manager role with access to Certificates, Identifiers & Profiles, or Admin |
-| `APPLE_API_PRIVATE_KEY` | That key's `.p8` file, as text (not base64) |
+| `APPLE_API_PRIVATE_KEY` | That key's `.p8` file, as text or base64-encoded |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude subscription token for the release notes, made with `claude setup-token` (also used by the Claude workflows) |
 | `TESTFLIGHT_GROUPS` (variable) | TestFlight groups to add each build to, comma-separated (optional) |
 
