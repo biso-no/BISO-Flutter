@@ -151,7 +151,7 @@ class BenefitImage extends StatelessWidget {
   }
 }
 
-/// A small yellow badge for a deal's discount.
+/// A small light-blue badge for a deal's discount.
 class BenefitBadge extends StatelessWidget {
   const BenefitBadge(this.label, {super.key});
 

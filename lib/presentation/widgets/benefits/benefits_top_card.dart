@@ -394,7 +394,7 @@ class _ShowCardPill extends StatelessWidget {
   }
 }
 
-/// The member seal: navy on sun yellow.
+/// The member seal: navy on light blue.
 class _Seal extends StatelessWidget {
   const _Seal();
 

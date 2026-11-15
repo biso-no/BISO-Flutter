@@ -13,7 +13,7 @@ void main() {
       expect(palette.deepEdge, const Color(0xFF12314F));
       expect(palette.deepMuted, const Color(0xFF93A7BB));
       expect(palette.sky, const Color(0xFF3DA9E0));
-      expect(palette.marker, const Color(0xFFFECD45));
+      expect(palette.marker, const Color(0xFF3DA9E0));
     });
   }
 

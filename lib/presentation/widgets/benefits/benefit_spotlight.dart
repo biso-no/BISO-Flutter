@@ -423,7 +423,7 @@ class _SpotlightCard extends StatelessWidget {
   }
 }
 
-/// "15 %" in white Museo over a short sun-yellow bar.
+/// "15 %" in white Museo over a short light-blue bar.
 class _Value extends StatelessWidget {
   const _Value({required this.value, required this.metrics});
 

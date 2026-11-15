@@ -129,7 +129,7 @@ void main() {
     expect(find.text('Nytt'), findsNothing);
   });
 
-  testWidgets('the value is white Museo with a sun bar under it', (
+  testWidgets('the value is white Museo with a light-blue bar under it', (
     tester,
   ) async {
     await _pump(tester);

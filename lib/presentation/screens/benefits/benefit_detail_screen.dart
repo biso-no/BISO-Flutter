@@ -430,7 +430,7 @@ class _Where extends ConsumerWidget {
   }
 }
 
-/// The deal in large type: "25 %" over a sun-yellow bar, and "rabatt for
+/// The deal in large type: "25 %" over a light-blue bar, and "rabatt for
 /// medlemmer" beside it for a percentage.
 class _Highlight extends StatelessWidget {
   const _Highlight({required this.highlight});

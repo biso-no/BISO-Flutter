@@ -59,7 +59,8 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
   /// Sky blue. Only on [deep].
   final Color sky;
 
-  /// Sun yellow. Fill only, never text.
+  /// The brand marker: BISO light blue, the same as [sky]. Fill only:
+  /// discount badges, the bars under large numbers, the member seal.
   final Color marker;
 
   static const light = BisoPalette(
@@ -80,7 +81,7 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
     deepEdge: Color(0xFF12314F),
     deepMuted: Color(0xFF93A7BB),
     sky: Color(0xFF3DA9E0),
-    marker: Color(0xFFFECD45),
+    marker: Color(0xFF3DA9E0),
   );
 
   static const dark = BisoPalette(
@@ -101,7 +102,7 @@ class BisoPalette extends ThemeExtension<BisoPalette> {
     deepEdge: Color(0xFF12314F),
     deepMuted: Color(0xFF93A7BB),
     sky: Color(0xFF3DA9E0),
-    marker: Color(0xFFFECD45),
+    marker: Color(0xFF3DA9E0),
   );
 
   static BisoPalette of(BuildContext context) {

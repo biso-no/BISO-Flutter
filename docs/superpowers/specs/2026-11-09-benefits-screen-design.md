@@ -4,7 +4,7 @@ Date: 2026-11-09. Status: design agreed in conversation with mockups, and the
 builder check is answered. Waiting for the owner to approve this document.
 
 Where the mockups and this document differ, **this document wins**. The
-Spotlight number is white with a sun bar, not yellow. Non-members see "Bare
+Spotlight number is white with a light-blue bar, not yellow. Non-members see "Bare
 for medlemmer" on grid cards. "Se priser" is dropped.
 
 Mockups the owner approved (open them with the brainstorm server, or read the
@@ -199,7 +199,7 @@ From top to bottom:
 ### 2. The top card (from layout B)
 
 A navy card, 24 pt radius, a faint sky-blue ring in the top-right corner and
-one small sun-yellow dot:
+one small light-blue dot:
 
 - A large Museo number in sky blue: how many benefits are on this screen
   (every deal in the grid plus every perk in "Mer enn rabatter").
@@ -210,7 +210,7 @@ one small sun-yellow dot:
   no images, the row is left out.
 - **Non-member:** a sky-blue pill "Bli medlem" with navy text. It opens
   `/profile/membership`.
-- **Member:** a raised navy row with a sun-yellow seal tile, "Du er medlem",
+- **Member:** a raised navy row with a light-blue seal tile, "Du er medlem",
   "Gyldig til {date}" and a white "Vis kort" pill that opens
   `showPassPresentation`.
 - **Signed out:** as a non-member, but the pill says "Logg inn" and goes to
@@ -232,9 +232,9 @@ a navy gradient from the bottom. On the card:
 - Bottom-left, the title (20 pt, 600, white) and the first line or two of
   the description.
 - Bottom-right, the discount in large Museo **white** ("15 %") with a short
-  sun-yellow bar under it (the same marker as on the deal page), if one is
+  light-blue bar under it (the same marker as on the deal page), if one is
   found (see "Discount text"). The owner chose this over the mockup's yellow
-  number, because yellow must not be used as text.
+  number, because the marker colour must not be used as text.
 
 **Which deals, and why they're there.** Only `member`-section deals. Take, in
 this order, and stop at 5:
@@ -269,7 +269,7 @@ No auto-advance. The student swipes.
 - A two-column grid (`SliverGrid`, lazy) of every `member`-section deal, in
   API order:
   - The image on top at 4:3, cover crop.
-  - A sun-yellow badge top-left with the discount text if one is found
+  - A light-blue badge top-left with the discount text if one is found
     ("−25 %", "Gratis", "150 kr").
   - Title (15 pt, 600), then the description, two lines at most, muted.
   - A small muted line at the bottom saying how you claim it. For `onsite`:
@@ -338,7 +338,7 @@ From top to bottom:
 4. **Where:** the partner's logo and name if there is a partner, else the
    campus name with a pin icon (or "Hele BISO" for all-of-BISO benefits).
 5. **The deal in large type:** if a discount was found, a large Museo navy
-   number ("25 %") with a short sun-yellow bar under it, and "rabatt for
+   number ("25 %") with a short light-blue bar under it, and "rabatt for
    medlemmer" beside it. For "Gratis" and "150 kr", show that value with no
    "rabatt". If nothing was found, leave this row out.
 6. **The action**, which depends on who is looking and how the deal is
@@ -415,12 +415,17 @@ The owner asked for this explicitly. The website's brand rules
 | Navy | `#001731` (the app's `primary`) | The top card, the deal page's action panels, fallback tiles, selected chips, primary pills on light |
 | Sky | `#3DA9E0` (the app's dark `primary` / `BisoAccent.blue`) | **Only on navy:** the large count, the "Bli medlem" pill on navy, glyphs in navy tiles, ticks |
 | BISO blue | `#1668AE` (≈ the app's `link`) | Links (the campus name), the selected tab, the Utvalgt reason chip on the deal page |
-| Sun | `#FECD45` (new token, the brand marker) | **Fill only, never text:** discount badges, the bar under the Spotlight number and under the deal page's large number, the member seal, the small dot on the top card |
+| Marker | `#3DA9E0` (`BisoPalette.marker`, light blue, the same value as sky) | **Fill only, never text:** discount badges, the bar under the Spotlight number and under the deal page's large number, the member seal, the small dot on the top card |
 | Gold | `#F2B42C` (`BisoAccent.gold`) | Unchanged: the gold icon tiles at the entry points, because gold means "membership" in the app |
 
-Add the sun colour as a palette token (for example `BisoPalette.marker`),
-the same in light and dark. Don't use a hex literal in a widget. Navy text on
-sun is 12:1.
+The marker is a palette token, `BisoPalette.marker`, the same in light and
+dark. Don't use a hex literal in a widget. Navy text on it is 6.8:1.
+
+The marker was sun yellow (`#FECD45`) until 2026-11-15. It was changed to
+light blue because yellow worked against the brand's navy and light blue, so
+these screens now use no yellow. The gold tiles at the entry points (Explore,
+Profile, Membership) are outside these screens and keep the app-wide meaning
+of gold.
 
 Type follows `BisoTypography`: Museo 300 for the large title and the large
 numbers only, the system font for everything else, and no Museo weight other

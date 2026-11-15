@@ -220,11 +220,7 @@ class _BenefitActionPanelState extends ConsumerState<BenefitActionPanel> {
         return _Card(
           children: [
             _Header(
-              tile: const BisoIconTile(
-                icon: CupertinoIcons.person_crop_rectangle,
-                accent: BisoAccent.gold,
-                size: 40,
-              ),
+              tile: const _Tile(icon: CupertinoIcons.person_crop_rectangle),
               title: l10n.membershipNeedsBiLinkTitle,
               body: l10n.membershipNeedsBiLinkBody,
             ),
@@ -396,13 +392,13 @@ class _DeepPanel extends StatelessWidget {
   }
 }
 
-/// A rounded glyph tile: sky on navy, or navy on the sun-yellow seal.
+/// A rounded glyph tile: sky on navy, or navy on the light-blue seal.
 class _Tile extends StatelessWidget {
   const _Tile({required this.icon, this.seal = false, this.raised = false});
 
   final IconData icon;
 
-  /// The member seal: navy on sun yellow.
+  /// The member seal: navy on light blue.
   final bool seal;
 
   /// On a navy panel, so a step lighter than it.
