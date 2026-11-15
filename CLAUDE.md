@@ -888,7 +888,9 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
 - **Releases** (README, "Build, CI, and Release"): every push to `main` ships to Play internal
   testing and TestFlight through `.github/workflows/release.yml`, which also bumps and commits
   `pubspec.yaml`'s version, so don't bump it by hand. iOS builds on GitHub Actions (no Xcode
-  Cloud, no fastlane), signed manually with the profiles named in `ios/ExportOptions.plist`.
+  Cloud, no fastlane), signed manually with the profiles named in `ios/ExportOptions.plist`,
+  which `tool/release/ios_profiles.rb` fetches, or creates when missing or unusable, through the
+  App Store Connect API.
 
 ---
 

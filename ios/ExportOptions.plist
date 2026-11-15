@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Export options for the App Store IPA built by .github/workflows/release.yml.
-     The profile names below must match App Store profiles in the Apple
-     Developer portal; tool/release/ios_manual_signing.rb reads them from here
-     to sign the archive with the same profiles. -->
+     The profile names below are App Store profiles in the Apple Developer
+     portal. tool/release/ios_profiles.rb installs them, creating them when
+     they are missing or unusable, and tool/release/ios_manual_signing.rb
+     reads them from here to sign the archive with the same profiles. -->
 <plist version="1.0">
 <dict>
 	<key>method</key>

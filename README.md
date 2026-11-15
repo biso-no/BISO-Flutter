@@ -234,9 +234,9 @@ TestFlight only takes notes when the app's **TestFlight → Test Information** (
 
 ### iOS signing and export compliance
 
-CI signs with an Apple Distribution certificate and the App Store profiles named in `ios/ExportOptions.plist`: `BISO App Store` (`com.biso.no`) and `BISO Share Extension App Store` (`com.biso.no.BISOShareExtension`). `tool/release/ios_manual_signing.rb` points the Release configuration at them on the CI checkout only, so Xcode keeps automatic signing locally.
+CI signs with an Apple Distribution certificate and the App Store profiles named in `ios/ExportOptions.plist`: `BISO App Store` (`com.biso.no`) and `BISO Share Extension App Store` (`com.biso.no.BISOShareExtension`). Before each build, `tool/release/ios_profiles.rb` fetches them through the App Store Connect API. When one is missing, no longer active (Apple invalidates profiles when an App ID's capabilities change), expires within a week or doesn't hold the certificate, it deletes that profile and creates it again under the same name. `tool/release/ios_manual_signing.rb` then points the Release configuration at them on the CI checkout only, so Xcode keeps automatic signing locally. Xcode's own `iOS Team Store Provisioning Profile` is not used: it is Xcode managed, and manual signing refuses it.
 
-The certificate expires after a year. Then create a new one, regenerate both profiles under the same names, and update the `IOS_CERTIFICATE_*` secrets.
+The certificate expires after a year. Then create a new Apple Distribution certificate and update the `IOS_CERTIFICATE_*` secrets; the next release makes the profiles again for it.
 
 `ITSAppUsesNonExemptEncryption` is `NO` in `ios/Runner/Info.plist`, so App Store Connect no longer asks the export compliance questions. That answer holds while the app uses only standard TLS and is not distributed in France.
 
@@ -248,7 +248,7 @@ The certificate expires after a year. Then create a new one, regenerate both pro
 | `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS` | Upload keystore credentials |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Play Console service account key (JSON text) |
 | `IOS_CERTIFICATE_P12_BASE64`, `IOS_CERTIFICATE_PASSWORD` | Apple Distribution certificate with its private key (`.p12`), base64, and its password |
-| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` | App Store Connect API key. It needs the App Manager role with access to Certificates, Identifiers & Profiles, or Admin |
+| `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID` | App Store Connect API key. It needs the App Manager role with access to Certificates, Identifiers & Profiles, or Admin, because CI creates the App Store profiles |
 | `APPLE_API_PRIVATE_KEY` | That key's `.p8` file, as text (not base64) |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude subscription token for the release notes, made with `claude setup-token` (also used by the Claude workflows) |
 | `TESTFLIGHT_GROUPS` (variable) | TestFlight groups to add each build to, comma-separated (optional) |
