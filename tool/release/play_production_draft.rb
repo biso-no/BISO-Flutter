@@ -5,7 +5,10 @@
 # app's library. This adds that build to production as a draft release with
 # the same name and release notes. A draft left by an earlier release is
 # replaced, so production always offers the newest build; the track's other
-# releases (the live one, a staged rollout) are sent back unchanged.
+# releases (the live one, a staged rollout) are sent back unchanged. When
+# production already has this build or a newer one, for example after someone
+# promoted it in Play Console, no draft is added and any draft that build
+# outdates is removed.
 #
 # Nothing is rolled out: Play Console shows the draft under Production, and
 # reviewing it and starting the rollout stays a person's decision.
@@ -134,12 +137,25 @@ def main
 
       []
     end
-    replaced = current.select { |release| release['status'] == 'draft' }
-    replaced.each { |release| puts "Replacing the draft #{release['name'].inspect} (#{release['versionCodes']&.join(', ')})" }
-    kept = current - replaced
+    drafts, kept = current.partition { |release| release['status'] == 'draft' }
     kept.each { |release| puts "Keeping the #{release['status']} release #{release['name'].inspect}" }
+    newest = kept.flat_map { |release| Array(release['versionCodes']).map(&:to_i) }.max || 0
+    outdated = newest >= version_code.to_i
+    # A draft holding nothing newer than production is outdated too.
+    stale = drafts.select do |release|
+      !outdated || Array(release['versionCodes']).map(&:to_i).max.to_i <= newest
+    end
+    if outdated && stale.empty?
+      play.call(:delete, "edits/#{edit}")
+      puts "Production already has version code #{newest}, so there is nothing to prepare."
+      summary("- **Google Play:** nothing to prepare. Production already has version code #{newest}.")
+      return
+    end
+    stale.each { |release| puts "Removing the draft #{release['name'].inspect} (#{release['versionCodes']&.join(', ')})" }
 
-    play.call(:put, "edits/#{edit}/tracks/#{TRACK}", { track: TRACK, releases: kept + [draft] })
+    releases = current - stale
+    releases += [draft] unless outdated
+    play.call(:put, "edits/#{edit}/tracks/#{TRACK}", { track: TRACK, releases: releases })
     begin
       play.call(:post, "edits/#{edit}:commit")
     rescue GooglePlay::Error => e
@@ -157,6 +173,12 @@ def main
     raise
   end
 
+  if outdated
+    puts "Production already has version code #{newest}, so no draft was added."
+    summary("- **Google Play:** nothing to prepare. Production already has version code #{newest}; " \
+            'outdated drafts were removed.')
+    return
+  end
   puts "Production draft #{name.inspect} holds version code #{version_code}"
   summary("- **Google Play:** a draft production release #{name} is ready. In Play Console, open " \
           '**Production**, edit the draft release, choose **Next**, then **Save and publish** ' \

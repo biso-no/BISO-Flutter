@@ -9,7 +9,8 @@
 # Connect always offers the newest TestFlight build. App Review contact details
 # and the copyright are copied from the previous version when the version has
 # none. A version that is already with Apple (waiting for review, in review,
-# waiting to be released) is left alone, and this only says so.
+# waiting to be released) is left alone, and this only says so; so is a
+# release that was already submitted.
 #
 # Nothing is submitted: choosing "Add for Review" stays a person's decision.
 #
@@ -84,6 +85,15 @@ end
 # The version to prepare, created when there is none to reuse. Returns nil when
 # a version is already with Apple.
 def prepare_version(api, app_id, versions, version_string, build)
+  done = versions.find do |version|
+    version.dig('attributes', 'versionString') == version_string && !EDITABLE_STATES.include?(state(version))
+  end
+  if done
+    puts "Version #{label(done)} is already submitted, so there is nothing to prepare."
+    summary("- **App Store:** nothing to prepare. Version #{label(done)} is already submitted.")
+    return nil
+  end
+
   submitted = versions.find { |version| WITH_APPLE_STATES.include?(state(version)) }
   if submitted
     warning!("Version #{label(submitted)} is already with Apple, which allows no other version " \
