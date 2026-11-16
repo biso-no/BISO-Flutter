@@ -240,8 +240,10 @@ jobs:
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPLE_API_PRIVATE_KEY }}
           release-notes: ${{ steps.build.outputs.notes }}
-          # Also set by ITSAppUsesNonExemptEncryption in Info.plist; see the comment there.
-          uses-non-exempt-encryption: 'false'
+          # No uses-non-exempt-encryption here: ITSAppUsesNonExemptEncryption in
+          # Info.plist answers it when Apple processes the build, and setting it
+          # again is refused with 409 ("You cannot update when the value is
+          # already set").
           # Optional repository variable: TestFlight groups to add the build to, comma-separated.
           groups: ${{ vars.TESTFLIGHT_GROUPS }}
 

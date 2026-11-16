@@ -238,7 +238,7 @@ CI signs with an Apple Distribution certificate and the App Store profiles named
 
 The certificate expires after a year. Then create a new Apple Distribution certificate and update the `IOS_CERTIFICATE_*` secrets; the next release makes the profiles again for it.
 
-`ITSAppUsesNonExemptEncryption` is `NO` in `ios/Runner/Info.plist`, so App Store Connect no longer asks the export compliance questions. That answer holds while the app uses only standard TLS and is not distributed in France.
+`ITSAppUsesNonExemptEncryption` is `NO` in `ios/Runner/Info.plist`, so App Store Connect no longer asks the export compliance questions. It is the only place the answer is given: the TestFlight upload must not set it too, because Apple refuses to change it once the build has it. That answer holds while the app uses only standard TLS and is not distributed in France.
 
 ### Secrets and variables
 
