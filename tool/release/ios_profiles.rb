@@ -87,10 +87,11 @@ end
 # requests that follow pagination.
 class AppStoreConnect
   class Error < StandardError
-    attr_reader :status
+    attr_reader :status, :codes
 
-    def initialize(status, message)
+    def initialize(status, codes, message)
       @status = status
+      @codes = codes
       super(message)
     end
   end
@@ -146,17 +147,19 @@ class AppStoreConnect
       http.request(request)
     end
     unless response.is_a?(Net::HTTPSuccess)
-      raise Error.new(response.code.to_i,
-                      "#{method.upcase} #{uri.path} failed with #{response.code}: #{error_detail(response.body)}")
+      errors = parse_errors(response.body)
+      detail = errors.map { |error| error.values_at('code', 'title', 'detail').compact.map { |part| part.chomp('.') }.join(': ') }.join('; ')
+      detail = response.body.to_s[0, 300] if errors.empty?
+      raise Error.new(response.code.to_i, errors.map { |error| error['code'].to_s },
+                      "#{method.upcase} #{uri.path} failed with #{response.code}: #{detail}")
     end
     response.body.to_s.empty? ? {} : JSON.parse(response.body)
   end
 
-  def error_detail(body)
-    errors = JSON.parse(body.to_s)['errors'] || []
-    errors.map { |error| [error['title'], error['detail']].compact.join(': ') }.join('; ')
+  def parse_errors(body)
+    JSON.parse(body.to_s)['errors'] || []
   rescue JSON::ParserError
-    body.to_s[0, 300]
+    []
   end
 
   # Valid for 15 minutes; Apple allows at most 20.
@@ -308,7 +311,13 @@ def main
                         directories: directories)
   end
 rescue AppStoreConnect::Error => e
-  hint = if e.status == 401
+  hint = if e.codes.any? { |code| code.include?('REQUIRED_AGREEMENTS') }
+           # Apple refuses every API call until the Account Holder accepts an
+           # updated agreement; no key, role or secret fixes this.
+           ' The Account Holder must accept the updated agreement: sign in at ' \
+             'https://developer.apple.com/account (and check App Store Connect, ' \
+             'Business), accept it, then re-run this job.'
+         elsif e.status == 401
            ' Check APPLE_API_KEY_ID, APPLE_API_ISSUER_ID and APPLE_API_PRIVATE_KEY.'
          elsif e.status == 403
            ' The API key needs the Admin role, or App Manager with access to Certificates, ' \
