@@ -247,6 +247,21 @@ jobs:
           # Optional repository variable: TestFlight groups to add the build to, comma-separated.
           groups: ${{ vars.TESTFLIGHT_GROUPS }}
 
+  # Readies the App Store version and a Google Play production draft, so
+  # submitting for review is one click in each console. The release is
+  # already shipped by then, so this runs beside finalize, not before it.
+  store-submissions:
+    name: Store submissions
+    needs: [plan, publish-android, publish-ios]
+    uses: ./.github/workflows/store-submissions.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}
+      build_number: ${{ needs.plan.outputs.build_number }}
+    permissions:
+      contents: read
+      actions: read
+    secrets: inherit
+
   finalize:
     name: Tag and record the version
     needs: [plan, publish-android, publish-ios]

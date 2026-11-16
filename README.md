@@ -213,9 +213,19 @@ Relevant routes include:
 Workflows live in `.github/workflows/`:
 
 - `ci.yml` runs on every pull request: `flutter analyze`, `flutter test`, a debug Android build and an unsigned iOS build.
-- `release.yml` runs on every push to `main`. It runs the same checks, builds a signed app bundle and IPA, and uploads them to Google Play's internal testing track and to TestFlight. Nothing is uploaded unless the checks and both builds pass.
+- `release.yml` runs on every push to `main`. It runs the same checks, builds a signed app bundle and IPA, and uploads them to Google Play's internal testing track and to TestFlight. Nothing is uploaded unless the checks and both builds pass. Then it calls `store-submissions.yml`.
+- `store-submissions.yml` gets each release ready for review in both stores (below). Run it by hand to prepare an earlier release again.
 
-Promoting a build to production (Google Play) or submitting it for review (App Store) stays a manual step in the store consoles.
+### Submitting for review
+
+Each release is prepared for review, but submitting it stays a person's decision. When the TestFlight and internal testing builds are good:
+
+- **App Store Connect:** open the app's iOS version under **Distribution**. It already has the release's version number, its build and What's New in every language (the Norwegian notes for Norwegian, the English notes for the rest). Choose **Add for Review**, then **Submit for Review**.
+- **Google Play Console:** open **Test and release → Production**. A draft release has the build and its release notes. Edit it, choose **Next**, then **Save and publish** (or send the changes for review from **Publishing overview**).
+
+How it works: `tool/release/app_store_submission.rb` reuses the iOS version that has not been submitted yet, or creates one, so every release moves that version forward to the newest build. When the version has no App Review contact details or copyright, they are copied from the previous version. `tool/release/play_production_draft.rb` puts the build on the production track as a draft, replacing an older draft and leaving the live release as it is. Nothing is submitted or rolled out.
+
+The run summary says what was prepared, and what still needs a person: a language without screenshots or a description, or App Review details that no earlier version has (fill them in once; later versions copy them). While a version is waiting for review, in review or waiting to be released, Apple allows no other version, so the App Store step leaves it alone and says so. Once that version is out, use **Actions → Prepare store submissions → Run workflow** with the newer release's version, build number and Release run ID to prepare it.
 
 ### Versions
 

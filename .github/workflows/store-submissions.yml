@@ -1,0 +1,93 @@
+name: Prepare store submissions
+
+# Gets a release that is already in TestFlight and Google Play internal testing
+# ready for review, so submitting it is one decision in each console:
+# - App Store Connect: the unsubmitted iOS version gets the release's version
+#   number, its build and What's New (tool/release/app_store_submission.rb).
+# - Google Play: production gets a draft release with the build and its
+#   release notes (tool/release/play_production_draft.rb).
+# Nothing is submitted for review or rolled out.
+#
+# release.yml calls this after every release. "Run workflow" prepares an
+# earlier release again, for example after a version that was with Apple has
+# been released.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      build_number:
+        type: string
+        required: true
+      notes_run_id: # Empty: this run's notes
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version name (2.3.0 in the tag v2.3.0+101)
+        required: true
+      build_number:
+        description: Build number (101 in the tag v2.3.0+101)
+        required: true
+      notes_run_id:
+        description: The Release run whose release notes to use (the number at the end of its URL)
+        required: true
+
+permissions:
+  contents: read
+  actions: read # Release notes from an earlier run
+
+concurrency:
+  group: store-submissions
+  cancel-in-progress: false
+
+jobs:
+  app-store:
+    name: Prepare the App Store version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Includes waiting for Apple to finish processing the build
+    steps:
+      - uses: actions/checkout@v7
+
+      # From this run when release.yml calls this workflow, else from the run named.
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: release-notes
+          run-id: ${{ inputs.notes_run_id || github.run_id }}
+          github-token: ${{ inputs.notes_run_id && github.token || '' }}
+
+      - name: Prepare the App Store version
+        run: ruby tool/release/app_store_submission.rb --version "$VERSION" --build "$BUILD_NUMBER" --notes release-notes/play
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+
+  google-play:
+    name: Prepare the Google Play production draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: release-notes
+          run-id: ${{ inputs.notes_run_id || github.run_id }}
+          github-token: ${{ inputs.notes_run_id && github.token || '' }}
+
+      - name: Prepare the Google Play production draft
+        run: >-
+          ruby tool/release/play_production_draft.rb
+          --version-code "$BUILD_NUMBER" --name "$VERSION ($BUILD_NUMBER)" --notes release-notes/play
+        env:
+          VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}

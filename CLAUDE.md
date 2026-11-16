@@ -890,7 +890,9 @@ const String AI_API_URL = 'https://68233095312e736521e7.appwrite.biso.no/';
   `pubspec.yaml`'s version, so don't bump it by hand. iOS builds on GitHub Actions (no Xcode
   Cloud, no fastlane), signed manually with the profiles named in `ios/ExportOptions.plist`,
   which `tool/release/ios_profiles.rb` fetches, or creates when missing or unusable, through the
-  App Store Connect API.
+  App Store Connect API. After both uploads, `store-submissions.yml` readies the unsubmitted App
+  Store version (build, What's New) and a Google Play production draft; submitting for review stays
+  manual (README, "Submitting for review").
 
 ---
 
