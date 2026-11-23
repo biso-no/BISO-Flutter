@@ -1,7 +1,7 @@
 name: biso
 description: "A new Flutter project."
 publish_to: 'none'
-version: 2.3.0+101
+version: 2.4.0+102
 
 environment:
   sdk: ^3.13.0
